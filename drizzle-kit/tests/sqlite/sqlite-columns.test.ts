@@ -1281,7 +1281,6 @@ test('alter column add default #2', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'ALTER TABLE `table` ADD `age` integer;',
 		'PRAGMA foreign_keys=OFF;',
 		"CREATE TABLE `__new_table` (\n\t`name` text DEFAULT 'dan',\n\t`age` integer\n);\n",
 		'INSERT INTO `__new_table`(`name`) SELECT `name` FROM `table`;',
@@ -1776,7 +1775,6 @@ test('issue #5822. Add column - table recreation', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schemaTo });
 
 	const st0: string[] = [
-		'ALTER TABLE `test` ADD `column3` text NOT NULL;',
 		'PRAGMA foreign_keys=OFF;',
 		`CREATE TABLE \`__new_test\` (
 \t\`column1\` text NOT NULL,
@@ -2208,7 +2206,7 @@ test('Issue 6408. add column with non constant default', async () => {
 	expect(pst).toStrictEqual(st0);
 
 	const res = await db.query(
-		'select `id`, `name`, `created_at` is not null as `created`, `updated_at` is not null as `updated` from `users`;',
+		'select `id`, `name`, `col` from `users`;',
 	);
-	expect(res).toStrictEqual([{ id: 1, name: 'a', created: 1, updated: 1 }]);
+	expect(res).toStrictEqual([{ id: 1, name: 'a', col: '2' }]);
 });

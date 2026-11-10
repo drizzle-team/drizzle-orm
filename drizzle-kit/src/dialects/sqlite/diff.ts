@@ -289,12 +289,14 @@ export const ddlDiff = async (
 		);
 	}
 
-	const groupedNewColumns = Object.values(createdFilteredColumns.reduce((acc, prev) => {
-		const entry = prev.table in acc ? acc[prev.table] : { table: prev.table, columns: [] };
-		acc[prev.table] = entry;
-		entry.columns.push(prev);
-		return acc;
-	}, {} as Record<string, { table: string; columns: Column[] }>));
+	const groupedNewColumns = Object.values(
+		createdFilteredColumns.filter((it) => !setOfTablesToRecereate.has(it.table)).reduce((acc, prev) => {
+			const entry = prev.table in acc ? acc[prev.table] : { table: prev.table, columns: [] };
+			acc[prev.table] = entry;
+			entry.columns.push(prev);
+			return acc;
+		}, {} as Record<string, { table: string; columns: Column[] }>),
+	);
 
 	const jsonAddColumnsStatemets = groupedNewColumns
 		.map((it) => prepareAddColumns(it.columns, ddl2.fks.list({ table: it.table })))
