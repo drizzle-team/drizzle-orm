@@ -11,10 +11,10 @@ export default defineConfig({
 		],
 		exclude: [
 			'tests/singlestore/**/*.test.ts',
+			// SQLite Cloud no longer provides the project a server.
+			'tests/sqlite/sqlite-cloud.test.ts',
 			...(process.env['SKIP_EXTERNAL_DB_TESTS']
 				? [
-					'tests/mysql/planetscale.test.ts',
-					'tests/mysql/mysql.planetscale.test.ts',
 					'tests/pg/neon-serverless.test.ts',
 					'tests/pg/netlify-db.test.ts',
 					'tests/mysql/tidb-serverless.test.ts',
@@ -24,13 +24,11 @@ export default defineConfig({
 					'tests/sqlite/libsql-sqlite3.test.ts',
 					'tests/sqlite/libsql-ws.test.ts',
 					'tests/sqlite/libsql-batch.test.ts',
-					'tests/sqlite/tursodatabase-serverless.test.ts',
 					'tests/pg/neon-http.test.ts',
 					'tests/pg/neon-http-batch.test.ts',
 					'tests/pg/postgres-neon-ws.test.ts',
 					'tests/pg/postgres-neon-http.test.ts',
 					'tests/pg/postgres-neon-http-batch.test.ts',
-					'tests/sqlite/sqlite-cloud.test.ts',
 					'tests/dsql/node-postgres.test.ts',
 					'tests/dsql/postgres-js.test.ts',
 					'tests/dsql/pg.test.ts',

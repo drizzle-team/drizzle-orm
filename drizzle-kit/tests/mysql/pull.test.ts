@@ -1104,18 +1104,20 @@ test('double-quote-issue', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5546
 test('issue #5546', async () => {
+	// base_table first: pull orders tables by CREATE_TIME (whole seconds), then by name, so the expected order holds
+	// whether or not a second passes between the two CREATE TABLEs.
+	await db.query(`CREATE TABLE base_table (
+  id INT, 
+  name VARCHAR(50)
+);
+`);
+
 	await db.query(`CREATE TABLE my_table (
   id INT AUTO_INCREMENT PRIMARY KEY,
   col INT
 );`);
 	await db.query(`CREATE UNIQUE INDEX idx_functional 
 ON my_table ((CASE WHEN col = 1 THEN 1 ELSE NULL END));`);
-
-	await db.query(`CREATE TABLE base_table (
-  id INT, 
-  name VARCHAR(50)
-);
-`);
 
 	await db.query(`
 CREATE USER 'ghost_user'@'%' IDENTIFIED BY 'temp123';`);

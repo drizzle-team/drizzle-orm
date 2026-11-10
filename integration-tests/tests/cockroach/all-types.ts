@@ -8,6 +8,7 @@ import {
 	char,
 	cockroachEnum,
 	cockroachTable,
+	customType,
 	date,
 	doublePrecision,
 	float,
@@ -1039,7 +1040,328 @@ export async function assertAllTypesTemporalBoundsInSessions(
 	}
 }
 
-export const boundsSchema = { boundsTable, temporalBoundsTable };
+// https://github.com/drizzle-team/drizzle-orm/issues/6460
+const NULL_ELEMENTS_TABLE = 'all_types_null_elements';
+const NULL_ELEMENTS_ENUM = 'en_null_elements';
+
+const nullElementsEnum = cockroachEnum(NULL_ELEMENTS_ENUM, ['enVal1', 'enVal2']);
+
+export const nullElementsTable = cockroachTable(NULL_ELEMENTS_TABLE, {
+	id: int4('id').primaryKey(),
+	arrint: int4('arrint').array().notNull().$type<number | null>(),
+	arrbigint53: bigint('arrbigint53', { mode: 'number' }).array().notNull().$type<number | null>(),
+	arrbigint64: bigint('arrbigint64', { mode: 'bigint' }).array().notNull().$type<bigint | null>(),
+	arrbit: bit('arrbit').array().notNull().$type<string | null>(),
+	arrbool: bool('arrbool').array().notNull().$type<boolean | null>(),
+	arrchar: char('arrchar').array().notNull().$type<string | null>(),
+	arrdate: date('arrdate', { mode: 'date' }).array().notNull().$type<Date | null>(),
+	arrdateStr: date('arrdateStr', { mode: 'string' }).array().notNull().$type<string | null>(),
+	arrdouble: doublePrecision('arrdouble').array().notNull().$type<number | null>(),
+	arrenum: nullElementsEnum('arrenum').array().notNull().$type<'enVal1' | 'enVal2' | null>(),
+	arrfloat: float('arrfloat').array().notNull().$type<number | null>(),
+	arrinet: inet('arrinet').array().notNull().$type<string | null>(),
+	arrinterval: interval('arrinterval').array().notNull().$type<string | null>(),
+	arrnumeric: numeric('arrnumeric').array().notNull().$type<string | null>(),
+	arrnumericNum: numeric('arrnumericNum', { mode: 'number' }).array().notNull().$type<number | null>(),
+	arrnumericBig: numeric('arrnumericBig', { mode: 'bigint' }).array().notNull().$type<bigint | null>(),
+	arrreal: real('arrreal').array().notNull().$type<number | null>(),
+	arrsmallint: smallint('arrsmallint').array().notNull().$type<number | null>(),
+	arrstring: string('arrstring').array().notNull().$type<string | null>(),
+	arrtext: text('arrtext').array().notNull().$type<string | null>(),
+	arrtime: time('arrtime').array().notNull().$type<string | null>(),
+	arrtimestamp: timestamp('arrtimestamp', { mode: 'date' }).array().notNull().$type<Date | null>(),
+	arrtimestampTz: timestamp('arrtimestampTz', { mode: 'date', withTimezone: true }).array().notNull().$type<
+		Date | null
+	>(),
+	arrtimestampStr: timestamp('arrtimestampStr', { mode: 'string' }).array().notNull().$type<string | null>(),
+	arrtimestampTzStr: timestamp('arrtimestampTzStr', { mode: 'string', withTimezone: true }).array().notNull().$type<
+		string | null
+	>(),
+	arruuid: uuid('arruuid').array().notNull().$type<string | null>(),
+	arrvarbit: varbit('arrvarbit').array().notNull().$type<string | null>(),
+	arrvarchar: varchar('arrvarchar').array().notNull().$type<string | null>(),
+});
+
+export type NullElementsRow = {
+	id: number;
+	arrint: (number | null)[];
+	arrbigint53: (number | null)[];
+	arrbigint64: (bigint | null)[];
+	arrbit: (string | null)[];
+	arrbool: (boolean | null)[];
+	arrchar: (string | null)[];
+	arrdate: (Date | null)[];
+	arrdateStr: (string | null)[];
+	arrdouble: (number | null)[];
+	arrenum: ('enVal1' | 'enVal2' | null)[];
+	arrfloat: (number | null)[];
+	arrinet: (string | null)[];
+	arrinterval: (string | null)[];
+	arrnumeric: (string | null)[];
+	arrnumericNum: (number | null)[];
+	arrnumericBig: (bigint | null)[];
+	arrreal: (number | null)[];
+	arrsmallint: (number | null)[];
+	arrstring: (string | null)[];
+	arrtext: (string | null)[];
+	arrtime: (string | null)[];
+	arrtimestamp: (Date | null)[];
+	arrtimestampTz: (Date | null)[];
+	arrtimestampStr: (string | null)[];
+	arrtimestampTzStr: (string | null)[];
+	arruuid: (string | null)[];
+	arrvarbit: (string | null)[];
+	arrvarchar: (string | null)[];
+};
+
+export const createNullElements = (tableName: string = NULL_ELEMENTS_TABLE) => [
+	`create type "${NULL_ELEMENTS_ENUM}" as enum ('enVal1', 'enVal2')`,
+	`create table "${tableName}" (
+		"id" int4 primary key,
+		"arrint" int4[] not null,
+		"arrbigint53" int8[] not null,
+		"arrbigint64" int8[] not null,
+		"arrbit" bit[] not null,
+		"arrbool" bool[] not null,
+		"arrchar" char[] not null,
+		"arrdate" date[] not null,
+		"arrdateStr" date[] not null,
+		"arrdouble" float8[] not null,
+		"arrenum" "${NULL_ELEMENTS_ENUM}"[] not null,
+		"arrfloat" float8[] not null,
+		"arrinet" inet[] not null,
+		"arrinterval" interval[] not null,
+		"arrnumeric" numeric[] not null,
+		"arrnumericNum" numeric[] not null,
+		"arrnumericBig" numeric[] not null,
+		"arrreal" float4[] not null,
+		"arrsmallint" int2[] not null,
+		"arrstring" string[] not null,
+		"arrtext" text[] not null,
+		"arrtime" time[] not null,
+		"arrtimestamp" timestamp[] not null,
+		"arrtimestampTz" timestamptz[] not null,
+		"arrtimestampStr" timestamp[] not null,
+		"arrtimestampTzStr" timestamptz[] not null,
+		"arruuid" uuid[] not null,
+		"arrvarbit" varbit[] not null,
+		"arrvarchar" varchar[] not null
+	)`,
+];
+
+export const dropNullElements = (tableName: string = NULL_ELEMENTS_TABLE) => [
+	`drop table if exists "${tableName}"`,
+	`drop type if exists "${NULL_ELEMENTS_ENUM}"`,
+];
+
+export const nullElementsData: NullElementsRow[] = [
+	{
+		id: 1,
+		arrint: [621, null, -5],
+		arrbigint53: [9007199254740991, null, -42],
+		arrbigint64: [5044565289845416380n, null, -9223372036854775808n],
+		arrbit: ['1', null, '0'],
+		arrbool: [true, null, false],
+		arrchar: ['c', null, 'd'],
+		arrdate: [new Date('2025-03-12T00:00:00.000Z'), null, new Date('1990-01-01T00:00:00.000Z')],
+		arrdateStr: ['2025-03-12', null, '1990-01-01'],
+		arrdouble: [15.35325689124218, null, -0.5],
+		arrenum: ['enVal1', null, 'enVal2'],
+		arrfloat: [1.12, null, 1.13],
+		arrinet: ['192.168.0.1/24', null, '10.0.0.1/8'],
+		arrinterval: ['-2 mons', null, '1 year 2 mons'],
+		arrnumeric: ['475452353476', null, '-0.0001'],
+		arrnumericNum: [9007199254740991, null, -1.5],
+		arrnumericBig: [5044565289845416380n, null, -170141183460469231731687303715884105728n],
+		arrreal: [1.048596, null, -2.5],
+		arrsmallint: [10, null, -20],
+		arrstring: ['TEXT STRING', null, 'NULL'],
+		arrtext: ['TEXT STRING', null, 'NULL'],
+		arrtime: ['13:59:28', null, '00:00:00'],
+		arrtimestamp: [new Date('2025-03-12T01:32:41.623Z'), null, new Date('1990-01-01T00:00:00.000Z')],
+		arrtimestampTz: [new Date('2025-03-12T01:32:41.623Z'), null, new Date('1990-01-01T00:00:00.000Z')],
+		arrtimestampStr: ['2025-03-12 01:32:41.623', null, '1990-01-01 00:00:00'],
+		arrtimestampTzStr: ['2025-03-12 01:32:41.623+00', null, '1990-01-01 00:00:00+00'],
+		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c', null, '00000000-0000-0000-0000-000000000000'],
+		arrvarbit: ['1', null, '0101'],
+		arrvarchar: ['C4-', null, 'second'],
+	},
+	{
+		id: 2,
+		arrint: [null],
+		arrbigint53: [null],
+		arrbigint64: [null],
+		arrbit: [null],
+		arrbool: [null],
+		arrchar: [null],
+		arrdate: [null],
+		arrdateStr: [null],
+		arrdouble: [null],
+		arrenum: [null],
+		arrfloat: [null],
+		arrinet: [null],
+		arrinterval: [null],
+		arrnumeric: [null],
+		arrnumericNum: [null],
+		arrnumericBig: [null],
+		arrreal: [null],
+		arrsmallint: [null],
+		arrstring: [null],
+		arrtext: [null],
+		arrtime: [null],
+		arrtimestamp: [null],
+		arrtimestampTz: [null],
+		arrtimestampStr: [null],
+		arrtimestampTzStr: [null],
+		arruuid: [null],
+		arrvarbit: [null],
+		arrvarchar: [null],
+	},
+];
+
+export async function assertAllTypesNullArrayElements(
+	db: CockroachDatabase<any, any>,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+) {
+	const drop = async () => {
+		for (const statement of dropNullElements()) await run(db.execute(sql.raw(statement)));
+	};
+
+	await drop();
+	for (const statement of createNullElements()) await run(db.execute(sql.raw(statement)));
+
+	try {
+		await run(db.insert(nullElementsTable).values(nullElementsData));
+
+		expect(
+			await run(
+				db.select({ id: nullElementsTable.id }).from(nullElementsTable).where(
+					sql`array_position(${nullElementsTable.arrtext}, null) is not null`,
+				).orderBy(nullElementsTable.id),
+			),
+		).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+		const query = db.select().from(nullElementsTable).orderBy(nullElementsTable.id);
+		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<NullElementsRow[]>();
+
+		expect(await run(query)).toStrictEqual(nullElementsData);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.nullElementsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(nullElementsData.map((row) => ({ ...row, self: [row] })));
+		}
+	} finally {
+		await drop();
+	}
+}
+
+type Tagged = { v: string };
+type Counter = { n: bigint };
+
+const taggedType = customType<{ data: Tagged; driverData: string }>({
+	dataType: () => 'string',
+	toDriver: (value) => value.v,
+	fromDriver: (value) => ({ v: value }),
+});
+
+const counterType = customType<{ data: Counter; driverData: string }>({
+	codec: 'bigint',
+	dataType: () => 'bigint',
+	toDriver: (value) => value.n.toString(),
+	fromDriver: (value) => ({ n: value as unknown as bigint }),
+});
+
+let taggedFromJsonCalls = 0;
+const taggedJsonType = customType<{ data: Tagged; driverData: string; jsonData: string }>({
+	dataType: () => 'string',
+	toDriver: (value) => value.v,
+	fromDriver: (value) => ({ v: value }),
+	fromJson: (value) => {
+		taggedFromJsonCalls++;
+		return { v: value };
+	},
+});
+
+const CUSTOM_NULL_ELEMENTS_TABLE = 'custom_null_elements';
+
+export const customNullElementsTable = cockroachTable(CUSTOM_NULL_ELEMENTS_TABLE, {
+	id: int4('id').primaryKey(),
+	tagged: taggedType('tagged').array().notNull().$type<Tagged | null>(),
+	counter: counterType('counter').array().notNull().$type<Counter | null>(),
+	taggedJson: taggedJsonType('tagged_json').array().notNull().$type<Tagged | null>(),
+});
+
+export type CustomNullElementsRow = {
+	id: number;
+	tagged: (Tagged | null)[];
+	counter: (Counter | null)[];
+	taggedJson: (Tagged | null)[];
+};
+
+export const createCustomNullElements = (tableName: string = CUSTOM_NULL_ELEMENTS_TABLE) =>
+	`create table "${tableName}" (
+		"id" int4 primary key,
+		"tagged" string[] not null,
+		"counter" int8[] not null,
+		"tagged_json" string[] not null
+	)`;
+
+export const dropCustomNullElements = (tableName: string = CUSTOM_NULL_ELEMENTS_TABLE) =>
+	`drop table if exists "${tableName}"`;
+
+export const customNullElementsData: CustomNullElementsRow[] = [
+	{
+		id: 1,
+		tagged: [{ v: 'a' }, null, { v: 'NULL' }],
+		counter: [{ n: 5044565289845416380n }, null, { n: -1n }],
+		taggedJson: [{ v: 'a' }, null, { v: 'b' }],
+	},
+	{
+		id: 2,
+		tagged: [null],
+		counter: [null],
+		taggedJson: [null],
+	},
+];
+
+export async function assertCustomTypeNullArrayElements(
+	db: CockroachDatabase<any, any>,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+) {
+	await run(db.execute(sql.raw(dropCustomNullElements())));
+	await run(db.execute(sql.raw(createCustomNullElements())));
+
+	try {
+		await run(db.insert(customNullElementsTable).values(customNullElementsData));
+
+		expect(
+			await run(
+				db.select({ id: customNullElementsTable.id }).from(customNullElementsTable).where(sql`\
+array_position(${customNullElementsTable.tagged}, null) is not null \
+and array_position(${customNullElementsTable.counter}, null) is not null \
+and array_position(${customNullElementsTable.taggedJson}, null) is not null`).orderBy(customNullElementsTable.id),
+			),
+		).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+		const query = db.select().from(customNullElementsTable).orderBy(customNullElementsTable.id);
+		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<CustomNullElementsRow[]>();
+
+		expect(await run(query)).toStrictEqual(customNullElementsData);
+		if (rqb) {
+			taggedFromJsonCalls = 0;
+			expect(
+				await run(
+					(<any> db).query.customNullElementsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } }),
+				),
+			).toStrictEqual(customNullElementsData.map((row) => ({ ...row, self: [row] })));
+			expect(taggedFromJsonCalls).toStrictEqual(2);
+		}
+	} finally {
+		await run(db.execute(sql.raw(dropCustomNullElements())));
+	}
+}
+
+export const boundsSchema = { boundsTable, temporalBoundsTable, nullElementsTable, customNullElementsTable };
 
 export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({
 	boundsTable: {
@@ -1047,5 +1369,11 @@ export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({
 	},
 	temporalBoundsTable: {
 		self: r.many.temporalBoundsTable({ from: r.temporalBoundsTable.id, to: r.temporalBoundsTable.id }),
+	},
+	nullElementsTable: {
+		self: r.many.nullElementsTable({ from: r.nullElementsTable.id, to: r.nullElementsTable.id }),
+	},
+	customNullElementsTable: {
+		self: r.many.customNullElementsTable({ from: r.customNullElementsTable.id, to: r.customNullElementsTable.id }),
 	},
 });

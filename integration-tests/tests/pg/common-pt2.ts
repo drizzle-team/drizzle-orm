@@ -73,9 +73,11 @@ import {
 	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
+	assertAllTypesNullArrayElements,
 	assertAllTypesTemporalBounds,
 	assertAllTypesTemporalBoundsInSessions,
 	assertAllTypesUnions,
+	assertCustomTypeNullArrayElements,
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
@@ -1067,18 +1069,19 @@ export function tests(test: Test) {
 
 				await push({ users });
 
-				const now = Date.now();
-
+				const before = Date.now();
 				await db.insert(users).values({ name: 'John' });
 				const result = await db
 					.delete(users)
 					.where(eq(users.name, 'John'))
 					.returning();
+				const after = Date.now();
 
 				expect(result[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(
-					300,
-				);
+				// The database sets created_at during the insert: between the client's clock before it and after the
+				// returning query, give or take 300 ms of clock skew. Comparing with `before` alone fails on slow drivers.
+				expect(result[0]!.createdAt.getTime()).toBeGreaterThanOrEqual(before - 300);
+				expect(result[0]!.createdAt.getTime()).toBeLessThanOrEqual(after + 300);
 				expect(result).toEqual([
 					{
 						id: 1,
@@ -4044,6 +4047,18 @@ export function tests(test: Test) {
 			await assertAllTypesTemporalBounds(db, { rqb: true });
 
 			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6460
+		test('all types ~codecs~ - null array elements', async ({ createDB }) => {
+			const db = createDB({ ...boundsSchema }, boundsRelations);
+
+			await assertAllTypesNullArrayElements(db, { rqb: true });
+		});
+
+		test('all types ~codecs~ - custom type null array elements', async ({ createDB }) => {
+			await assertCustomTypeNullArrayElements(createDB({ ...boundsSchema }, boundsRelations), { rqb: true });
+			await assertCustomTypeNullArrayElements(createDB({ ...boundsSchema }, boundsRelations, true), { rqb: true });
 		});
 
 		test('all types ~codecs~ - non-UTC session', async ({ createDB }) => {

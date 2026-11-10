@@ -73,7 +73,7 @@ export function parsePgNestedArray(arrayString: string, startFrom = 0, delim = D
 		}
 
 		const [value, newStartFrom] = parsePgArrayValue(arrayString, i, false, delim);
-		result.push(value);
+		result.push(value === 'NULL' ? null : value);
 		i = newStartFrom;
 	}
 

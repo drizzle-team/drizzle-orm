@@ -1028,6 +1028,31 @@ export const postgresSchemaError = (error: PostgresSchemaError): string => {
 		);
 	}
 
+	if (error.type === 'procedure_name_duplicate') {
+		const name = chalk.underline.blue(`'${error.name}'`);
+		const schema = chalk.underline.blue(`'${error.schema}'`);
+		return withStyle.errorWarning(`There's a duplicate procedure name ${name} in ${schema} schema`);
+	}
+
+	if (error.type === 'procedure_compile_error') {
+		return withStyle.errorWarning(`Procedures failed to compile:\n\n${error.message}`);
+	}
+
+	if (error.type === 'procedure_unsupported_invalid') {
+		return withStyle.errorWarning(
+			`procedure.unsupported() needs a CREATE PROCEDURE statement naming the procedure, got: ${
+				chalk.underline.blue(error.definition)
+			}`,
+		);
+	}
+
+	if (error.type === 'procedure_source_unavailable') {
+		const names = error.names.map((it) => chalk.underline.blue(`'${it}'`)).join(', ');
+		return withStyle.errorWarning(
+			`Procedures ${names} can only be compiled from schema files: the compiler reads their TypeScript source`,
+		);
+	}
+
 	assertUnreachable(error);
 };
 

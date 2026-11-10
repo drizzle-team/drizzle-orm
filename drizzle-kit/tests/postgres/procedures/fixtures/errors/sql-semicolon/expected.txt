@@ -1,0 +1,3 @@
+input.ts:6:3 error TSPG018: sql`...` must contain a single statement without a trailing ;
+    sql`DELETE FROM sessions WHERE id = ${id};`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

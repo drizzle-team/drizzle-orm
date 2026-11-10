@@ -1,0 +1,4 @@
+input.ts:8:11 error TSPG011: 'x' is already declared in this procedure
+      const x: int = 2
+            ^
+  hint: PL/pgSQL has a single hoisted DECLARE block — shadowing and redeclaration are not supported; rename one of them

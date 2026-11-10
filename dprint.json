@@ -13,6 +13,7 @@
 	"includes": ["**/*.{ts,tsx,js,jsx,cjs,mjs,json}"],
 	"excludes": [
 		"**/node_modules",
+		"drizzle-kit/tests/postgres/procedures/fixtures",
 		"dist",
 		"dist-dts",
 		"dist.new",

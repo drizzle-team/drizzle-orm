@@ -43,7 +43,7 @@
 		"migrate:old": "drizzle-kit generate:mysql",
 		"cli": "tsx ./src/cli/index.ts",
 		"test": "TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest run",
-		"test:types": "pnpm tsc -p ./tsconfig.typetest.json",
+		"test:types": "tsc7 -p ./tsconfig.typetest.json",
 		"build": "bun --bun run scripts/build.ts",
 		"build:artifact": "pnpm run build",
 		"pack": "cp package.json README.md dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
@@ -57,10 +57,14 @@
 		"skills:revision:check": "tsx scripts/check-skills-revision.ts"
 	},
 	"peerDependencies": {
-		"drizzle-orm": ">=1.0.0-rc.5"
+		"drizzle-orm": ">=1.0.0-rc.5",
+		"oxc-parser": "^0.157.0"
 	},
 	"peerDependenciesMeta": {
 		"drizzle-orm": {
+			"optional": true
+		},
+		"oxc-parser": {
 			"optional": true
 		}
 	},
@@ -73,8 +77,8 @@
 		"@drizzle/test-utils": "workspace:*",
 		"@duckdb/node-api": "1.5.0-r.1",
 		"@effect/sql": "^0.48.5",
-		"@electric-sql/pglite": "^0.5.8",
-		"@electric-sql/pglite-pgvector": "^0.0.9",
+		"@electric-sql/pglite": "^0.5.15",
+		"@electric-sql/pglite-pgvector": "^0.0.16",
 		"@hono/node-server": "^1.9.0",
 		"@hono/zod-validator": "^0.2.1",
 		"@js-temporal/polyfill": "^0.5.1",
@@ -124,6 +128,7 @@
 		"node-fetch": "^3.3.2",
 		"ohm-js": "^17.1.0",
 		"orm044": "npm:drizzle-orm@0.44.1",
+		"oxc-parser": "^0.157.0",
 		"pg": "^8.11.5",
 		"pluralize": "^8.0.0",
 		"postgres": "^3.4.4",

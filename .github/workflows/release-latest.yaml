@@ -23,10 +23,6 @@ on:
         required: true
       TURSODATABASE_REMOTE_TOKEN:
         required: true
-      SQLITE_CLOUD_CONNECTION_STRING:
-        required: true
-      SQLITE_MANY_CLOUD_CONNECTION_STRING:
-        required: true
       TURBO_TOKEN: 
         required: true
       PLANETSCALE_ORG:
@@ -52,10 +48,6 @@ jobs:
       matrix:
         shard:
           - planetscale
-          - singlestore-core
-          - singlestore-proxy
-          - singlestore-prefixed
-          - singlestore-custom
           - neon-http
           - neon-serverless
           - cockroach
@@ -134,12 +126,6 @@ jobs:
           --health-retries 5
         ports:
           - 33306:3306
-      singlestore:
-        image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
-        env:
-          ROOT_PASSWORD: singlestore
-        ports:
-          - 33307:3306
       mssql:
         image: mcr.microsoft.com/azure-sql-edge
         env:
@@ -239,11 +225,9 @@ jobs:
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
           TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
           TURSODATABASE_REMOTE_TOKEN: ${{ secrets.TURSODATABASE_REMOTE_TOKEN }}
-          SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
           MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
-          SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
         working-directory: integration-tests
         run: |
           if [[ -f "$RUNNER_TEMP/ci-databases.env" ]]; then
@@ -256,22 +240,6 @@ jobs:
                 tests/mysql/mysql-planetscale.test.ts \
                 tests/relational/mysql.planetscale-v1.test.ts \
                 tests/relational/mysql.planetscale.test.ts
-            ;;
-
-            singlestore-core)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore.test.ts
-            ;;
-
-            singlestore-proxy)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-proxy.test.ts
-            ;;
-
-            singlestore-prefixed)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-prefixed.test.ts
-            ;;
-
-            singlestore-custom)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-custom.test.ts
             ;;
 
             neon-http)
@@ -323,10 +291,6 @@ jobs:
                 --exclude tests/mysql/mysql-planetscale.test.ts \
                 --exclude tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude tests/relational/mysql.planetscale.test.ts \
-                --exclude tests/singlestore/singlestore.test.ts \
-                --exclude tests/singlestore/singlestore-proxy.test.ts \
-                --exclude tests/singlestore/singlestore-prefixed.test.ts \
-                --exclude tests/singlestore/singlestore-custom.test.ts \
                 --exclude tests/pg/neon-http.test.ts \
                 --exclude tests/pg/neon-http-batch.test.ts \
                 --exclude tests/pg/neon-serverless.test.ts \

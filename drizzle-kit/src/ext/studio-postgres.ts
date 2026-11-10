@@ -159,6 +159,7 @@ const fromInterims = ({
 		indexes,
 		views: vws,
 		viewColumns,
+		procedures: [],
 		enums,
 		sequences,
 		roles,

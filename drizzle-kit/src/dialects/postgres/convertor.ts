@@ -1,6 +1,7 @@
 import '../../@types/utils';
 import { escapeSingleQuotes, type Simplify, wrapWith } from '../../utils';
 import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, isSerialType, mapSerialToInt } from './grammar';
+import { createProcedureSql, dropProcedureSql } from './procedures/model';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -1055,6 +1056,11 @@ const toggleRlsConvertor = convertor('alter_rls', (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} ${isRlsEnabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY;`;
 });
 
+// Body-only changes are a create too: CREATE OR REPLACE swaps the body in place and keeps grants.
+const createProcedureConvertor = convertor('create_procedure', (st) => createProcedureSql(st.procedure));
+
+const dropProcedureConvertor = convertor('drop_procedure', (st) => dropProcedureSql(st.procedure));
+
 const convertors = [
 	createSchemaConvertor,
 	dropSchemaConvertor,
@@ -1114,6 +1120,8 @@ const convertors = [
 	alterPolicyConvertor,
 	recreatePolicy,
 	toggleRlsConvertor,
+	createProcedureConvertor,
+	dropProcedureConvertor,
 ];
 
 export function fromJson(

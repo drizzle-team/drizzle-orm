@@ -102,6 +102,10 @@ function targetOf(statement: JsonStatement): Footprint['statementTarget'] {
 		case 'move_view':
 			return ['view', statement.fromSchema, statement.view.name];
 
+		case 'create_procedure':
+		case 'drop_procedure':
+			return ['procedure', statement.procedure.schema, statement.procedure.name];
+
 		case 'create_schema':
 		case 'drop_schema':
 			return ['schema', statement.name];
@@ -680,6 +684,14 @@ class PostgresCommutativity extends FootprintCommutativity<PostgresSnapshot> {
 				return {
 					writes: [...endpoint('view', s.fromSchema, s.view.name), ...endpoint('view', s.toSchema, s.view.name)],
 					reads: [nref('sch', s.fromSchema), nref('sch', s.toSchema)],
+				};
+
+			// ---- procedures (schema-scoped; PL/pgSQL binds tables at run time, so no table reads) ----
+			case 'create_procedure':
+			case 'drop_procedure':
+				return {
+					writes: created('proc', s.procedure.schema, s.procedure.name),
+					reads: [nref('sch', s.procedure.schema)],
 				};
 
 			// ---- schemas (top level) ----

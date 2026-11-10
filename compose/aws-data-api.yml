@@ -1,16 +1,18 @@
 services:
   aws-data-api:
     image: koxudaxi/local-data-api:0.6.12
+    network_mode: bridge
+    mem_limit: 1g
 
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       ENGINE: PostgreSQLJDBC
       POSTGRES_HOST: host.docker.internal
-      POSTGRES_PORT: 55433
+      POSTGRES_PORT: ${DRIZZLE_PORT_POSTGRES:-55433}
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       RESOURCE_ARN: arn:aws:rds:us-east-1:123456789012:cluster:dummy
       SECRET_ARN: arn:aws:secretsmanager:us-east-1:123456789012:secret:dummy
     ports:
-      - "8081:80"
+      - "${DRIZZLE_PORT_AWS_DATA_API:-8081}:80"

@@ -21,6 +21,7 @@
 		"fmt": "pnpm format"
 	},
 	"devDependencies": {
+		"@drizzle/tsc7": "workspace:*",
 		"bun-types": "^1.4.4",
 		"concurrently": "^8.2.1",
 		"dprint": "^0.50.2",
@@ -43,7 +44,7 @@
 		"vite-tsconfig-paths": "^4.3.2",
 		"vitest": "5.0.0"
 	},
-	"packageManager": "pnpm@10.15.0",
+	"packageManager": "pnpm@12.18.0",
 	"engines": {
 		"node": ">=24"
 	},

@@ -66,6 +66,7 @@ import {
 	allTypesRelations,
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
+	assertAllTypesNullArrayElements,
 	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
 	boundsRelations,
@@ -2827,6 +2828,12 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					);
 					yield* Effect.promise(() =>
 						assertAllTypesBounds(relDb as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
+					);
+					yield* Effect.promise(() =>
+						assertAllTypesNullArrayElements(relDb as any, {
+							run: (query) => Effect.runPromiseWith(context)(query),
+							rqb: true,
+						})
 					);
 					yield* Effect.promise(() =>
 						assertAllTypesTemporalBounds(relDb as any, {

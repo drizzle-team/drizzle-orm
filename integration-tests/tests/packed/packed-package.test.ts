@@ -21,9 +21,16 @@ const nodeTypeRoots = resolve(import.meta.dirname, '../../node_modules/@types');
 
 const connectionString = optionalEnv('PG_CONNECTION_STRING', composeHint('postgres'));
 
-// The Node that runs the consumer projects. CI sets it from the matrix of Node versions, because vitest
-// needs a newer Node than the oldest versions in the engines range.
-const consumerNode = process.env['CONSUMER_NODE'] || 'node';
+// The Nodes that run the consumer projects, as `<version>=<path>` joined by `;`: CI sets up the oldest versions in
+// the engines range and the newest, and vitest itself runs on another, newer than the oldest. The packing, the
+// installs and the tests that run no consumer Node run once; the tests that do, once on each version.
+const consumerNodes = (process.env['CONSUMER_NODES'] ?? `${process.version}=${process.env['CONSUMER_NODE'] || 'node'}`)
+	.split(';')
+	.filter(Boolean)
+	.map((entry) => {
+		const [version, path] = entry.split('=');
+		return { version: version!, path: path! };
+	});
 
 const bothDirections = { firstIsSecond: true, secondIsFirst: true };
 const instanceofInBothDirections = {
@@ -35,12 +42,31 @@ const instanceofInBothDirections = {
 	unbranded: [],
 };
 
-async function pack(packageDir: string, destination: string): Promise<string> {
-	const { stdout } = await exec('npm', ['pack', packageDir, '--json', '--pack-destination', destination]);
-	// npm 12 prints an object keyed by package name, older npm prints an array.
-	const [packed] = Object.values<{ filename: string }>(JSON.parse(stdout));
-	return join(destination, packed!.filename);
+// Each package is packed once per run, into one dir, and every consumer installs that tarball: the consumers packed
+// drizzle-orm five times, @drizzle-team/postgres three and drizzle-kit twice.
+const packDir = mkdtempSync(join(tmpdir(), 'drizzle-packed-'));
+const packs = new Map<string, Promise<string>>();
+function pack(packageDir: string): Promise<string> {
+	let packed = packs.get(packageDir);
+	if (!packed) {
+		packed = exec('npm', ['pack', packageDir, '--json', '--pack-destination', packDir]).then(({ stdout }) => {
+			// npm 12 prints an object keyed by package name, older npm prints an array.
+			const [file] = Object.values<{ filename: string }>(JSON.parse(stdout));
+			return join(packDir, file!.filename);
+		});
+		packs.set(packageDir, packed);
+	}
+	return packed;
 }
+afterAll(() => rmSync(packDir, { recursive: true, force: true }));
+
+// The consumers' setups start together when the file starts, and each describe waits for its own: one npm install
+// after another took most of this file's time. Only with a database: without one, the describes that use a consumer
+// skip, and each consumer is set up by its describe, if at all.
+const setups: (() => Promise<void>)[] = [];
+beforeAll(() => {
+	if (connectionString) { for (const start of setups) void start(); }
+});
 
 // Copies a template to a temporary dir and installs the packages that `install` returns into it.
 // `versions` rewrites the version in the manifests of installed packages.
@@ -51,17 +77,26 @@ function useConsumer(
 	versions: Record<string, string> = {},
 ): () => string {
 	let consumer: string | undefined;
+	let ready: Promise<void> | undefined;
 
-	beforeAll(async () => {
-		consumer = mkdtempSync(join(tmpdir(), `drizzle-${template}-`));
-		cpSync(resolve(import.meta.dirname, template), consumer, { recursive: true });
-		await exec('npm', ['install', '--no-audit', '--no-fund', ...await install(consumer)], { cwd: consumer });
+	const start = () => {
+		ready ??= (async () => {
+			consumer = mkdtempSync(join(tmpdir(), `drizzle-${template}-`));
+			cpSync(resolve(import.meta.dirname, template), consumer, { recursive: true });
+			await exec('npm', ['install', '--no-audit', '--no-fund', ...await install(consumer)], { cwd: consumer });
 
-		for (const [name, version] of Object.entries(versions)) {
-			const manifest = join(consumer, 'node_modules', name, 'package.json');
-			writeFileSync(manifest, JSON.stringify({ ...JSON.parse(readFileSync(manifest, 'utf8')), version }));
-		}
-	}, 300_000);
+			for (const [name, version] of Object.entries(versions)) {
+				const manifest = join(consumer, 'node_modules', name, 'package.json');
+				writeFileSync(manifest, JSON.stringify({ ...JSON.parse(readFileSync(manifest, 'utf8')), version }));
+			}
+		})();
+		// Its describe reports a failure; until then it is not an unhandled rejection.
+		ready.catch(() => {});
+		return ready;
+	};
+	setups.push(start);
+
+	beforeAll(() => start(), 300_000);
 
 	afterAll(() => {
 		if (consumer) rmSync(consumer, { recursive: true, force: true });
@@ -114,7 +149,9 @@ async function typeCheck(file: string, cwd: string): Promise<string> {
 }
 
 const runtimes: Record<string, (cwd: string) => Promise<string>> = {
-	node: (cwd) => runScript(consumerNode, ['main.js'], cwd),
+	...Object.fromEntries(
+		consumerNodes.map(({ version, path }) => [`node ${version}`, (cwd: string) => runScript(path, ['main.js'], cwd)]),
+	),
 	bun: (cwd) => runScript('bun', ['main.js'], cwd),
 	deno: (cwd) => runScript('deno', ['run', '--allow-all', 'main.js'], cwd),
 	workerd: runWorker,
@@ -129,40 +166,43 @@ function requirePostgresBuild() {
 }
 
 describe.skipIf(!connectionString)('packed drizzle-orm with its bundled copy of postgres', () => {
-	const consumer = useConsumer('consumer', async (dir) => [await pack(ormDist, dir)]);
+	const consumer = useConsumer('consumer', async () => [await pack(ormDist)]);
 
 	test.for(Object.keys(runtimes))('drizzle-orm/postgres runs a query under %s', async (runtime) => {
 		const output = await runtimes[runtime]!(consumer());
 		expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
 	});
 
-	test('require() loads drizzle-orm and runs a query', async () => {
-		const output = await runScript(consumerNode, ['require.cjs'], consumer());
+	test.for(consumerNodes)('require() loads drizzle-orm and runs a query on Node $version', async ({ path }) => {
+		const output = await runScript(path, ['require.cjs'], consumer());
 		expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
 	});
 
-	test('drizzle-orm/postgres and drizzle-orm/postgres/client/geometry expose the bundled copy', async () => {
-		const output = await runScript(consumerNode, ['postgres.js'], consumer());
-		expect(JSON.parse(output)).toEqual({
-			isPgError: true,
-			code: '22012',
-			point: { type: 'Point', coordinates: [1, 2] },
-		});
-	});
+	test.for(consumerNodes)(
+		'drizzle-orm/postgres and drizzle-orm/postgres/client/geometry expose the bundled copy on Node $version',
+		async ({ path }) => {
+			const output = await runScript(path, ['postgres.js'], consumer());
+			expect(JSON.parse(output)).toEqual({
+				isPgError: true,
+				code: '22012',
+				point: { type: 'Point', coordinates: [1, 2] },
+			});
+		},
+	);
 });
 
 const kitBin = 'node_modules/drizzle-kit/bin.js';
 
-async function pushAndPull(cwd: string, config = 'drizzle.config.ts') {
-	await runScript(consumerNode, ['reset.js'], cwd);
+async function pushAndPull(node: string, cwd: string, config = 'drizzle.config.ts') {
+	await runScript(node, ['reset.js'], cwd);
 	rmSync(join(cwd, 'drizzle'), { recursive: true, force: true });
-	const push = await runScript(consumerNode, [kitBin, 'push', '--config', config], cwd);
-	const pull = await runScript(consumerNode, [kitBin, 'pull', '--config', config], cwd);
+	const push = await runScript(node, [kitBin, 'push', '--config', config], cwd);
+	const pull = await runScript(node, [kitBin, 'pull', '--config', config], cwd);
 	return { push, pull, pulledSchema: readFileSync(join(cwd, 'drizzle/schema.ts'), 'utf8') };
 }
 
 describe.skipIf(!connectionString)('packed drizzle-kit with packed drizzle-orm and no other driver', () => {
-	const consumer = useConsumer('kit-consumer', async (dir) => [await pack(ormDist, dir), await pack(kitDist, dir)]);
+	const consumer = useConsumer('kit-consumer', async () => [await pack(ormDist), await pack(kitDist)]);
 
 	function expectPostgresPushAndPull({ push, pull, pulledSchema }: Awaited<ReturnType<typeof pushAndPull>>) {
 		expect(push).toContain(`Using 'drizzle-orm/postgres' driver`);
@@ -175,35 +215,47 @@ describe.skipIf(!connectionString)('packed drizzle-kit with packed drizzle-orm a
 		expect(existsSync(join(consumer(), 'node_modules/@drizzle-team/postgres'))).toBe(false);
 	});
 
-	test('drizzle-kit push and pull connect through drizzle-orm/postgres', async () => {
-		expectPostgresPushAndPull(await pushAndPull(consumer()));
-	});
+	test.for(consumerNodes)(
+		'drizzle-kit push and pull connect through drizzle-orm/postgres on Node $version',
+		async ({ path }) => {
+			expectPostgresPushAndPull(await pushAndPull(path, consumer()));
+		},
+	);
 
-	test('require() loads drizzle-kit/api-postgres and generates a migration', async () => {
-		const output = await runScript(consumerNode, ['require.cjs'], consumer());
-		expect(JSON.parse(output)).toEqual([expect.stringContaining('CREATE TABLE "users"')]);
-	});
+	test.for(consumerNodes)(
+		'require() loads drizzle-kit/api-postgres and generates a migration on Node $version',
+		async ({ path }) => {
+			const output = await runScript(path, ['require.cjs'], consumer());
+			expect(JSON.parse(output)).toEqual([expect.stringContaining('CREATE TABLE "users"')]);
+		},
+	);
 
-	test('a CommonJS config that requires drizzle-orm reports the Node range without require(esm)', async () => {
-		const failure = await exec(
-			consumerNode,
-			['--no-experimental-require-module', kitBin, 'generate', '--config', 'require-esm.config.cjs'],
-			{ cwd: consumer() },
-		).catch((error) => error);
-		const kitPackage = JSON.parse(readFileSync(join(consumer(), 'node_modules/drizzle-kit/package.json'), 'utf8'));
-		expect(`${failure.stdout ?? ''}${failure.stderr ?? ''}`).toContain(
-			`drizzle-kit requires Node.js ${kitPackage.engines.node}`,
-		);
-	});
+	test.for(consumerNodes)(
+		'a CommonJS config that requires drizzle-orm reports the Node range without require(esm) on Node $version',
+		async ({ path }) => {
+			const failure = await exec(
+				path,
+				['--no-experimental-require-module', kitBin, 'generate', '--config', 'require-esm.config.cjs'],
+				{ cwd: consumer() },
+			).catch((error) => error);
+			const kitPackage = JSON.parse(readFileSync(join(consumer(), 'node_modules/drizzle-kit/package.json'), 'utf8'));
+			expect(`${failure.stdout ?? ''}${failure.stderr ?? ''}`).toContain(
+				`drizzle-kit requires Node.js ${kitPackage.engines.node}`,
+			);
+		},
+	);
 
-	test('drizzle-kit skills version prints the revision of the shipped skills', async () => {
-		const revision = readSkillsRevisionFromDisk(join(consumer(), 'node_modules/drizzle-kit/skills'));
-		expect(await runScript(consumerNode, [kitBin, 'skills', 'version'], consumer())).toBe(`${revision}\n`);
-	});
+	test.for(consumerNodes)(
+		'drizzle-kit skills version prints the revision of the shipped skills on Node $version',
+		async ({ path }) => {
+			const revision = readSkillsRevisionFromDisk(join(consumer(), 'node_modules/drizzle-kit/skills'));
+			expect(await runScript(path, [kitBin, 'skills', 'version'], consumer())).toBe(`${revision}\n`);
+		},
+	);
 
-	test('drizzle-kit skills installs the shipped skills', async () => {
+	test.for(consumerNodes)('drizzle-kit skills installs the shipped skills on Node $version', async ({ path }) => {
 		// Without a TTY, the skills CLI installs without a prompt only when it detects an agent.
-		await exec(consumerNode, [kitBin, 'skills'], { cwd: consumer(), env: { ...process.env, AI_AGENT: 'opencode' } });
+		await exec(path, [kitBin, 'skills'], { cwd: consumer(), env: { ...process.env, AI_AGENT: 'opencode' } });
 		expect(existsSync(join(consumer(), '.agents/skills/drizzle/SKILL.md'))).toBe(true);
 	}, 180_000);
 });
@@ -211,19 +263,22 @@ describe.skipIf(!connectionString)('packed drizzle-kit with packed drizzle-orm a
 describe.skipIf(!connectionString)(
 	'packed drizzle-kit with a standalone Drizzle Postgres pool as dbCredentials.client',
 	() => {
-		const consumer = useConsumer('kit-consumer', async (dir) => {
+		const consumer = useConsumer('kit-consumer', async () => {
 			requirePostgresBuild();
-			return [await pack(ormDist, dir), await pack(kitDist, dir), await pack(postgresDir, dir)];
+			return [await pack(ormDist), await pack(kitDist), await pack(postgresDir)];
 		});
 
-		test('drizzle-kit push and pull query through the pool from dbCredentials.client', async () => {
-			const { push, pull, pulledSchema } = await pushAndPull(consumer(), 'client.config.ts');
-			expect(push).toContain('Using the Drizzle Postgres pool from dbCredentials.client');
-			expect(pull).toContain('Using the Drizzle Postgres pool from dbCredentials.client');
-			expect(push).not.toContain(`Using 'drizzle-orm/postgres' driver`);
-			expect(pulledSchema).toContain('packed_kit');
-			expect(pulledSchema).toContain('users');
-		});
+		test.for(consumerNodes)(
+			'drizzle-kit push and pull query through the pool from dbCredentials.client on Node $version',
+			async ({ path }) => {
+				const { push, pull, pulledSchema } = await pushAndPull(path, consumer(), 'client.config.ts');
+				expect(push).toContain('Using the Drizzle Postgres pool from dbCredentials.client');
+				expect(pull).toContain('Using the Drizzle Postgres pool from dbCredentials.client');
+				expect(push).not.toContain(`Using 'drizzle-orm/postgres' driver`);
+				expect(pulledSchema).toContain('packed_kit');
+				expect(pulledSchema).toContain('users');
+			},
+		);
 	},
 );
 
@@ -233,7 +288,7 @@ describe.skipIf(!connectionString)('packed drizzle-orm with the standalone @driz
 		async (dir) => {
 			requirePostgresBuild();
 			cpSync(instanceofScript, join(dir, 'instanceof.js'));
-			return [await pack(ormDist, dir), await pack(postgresDir, dir)];
+			return [await pack(ormDist), await pack(postgresDir)];
 		},
 		// A user installs the standalone package to get a newer release than the bundled copy.
 		{ '@drizzle-team/postgres': '999.0.0' },
@@ -274,7 +329,7 @@ describe.skipIf(!connectionString)('two packed copies of @drizzle-team/postgres'
 		async (dir) => {
 			requirePostgresBuild();
 			cpSync(instanceofScript, join(dir, 'instanceof.js'));
-			const postgres = await pack(postgresDir, dir);
+			const postgres = await pack(postgresDir);
 			return [postgres, `postgres-copy@file:${postgres}`];
 		},
 		// TypeScript treats two packages with the same name and version as one package,

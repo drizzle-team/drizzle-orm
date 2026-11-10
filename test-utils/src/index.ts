@@ -48,6 +48,16 @@ export function createProvider<T extends object>(items: T[]): () => Promise<T & 
 	};
 }
 
+/**
+ * The name of a database for this vitest worker alone: `<DRIZZLE_TEST_DB_PREFIX><base>_w<worker>`. Test files run
+ * side by side, each in a worker of its own, and a fixture that creates and drops a database of this name keeps them
+ * out of each other's way. The prefix is the job's on a self-hosted CI machine (compose/ports.sh), whose teardown
+ * drops by prefix whatever a killed file left behind.
+ */
+export function workerDatabaseName(base = 'drizzle'): string {
+	return `${process.env['DRIZZLE_TEST_DB_PREFIX'] ?? ''}${base}_w${process.env['VITEST_POOL_ID'] ?? process.pid}`;
+}
+
 export function parseMssqlUrl(urlString: string) {
 	const url = new URL(urlString);
 	return {

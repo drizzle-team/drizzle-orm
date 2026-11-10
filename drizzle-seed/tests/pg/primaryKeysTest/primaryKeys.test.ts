@@ -1,4 +1,4 @@
-import { PGlite } from '@electric-sql/pglite';
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { sql } from 'drizzle-orm';
 import { boolean, integer, pgTable, primaryKey, text, timestamp, unique } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/pglite';
@@ -15,7 +15,7 @@ test('a composite primary key holding a column with no unique generator still se
 		v: text(),
 	}, (t) => [primaryKey({ columns: [t.a, t.at] })]);
 
-	const db = drizzle({ client: new PGlite() });
+	const db = drizzle({ client: await freshPGlite() });
 	await db.execute(sql`create table readings (a integer not null, at timestamp not null, v text, primary key (a, at))`);
 	await seed(db, { readings }, { count: 5 });
 	expect((await db.select().from(readings)).length).toBe(5);
@@ -27,7 +27,7 @@ test('a composite primary key over a narrow domain column still seeds', async ()
 		b: boolean().notNull(),
 	}, (t) => [primaryKey({ columns: [t.a, t.b] })]);
 
-	const db = drizzle({ client: new PGlite() });
+	const db = drizzle({ client: await freshPGlite() });
 	await db.execute(sql`create table flags (a integer not null, b boolean not null, primary key (a, b))`);
 	await seed(db, { flags }, { count: 2 });
 	expect((await db.select().from(flags)).length).toBe(2);
@@ -35,7 +35,7 @@ test('a composite primary key over a narrow domain column still seeds', async ()
 
 test('a generator the user gave isUnique false keeps it, even on a primary key', async () => {
 	const users = pgTable('u2', { id: integer().primaryKey(), name: text() });
-	const db = drizzle({ client: new PGlite() });
+	const db = drizzle({ client: await freshPGlite() });
 	await db.execute(sql`create table u2 (id integer primary key, name text)`);
 
 	await seed(db, { users }, { count: 3 }).refine((f) => ({
@@ -50,7 +50,7 @@ test('a composite primary key sharing a column with a unique constraint gives wa
 		b: integer().notNull(),
 	}, (tb) => [primaryKey({ columns: [tb.a, tb.b] }), unique('ov_uq').on(tb.b)]);
 
-	const db = drizzle({ client: new PGlite() });
+	const db = drizzle({ client: await freshPGlite() });
 	await db.execute(
 		sql`create table ov (a integer not null, b integer not null, primary key (a, b), constraint ov_uq unique (b))`,
 	);
@@ -70,7 +70,7 @@ test('a junction table keyed on its two foreign keys generates distinct pairs', 
 		groupId: integer('group_id').notNull().references(() => groups.id),
 	}, (t) => [primaryKey({ columns: [t.userId, t.groupId] })]);
 
-	const db = drizzle({ client: new PGlite() });
+	const db = drizzle({ client: await freshPGlite() });
 	await db.execute(sql`create table ju (id integer primary key, name text)`);
 	await db.execute(sql`create table jg (id integer primary key, name text)`);
 	await db.execute(

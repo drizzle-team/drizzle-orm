@@ -749,16 +749,17 @@ export const preparePgVersionTestDatabase = async (
 	}
 
 	const parsed = new URL(envURL);
+	// The database PG{16,17,18}_URL names.
+	const database = decodeURIComponent(parsed.pathname.slice(1)) || 'drizzle';
 	parsed.pathname = '/postgres';
 
 	const adminUrl = parsed.toString();
 	const admin = new Client({ connectionString: adminUrl });
 	await admin.connect();
-	await admin!.query(`DROP DATABASE IF EXISTS drizzle;`);
-	await admin!.query(`CREATE DATABASE drizzle;`);
+	await admin!.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE);`);
+	await admin!.query(`CREATE DATABASE "${database}";`);
 	await admin.end();
 
-	// envURL should have drizzle set as database
 	const pgClient = new Client({ connectionString: envURL });
 	await pgClient.connect();
 	await pgClient!.query(`DROP ACCESS METHOD IF EXISTS drizzle_heap;`);
@@ -826,18 +827,22 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 		throw new Error('POSTGIS_URL is not set, starting a new Postgis container for tests...');
 	}
 
+	// A database of this test worker's own, named after the one POSTGIS_URL names: CI jobs on other runners share
+	// the PostGIS server (each with its own database in POSTGIS_URL), and this job's test files run side by side.
 	const parsed = new URL(envURL);
+	const database = `${decodeURIComponent(parsed.pathname.slice(1)) || 'drizzle'}_w${
+		process.env['VITEST_POOL_ID'] ?? '1'
+	}`;
 	parsed.pathname = '/postgres';
 
-	const adminUrl = parsed.toString();
-	const admin = new Client({ connectionString: adminUrl });
+	const admin = new Client({ connectionString: parsed.toString() });
 	await admin.connect();
-	await admin!.query(`DROP DATABASE IF EXISTS drizzle;`);
-	await admin!.query(`CREATE DATABASE drizzle;`);
+	await admin!.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE);`);
+	await admin!.query(`CREATE DATABASE "${database}";`);
 	await admin.end();
 
-	// envURL should have drizzle set as database
-	const pgClient = new Client({ connectionString: envURL });
+	parsed.pathname = `/${database}`;
+	const pgClient = new Client({ connectionString: parsed.toString() });
 	await pgClient.connect();
 	await pgClient!.query(`DROP ACCESS METHOD IF EXISTS drizzle_heap;`);
 	await pgClient!.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);

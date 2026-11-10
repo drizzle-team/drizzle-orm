@@ -1,0 +1,4 @@
+input.ts:5:3 error TSPG017: parameters are read-only
+    amount = amount - 1
+    ^^^^^^
+  hint: copy into a local: let x = ...

@@ -20,6 +20,7 @@ import { interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
+import { unsupportedProcedureKey } from '../../dialects/postgres/procedures/model';
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
@@ -96,6 +97,16 @@ export const handle = async (
 		() => {},
 		migrations,
 	);
+
+	// drizzle-kit manages procedures only once the schema declares one with `procedure()`. Before that, the
+	// procedures in the database are left alone instead of being dropped as "removed from the schema".
+	if (schemaTo.procedures.length === 0) schemaFrom.procedures = [];
+	// `procedure.unsupported(...)` declarations are never created, altered or dropped.
+	const unsupported = new Set(
+		(res.unsupportedProcedures ?? []).map((it) => unsupportedProcedureKey(it.definition))
+			.filter((it) => it !== undefined).map((it) => `${it.schema}.${it.name}`),
+	);
+	schemaFrom.procedures = schemaFrom.procedures.filter((it) => !unsupported.has(`${it.schema}.${it.name}`));
 
 	const { ddl: ddl1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors1 } = interimToDDL(schemaTo);

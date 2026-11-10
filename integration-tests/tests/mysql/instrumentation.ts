@@ -1,4 +1,4 @@
-import { requireEnv } from '@drizzle/test-utils';
+import { createProvider, requireEnv } from '@drizzle/test-utils';
 import { Client } from '@planetscale/database';
 import { connect, type Connection } from '@tidbcloud/serverless';
 import {
@@ -197,14 +197,22 @@ const createProxyHandler = (client: mysql.Connection) => {
 	};
 	return proxyHandler;
 };
+type MySqlTestClient = {
+	client: AnyMySql2Connection | Client | Connection;
+	query: (sql: string, params?: any[]) => Promise<any[]>;
+	batch: (statements: string[]) => Promise<void>;
+	/** A second independent connection to the same database, for transaction tests (MySQL only) */
+	peer: { query: (sql: string) => Promise<any[]> } | undefined;
+	/** The test's database, for tests that open connections of their own (MySQL only) */
+	database?: string;
+};
+
 const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') => {
 	return base.extend<
 		{
-			client: {
-				client: AnyMySql2Connection | Client | Connection;
-				query: (sql: string, params: any[]) => Promise<any[]>;
-				batch: (statements: string[]) => Promise<void>;
-			};
+			/** Hands out a test's connection: on MySQL each one to a database of its own, for concurrent tests. */
+			clients: { acquire: () => Promise<MySqlTestClient & { release: () => Promise<void> }> };
+			client: MySqlTestClient;
 			/** A second independent connection to the same database for transaction tests */
 			peer: { query: (sql: string) => Promise<any[]> } | undefined;
 			// proxyHandler: (sql: string, params: any[], method: any) => Promise<{
@@ -243,30 +251,57 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 			};
 		}
 	>({
-		client: [
+		clients: [
 			// oxlint-disable-next-line
 			async ({}, use) => {
 				if (vendor === 'mysql' || vendor === 'mysql-proxy') {
+					// A connection and a database for each test that runs at once (vitest's maxConcurrency, 5): one
+					// connection runs one query at a time, so concurrent tests sharing one ran one after another.
 					const envurl = requireEnv('MYSQL_CONNECTION_STRING');
-					const client = await createConnection({
-						uri: envurl,
-						supportBigNumbers: true,
-						multipleStatements: true,
+					const items = await Promise.all([0, 1, 2, 3, 4].map(async (i) => {
+						const database = `drizzle_c${i}`;
+						const client = await createConnection({ uri: envurl, supportBigNumbers: true, multipleStatements: true });
+						await client.connect();
+						await client.query(`drop database if exists ${database}; create database ${database}; use ${database};`);
+						// A second independent connection to the same database, for transaction tests.
+						const peer = await createConnection({ uri: envurl, supportBigNumbers: true });
+						await peer.connect();
+						await peer.query(`use ${database};`);
+
+						const item: MySqlTestClient & { database: string; close: () => Promise<void> } = {
+							client,
+							database,
+							query: async (sql: string, params: any[] = []) => (await client.query(sql, params))[0] as any[],
+							batch: async (statements: string[]) => {
+								await client.query(statements.map((x) => x.endsWith(';') ? x : `${x};`).join('\n'));
+							},
+							peer: vendor === 'mysql'
+								? { query: async (sql: string) => (await peer.query(sql))[0] as any[] }
+								: undefined,
+							close: async () => {
+								await peer.end();
+								await client.end();
+								client.destroy();
+							},
+						};
+						return item;
+					}));
+					const take = createProvider([...items]);
+
+					await use({
+						acquire: async () => {
+							const item = await take();
+							return {
+								...item,
+								// A test may have switched the connection to another database (`use drizzle1`).
+								release: async () => {
+									await (item.client as mysql.Connection).query(`use ${item.database};`).catch(() => {});
+									item.release();
+								},
+							};
+						},
 					});
-					await client.connect();
-					await client.query('drop database if exists drizzle; create database drizzle; use drizzle;');
-
-					const query = async (sql: string, params: any[] = []) => {
-						const res = await client.query(sql, params);
-						return res[0] as any[];
-					};
-					const batch = async (statements: string[]) => {
-						return client.query(statements.map((x) => x.endsWith(';') ? x : `${x};`).join('\n')).then(() => '' as any);
-					};
-
-					await use({ client, query, batch });
-					await client.end();
-					client.destroy();
+					for (const item of items) await item.close();
 					return;
 				}
 
@@ -278,11 +313,10 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 						return client.execute(sql, params).then((x) => x.rows);
 					};
 
+					// In order: each execute is its own session, so run together a DROP could land after a CREATE.
 					const batch = async (statements: string[]) => {
-						const queries = statements.map((x) => {
-							return client.execute(x);
-						});
-						return Promise.all(queries).then(() => '' as any);
+						for (const statement of statements) await client.execute(statement);
+						return '' as any;
 					};
 
 					const tables =
@@ -305,7 +339,9 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 					await query(dropTables);
 					await query('SET FOREIGN_KEY_CHECKS = 1;');
 
-					await use({ client, query, batch });
+					// One database for all tests: concurrent ones share the client, as HTTP requests run side by side.
+					const shared = { client, query, batch, peer: undefined };
+					await use({ acquire: async () => ({ ...shared, release: async () => {} }) });
 					return;
 				}
 
@@ -329,7 +365,8 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 						});
 						return Promise.all(queries).then(() => '' as any);
 					};
-					await use({ client, query, batch });
+					const shared = { client, query, batch, peer: undefined };
+					await use({ acquire: async () => ({ ...shared, release: async () => {} }) });
 					return;
 				}
 
@@ -337,25 +374,22 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 			},
 			{ scope: 'worker' },
 		],
+		client: [
+			async ({ clients }, use) => {
+				const { release, ...client } = await clients.acquire();
+				try {
+					await use(client);
+				} finally {
+					await release();
+				}
+			},
+			{ scope: 'test' },
+		],
 		peer: [
 			async ({ client }, use) => {
-				if (vendor !== 'mysql') {
-					await use(undefined);
-					return;
-				}
-
-				const conn = await createConnection({
-					uri: process.env['MYSQL_CONNECTION_STRING']!,
-					supportBigNumbers: true,
-				});
-				await conn.connect();
-				await conn.query('use drizzle;');
-
-				await use({ query: async (sql: string) => (await conn.query(sql))[0] as any[] });
-
-				await conn.end();
+				await use(client.peer);
 			},
-			{ scope: 'worker' },
+			{ scope: 'test' },
 		],
 		db: [
 			async ({ client }, use) => {
@@ -372,7 +406,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 
 				await use(db as any);
 			},
-			{ scope: 'worker' },
+			{ scope: 'test' },
 		],
 		createDB: [
 			async ({ client }, use) => {
@@ -408,7 +442,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 
 				await use(createDB);
 			},
-			{ scope: 'worker' },
+			{ scope: 'test' },
 		],
 		push: [
 			async ({ client }, use) => {
@@ -419,7 +453,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 
 				await use(push);
 			},
-			{ scope: 'worker' },
+			{ scope: 'test' },
 		],
 		seed: [
 			async ({ db }, use) => {
@@ -430,7 +464,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 
 				await use(seed);
 			},
-			{ scope: 'worker' },
+			{ scope: 'test' },
 		],
 		drizzle: [
 			async ({ client }, use) => {

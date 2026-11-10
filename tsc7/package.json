@@ -1,0 +1,20 @@
+{
+	"name": "@drizzle/tsc7",
+	"version": "0.0.0",
+	"private": true,
+	"description": "TypeScript 7's tsc for the type-check scripts, next to the typescript@6 that stays `tsc`",
+	"type": "module",
+	"bin": {
+		"tsc7": "./tsc7.mjs"
+	},
+	"scripts": {
+		"build": "echo skip...",
+		"build:artifact": "echo skip...",
+		"pack": "echo skip...",
+		"pack:artifact": "echo skip...",
+		"test:types": "echo skip..."
+	},
+	"dependencies": {
+		"typescript": "7.0.2"
+	}
+}

@@ -1,0 +1,4 @@
+input.ts:3:11 error TSPG014: not every code path in 'leaky' returns a value
+  procedure('leaky', { qty: 'int' }, (ctx) => {
+            ^^^^^^^
+  hint: end every branch with return { ... } or throw new PgError(...)
