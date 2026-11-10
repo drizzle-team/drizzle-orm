@@ -305,7 +305,7 @@ jobs:
   preview:
     needs: [prepare]
     if: github.event_name == 'pull_request'
-    permissions: { contents: read, actions: read, pull-requests: write }
+    permissions: { contents: read, actions: read }
     runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 15
     steps:
@@ -338,10 +338,8 @@ jobs:
       # continue-on-error: a pkg.pr.new outage must not fail a pull request that the tests passed.
       - name: Publish previews to pkg.pr.new
         continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          bash .github/ci/publish-preview.sh pr \
+          bash .github/ci/publish-preview.sh update \
             preview/drizzle-orm preview/drizzle-kit preview/drizzle-seed preview/eslint-plugin-drizzle postgres
 
   packed-orm:
