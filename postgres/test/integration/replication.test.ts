@@ -1140,6 +1140,40 @@ describe('replication()', () => {
 		});
 	}, 15_000);
 
+	test('pool.replicate() streams a change over a connection made from the pool settings', async () => {
+		const pool = testPool();
+		await withConn(async (c) => {
+			await c.query(`create table ${K}_poolcdc(id int4 primary key)`);
+			await c.query(`create publication ${K}_poolcdcpub for table ${K}_poolcdc`);
+			const inserted = Promise.withResolvers<number>();
+			const handle = pool.replicate({
+				slot: 'temporary',
+				publications: [`${K}_poolcdcpub`],
+				backfill: async () => {},
+				onTransaction: (batch) => {
+					const ins = batch.events.find((e) => e.kind === 'insert');
+					if (ins) inserted.resolve(ins.new.id as number);
+				},
+			});
+			try {
+				await handle.ready;
+				await c.query(`insert into ${K}_poolcdc values (7)`);
+				const id = await Promise.race([
+					inserted.promise,
+					Bun.sleep(10_000).then(() => {
+						throw new Error('timed out waiting for the insert to stream');
+					}),
+				]);
+				expect(id).toBe(7);
+			} finally {
+				await handle.stop();
+				await c.query(`drop publication ${K}_poolcdcpub`);
+				await c.query(`drop table ${K}_poolcdc`);
+				await pool.end();
+			}
+		});
+	}, 15_000);
+
 	test('cdc temporary slot with a prefix: the row in pg_replication_slots names the process', async () => {
 		await withConn(async (c) => {
 			await c.query(`create table ${K}_pfxtbl(id int4 primary key)`);
