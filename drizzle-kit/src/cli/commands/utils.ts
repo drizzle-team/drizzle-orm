@@ -271,6 +271,33 @@ const flattenPull = (config: any) => {
 	return config;
 };
 
+// aws-data-api and pglite need a minimum drizzle-orm version - bail out early with a clear
+// message instead of letting the command fail deeper with a confusing runtime error.
+export const assertPostgresDriverSupported = async (credentials: PostgresCredentials) => {
+	if (!('driver' in credentials)) return;
+
+	const { driver } = credentials;
+	const { ormVersionGt } = await import('../utils');
+
+	if (driver === 'aws-data-api') {
+		if (!(await ormVersionGt('0.30.10'))) {
+			console.log(
+				"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
+			);
+			process.exit(1);
+		}
+	} else if (driver === 'pglite') {
+		if (!(await ormVersionGt('0.30.6'))) {
+			console.log(
+				"To use 'pglite' driver - please update drizzle-orm to the latest version",
+			);
+			process.exit(1);
+		}
+	} else {
+		assertUnreachable(driver);
+	}
+};
+
 export const preparePushConfig = async (
 	options: Record<string, unknown>,
 	from: 'cli' | 'config',
