@@ -14,6 +14,7 @@ import {
 	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
+	assertAllTypesNullArrayElements,
 	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
 	boundsRelations,
@@ -22,6 +23,7 @@ import {
 } from './all-types';
 import { tests } from './common';
 import { localNeonWsOptions, postgresNeonWsTest as test } from './instrumentation';
+import { type BulkDrizzle, bulkTests } from './postgres-bulk';
 import { usersMigratorTable } from './schema';
 import {
 	assertMalformedSnapshotRejected,
@@ -32,6 +34,8 @@ import {
 const skips = ['raw jsons', 'all types ~codecs~'];
 
 tests(test, skips);
+
+bulkTests(test, { name: 'neon_ws', drizzle: drizzleNeonWs as BulkDrizzle });
 
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresDatabase;
@@ -669,6 +673,7 @@ describe('driver-specific', () => {
 
 		await assertAllTypesUnions(db);
 		await assertAllTypesBounds(db, { rqb: true });
+		await assertAllTypesNullArrayElements(db, { rqb: true });
 		await assertAllTypesTemporalBounds(db, { rqb: true });
 
 		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });

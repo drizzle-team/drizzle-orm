@@ -4,11 +4,23 @@ import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
+import type { PgTransactionConfig } from '~/pg-core/session.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { postgresShapeCodecs } from './codecs.ts';
-import type { PostgresBatchOptions, PostgresClient, PostgresQueryResultHKT } from './session.ts';
+import type {
+	PostgresBatchOptions,
+	PostgresBulkInsertOptions,
+	PostgresBulkInsertValue,
+	PostgresBulkResult,
+	PostgresBulkUpdateOptions,
+	PostgresBulkUpdateValue,
+	PostgresClient,
+	PostgresQueryResultHKT,
+	PostgresTransaction,
+} from './session.ts';
 import { PostgresSession } from './session.ts';
 import { createShapeGenerator } from './shape.ts';
 
@@ -19,6 +31,13 @@ export class PostgresDatabase<
 
 	/** @internal */
 	declare session: PostgresSession<TRelations>;
+
+	override transaction<T>(
+		transaction: (tx: PostgresTransaction<TRelations>) => Promise<T>,
+		config?: PgTransactionConfig,
+	): Promise<T> {
+		return this.session.transaction(transaction, config);
+	}
 
 	/**
 	 * Runs multiple queries at once in transaction
@@ -56,6 +75,55 @@ export class PostgresDatabase<
 		batch: T,
 	): Promise<SettledBatchResponse<T>> {
 		return this.session.parallel(batch) as Promise<SettledBatchResponse<T>>;
+	}
+
+	/**
+	 * Inserts rows in bulk via driver-side `unnest`, filling `$defaultFn` / `$onUpdateFn` like `db.insert(...)`
+	 *
+	 * Falls back to a multi-row `values` insert when cells are left to the database default in some rows only,
+	 * or when a column's type can't be sent as an `unnest` array (arrays, enums, custom types, etc.)
+	 *
+	 * Atomic by default: rows are split into chunks pipelined in one transaction - pass `atomic: false` to commit per chunk
+	 *
+	 * @example
+	 * ```ts
+	 * await db.bulkInsert(users, [{ name: 'John' }, { name: 'Jane' }]);
+	 * ```
+	 */
+	async bulkInsert<TTable extends PgTable>(
+		table: TTable,
+		rows: readonly PostgresBulkInsertValue<TTable>[],
+		options?: PostgresBulkInsertOptions,
+	): Promise<PostgresBulkResult> {
+		return this.session.bulkInsert(table, rows, options);
+	}
+
+	/**
+	 * Updates rows in bulk via driver-side `unnest`, matched by `by` key column(s), filling `$onUpdateFn` like `db.update(...)`
+	 *
+	 * Every row must set the same columns, except for the ones filled by `$onUpdateFn`
+	 *
+	 * Atomic by default: rows are split into chunks pipelined in one transaction - pass `atomic: false` to commit per chunk
+	 *
+	 * @example
+	 * ```ts
+	 * await db.bulkUpdate(users, [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }], { by: users.id });
+	 * ```
+	 */
+	async bulkUpdate<
+		TTable extends PgTable,
+		TBy extends
+			| TTable['_']['columns'][keyof TTable['_']['columns']]
+			| readonly [
+				TTable['_']['columns'][keyof TTable['_']['columns']],
+				...TTable['_']['columns'][keyof TTable['_']['columns']][],
+			],
+	>(
+		table: TTable,
+		rows: readonly PostgresBulkUpdateValue<TTable, TBy>[],
+		options: PostgresBulkUpdateOptions<TBy>,
+	): Promise<PostgresBulkResult> {
+		return this.session.bulkUpdate(table, rows, options as PostgresBulkUpdateOptions<any>);
 	}
 }
 

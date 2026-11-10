@@ -62,6 +62,9 @@ const skips = [
 	'all types ~codecs~',
 	// Data API's JDBC driver rejects `DateStyle`s that don't begin with ISO, so it never reads non-ISO text
 	'all types ~codecs~ - non-ISO DateStyle session',
+	// Data API has no representation for `null` array elements
+	'all types ~codecs~ - null array elements',
+	'all types ~codecs~ - custom type null array elements',
 ];
 
 const stringTemporalDb = (database: string) =>

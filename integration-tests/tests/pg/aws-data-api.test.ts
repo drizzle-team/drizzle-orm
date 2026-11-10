@@ -46,6 +46,9 @@ const skips = [
 	'raw jsons',
 	'set json/jsonb fields with objects and retrieve with the -> operator',
 	'set json/jsonb fields with strings and retrieve with the -> operator',
+	// Data API has no representation for `null` array elements
+	'all types ~codecs~ - null array elements',
+	'all types ~codecs~ - custom type null array elements',
 ];
 
 describe('aws-data-api/pg', () => {

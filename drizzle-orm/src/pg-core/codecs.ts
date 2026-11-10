@@ -1002,7 +1002,8 @@ export const arrayCompatNormalizeInput = (normalize: NormalizeCodec, transformTo
 			}
 		} else {
 			for (let i = 0; i < (value as unknown[][]).length; ++i) {
-				out[i] = normalize((value as unknown[][])[i]!);
+				const element = (value as unknown[])[i];
+				out[i] = element === null ? null : normalize(element);
 			}
 		}
 

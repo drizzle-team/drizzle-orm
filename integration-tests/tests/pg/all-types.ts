@@ -8,6 +8,7 @@ import {
 	bytea,
 	char,
 	cidr,
+	customType,
 	date,
 	doublePrecision,
 	inet,
@@ -1738,7 +1739,389 @@ export async function assertAllTypesTemporalBoundsInSessions(
 	}
 }
 
-export const boundsSchema = { boundsTable, temporalBoundsTable };
+// https://github.com/drizzle-team/drizzle-orm/issues/6460
+const NULL_ELEMENTS_TABLE = 'all_types_null_elements';
+const NULL_ELEMENTS_ENUM = 'en_null_elements';
+
+const nullElementsEnum = pgEnum(NULL_ELEMENTS_ENUM, ['enVal1', 'enVal2']);
+
+export const nullElementsTable = pgTable(NULL_ELEMENTS_TABLE, {
+	id: integer('id').primaryKey(),
+	arrint: integer('arrint').array().notNull().$type<number | null>(),
+	mtxint: integer('mtxint').array('[][]').notNull().$type<number | null>(),
+	arrbigint: bigint('arrbigint', { mode: 'bigint' }).array().notNull().$type<bigint | null>(),
+	mtxbigint: bigint('mtxbigint', { mode: 'bigint' }).array('[][]').notNull().$type<bigint | null>(),
+	arrbigintnum: bigint('arrbigintnum', { mode: 'number' }).array().notNull().$type<number | null>(),
+	arrbigintstr: bigint('arrbigintstr', { mode: 'string' }).array().notNull().$type<string | null>(),
+	arrbool: boolean('arrbool').array().notNull().$type<boolean | null>(),
+	arrbytea: bytea('arrbytea').array().notNull().$type<Buffer | null>(),
+	mtxbytea: bytea('mtxbytea').array('[][]').notNull().$type<Buffer | null>(),
+	arrchar: char('arrchar').array().notNull().$type<string | null>(),
+	arrcidr: cidr('arrcidr').array().notNull().$type<string | null>(),
+	arrdate: date('arrdate', { mode: 'date' }).array().notNull().$type<Date | null>(),
+	arrdatestr: date('arrdatestr', { mode: 'string' }).array().notNull().$type<string | null>(),
+	arrdouble: doublePrecision('arrdouble').array().notNull().$type<number | null>(),
+	arrenum: nullElementsEnum('arrenum').array().notNull().$type<'enVal1' | 'enVal2' | null>(),
+	arrinet: inet('arrinet').array().notNull().$type<string | null>(),
+	arrinterval: interval('arrinterval').array().notNull().$type<string | null>(),
+	arrjson: json('arrjson').array().notNull().$type<unknown | null>(),
+	arrjsonb: jsonb('arrjsonb').array().notNull().$type<unknown | null>(),
+	arrline: line('arrline', { mode: 'abc' }).array().notNull().$type<{ a: number; b: number; c: number } | null>(),
+	arrlinetuple: line('arrlinetuple', { mode: 'tuple' }).array().notNull().$type<[number, number, number] | null>(),
+	arrmacaddr: macaddr('arrmacaddr').array().notNull().$type<string | null>(),
+	arrmacaddr8: macaddr8('arrmacaddr8').array().notNull().$type<string | null>(),
+	arrnumeric: numeric('arrnumeric').array().notNull().$type<string | null>(),
+	arrnumericnum: numeric('arrnumericnum', { mode: 'number' }).array().notNull().$type<number | null>(),
+	arrnumericbig: numeric('arrnumericbig', { mode: 'bigint' }).array().notNull().$type<bigint | null>(),
+	arrpoint: point('arrpoint', { mode: 'xy' }).array().notNull().$type<{ x: number; y: number } | null>(),
+	arrpointtuple: point('arrpointtuple', { mode: 'tuple' }).array().notNull().$type<[number, number] | null>(),
+	arrreal: real('arrreal').array().notNull().$type<number | null>(),
+	arrsmallint: smallint('arrsmallint').array().notNull().$type<number | null>(),
+	arrtext: text('arrtext').array().notNull().$type<string | null>(),
+	arrtime: time('arrtime').array().notNull().$type<string | null>(),
+	arrtimestamp: timestamp('arrtimestamp', { mode: 'date' }).array().notNull().$type<Date | null>(),
+	mtxtimestamp: timestamp('mtxtimestamp', { mode: 'date' }).array('[][]').notNull().$type<Date | null>(),
+	arrtimestampTz: timestamp('arrtimestampTz', { mode: 'date', withTimezone: true }).array().notNull().$type<
+		Date | null
+	>(),
+	arrtimestampstr: timestamp('arrtimestampstr', { mode: 'string' }).array().notNull().$type<string | null>(),
+	arrtimestampTzstr: timestamp('arrtimestampTzstr', { mode: 'string', withTimezone: true }).array().notNull().$type<
+		string | null
+	>(),
+	arruuid: uuid('arruuid').array().notNull().$type<string | null>(),
+	arrvarchar: varchar('arrvarchar').array().notNull().$type<string | null>(),
+});
+
+export type NullElementsRow = {
+	id: number;
+	arrint: (number | null)[];
+	mtxint: (number | null)[][];
+	arrbigint: (bigint | null)[];
+	mtxbigint: (bigint | null)[][];
+	arrbigintnum: (number | null)[];
+	arrbigintstr: (string | null)[];
+	arrbool: (boolean | null)[];
+	arrbytea: (Buffer | null)[];
+	mtxbytea: (Buffer | null)[][];
+	arrchar: (string | null)[];
+	arrcidr: (string | null)[];
+	arrdate: (Date | null)[];
+	arrdatestr: (string | null)[];
+	arrdouble: (number | null)[];
+	arrenum: ('enVal1' | 'enVal2' | null)[];
+	arrinet: (string | null)[];
+	arrinterval: (string | null)[];
+	arrjson: (unknown | null)[];
+	arrjsonb: (unknown | null)[];
+	arrline: ({ a: number; b: number; c: number } | null)[];
+	arrlinetuple: ([number, number, number] | null)[];
+	arrmacaddr: (string | null)[];
+	arrmacaddr8: (string | null)[];
+	arrnumeric: (string | null)[];
+	arrnumericnum: (number | null)[];
+	arrnumericbig: (bigint | null)[];
+	arrpoint: ({ x: number; y: number } | null)[];
+	arrpointtuple: ([number, number] | null)[];
+	arrreal: (number | null)[];
+	arrsmallint: (number | null)[];
+	arrtext: (string | null)[];
+	arrtime: (string | null)[];
+	arrtimestamp: (Date | null)[];
+	mtxtimestamp: (Date | null)[][];
+	arrtimestampTz: (Date | null)[];
+	arrtimestampstr: (string | null)[];
+	arrtimestampTzstr: (string | null)[];
+	arruuid: (string | null)[];
+	arrvarchar: (string | null)[];
+};
+
+export const createNullElements = (tableName: string = NULL_ELEMENTS_TABLE) => [
+	`create type "${NULL_ELEMENTS_ENUM}" as enum ('enVal1', 'enVal2')`,
+	`create table "${tableName}" (
+		"id" integer primary key,
+		"arrint" integer[] not null,
+		"mtxint" integer[][] not null,
+		"arrbigint" bigint[] not null,
+		"mtxbigint" bigint[][] not null,
+		"arrbigintnum" bigint[] not null,
+		"arrbigintstr" bigint[] not null,
+		"arrbool" boolean[] not null,
+		"arrbytea" bytea[] not null,
+		"mtxbytea" bytea[][] not null,
+		"arrchar" char[] not null,
+		"arrcidr" cidr[] not null,
+		"arrdate" date[] not null,
+		"arrdatestr" date[] not null,
+		"arrdouble" double precision[] not null,
+		"arrenum" "${NULL_ELEMENTS_ENUM}"[] not null,
+		"arrinet" inet[] not null,
+		"arrinterval" interval[] not null,
+		"arrjson" json[] not null,
+		"arrjsonb" jsonb[] not null,
+		"arrline" line[] not null,
+		"arrlinetuple" line[] not null,
+		"arrmacaddr" macaddr[] not null,
+		"arrmacaddr8" macaddr8[] not null,
+		"arrnumeric" numeric[] not null,
+		"arrnumericnum" numeric[] not null,
+		"arrnumericbig" numeric[] not null,
+		"arrpoint" point[] not null,
+		"arrpointtuple" point[] not null,
+		"arrreal" real[] not null,
+		"arrsmallint" smallint[] not null,
+		"arrtext" text[] not null,
+		"arrtime" time[] not null,
+		"arrtimestamp" timestamp[] not null,
+		"mtxtimestamp" timestamp[][] not null,
+		"arrtimestampTz" timestamptz[] not null,
+		"arrtimestampstr" timestamp[] not null,
+		"arrtimestampTzstr" timestamptz[] not null,
+		"arruuid" uuid[] not null,
+		"arrvarchar" varchar[] not null
+	)`,
+];
+
+export const dropNullElements = (tableName: string = NULL_ELEMENTS_TABLE) => [
+	`drop table if exists "${tableName}"`,
+	`drop type if exists "${NULL_ELEMENTS_ENUM}"`,
+];
+
+export const nullElementsData: NullElementsRow[] = [
+	{
+		id: 1,
+		arrint: [621, null, -5],
+		mtxint: [[1, null], [null, 2]],
+		arrbigint: [5044565289845416380n, null, -9223372036854775808n],
+		mtxbigint: [[5044565289845416380n, null], [null, -9223372036854775808n]],
+		arrbigintnum: [9007199254740991, null, -42],
+		arrbigintstr: ['5044565289845416380', null, '-9223372036854775808'],
+		arrbool: [true, null, false],
+		arrbytea: [Buffer.from('BYTES'), null, Buffer.from('BYTES2')],
+		mtxbytea: [[Buffer.from('BYTES'), null], [null, Buffer.from('BYTES2')]],
+		arrchar: ['c', null, 'd'],
+		arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128', null, '192.168.100.128/25'],
+		arrdate: [new Date('2025-03-12'), null, new Date('1990-01-01')],
+		arrdatestr: ['2025-03-12', null, '1990-01-01'],
+		arrdouble: [15.35325689124218, null, -0.5],
+		arrenum: ['enVal1', null, 'enVal2'],
+		arrinet: ['192.168.0.1/24', null, '10.0.0.1/8'],
+		arrinterval: ['-2 mons', null, '1 year 2 mons'],
+		arrjson: [{ str: 'strval', arr: ['str', 10] }, null, { other: [1, 2, 3] }],
+		arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }, null, { other: [4, 5, 6] }],
+		arrline: [{ a: 1, b: 2, c: 3 }, null, { a: -4, b: 5.5, c: 6 }],
+		arrlinetuple: [[1, 2, 3], null, [-4, 5.5, 6]],
+		arrmacaddr: ['08:00:2b:01:02:03', null, '00:1a:2b:3c:4d:5e'],
+		arrmacaddr8: ['08:00:2b:01:02:03:04:05', null, '00:1a:2b:3c:4d:5e:6f:70'],
+		arrnumeric: ['5044565289845416380', null, '-0.0001'],
+		arrnumericnum: [9007199254740991, null, -1.5],
+		arrnumericbig: [5044565289845416380n, null, -170141183460469231731687303715884105728n],
+		arrpoint: [{ x: 24.5, y: 49.6 }, null, { x: -1.5, y: 0 }],
+		arrpointtuple: [[24.5, 49.6], null, [-1.5, 0]],
+		arrreal: [1.048596, null, -2.5],
+		arrsmallint: [10, null, -20],
+		arrtext: ['TEXT STRING', null, 'NULL'],
+		arrtime: ['13:59:28', null, '00:00:00'],
+		arrtimestamp: [new Date('2025-03-12 01:32:41.623'), null, new Date('1990-01-01 00:00:00.000')],
+		mtxtimestamp: [[new Date('2025-03-12 01:32:41.623'), null], [null, new Date('1990-01-01 00:00:00.000')]],
+		arrtimestampTz: [new Date('2025-03-12 01:32:41.623+00'), null, new Date('1990-01-01 00:00:00.000+00')],
+		arrtimestampstr: ['2025-03-12 01:32:41.623', null, '1990-01-01 00:00:00'],
+		arrtimestampTzstr: ['2025-03-12 01:32:41.623+00', null, '1990-01-01 00:00:00+00'],
+		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c', null, '00000000-0000-0000-0000-000000000000'],
+		arrvarchar: ['C4-', null, 'second'],
+	},
+	{
+		id: 2,
+		arrint: [null],
+		mtxint: [[null]],
+		arrbigint: [null],
+		mtxbigint: [[null]],
+		arrbigintnum: [null],
+		arrbigintstr: [null],
+		arrbool: [null],
+		arrbytea: [null],
+		mtxbytea: [[null]],
+		arrchar: [null],
+		arrcidr: [null],
+		arrdate: [null],
+		arrdatestr: [null],
+		arrdouble: [null],
+		arrenum: [null],
+		arrinet: [null],
+		arrinterval: [null],
+		arrjson: [null],
+		arrjsonb: [null],
+		arrline: [null],
+		arrlinetuple: [null],
+		arrmacaddr: [null],
+		arrmacaddr8: [null],
+		arrnumeric: [null],
+		arrnumericnum: [null],
+		arrnumericbig: [null],
+		arrpoint: [null],
+		arrpointtuple: [null],
+		arrreal: [null],
+		arrsmallint: [null],
+		arrtext: [null],
+		arrtime: [null],
+		arrtimestamp: [null],
+		mtxtimestamp: [[null]],
+		arrtimestampTz: [null],
+		arrtimestampstr: [null],
+		arrtimestampTzstr: [null],
+		arruuid: [null],
+		arrvarchar: [null],
+	},
+];
+
+export async function assertAllTypesNullArrayElements(
+	db: PgAsyncDatabase<any, any>,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+) {
+	const drop = async () => {
+		for (const statement of dropNullElements()) await run(db.execute(sql.raw(statement)));
+	};
+
+	await drop();
+	for (const statement of createNullElements()) await run(db.execute(sql.raw(statement)));
+
+	try {
+		await run(db.insert(nullElementsTable).values(nullElementsData));
+
+		expect(
+			await run(
+				db.select({ id: nullElementsTable.id }).from(nullElementsTable).where(sql`\
+array_position(${nullElementsTable.arrtext}, null) is not null \
+and array_position(${nullElementsTable.arrjson}::text[], null) is not null \
+and array_position(${nullElementsTable.arrjsonb}, null) is not null`).orderBy(nullElementsTable.id),
+			),
+		).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+		const query = db.select().from(nullElementsTable).orderBy(nullElementsTable.id);
+		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<NullElementsRow[]>();
+
+		expect(await run(query)).toStrictEqual(nullElementsData);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.nullElementsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(nullElementsData.map((row) => ({ ...row, self: [row] })));
+		}
+	} finally {
+		await drop();
+	}
+}
+
+type Tagged = { v: string };
+type Counter = { n: bigint };
+
+const taggedType = customType<{ data: Tagged; driverData: string }>({
+	dataType: () => 'text',
+	toDriver: (value) => value.v,
+	fromDriver: (value) => ({ v: value }),
+});
+
+const counterType = customType<{ data: Counter; driverData: string }>({
+	codec: 'bigint',
+	dataType: () => 'bigint',
+	toDriver: (value) => value.n.toString(),
+	fromDriver: (value) => ({ n: value as unknown as bigint }),
+});
+
+let taggedFromJsonCalls = 0;
+const taggedJsonType = customType<{ data: Tagged; driverData: string; jsonData: string }>({
+	dataType: () => 'text',
+	toDriver: (value) => value.v,
+	fromDriver: (value) => ({ v: value }),
+	fromJson: (value) => {
+		taggedFromJsonCalls++;
+		return { v: value };
+	},
+});
+
+const CUSTOM_NULL_ELEMENTS_TABLE = 'custom_null_elements';
+
+export const customNullElementsTable = pgTable(CUSTOM_NULL_ELEMENTS_TABLE, {
+	id: integer('id').primaryKey(),
+	tagged: taggedType('tagged').array().notNull().$type<Tagged | null>(),
+	taggedMtx: taggedType('tagged_mtx').array('[][]').notNull().$type<Tagged | null>(),
+	counter: counterType('counter').array().notNull().$type<Counter | null>(),
+	taggedJson: taggedJsonType('tagged_json').array().notNull().$type<Tagged | null>(),
+});
+
+export type CustomNullElementsRow = {
+	id: number;
+	tagged: (Tagged | null)[];
+	taggedMtx: (Tagged | null)[][];
+	counter: (Counter | null)[];
+	taggedJson: (Tagged | null)[];
+};
+
+export const createCustomNullElements = (tableName: string = CUSTOM_NULL_ELEMENTS_TABLE) =>
+	`create table "${tableName}" (
+		"id" integer primary key,
+		"tagged" text[] not null,
+		"tagged_mtx" text[][] not null,
+		"counter" int8[] not null,
+		"tagged_json" text[] not null
+	)`;
+
+export const dropCustomNullElements = (tableName: string = CUSTOM_NULL_ELEMENTS_TABLE) =>
+	`drop table if exists "${tableName}"`;
+
+export const customNullElementsData: CustomNullElementsRow[] = [
+	{
+		id: 1,
+		tagged: [{ v: 'a' }, null, { v: 'NULL' }],
+		taggedMtx: [[{ v: 'a' }, null], [null, { v: 'b' }]],
+		counter: [{ n: 5044565289845416380n }, null, { n: -1n }],
+		taggedJson: [{ v: 'a' }, null, { v: 'b' }],
+	},
+	{
+		id: 2,
+		tagged: [null],
+		taggedMtx: [[null]],
+		counter: [null],
+		taggedJson: [null],
+	},
+];
+
+export async function assertCustomTypeNullArrayElements(
+	db: PgAsyncDatabase<any, any>,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+) {
+	await run(db.execute(sql.raw(dropCustomNullElements())));
+	await run(db.execute(sql.raw(createCustomNullElements())));
+
+	try {
+		await run(db.insert(customNullElementsTable).values(customNullElementsData));
+
+		expect(
+			await run(
+				db.select({ id: customNullElementsTable.id }).from(customNullElementsTable).where(sql`\
+array_position(${customNullElementsTable.tagged}, null) is not null \
+and array_position(${customNullElementsTable.counter}, null) is not null \
+and array_position(${customNullElementsTable.taggedJson}, null) is not null`).orderBy(customNullElementsTable.id),
+			),
+		).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+		const query = db.select().from(customNullElementsTable).orderBy(customNullElementsTable.id);
+		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<CustomNullElementsRow[]>();
+
+		expect(await run(query)).toStrictEqual(customNullElementsData);
+		if (rqb) {
+			taggedFromJsonCalls = 0;
+			expect(
+				await run(
+					(<any> db).query.customNullElementsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } }),
+				),
+			).toStrictEqual(customNullElementsData.map((row) => ({ ...row, self: [row] })));
+			expect(taggedFromJsonCalls).toStrictEqual(2);
+		}
+	} finally {
+		await run(db.execute(sql.raw(dropCustomNullElements())));
+	}
+}
+
+export const boundsSchema = { boundsTable, temporalBoundsTable, nullElementsTable, customNullElementsTable };
 
 export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({
 	boundsTable: {
@@ -1746,5 +2129,11 @@ export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({
 	},
 	temporalBoundsTable: {
 		self: r.many.temporalBoundsTable({ from: r.temporalBoundsTable.id, to: r.temporalBoundsTable.id }),
+	},
+	nullElementsTable: {
+		self: r.many.nullElementsTable({ from: r.nullElementsTable.id, to: r.nullElementsTable.id }),
+	},
+	customNullElementsTable: {
+		self: r.many.customNullElementsTable({ from: r.customNullElementsTable.id, to: r.customNullElementsTable.id }),
 	},
 });

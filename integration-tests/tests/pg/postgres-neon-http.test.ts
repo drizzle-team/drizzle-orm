@@ -13,6 +13,7 @@ import {
 	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
+	assertAllTypesNullArrayElements,
 	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
 	boundsRelations,
@@ -727,6 +728,7 @@ describe('driver-specific', () => {
 
 		await assertAllTypesUnions(db);
 		await assertAllTypesBounds(db, { rqb: true });
+		await assertAllTypesNullArrayElements(db, { rqb: true });
 		await assertAllTypesTemporalBounds(db, { rqb: true });
 
 		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
