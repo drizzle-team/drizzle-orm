@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./node_modules/.cache/portability"
+  },
+  "include": ["src/portability.ts", "src/fixtures/minimal-orders/schema.ts"]
+}

@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run ci:lint
+      - run: bun run test
+      - run: bun run test:types
+      - run: bun run verify:publish
+
+      # pkg-pr-new runs under node and shells out to a packer.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # Run from the lockfile, never npx or bunx: the tool that uploads a build of this
+      # repo should be the version this repo pinned, not whatever latest resolves to.
+      # --previewVersion rewrites the version to 0.0.0-preview-<sha> so a preview can
+      # never satisfy a semver range meant for the npm release of the same number.
+      # continue-on-error: a pkg.pr.new outage must not fail a commit the gates above passed.
+      # Requires the pkg.pr.new GitHub App: https://github.com/apps/pkg-pr-new
+      - name: Publish preview to pkg.pr.new
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            bun run pkg-pr-new publish --json preview.json --previewVersion --comment=update --packageManager=bun,npm ./packages/drizzle-pulse
+          else
+            bun run pkg-pr-new publish --json preview.json --previewVersion --comment=off --packageManager=bun,npm ./packages/drizzle-pulse
+          fi
+
+      - name: Write the install command to the job summary
+        if: always()
+        run: |
+          jq -r '"bun add \(.packages[].url)"' preview.json >> "$GITHUB_STEP_SUMMARY" || true
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+      - run: bun install --frozen-lockfile
+      - run: docker compose up -d --wait
+      - run: bun run test:integration
+      - if: always()
+        run: docker compose down -v

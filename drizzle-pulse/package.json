@@ -1,0 +1,29 @@
+{
+  "name": "drizzle-pulse-workspace",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "docker:up": "docker compose up -d --wait",
+    "docker:down": "docker compose down",
+    "build": "bun run --filter drizzle-pulse build",
+    "test": "bun run --filter drizzle-pulse test",
+    "test:types": "bun run --filter drizzle-pulse test:types",
+    "typecheck": "bun run build && bun run --filter '*' typecheck",
+    "test:integration": "bun run build && DATABASE_URL=postgresql://postgres:postgres@localhost:5433/postgres bun run --filter @drizzle-pulse/integration-tests test",
+    "lint": "bunx --bun biome lint --write .",
+    "format": "bunx --bun biome format --write .",
+    "ci:lint": "bunx --bun biome ci .",
+    "check": "bun run ci:lint",
+    "verify:publish": "bun run build && bun run --filter drizzle-pulse verify:publish"
+  },
+  "catalog": {
+    "drizzle-orm": "1.0.0-rc.5",
+    "@drizzle-team/minipg": "0.4.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.4",
+    "pkg-pr-new": "0.0.88"
+  }
+}

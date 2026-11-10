@@ -1,0 +1,111 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_to_github:
+        description: 'Publish to GitHub Packages instead of npm'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run ci:lint
+      - run: bun run test
+      - run: bun run test:types
+      - run: bun run verify:publish
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+      - run: bun install --frozen-lockfile
+      - run: docker compose up -d --wait
+      - run: bun run test:integration
+      - if: always()
+        run: docker compose down -v
+
+  publish:
+    needs: [fast, integration]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install -g npm@latest
+      - name: Configure GitHub Packages auth
+        if: inputs.publish_to_github
+        # The workflow token: its publishes link the package to this repo, and a linked
+        # package inherits the repo's public visibility. A PAT publish would leave the
+        # package unlinked and default to private.
+        run: |
+          # setup-node points NPM_CONFIG_USERCONFIG at a temp file, which overrides ~/.npmrc —
+          # append there when it is set, or the token is silently ignored.
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+      - name: Retarget manifest at GitHub Packages
+        if: inputs.publish_to_github
+        working-directory: packages/drizzle-pulse
+        run: |
+          set -euo pipefail
+          # GitHub Packages only accepts names scoped to the repo owner.
+          node -e '
+            const fs = require("node:fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            pkg.name = `@${process.env.OWNER}/${pkg.name}`;
+            fs.writeFileSync("package.json", `${JSON.stringify(pkg, null, 2)}\n`);
+          '
+        env:
+          OWNER: ${{ github.repository_owner }}
+      - name: Pre-flight version check
+        working-directory: packages/drizzle-pulse
+        env:
+          REGISTRY: ${{ inputs.publish_to_github && 'https://npm.pkg.github.com' || 'https://registry.npmjs.org' }}
+        run: |
+          set -euo pipefail
+          PKG=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "$PKG@$VERSION" version --registry="$REGISTRY" >/dev/null 2>&1; then
+            echo "::error::$PKG@$VERSION already exists on $REGISTRY — bump the version before dispatching"
+            exit 1
+          fi
+      - name: Publish
+        working-directory: packages/drizzle-pulse
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.publish_to_github }}" == "true" ]]; then
+            # Provenance is npmjs-only.
+            npm publish --registry=https://npm.pkg.github.com --no-provenance
+            echo "GitHub Packages: \`$(node -p "require('./package.json').name")@$(node -p "require('./package.json').version")\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            npm publish
+            echo "npm: \`$(node -p "require('./package.json').name")@$(node -p "require('./package.json').version")\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
