@@ -471,6 +471,11 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 
 	/** Live scheduler snapshot: how many queries are queued, in flight now, and the max ever in flight
 	 *  at once (a nonzero-above-1 max confirms pipelining actually engaged). */
+	/** @internal Socket writes and round trips so far, which pool.batch compares to report a batch's own. */
+	get _wireCounters(): { writes: number; roundTrips: number } {
+		return { writes: this._flushes, roundTrips: this._roundTrips };
+	}
+
 	get stats(): { queued: number; inflight: number; maxInflight: number; pipelineDepth: number; writes: number } {
 		return {
 			queued: this.queue.length,
@@ -522,6 +527,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private writeBackedUp = false; // socket write buffer is full — pause dispatching new pipelined tasks until 'drain'
 	private _maxInflight = 0; // high-water mark of concurrent in-flight queries (diagnostics / tests)
 	private _flushes = 0; // count of outbound socket writes for query batches (coalescing diagnostic)
+	private _roundTrips = 0; // flushes sent while nothing earlier awaited a response (read by pool.batch metrics)
+	private unflushed = 0; // tasks serialized into outbuf since the last flush (round-trip accounting)
 	private spCounter = 0; // monotonic counter for auto-generated SAVEPOINT names (nested begin)
 	private rttSamples: number[] = []; // network round-trip samples (ms), oldest→newest, capped at RTT_WINDOW
 	private lastPingAt = 0; // send time of the last handshake msg awaiting a reply (0 = none pending)
@@ -737,6 +744,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			rowCount: t.rowCount ?? (t.rows ? t.rows.length : null),
 			columnCount: t.fields?.length ?? 0,
 			command: t.command ?? null,
+			statementName: t.name,
 			prepared: t.info?.prepared ?? false,
 			...(err ? { error: err } : {}),
 		};
@@ -1348,6 +1356,9 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		const bytes = Buffer.from(this.outbuf.slice());
 		this.outbuf.reset();
 		this._flushes++;
+		// Nothing sent earlier is still awaiting its response, so this write waits a full round trip.
+		if (this.inflight.length <= this.unflushed) this._roundTrips++;
+		this.unflushed = 0;
 		const s = this.socket;
 		if (s && !s.write(bytes) && !this.writeBackedUp) {
 			// Write buffer full: its size reflects the transport + bandwidth-delay product, so this is where we learn
@@ -1387,6 +1398,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		if (t.groupEnd && t.group!.failed) t.sql = 'rollback'; // a sibling never went out: don't commit the rest
 		let parsedName: string | undefined // this task wrote a NAMED Parse (recorded in parseInflight only once the whole task serialized)
 		;
+		let parseSkipped = false; // named, and an identical Parse is already queued ahead in this pipeline
 		try {
 			if (t.copySource || t.copyOut) writeQuery(w, t.sql);
 			// COPY: simple 'Q' (cleanest copy state machine); 'G' pumps the source, 'd' feeds copyTo
@@ -1448,6 +1460,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 					// response fills the cache.
 					const myKey = parseKey(t);
 					const inflightKey = t.name ? this.parseInflight.get(t.name) : undefined;
+					if (t.name && inflightKey === myKey) parseSkipped = true;
 					if (!t.name || inflightKey !== myKey) {
 						if (t.name && inflightKey !== undefined) {
 							writeClose(w, 'S', t.name);
@@ -1459,8 +1472,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 					writeDescribe(w, 'S', name);
 					if (t.name) t._cacheName = t.name;
 				}
-				t._reused = reuse;
-				if (t.info) t.info.prepared = reuse;
+				t._reused = reuse || parseSkipped; // Parse skipped: cached, or the same Parse is queued ahead
+				if (t.info) t.info.prepared = t._reused;
 				// Write-through params: values encode DIRECTLY into the outbound batch (no per-value Buffers or
 				// wrapper objects). Fast types upgrade to BINARY via a compiled per-statement plan — the encode-side
 				// mirror of reuseBinaryOids — from caller-declared paramTypes (first execution, unnamed too) or from
@@ -1516,6 +1529,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		}
 		this.inflight.push(t);
 		if (this.inflight.length > this._maxInflight) this._maxInflight = this.inflight.length;
+		this.unflushed++;
 		if (t.timeout != null) {
 			t.timer = setTimeout(
 				() =>
@@ -1822,6 +1836,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	// terminal event settles, no hung promise" invariant. Shared by fatal() and end().
 	private settlePending(e: Error): void {
 		this.outbuf.reset(); // drop any batched-but-unflushed bytes
+		this.unflushed = 0;
 		this.parseInflight.clear(); // any recorded Parse may never have reached the wire
 		this.lateCancel = null;
 		// Reject every in-flight query. Prefer an informative server error already received for one (e.g. a
@@ -1883,6 +1898,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			dead?.destroy();
 		} catch { /* */ }
 		this.outbuf.reset(); // drop any batched-but-unflushed bytes
+		this.unflushed = 0;
 		// Reject every in-flight query (NEVER replay). The head may carry a server error; the rest take `err`.
 		while (this.inflight.length) {
 			const t = this.inflight.shift()!;

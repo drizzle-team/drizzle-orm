@@ -10,7 +10,9 @@ import { installVercelCompat, type VercelPoolSurface } from './compat/vercel.ts'
 import { type Connection, createPooledConnection, isUntrustedCertificate } from './connection.ts';
 import type { TxFn } from './connection.ts';
 import { Cursor, type CursorOptions } from './cursor.ts';
-import type { BatchOptions, PoolConfig, QueryOptions, QueryResult, TxOptions } from './types.ts';
+import type { QueryMetrics } from './plugin.ts';
+import type { PoolConfig, QueryOptions, QueryResult, TxOptions } from './types.ts';
+import type { BatchMetrics, BatchResult, BatchRunOptions } from './types.ts';
 import { resolveUrl } from './url.ts';
 
 interface Waiter {
@@ -484,11 +486,37 @@ export class Pool {
 	 *  `options` configure the transaction, as for `begin(options, fn)` (isolation, readOnly, deferrable,
 	 *  snapshot).
 	 *  A query's own error carries `failedQueryIndex` (its position in `queries`); an error from the snapshot
-	 *  import or COMMIT (e.g. a deferred constraint) belongs to no query and has none. */
-	async batch(queries: PoolQuery[], options?: BatchOptions): Promise<QueryResult<never>[]> {
+	 *  import or COMMIT (e.g. a deferred constraint) belongs to no query and has none.
+	 *  With `metrics` on, the results carry the batch's telemetry as `results.metrics` (see BatchMetrics):
+	 *  each query's metrics plus what the batch did as a whole, such as its round trips and how many
+	 *  statements the server parsed or reused. */
+	batch(
+		queries: PoolQuery[],
+		options: BatchRunOptions & { metrics: true | 'ms' | 'us' },
+	): Promise<BatchResult & { metrics: BatchMetrics }>;
+	batch(queries: PoolQuery[], options?: BatchRunOptions): Promise<BatchResult>;
+	async batch(queries: PoolQuery[], options?: BatchRunOptions): Promise<BatchResult> {
+		const metrics = options?.metrics;
+		const t0 = metrics ? performance.now() : 0;
 		const conn = await this.acquire(); // the txGuard check lives in acquire(), as for every pool op
 		try {
-			return await conn.pipelinedTransaction(options, (c) => queries.map((q, i) => runIndexed(q, c, i)));
+			if (!metrics) {
+				return await conn.pipelinedTransaction(options, (c) => queries.map((q, i) => runIndexed(q, c, i)));
+			}
+			const acquired = performance.now();
+			const before = conn._wireCounters; // the batch holds this connection, so the difference is its own
+			const results: BatchResult = await conn.pipelinedTransaction(
+				options,
+				(c) => queries.map((q, i) => runIndexed(q, c, i, metrics)),
+			);
+			const after = conn._wireCounters;
+			results.metrics = batchMetrics(metrics, t0, acquired, performance.now(), results, {
+				statements: queries.length + (options.snapshot == null ? 2 : 3),
+				writes: after.writes - before.writes,
+				roundTrips: after.roundTrips - before.roundTrips,
+				backendPid: conn.backendKey?.pid,
+			});
+			return results;
 		} finally {
 			this.release(conn); // rolls back defensively if the connection somehow stayed in a transaction
 		}
@@ -626,8 +654,45 @@ export class Pool {
 
 addBrand(Pool, 'Pool');
 
-function runIndexed(query: PoolQuery, conn: Connection, index: number): Promise<QueryResult<never>> {
-	return query.runOn(conn).catch((e: unknown) => {
+// Assemble a batch's telemetry from its timings, its connection's counters and its queries' own metrics.
+function batchMetrics(
+	unit: true | 'ms' | 'us',
+	t0: number,
+	acquired: number,
+	end: number,
+	results: QueryResult<never>[],
+	wire: { statements: number; writes: number; roundTrips: number; backendPid: number | undefined },
+): BatchMetrics {
+	// The same conversion as a query's metrics: 'us' multiplies float ms by 1000, 'ms' rounds, true keeps floats.
+	const c = unit === 'us' ? (x: number) => Math.round(x * 1000) : unit === 'ms' ? Math.round : (x: number) => x;
+	const queries: QueryMetrics[] = new Array(results.length);
+	let parsed = 0, reused = 0, unnamed = 0;
+	for (let i = 0; i < results.length; i++) {
+		const m = results[i]!.metrics!;
+		queries[i] = m;
+		if (m.statementName === undefined) unnamed++;
+		else if (m.prepared) reused++;
+		else parsed++;
+	}
+	return {
+		unit: unit === 'us' ? 'us' : 'ms',
+		acquire: c(acquired - t0),
+		total: c(end - t0),
+		...wire,
+		parsed,
+		reused,
+		unnamed,
+		queries,
+	};
+}
+
+function runIndexed(
+	query: PoolQuery,
+	conn: Connection,
+	index: number,
+	metrics?: true | 'ms' | 'us',
+): Promise<QueryResult<never>> {
+	return query.runOn(conn, metrics).catch((e: unknown) => {
 		if (typeof e === 'object' && e !== null && (e as { failedQueryIndex?: number }).failedQueryIndex === undefined) {
 			(e as { failedQueryIndex?: number }).failedQueryIndex = index;
 		}
@@ -664,8 +729,10 @@ export class PoolQuery implements PromiseLike<QueryResult<never>> {
 
 	/** Run on an ALREADY checked-out connection (pool.batch uses this to pipeline a set on one connection).
 	 *  Enqueues synchronously — pool.batch relies on that to keep the set contiguous between BEGIN and COMMIT. */
-	runOn(conn: Connection): Promise<QueryResult<never>> {
-		return (this.promise ??= (conn.query as unknown as Runner)(this.sql, this.params, this.opts));
+	runOn(conn: Connection, metrics?: true | 'ms' | 'us'): Promise<QueryResult<never>> {
+		// pool.batch's `metrics` turns on this query's own metrics, unless the query already chose a unit
+		const opts = metrics && !this.opts.metrics ? { ...this.opts, metrics } : this.opts;
+		return (this.promise ??= (conn.query as unknown as Runner)(this.sql, this.params, opts));
 	}
 
 	// PromiseLike surface: awaiting (or .then/.catch/.finally) forces execution via the standalone path.
