@@ -1798,7 +1798,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(parseStoredJson(stored)).toStrictEqual(output);
 	});
 
-	const upstashSchema = { allTypesTable, ...boundsSchema };
+	const upstashTable = makeAllTypes('all_types_cdcs_upstash');
+	const upstashSchema = { allTypesTable: upstashTable, ...boundsSchema };
 	const upstashConfig = (cache: UpstashTestCache) => ({
 		schema: upstashSchema,
 		cb: (r: RelationsBuilder<ExtractTablesFromSchema<typeof upstashSchema>>) => ({
@@ -1830,14 +1831,14 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		await using cache = new UpstashTestCache();
 		const { run } = cache;
 		const db = createDB(upstashConfig(cache));
-		await push({ allTypesTable });
+		await push({ upstashTable });
 
 		// TiDB's engine does not support `LATERAL` derived tables, which the RQB relation query relies on
 		const rqb = !is(db as unknown, TiDBServerlessDatabase);
 
 		await cache.expectHits('all types', async () => {
-			await run(db.insert(allTypesTable).values(allTypesData));
-			expect(await run(db.select().from(allTypesTable))).toStrictEqual([allTypesData]);
+			await run(db.insert(upstashTable).values(allTypesData));
+			expect(await run(db.select().from(upstashTable))).toStrictEqual([allTypesData]);
 			if (rqb) {
 				expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
 					...allTypesData,
@@ -1845,7 +1846,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				});
 			}
 		});
-		await cache.expectHits('unions', () => assertAllTypesUnions(db, allTypesTable, run));
+		await cache.expectHits('unions', () => assertAllTypesUnions(db, upstashTable, run));
 		await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run, rqb }));
 		await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db, { run, rqb }));
 	});

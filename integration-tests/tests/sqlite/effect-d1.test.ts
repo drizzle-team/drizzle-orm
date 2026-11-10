@@ -157,8 +157,9 @@ runCommonEffectSQLiteTests({
 				});
 				expect(values).toStrictEqual(_values);
 
-				expect(spyPut).toHaveBeenCalledTimes(4);
-				expect(spyGet).toHaveBeenCalledTimes(4);
+				// `run` returns driver's run result, which is never cached
+				expect(spyPut).toHaveBeenCalledTimes(3);
+				expect(spyGet).toHaveBeenCalledTimes(3);
 				expect(spyInvalidate).toHaveBeenCalledTimes(0);
 
 				spyPut.mockClear();

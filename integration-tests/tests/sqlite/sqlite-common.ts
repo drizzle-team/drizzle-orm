@@ -5907,12 +5907,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				expect(await run(() => query.values())).toHaveLength(1);
 			});
 
-			// `.run()` returns driver's run result - it's never read from or written to cache...
-			const lookups = cache.lookups;
-			await db.select().from(table).run();
-			expect(cache.lookups).toBe(lookups);
-
-			// ...but mutations executed by it still invalidate
+			// `.run()` is never read from or written to cache (checked by the cache suites), but mutations it executes still invalidate
 			await db.delete(table).run();
 			expect(await run(db.select().from(table))).toStrictEqual([]);
 			await db.insert(table).values(allTypesInput).run();

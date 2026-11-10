@@ -316,12 +316,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 						});
 					});
 
-					// `.run()` returns driver's run result - it's never read from or written to cache...
-					const lookups = cache.lookups;
-					yield* query.run();
-					expect(cache.lookups).toBe(lookups);
-
-					// ...but mutations executed by it still invalidate
+					// `.run()` is never read from or written to cache (checked by the cache suites), but mutations it executes still invalidate
 					yield* db.delete(allTypesTable).run();
 					yield* Effect.promise(async () => {
 						expect(await run(query)).toStrictEqual([]);
