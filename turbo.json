@@ -191,6 +191,9 @@
 			],
 			"outputs": []
 		},
+		"drizzle-pulse#build:artifact": {
+			"outputs": []
+		},
 		"drizzle-orm#build:artifact": {
 			"dependsOn": [
 				"@drizzle-team/postgres#build"

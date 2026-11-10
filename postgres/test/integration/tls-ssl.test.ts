@@ -371,7 +371,6 @@ describe('sslmode named strings (live cluster, self-signed cert)', () => {
 					ca: SERVER_CA,
 					rejectUnauthorized: true,
 					servername: 'wrong.example',
-					// oxlint-disable-next-line unicorn/no-useless-undefined -- the tls type of checkServerIdentity needs an Error or undefined result
 					checkServerIdentity: () => undefined,
 				},
 			});

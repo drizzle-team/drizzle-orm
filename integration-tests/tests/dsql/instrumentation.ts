@@ -49,7 +49,6 @@ export type PostgresSchema = Record<
 	| unknown
 >;
 
-// oxlint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
 	private globalTtl: number = 1000;
 	private usedTablesPerKey: Record<string, string[]> = {};

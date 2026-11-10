@@ -2590,7 +2590,6 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					get: (key: string, _tables: string[], _isTag: boolean, _isAutoInvalidate?: boolean) =>
 						Effect.gen(function*() {
 							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'get' as const, key }]);
-							// oxlint-disable-next-line no-useless-undefined
 							return undefined;
 						}),
 					put: (key: string, _response: any, _tables: string[], _isTag: boolean, _config?: any) =>

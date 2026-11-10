@@ -1,7 +1,8 @@
-// User-extensible type registry: defineType() declares a NAME-KEYED custom type with decode
-// targets, usable anywhere a TypeSpec goes (top-level shape columns, array elements, Collect
-// fields). Name-keyed because extension OIDs are per-database — the marker carries everything,
-// so decode needs no OID, no connection config, no catalog lookup. Bare usage (no target)
+// User-extensible type registry: defineType() declares a custom type with decode targets, usable
+// anywhere a TypeSpec goes (top-level shape columns, array elements, Collect fields). Extension
+// OIDs are per-database, so the marker carries the whole definition and the column plan keeps it:
+// decode needs no OID of its own and no registry lookup. The real OID is filled in from the
+// result like for an 'unknown' column. Bare usage (no target)
 // yields the raw TEXT string (the explicit-only rule shared with point/vector/geometry).
 //
 //   const line3d = defineType('line3d', { ascii: true, targets: { abc: (t) => parse(t) } })
@@ -17,7 +18,6 @@ export type RawCell = (b: Buffer, o: number, l: number) => unknown;
 
 export interface CustomTypeDef {
 	readonly name: string;
-	readonly oid: number; // allocated sentinel (negative) — the col/cache identity for this def
 	readonly ascii: boolean;
 	readonly delim: string; // PG's per-type typdelim: how ITS array literals separate elements
 	readonly targets: Record<string, (text: string) => unknown>;
@@ -40,10 +40,6 @@ export interface CustomType<T extends string> {
 	readonly def: CustomTypeDef;
 }
 
-// Sentinel OIDs for registry types: -2000 and down (geo.ts's hardcoded sentinels own -1000..-1999).
-let nextCustomOid = -2000;
-const DEFS = new Map<number, CustomTypeDef>(); // sentinel oid -> def (array elements resolve through this)
-
 export function defineType<K extends string = never, R extends string = never>(
 	name: string,
 	spec: {
@@ -61,13 +57,11 @@ export function defineType<K extends string = never, R extends string = never>(
 	}
 	const def: CustomTypeDef = {
 		name,
-		oid: nextCustomOid--,
 		ascii: spec.ascii === true,
 		delim: spec.delim ?? ',',
 		targets: (spec.targets ?? {}) as CustomTypeDef['targets'],
 		rawTargets: (spec.rawTargets ?? {}) as CustomTypeDef['rawTargets'],
 	};
-	DEFS.set(def.oid, def);
 	const check = (target?: string): void => {
 		if (target !== undefined && !(target in def.targets) && !(target in def.rawTargets)) {
 			throw new Error(
@@ -102,11 +96,10 @@ const sliceLat1 = HAS_L1
 	? (b: Buffer, o: number, l: number) => (b as Sliceable).latin1Slice(o, o + l)
 	: (b: Buffer, o: number, l: number) => b.toString('latin1', o, o + l);
 
-/** Zero-copy cell decoder for a registry column (sentinel oid + target in col.js), or null when
- *  the oid isn't a registry sentinel. Bare/unknown target -> the raw text string. */
-export function customAt(col: { oid: number; js?: string; array?: unknown }): RawCell | null {
-	if (col.array) return null; // array columns decode per-ELEMENT via customLeafFor, never as one scalar cell
-	const def = DEFS.get(col.oid);
+/** Zero-copy cell decoder for a column that carries a defineType() definition, or null when it has
+ *  none. Bare/unknown target -> the raw text string. */
+export function customAt(col: { custom?: CustomTypeDef; js?: string }): RawCell | null {
+	const def = col.custom;
 	if (!def) return null;
 	const t = col.js;
 	if (t !== undefined) {
@@ -122,15 +115,8 @@ export function customAt(col: { oid: number; js?: string; array?: unknown }): Ra
 	return (b, o, l) => slice(b, o, l); // bare = raw text
 }
 
-/** Element delimiter for a registry ARRAY, or undefined when the oid isn't a registry sentinel.
- *  Fixed per type by its CREATE TYPE (PostGIS pins ':' for geometry/geography), so it's declared,
- *  not discovered — RowDescription never carries typdelim. */
-export const customDelimFor = (elem: number): string | undefined => DEFS.get(elem)?.delim;
-
-/** String-leaf for a registry ARRAY ELEMENT (array literals carry element text), or null. */
-export function customLeafFor(elem: number, target?: string): ((s: string) => unknown) | null {
-	const def = DEFS.get(elem);
-	if (!def) return null;
+/** String-leaf for one ARRAY ELEMENT of a custom type (array literals carry element text). */
+export function customLeafFor(def: CustomTypeDef, target?: string): (s: string) => unknown {
 	if (target !== undefined) {
 		const fn = def.targets[target];
 		if (fn) return fn;

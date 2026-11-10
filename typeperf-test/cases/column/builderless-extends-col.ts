@@ -1,4 +1,3 @@
-/* eslint-disable drizzle-internal/require-entity-kind */
 import type { Column } from 'drizzle-orm';
 import { text } from 'drizzle-orm/pg-core';
 

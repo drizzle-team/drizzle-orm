@@ -1,5 +1,3 @@
-/* eslint-disable drizzle-internal/require-entity-kind */
-
 export const fastCartesianProduct = <
 	SetsT extends ((number | string | boolean | object)[] | OrderedNumberRange | OrderedBigintRange)[],
 >(

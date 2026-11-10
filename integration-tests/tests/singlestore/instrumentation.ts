@@ -22,7 +22,6 @@ import { type Connection, createConnection } from 'mysql2/promise';
 import { test as base } from 'vitest';
 import relations from './relations';
 
-// oxlint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
 	private globalTtl: number = 1000;
 	private usedTablesPerKey: Record<string, string[]> = {};
@@ -86,7 +85,6 @@ export class TestCache extends Cache {
 	}
 }
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
 	constructor(private db: Connection) {}
 
