@@ -2,7 +2,14 @@
 // for the writers, chunk-reassembly + guards for the Parser, and the decoders.
 import { describe, expect, test } from 'bun:test';
 import { encodeParam } from '../../src/encode.ts';
-import { parseDataRow, Parser, parseRowDescription, W } from '../../src/protocol.ts';
+import {
+	parseCommandComplete,
+	parseDataRow,
+	parseParameterDescription,
+	Parser,
+	parseRowDescription,
+	W,
+} from '../../src/protocol.ts';
 
 const u16 = (n: number) => {
 	const b = Buffer.allocUnsafe(2);
@@ -115,6 +122,50 @@ describe('parseRowDescription / parseDataRow', () => {
 	test('zero-column data row', () => {
 		expect(parseDataRow(u16(0))).toEqual([]);
 	});
+	test('parameter description past 32767 params', () => {
+		const n = 40_000;
+		const body = Buffer.alloc(2 + n * 4);
+		body.writeUInt16BE(n, 0);
+		for (let i = 0; i < n; i++) body.writeInt32BE(i === n - 1 ? 25 : 23, 2 + i * 4);
+		const oids = parseParameterDescription(body);
+		expect(oids.length).toBe(n);
+		expect(oids[n - 1]).toBe(25);
+	});
+});
+
+describe('parseCommandComplete', () => {
+	// the split + regex parser it replaced
+	const reference = (tag: string) => {
+		const m = tag.match(/(\d+)\s*$/);
+		return { command: tag.split(' ')[0], rowCount: m ? parseInt(m[1]!, 10) : null };
+	};
+	const tags = [
+		'SELECT 50',
+		'SELECT 0',
+		'INSERT 0 5',
+		'UPDATE 3',
+		'DELETE 1234',
+		'MERGE 7',
+		'COPY 100000',
+		'FETCH 10',
+		'MOVE 2',
+		'BEGIN',
+		'COMMIT',
+		'ROLLBACK',
+		'SET',
+		'CREATE TABLE',
+		'DROP INDEX',
+		'SELECT 9007199254740991',
+		'CREATE TABLE AS 3',
+		'LISTEN',
+	];
+	for (const tag of tags) {
+		test(tag, () => {
+			const got: { command?: string | null; rowCount?: number | null } = {};
+			parseCommandComplete(Buffer.from(tag + '\0', 'latin1'), got);
+			expect(got).toEqual(reference(tag));
+		});
+	}
 });
 
 describe('encodeParam', () => {

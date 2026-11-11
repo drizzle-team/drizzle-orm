@@ -19,7 +19,7 @@ import { buildDecoders, type CodegenCol, INSTANT_OIDS, tagArrayCol } from './dec
 import { encodeJsonParams, setTransactionSnapshotSql } from './encode.ts';
 import { parseErrorFields, PgError } from './errors.ts';
 import { type RowMapper, RowMappers } from './mapper.ts';
-import { Parser, parseRowDescription, type RawMessage } from './protocol.ts';
+import { parseCommandComplete, Parser, parseRowDescription, type RawMessage } from './protocol.ts';
 import type { ShapeMapper } from './shape.ts';
 import { mergeUnknownCols, type ParamType, resolveParamTypes, type ShapeSpec, shapeTextCols } from './spec.ts';
 import type { BatchOptions, Decoder, Field, QueryResult, ResultMode } from './types.ts';
@@ -78,10 +78,6 @@ export type HttpPipelineResult = PromiseSettledResult<QueryResult>;
 // FNV-1a 64 over the raw T frame -> 16 lowercase hex chars (the `desc` value). T frames are small
 // (~240B for 8 columns), so the per-byte BigInt walk is irrelevant.
 const TX_SQL = /^\s*(begin|start\s+transaction|commit|end|rollback(?!\s+to\b)|abort|prepare\s+transaction)\b/i;
-const firstCstr = (b: Buffer): string => {
-	const z = b.indexOf(0);
-	return b.toString('utf8', 0, z < 0 ? b.length : z);
-};
 
 const FNV_PRIME = 0x100000001b3n, FNV_MASK = 0xffffffffffffffffn;
 function fnv1a64(b: Uint8Array): string {
@@ -212,10 +208,7 @@ export class HttpClient {
 					cur.rows.push(m.body);
 					break;
 				case 'C': {
-					const tag = firstCstr(m.body);
-					cur.command = tag.split(' ')[0] ?? null;
-					const mm = tag.match(/(\d+)\s*$/);
-					cur.rowCount = mm ? parseInt(mm[1]!, 10) : null;
+					parseCommandComplete(m.body, cur);
 					push();
 					break;
 				}

@@ -21,6 +21,7 @@ import { parseErrorFields, PgError } from './errors.ts';
 import { isEvalAvailable, type RowMapper, RowMappers } from './mapper.ts';
 import {
 	type ParamsEncoder,
+	parseCommandComplete,
 	parseDataRow,
 	parseParameterDescription,
 	Parser,
@@ -161,10 +162,6 @@ const mergeUnknownCols = (cols: CodegenCol[], fields: Field[]): CodegenCol[] =>
 	mergeUnknown(cols, fields, (f) => f.dataTypeOid);
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-const firstCstr = (b: Buffer): string => {
-	const z = b.indexOf(0);
-	return b.toString('utf8', 0, z < 0 ? b.length : z);
-};
 
 const parseKey = (
 	t: Task,
@@ -1006,10 +1003,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				return this.dataRow(body); // wire: the frame IS the row — nothing to decode
 			case 'C':
 				if (this.current && wire === undefined) {
-					const tag = firstCstr(body);
-					this.current.command = tag.split(' ')[0];
-					const m = tag.match(/(\d+)\s*$/);
-					this.current.rowCount = m ? parseInt(m[1]!, 10) : null;
+					parseCommandComplete(body, this.current);
 				}
 				return;
 			case 'E': {
