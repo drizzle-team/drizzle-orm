@@ -204,7 +204,8 @@ export interface ConnectConfig {
 	 *  return in request order; the server runs them one at a time (pipelining hides network latency, not
 	 *  server CPU).
 	 *  - omitted / `true`: on with `depth: 'auto'`; omitted is off behind a transaction pooler (`pooler`).
-	 *  - `false`: one query at a time (depth 1).
+	 *  - `false`: one query at a time (depth 1). Explicit pipelines still pipeline: `pool.batch()` always,
+	 *    `pool.pipeline()` unless behind a transaction pooler.
 	 *  - `{ depth: 'auto' }`: the in-flight limit follows the connection's lowest measured round trip,
 	 *    100 per ms, between 100 and 4096 (about 100 on a local network, 1000 at 10 ms).
 	 *    `stats.pipelineDepth` shows the value in effect, `rtt.min` the round trip.

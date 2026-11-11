@@ -379,6 +379,7 @@ interface Task {
 	sql: string;
 	group?: BatchGroup | null; // the pipelinedTransaction() this statement belongs to (null: none)
 	groupEnd?: boolean; // this is the group's trailing COMMIT
+	explicit?: boolean; // issued by an explicit pipelining call (batch, pool.pipeline): not held to pipelineDepth
 	params: readonly unknown[];
 	name?: string | undefined;
 	mode: ResultMode;
@@ -507,6 +508,21 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		return { writes: this._flushes, roundTrips: this._roundTrips };
 	}
 
+	/** @internal Issue `fn`'s queries as one explicit pipeline: they are not held to `pipelineDepth`, so
+	 *  `pipeline: false` does not turn them into one round trip each. Behind a transaction pooler they
+	 *  stay at the depth: each is its own transaction, and the pooler may give the next one another
+	 *  backend while it is already on the wire. `fn` must enqueue synchronously. */
+	_pipelined<T>(fn: () => T): T {
+		if (this.cfg.isBehindPooler) return fn();
+		const was = this.explicitPipeline;
+		this.explicitPipeline = true;
+		try {
+			return fn();
+		} finally {
+			this.explicitPipeline = was;
+		}
+	}
+
 	/** @internal Queries queued or in flight. The pool reads it to pick the least-loaded connection. */
 	get _load(): number {
 		return this.queue.length + this.inflight.length;
@@ -563,6 +579,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private queue: Task[] = [];
 	private batchGroup: BatchGroup | null = null; // set while pipelinedTransaction() issues its statements: query() tags each task with it
 	private batchTail = false; // set while pipelinedTransaction() issues its trailing COMMIT
+	private explicitPipeline = false; // set while a batch or pool.pipeline() issues its statements: query() tags them `explicit`
 	private inflight: Task[] = []; // in-flight FIFO (oldest→newest); the backend replies in this order, so the
 	// head (inflight[0]) is the task currently receiving results. length ≤ pipelineDepth
 	private outbuf = new Writer(); // outbound batch: pipelined tasks serialize here, flushed once per dispatch pass
@@ -1230,8 +1247,11 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			if (this.inflight.length === 0) this.retire();
 			return;
 		}
+		// An explicitly pipelined statement (batch, pool.pipeline) is not held to the depth: the caller asked
+		// for one round trip, and `pipeline: false` only turns off pipelining of independent queries.
 		while (
-			this.queue.length && this.inflight.length < this.cfg.pipelineDepth && !this.writeBackedUp && this.canStartNext()
+			this.queue.length && (this.inflight.length < this.cfg.pipelineDepth || this.queue[0]!.explicit)
+			&& !this.writeBackedUp && this.canStartNext()
 		) {
 			this.startTask(this.queue.shift()!);
 			// Flush mid-burst once the batch is large, so write() backpressure is OBSERVED before we bury the socket's
@@ -1245,7 +1265,10 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		// in the same tick (e.g. Promise.all) leave in ONE socket write. Flush synchronously when pipelining is
 		// off (depth 1 — nothing to coalesce) or once the batch is already large (bound memory, start the wire
 		// transfer). A microtask that fires after a sync flush just finds an empty batch and no-ops.
-		if (this.cfg.pipelineFlush === 'microtask' && this.cfg.pipelineDepth > 1 && this.outbuf.mark() < FLUSH_THRESHOLD) {
+		if (
+			this.cfg.pipelineFlush === 'microtask' && (this.cfg.pipelineDepth > 1 || this.explicitPipeline)
+			&& this.outbuf.mark() < FLUSH_THRESHOLD
+		) {
 			this.scheduleFlush();
 		} else this.flushWrites();
 	}
@@ -2154,6 +2177,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				paramTypes: opts.params && resolveParamTypes(opts.params),
 				group: this.batchGroup,
 				groupEnd: this.batchTail,
+				explicit: this.explicitPipeline,
 			};
 			if (mode === 'wire') {
 				if (opts.shape || opts.binary) {
@@ -2227,6 +2251,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				mapper: this.rowMappers.planMapper(plan, mode),
 				resultFormat: plan.resultFormat,
 				_typed: true,
+				explicit: this.explicitPipeline,
 			};
 			if (opts.debug) task._debugCols = cols;
 			this.beginPerf(task, params, opts.metrics);
@@ -2689,8 +2714,9 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	 *  Rejects with the first rejection to fire: statements settle in wire order, so a 25P02 fallout never
 	 *  masks the error that caused it, and a failed snapshot import or COMMIT (e.g. a deferred constraint)
 	 *  surfaces as itself. Resolves with the statements' results, in order. `issue` MUST enqueue synchronously:
-	 *  a statement issued after an `await` lands behind COMMIT, outside the transaction. With pipelining off
-	 *  (depth 1: transaction poolers) the same sequence runs gated, one statement per round trip.
+	 *  a statement issued after an `await` lands behind COMMIT, outside the transaction. The statements
+	 *  pipeline at any depth, including `pipeline: false` and behind a transaction pooler (one transaction
+	 *  keeps one backend).
 	 *  Allocation-lean by design (batches are hot): no Promise.allSettled records or intermediate arrays — one
 	 *  results array, one shared rejection handler, and one `then` per statement. */
 	pipelinedTransaction<T>(
@@ -2701,10 +2727,14 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			return Promise.reject(new Error('batch needs a fresh transaction — the connection is already inside one'));
 		}
 		const group: BatchGroup = { failed: false };
-		const begin = this.query(beginClause(options)) as Promise<unknown>;
-		const snap = options?.snapshot != null
-			? this.query(setTransactionSnapshotSql(options.snapshot)) as Promise<unknown>
-			: null;
+		// One transaction, so its statements pipeline at any depth, even behind a transaction pooler: the
+		// pooler keeps the same backend from BEGIN to COMMIT.
+		const beginSql = beginClause(options); // built first: a throw here must not leave the flag set
+		const snapSql = options?.snapshot != null ? setTransactionSnapshotSql(options.snapshot) : null;
+		const wasExplicit = this.explicitPipeline;
+		this.explicitPipeline = true;
+		const begin = this.query(beginSql) as Promise<unknown>;
+		const snap = snapSql !== null ? this.query(snapSql) as Promise<unknown> : null;
 		// Statements rejected before they are even queued (closed connection, bad params, pre-aborted signal)
 		// leave no task behind to flip the group, so count what issue() actually got onto the queue.
 		const before = this.queue.length + this.inflight.length;
@@ -2723,6 +2753,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		const tail = this.query('commit') as Promise<unknown>;
 		this.batchGroup = null;
 		this.batchTail = false;
+		this.explicitPipeline = wasExplicit;
 
 		const results = new Array<T>(body.length);
 		return new Promise<T[]>((resolve, reject) => {

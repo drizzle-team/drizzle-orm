@@ -128,13 +128,13 @@ describe('pool.batch (atomic transaction) / pipeline (one conn) / parallel (fan-
 		}
 	});
 
-	test('batch metrics count every round trip when pipelining is off', async () => {
+	test('a batch is one write and one round trip even with pipelining off', async () => {
 		const pool = testPool({ max: 1, pipeline: false });
 		try {
 			const rs = await pool.batch([pool.query('select 1'), pool.query('select 2'), pool.query('select 3')], {
 				metrics: true,
 			});
-			expect(rs.metrics).toMatchObject({ statements: 5, writes: 5, roundTrips: 5, unnamed: 3 });
+			expect(rs.metrics).toMatchObject({ statements: 5, writes: 1, roundTrips: 1, unnamed: 3 });
 		} finally {
 			await pool.end();
 		}

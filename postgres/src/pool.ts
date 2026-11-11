@@ -715,6 +715,7 @@ export class Pool {
 	 *  BEGIN, the queries and COMMIT are pipelined back-to-back in a single socket write — or the transaction
 	 *  rolls back and the call rejects if ANY fails (all-or-nothing). Results in input order. Reach for
 	 *  pipeline() when the queries are independent (no atomicity), or parallel() to fan out.
+	 *  Pipelines even with `pipeline: false` and behind a transaction pooler.
 	 *  `options` configure the transaction, as for `begin(options, fn)` (isolation, readOnly, deferrable,
 	 *  snapshot).
 	 *  A query's own error carries `failedQueryIndex` (its position in `queries`); an error from the snapshot
@@ -757,11 +758,13 @@ export class Pool {
 	/** Pipeline a set of queries on ONE connection with NO transaction: sent back-to-back (~1 round trip),
 	 *  each its OWN autocommit — a failure does NOT roll back the others. Use batch() when you need
 	 *  all-or-nothing atomicity. Never rejects for a query error: waits for every query and resolves with one
-	 *  `Promise.allSettled`-style entry per query, in input order — the same shape as `parallel()`. */
+	 *  `Promise.allSettled`-style entry per query, in input order — the same shape as `parallel()`.
+	 *  Pipelines even with `pipeline: false`, which only covers independent queries. Behind a transaction
+	 *  pooler it sends one query per round trip, since each is its own transaction. */
 	async pipeline(queries: PoolQuery[]): Promise<PromiseSettledResult<QueryResult<never>>[]> {
 		const conn = await this.acquire();
 		try {
-			return await Promise.allSettled(queries.map((q) => q.runOn(conn)));
+			return await Promise.allSettled(conn._pipelined(() => queries.map((q) => q.runOn(conn))));
 		} finally {
 			this.release(conn);
 		}

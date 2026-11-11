@@ -897,6 +897,36 @@ describe('pipelined pool', () => {
 		}
 	});
 
+	test('pipeline: false still pipelines pool.pipeline()', async () => {
+		const pool = testPool({ max: 1, applicationName: appName(), pipeline: false });
+		try {
+			const settled = await pool.pipeline(Array.from({ length: 10 }, (_, i) => pool.query('select $1::int', [i])));
+			expect(settled.every((x) => x.status === 'fulfilled')).toBe(true);
+			const h = await pool.connect();
+			expect(h.client.stats.maxInflight).toBe(10);
+			h.release();
+		} finally {
+			await pool.end();
+		}
+	});
+
+	test('behind a transaction pooler a batch pipelines and pool.pipeline() does not', async () => {
+		const pool = testPool({ max: 1, applicationName: appName(), pooler: true });
+		try {
+			await pool.pipeline(Array.from({ length: 5 }, (_, i) => pool.query('select $1::int', [i])));
+			const h = await pool.connect();
+			expect(h.client.stats.pipelineDepth).toBe(1);
+			expect(h.client.stats.maxInflight).toBe(1); // each is its own transaction: one per round trip
+			h.release();
+			const r = await pool.batch(Array.from({ length: 5 }, (_, i) => pool.query('select $1::int', [i])), {
+				metrics: true,
+			});
+			expect(r.metrics.roundTrips).toBe(1);
+		} finally {
+			await pool.end();
+		}
+	});
+
 	test('pipeline: false keeps one query per connection', async () => {
 		const pool = testPool({ max: 1, applicationName: appName(), pipeline: false });
 		try {
