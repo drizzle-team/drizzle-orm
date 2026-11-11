@@ -1723,7 +1723,7 @@ export const applyPgSnapshotsDiff = async (
 
 	const jsonAlterEnumsWithDroppedValues = typedResult.alteredEnums
 		.map((it) => {
-			return prepareDropEnumValues(it.name, it.schema, it.deletedValues, curFull);
+			return prepareDropEnumValues(it.name, it.schema, it.deletedValues, curFull, prevFull);
 		})
 		.flat() ?? [];
 
@@ -2094,6 +2094,27 @@ export const applyPgSnapshotsDiff = async (
 							&& column.column === st.columnName
 							&& column.table === st.tableName
 							&& column.tableSchema === st.schema
+						),
+				)
+			) {
+				return false;
+			}
+		}
+		// Checks referenced by an enum rebuild are dropped and recreated inside
+		// alter_type_drop_value, around the cast to text. Skip the standalone
+		// statements so a check that also changes is not dropped twice.
+		if (st.type === 'delete_check_constraint' || st.type === 'create_check_constraint') {
+			const checkName = st.type === 'delete_check_constraint'
+				? st.constraintName
+				: PgSquasher.unsquashCheck(st.data).name;
+			if (
+				filteredEnumsJsonStatements.find(
+					(it) =>
+						it.type === 'alter_type_drop_value'
+						&& it.columnsWithEnum.find((column) =>
+							column.table === st.tableName
+							&& column.tableSchema === (st.schema ?? '')
+							&& column.checks?.some((check) => PgSquasher.unsquashCheck(check).name === checkName)
 						),
 				)
 			) {
