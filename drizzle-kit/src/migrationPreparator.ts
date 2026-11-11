@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import { CasingType } from './cli/validations/common';
-import { serializeMySql, serializePg, serializeSingleStore, serializeSQLite } from './serializer';
+import { serializeClickHouse, serializeMySql, serializePg, serializeSingleStore, serializeSQLite } from './serializer';
+import { ClickHouseSchema, clickhouseSchema, dryClickHouse } from './serializer/clickhouseSchema';
 import { dryMySql, MySqlSchema, mysqlSchema } from './serializer/mysqlSchema';
 import { dryPg, PgSchema, pgSchema } from './serializer/pgSchema';
 import { drySingleStore, SingleStoreSchema, singlestoreSchema } from './serializer/singlestoreSchema';
@@ -35,6 +36,22 @@ export const prepareSingleStoreDbPushSnapshot = async (
 
 	const { version, dialect, ...rest } = serialized;
 	const result: SingleStoreSchema = { version, dialect, id, prevId: idPrev, ...rest };
+
+	return { prev, cur: result };
+};
+
+export const prepareClickHouseDbPushSnapshot = async (
+	prev: ClickHouseSchema,
+	schemaPath: string | string[],
+	casing: CasingType | undefined,
+): Promise<{ prev: ClickHouseSchema; cur: ClickHouseSchema }> => {
+	const serialized = await serializeClickHouse(schemaPath, casing);
+
+	const id = randomUUID();
+	const idPrev = prev.id;
+
+	const { version, dialect, ...rest } = serialized;
+	const result: ClickHouseSchema = { version, dialect, id, prevId: idPrev, ...rest };
 
 	return { prev, cur: result };
 };
@@ -126,6 +143,34 @@ export const prepareSingleStoreMigrationSnapshot = async (
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: SingleStoreSchema = {
+		id,
+		prevId: idPrev,
+		...prevRest,
+	};
+
+	return { prev: prevSnapshot, cur: result, custom };
+};
+
+export const prepareClickHouseMigrationSnapshot = async (
+	migrationFolders: string[],
+	schemaPath: string | string[],
+	casing: CasingType | undefined,
+): Promise<{ prev: ClickHouseSchema; cur: ClickHouseSchema; custom: ClickHouseSchema }> => {
+	const prevSnapshot = clickhouseSchema.parse(
+		preparePrevSnapshot(migrationFolders, dryClickHouse),
+	);
+	const serialized = await serializeClickHouse(schemaPath, casing);
+
+	const id = randomUUID();
+	const idPrev = prevSnapshot.id;
+
+	const { version, dialect, ...rest } = serialized;
+	const result: ClickHouseSchema = { version, dialect, id, prevId: idPrev, ...rest };
+
+	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+
+	// that's for custom migrations, when we need new IDs, but old snapshot
+	const custom: ClickHouseSchema = {
 		id,
 		prevId: idPrev,
 		...prevRest,

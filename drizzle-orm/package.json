@@ -30,6 +30,7 @@
 		"pg",
 		"mysql",
 		"singlestore",
+		"clickhouse",
 		"postgresql",
 		"postgres",
 		"sqlite",
@@ -46,11 +47,13 @@
 	},
 	"peerDependencies": {
 		"@aws-sdk/client-rds-data": ">=3",
+		"@clickhouse/client": ">=1",
 		"@cloudflare/workers-types": ">=4",
 		"@electric-sql/pglite": ">=0.2.0",
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
 		"@neondatabase/serverless": ">=0.10.0",
+		"@netlify/db": ">=0.4.0",
 		"@op-engineering/op-sqlite": ">=2",
 		"@opentelemetry/api": "^1.4.1",
 		"@planetscale/database": ">=1.13",
@@ -69,14 +72,61 @@
 		"knex": "*",
 		"kysely": "*",
 		"mysql2": ">=2",
-		"@netlify/db": ">=0.4.0",
 		"pg": ">=8",
 		"postgres": ">=3",
 		"sql.js": ">=1",
 		"sqlite3": ">=5"
 	},
 	"peerDependenciesMeta": {
-		"mysql2": {
+		"@aws-sdk/client-rds-data": {
+			"optional": true
+		},
+		"@clickhouse/client": {
+			"optional": true
+		},
+		"@cloudflare/workers-types": {
+			"optional": true
+		},
+		"@electric-sql/pglite": {
+			"optional": true
+		},
+		"@libsql/client": {
+			"optional": true
+		},
+		"@libsql/client-wasm": {
+			"optional": true
+		},
+		"@neondatabase/serverless": {
+			"optional": true
+		},
+		"@netlify/db": {
+			"optional": true
+		},
+		"@op-engineering/op-sqlite": {
+			"optional": true
+		},
+		"@opentelemetry/api": {
+			"optional": true
+		},
+		"@planetscale/database": {
+			"optional": true
+		},
+		"@prisma/client": {
+			"optional": true
+		},
+		"@tidbcloud/serverless": {
+			"optional": true
+		},
+		"@types/better-sqlite3": {
+			"optional": true
+		},
+		"@types/pg": {
+			"optional": true
+		},
+		"@types/sql.js": {
+			"optional": true
+		},
+		"@upstash/redis": {
 			"optional": true
 		},
 		"@vercel/postgres": {
@@ -88,58 +138,7 @@
 		"better-sqlite3": {
 			"optional": true
 		},
-		"@types/better-sqlite3": {
-			"optional": true
-		},
-		"sqlite3": {
-			"optional": true
-		},
-		"sql.js": {
-			"optional": true
-		},
-		"@types/sql.js": {
-			"optional": true
-		},
-		"@cloudflare/workers-types": {
-			"optional": true
-		},
-		"pg": {
-			"optional": true
-		},
-		"@types/pg": {
-			"optional": true
-		},
-		"postgres": {
-			"optional": true
-		},
-		"@neondatabase/serverless": {
-			"optional": true
-		},
-		"@netlify/db": {
-			"optional": true
-		},
 		"bun-types": {
-			"optional": true
-		},
-		"@aws-sdk/client-rds-data": {
-			"optional": true
-		},
-		"@planetscale/database": {
-			"optional": true
-		},
-		"knex": {
-			"optional": true
-		},
-		"kysely": {
-			"optional": true
-		},
-		"@libsql/client": {
-			"optional": true
-		},
-		"@libsql/client-wasm": {
-			"optional": true
-		},
-		"@opentelemetry/api": {
 			"optional": true
 		},
 		"expo-sqlite": {
@@ -148,27 +147,34 @@
 		"gel": {
 			"optional": true
 		},
-		"@op-engineering/op-sqlite": {
+		"knex": {
 			"optional": true
 		},
-		"@electric-sql/pglite": {
+		"kysely": {
 			"optional": true
 		},
-		"@tidbcloud/serverless": {
+		"mysql2": {
+			"optional": true
+		},
+		"pg": {
+			"optional": true
+		},
+		"postgres": {
 			"optional": true
 		},
 		"prisma": {
 			"optional": true
 		},
-		"@prisma/client": {
+		"sql.js": {
 			"optional": true
 		},
-		"@upstash/redis": {
+		"sqlite3": {
 			"optional": true
 		}
 	},
 	"devDependencies": {
 		"@aws-sdk/client-rds-data": "^3.549.0",
+		"@clickhouse/client": "^1.11.0",
 		"@cloudflare/workers-types": "^4.20241112.0",
 		"@electric-sql/pglite": "^0.2.12",
 		"@libsql/client": "^0.10.0",

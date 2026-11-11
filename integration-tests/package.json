@@ -15,6 +15,7 @@
 	"license": "Apache-2.0",
 	"private": true,
 	"devDependencies": {
+		"@clickhouse/client": "^1.11.0",
 		"@cloudflare/workers-types": "^4.20241004.0",
 		"@libsql/client": "^0.10.0",
 		"@neondatabase/serverless": "0.10.0",

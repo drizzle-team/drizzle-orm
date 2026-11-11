@@ -26,7 +26,7 @@ export const outputs = {
 			),
 		noDialect: () =>
 			withStyle.error(
-				`Please specify 'dialect' param in config, either of 'postgresql', 'mysql', 'sqlite', turso or singlestore`,
+				`Please specify 'dialect' param in config, either of 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore' or 'clickhouse'`,
 			),
 	},
 	common: {
@@ -78,6 +78,14 @@ export const outputs = {
 		},
 		introspect: {},
 		push: {},
+	},
+	clickhouse: {
+		connection: {
+			required: () =>
+				withStyle.error(
+					`Either "url" or "host" is required for a ClickHouse connection`,
+				),
+		},
 	},
 	singlestore: {
 		connection: {
