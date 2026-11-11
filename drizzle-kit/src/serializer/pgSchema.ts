@@ -134,6 +134,8 @@ const fk = object({
 	columnsTo: string().array(),
 	onUpdate: string().optional(),
 	onDelete: string().optional(),
+	deferrable: string().optional(),
+	initially: string().optional(),
 }).strict();
 
 export const sequenceSchema = object({
@@ -223,12 +225,16 @@ const tableV3 = object({
 const compositePK = object({
 	name: string(),
 	columns: string().array(),
+	deferrable: string().optional(),
+	initially: string().optional(),
 }).strict();
 
 const uniqueConstraint = object({
 	name: string(),
 	columns: string().array(),
 	nullsNotDistinct: boolean(),
+	deferrable: string().optional(),
+	initially: string().optional(),
 }).strict();
 
 export const policy = object({
@@ -632,7 +638,7 @@ export const PgSquasher = {
 	squashFK: (fk: ForeignKey) => {
 		return `${fk.name};${fk.tableFrom};${fk.columnsFrom.join(',')};${fk.tableTo};${fk.columnsTo.join(',')};${
 			fk.onUpdate ?? ''
-		};${fk.onDelete ?? ''};${fk.schemaTo || 'public'}`;
+		};${fk.onDelete ?? ''};${fk.schemaTo || 'public'};${fk.deferrable ?? ''};${fk.initially ?? ''}`;
 	},
 	squashPolicy: (policy: Policy) => {
 		return `${policy.name}--${policy.as}--${policy.for}--${
@@ -665,21 +671,28 @@ export const PgSquasher = {
 		};
 	},
 	squashPK: (pk: PrimaryKey) => {
-		return `${pk.columns.join(',')};${pk.name}`;
+		return `${pk.columns.join(',')};${pk.name};${pk.deferrable ?? ''};${pk.initially ?? ''}`;
 	},
 	unsquashPK: (pk: string): PrimaryKey => {
 		const splitted = pk.split(';');
-		return { name: splitted[1], columns: splitted[0].split(',') };
+		return {
+			name: splitted[1],
+			columns: splitted[0].split(','),
+			deferrable: splitted[2] || undefined,
+			initially: splitted[3] || undefined,
+		};
 	},
 	squashUnique: (unq: UniqueConstraint) => {
-		return `${unq.name};${unq.columns.join(',')};${unq.nullsNotDistinct}`;
+		return `${unq.name};${unq.columns.join(',')};${unq.nullsNotDistinct};${unq.deferrable ?? ''};${unq.initially ?? ''}`;
 	},
 	unsquashUnique: (unq: string): UniqueConstraint => {
-		const [name, columns, nullsNotDistinct] = unq.split(';');
+		const [name, columns, nullsNotDistinct, deferrable, initially] = unq.split(';');
 		return {
 			name,
 			columns: columns.split(','),
 			nullsNotDistinct: nullsNotDistinct === 'true',
+			deferrable: deferrable || undefined,
+			initially: initially || undefined,
 		};
 	},
 	unsquashFK: (input: string): ForeignKey => {
@@ -692,6 +705,8 @@ export const PgSquasher = {
 			onUpdate,
 			onDelete,
 			schemaTo,
+			deferrable,
+			initially,
 		] = input.split(';');
 
 		const result: ForeignKey = fk.parse({
@@ -703,6 +718,8 @@ export const PgSquasher = {
 			columnsTo: columnsToStr.split(','),
 			onUpdate,
 			onDelete,
+			deferrable: deferrable || undefined,
+			initially: initially || undefined,
 		});
 		return result;
 	},

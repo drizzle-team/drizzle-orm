@@ -106,7 +106,7 @@ test('add table #3', async () => {
 				type: 'serial',
 			},
 		],
-		compositePKs: ['id;users_pk'],
+		compositePKs: ['id;users_pk;;'],
 		policies: [],
 		uniqueConstraints: [],
 		isRLSEnabled: false,
@@ -954,4 +954,191 @@ test('optional db aliases (camel case)', async () => {
 	const st7 = `CREATE INDEX "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
+});
+
+test('deferrable unique constraint', async () => {
+	const from = {};
+	const to = {
+		table: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			unq: unique('name_unique').on(t.name).deferrable().initiallyDeferred(),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"name" text NOT NULL,\n\tCONSTRAINT "name_unique" UNIQUE("name") DEFERRABLE INITIALLY DEFERRED\n);\n',
+	]);
+});
+
+test('deferrable unique constraint: initially immediate', async () => {
+	const from = {};
+	const to = {
+		table: pgTable('users', {
+			id: serial('id').primaryKey(),
+			email: text('email').notNull(),
+		}, (t) => ({
+			unq: unique('email_unique').on(t.email).deferrable().initiallyImmediate(),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"email" text NOT NULL,\n\tCONSTRAINT "email_unique" UNIQUE("email") DEFERRABLE INITIALLY IMMEDIATE\n);\n',
+	]);
+});
+
+test('add deferrable unique constraint to existing table', async () => {
+	const from = {
+		table: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}),
+	};
+	const to = {
+		table: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			unq: unique('name_unique').on(t.name).deferrable().initiallyDeferred(),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ADD CONSTRAINT "name_unique" UNIQUE("name") DEFERRABLE INITIALLY DEFERRED;',
+	]);
+});
+
+test('deferrable composite primary key', async () => {
+	const from = {};
+	const to = {
+		table: pgTable('items', {
+			col1: integer('col1').notNull(),
+			col2: integer('col2').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				name: 'items_pk',
+				columns: [t.col1, t.col2],
+				deferrable: 'deferrable',
+				initially: 'deferred',
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE "items" (\n\t"col1" integer NOT NULL,\n\t"col2" integer NOT NULL,\n\tCONSTRAINT "items_pk" PRIMARY KEY("col1","col2") DEFERRABLE INITIALLY DEFERRED\n);\n',
+	]);
+});
+
+test('alter deferrable composite primary key', async () => {
+	const from = {
+		table: pgTable('items', {
+			col1: integer('col1').notNull(),
+			col2: integer('col2').notNull(),
+			col3: integer('col3').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				name: 'items_pk',
+				columns: [t.col1, t.col2],
+			}),
+		})),
+	};
+	const to = {
+		table: pgTable('items', {
+			col1: integer('col1').notNull(),
+			col2: integer('col2').notNull(),
+			col3: integer('col3').notNull(),
+		}, (t) => ({
+			pk: primaryKey({
+				name: 'items_pk',
+				columns: [t.col1, t.col2],
+				deferrable: 'deferrable',
+				initially: 'deferred',
+			}),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "items" DROP CONSTRAINT "items_pk";\n--> statement-breakpoint\nALTER TABLE "items" ADD CONSTRAINT "items_pk" PRIMARY KEY("col1","col2") DEFERRABLE INITIALLY DEFERRED;',
+	]);
+});
+
+test('deferrable foreign key', async () => {
+	const from = {};
+	const to = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+		}),
+		posts: pgTable('posts', {
+			id: serial('id').primaryKey(),
+			userId: integer('user_id'),
+		}, (t) => ({
+			fk: foreignKey({
+				columns: [t.userId],
+				foreignColumns: [to.users.id],
+				name: 'posts_user_fk',
+			}).deferrable().initiallyDeferred(),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements[0]).toContain('CREATE TABLE "users"');
+	expect(sqlStatements[1]).toContain('CREATE TABLE "posts"');
+	expect(sqlStatements[2]).toBe(
+		'ALTER TABLE "posts" ADD CONSTRAINT "posts_user_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action DEFERRABLE INITIALLY DEFERRED;',
+	);
+});
+
+test('deferrable foreign key: initially immediate', async () => {
+	const from = {};
+	const to = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+		}),
+		posts: pgTable('posts', {
+			id: serial('id').primaryKey(),
+			userId: integer('user_id'),
+		}, (t) => ({
+			fk: foreignKey({
+				columns: [t.userId],
+				foreignColumns: [to.users.id],
+				name: 'posts_user_fk',
+			}).onDelete('cascade').deferrable().initiallyImmediate(),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements[2]).toBe(
+		'ALTER TABLE "posts" ADD CONSTRAINT "posts_user_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action DEFERRABLE INITIALLY IMMEDIATE;',
+	);
+});
+
+test('not deferrable unique constraint', async () => {
+	const from = {};
+	const to = {
+		table: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => ({
+			unq: unique('name_unique').on(t.name).notDeferrable(),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"id" serial PRIMARY KEY NOT NULL,\n\t"name" text NOT NULL,\n\tCONSTRAINT "name_unique" UNIQUE("name") NOT DEFERRABLE\n);\n',
+	]);
 });

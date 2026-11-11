@@ -455,8 +455,9 @@ class PgCreateTableConvertor extends Convertor {
 		if (typeof compositePKs !== 'undefined' && compositePKs.length > 0) {
 			statement += ',\n';
 			const compositePK = PgSquasher.unsquashPK(compositePKs[0]);
-			statement += `\tCONSTRAINT "${st.compositePkName}" PRIMARY KEY(\"${compositePK.columns.join(`","`)}\")`;
-			// statement += `\n`;
+			const deferrablePK = compositePK.deferrable ? ` ${compositePK.deferrable.toUpperCase()}` : '';
+			const initiallyPK = compositePK.initially ? ` INITIALLY ${compositePK.initially.toUpperCase()}` : '';
+			statement += `\tCONSTRAINT "${st.compositePkName}" PRIMARY KEY(\"${compositePK.columns.join(`","`)}\")${deferrablePK}${initiallyPK}`;
 		}
 
 		if (
@@ -466,10 +467,11 @@ class PgCreateTableConvertor extends Convertor {
 			for (const uniqueConstraint of uniqueConstraints) {
 				statement += ',\n';
 				const unsquashedUnique = PgSquasher.unsquashUnique(uniqueConstraint);
+				const deferrableUnq = unsquashedUnique.deferrable ? ` ${unsquashedUnique.deferrable.toUpperCase()}` : '';
+				const initiallyUnq = unsquashedUnique.initially ? ` INITIALLY ${unsquashedUnique.initially.toUpperCase()}` : '';
 				statement += `\tCONSTRAINT "${unsquashedUnique.name}" UNIQUE${
 					unsquashedUnique.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
-				}(\"${unsquashedUnique.columns.join(`","`)}\")`;
-				// statement += `\n`;
+				}(\"${unsquashedUnique.columns.join(`","`)}\")${deferrableUnq}${initiallyUnq}`;
 			}
 		}
 
@@ -1154,9 +1156,11 @@ class PgAlterTableAddUniqueConstraintConvertor extends Convertor {
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
+		const deferrableStr = unsquashed.deferrable ? ` ${unsquashed.deferrable.toUpperCase()}` : '';
+		const initiallyStr = unsquashed.initially ? ` INITIALLY ${unsquashed.initially.toUpperCase()}` : '';
 		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${unsquashed.name}" UNIQUE${
 			unsquashed.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''
-		}("${unsquashed.columns.join('","')}");`;
+		}("${unsquashed.columns.join('","')}")${deferrableStr}${initiallyStr};`;
 	}
 }
 
@@ -3076,15 +3080,17 @@ class PgAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 	}
 
 	convert(statement: JsonCreateCompositePK) {
-		const { name, columns } = PgSquasher.unsquashPK(statement.data);
+		const { name, columns, deferrable, initially } = PgSquasher.unsquashPK(statement.data);
 
 		const tableNameWithSchema = statement.schema
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
+		const deferrableStr = deferrable ? ` ${deferrable.toUpperCase()}` : '';
+		const initiallyStr = initially ? ` INITIALLY ${initially.toUpperCase()}` : '';
 		return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${statement.constraintName}" PRIMARY KEY("${
 			columns.join('","')
-		}");`;
+		}")${deferrableStr}${initiallyStr};`;
 	}
 }
 class PgAlterTableDeleteCompositePrimaryKeyConvertor extends Convertor {
@@ -3110,7 +3116,7 @@ class PgAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 
 	convert(statement: JsonAlterCompositePK) {
 		const { name, columns } = PgSquasher.unsquashPK(statement.old);
-		const { name: newName, columns: newColumns } = PgSquasher.unsquashPK(
+		const { name: newName, columns: newColumns, deferrable, initially } = PgSquasher.unsquashPK(
 			statement.new,
 		);
 
@@ -3118,9 +3124,11 @@ class PgAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 			? `"${statement.schema}"."${statement.tableName}"`
 			: `"${statement.tableName}"`;
 
+		const deferrableStr = deferrable ? ` ${deferrable.toUpperCase()}` : '';
+		const initiallyStr = initially ? ` INITIALLY ${initially.toUpperCase()}` : '';
 		return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${statement.oldConstraintName}";\n${BREAKPOINT}ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${statement.newConstraintName}" PRIMARY KEY("${
 			newColumns.join('","')
-		}");`;
+		}")${deferrableStr}${initiallyStr};`;
 	}
 }
 
@@ -3345,9 +3353,13 @@ class PgCreateForeignKeyConvertor extends Convertor {
 			onDelete,
 			onUpdate,
 			schemaTo,
+			deferrable,
+			initially,
 		} = PgSquasher.unsquashFK(statement.data);
 		const onDeleteStatement = onDelete ? ` ON DELETE ${onDelete}` : '';
 		const onUpdateStatement = onUpdate ? ` ON UPDATE ${onUpdate}` : '';
+		const deferrableStatement = deferrable ? ` ${deferrable.toUpperCase()}` : '';
+		const initiallyStatement = initially ? ` INITIALLY ${initially.toUpperCase()}` : '';
 		const fromColumnsString = columnsFrom.map((it) => `"${it}"`).join(',');
 		const toColumnsString = columnsTo.map((it) => `"${it}"`).join(',');
 
@@ -3360,7 +3372,7 @@ class PgCreateForeignKeyConvertor extends Convertor {
 			: `"${tableTo}"`;
 
 		const alterStatement =
-			`ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
+			`ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}${deferrableStatement}${initiallyStatement};`;
 
 		return alterStatement;
 	}
@@ -3444,6 +3456,12 @@ class PgAlterForeignKeyConvertor extends Convertor {
 		const onUpdateStatement = newFk.onUpdate
 			? ` ON UPDATE ${newFk.onUpdate}`
 			: '';
+		const deferrableStatement = newFk.deferrable
+			? ` ${newFk.deferrable.toUpperCase()}`
+			: '';
+		const initiallyStatement = newFk.initially
+			? ` INITIALLY ${newFk.initially.toUpperCase()}`
+			: '';
 
 		const fromColumnsString = newFk.columnsFrom
 			.map((it) => `"${it}"`)
@@ -3459,7 +3477,7 @@ class PgAlterForeignKeyConvertor extends Convertor {
 			: `"${newFk.tableFrom}"`;
 
 		const alterStatement =
-			`ALTER TABLE ${tableFromNameWithSchema} ADD CONSTRAINT "${newFk.name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
+			`ALTER TABLE ${tableFromNameWithSchema} ADD CONSTRAINT "${newFk.name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}${deferrableStatement}${initiallyStatement};`;
 
 		sql += alterStatement;
 		return sql;
