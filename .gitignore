@@ -1,5 +1,4 @@
 node_modules
-.vscode
 dist
 dist.new
 *.tsbuildinfo
@@ -13,3 +12,7 @@ rollup.config-*.mjs
 *.log
 .DS_Store
 drizzle-seed/src/dev
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
