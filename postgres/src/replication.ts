@@ -456,6 +456,7 @@ export class ReplicationConnection {
 			prepare: false,
 			binaryParams: false,
 			pipelineDepth: 1,
+			pipelineAuto: false,
 			pipelineFlush: 'sync',
 			temporal: 'date',
 			reuseBinaryOids: new Set(),

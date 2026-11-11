@@ -1,8 +1,9 @@
 // Domain: "pipelining" — multiple queries in flight on ONE connection (src/connection.ts:
-// processQueue/startTask/finishTask + the inflight FIFO + outbound batch). Default on (depth 100);
+// processQueue/startTask/finishTask + the inflight FIFO + outbound batch). Default on (depth 'auto');
 // `pipeline:false` gates to one-at-a-time. Read-only: only SELECTs, every connection is ended.
 import { describe, expect, test } from 'bun:test';
-import { PgError, withConn } from '../../helpers/db.ts';
+import net from 'node:net';
+import { PgError, TEST_CONFIG, testConnect, withConn } from '../../helpers/db.ts';
 
 const nums = (n: number) => Array.from({ length: n }, (_, i) => i);
 
@@ -93,5 +94,68 @@ describe('pipeline: false (gated)', () => {
 			expect(c.stats.pipelineDepth).toBe(1);
 			expect(c.stats.maxInflight).toBe(1); // gated: never more than one in flight
 		}, { pipeline: false });
+	});
+});
+
+// A TCP proxy that holds every chunk for `delayMs` in each direction, so the round trip grows by 2x.
+async function delayProxy(delayMs: number): Promise<{ port: number; close: () => void }> {
+	const sockets = new Set<net.Socket>();
+	const srv = net.createServer((client) => {
+		const server = net.connect({ host: TEST_CONFIG.host!, port: TEST_CONFIG.port! });
+		for (const [from, to] of [[client, server], [server, client]] as const) {
+			sockets.add(from);
+			from.on('data', (d) => setTimeout(() => to.write(d), delayMs));
+			from.on('error', () => to.destroy());
+			from.on('close', () => to.destroy());
+		}
+	});
+	await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+	return {
+		port: (srv.address() as net.AddressInfo).port,
+		close: () => {
+			for (const s of sockets) s.destroy();
+			srv.close();
+		},
+	};
+}
+
+describe("depth: 'auto' follows the round trip", () => {
+	test('a local connection keeps the floor of 100', async () => {
+		await withConn(async (c) => {
+			await c.query('select 1');
+			expect(c.rtt.min).toBeLessThan(1);
+			expect(c.stats.pipelineDepth).toBe(100);
+		});
+	});
+
+	test('a 12 ms round trip raises the depth to about 100 per ms', async () => {
+		if (TEST_CONFIG.host === undefined) return; // remote URL: no proxy
+		const proxy = await delayProxy(6);
+		const c = await testConnect({ host: '127.0.0.1', port: proxy.port });
+		try {
+			await c.query('select 1');
+			const rtt = c.rtt.min!;
+			expect(rtt).toBeGreaterThanOrEqual(12);
+			expect(c.stats.pipelineDepth).toBe(Math.min(4096, Math.ceil(100 * rtt)));
+			const rows = await Promise.all(nums(300).map((i) => c.query('select $1::int as n', [i])));
+			expect(rows.map((r) => (r.rows[0] as unknown[])[0])).toEqual(nums(300));
+			expect(c.stats.maxInflight).toBeGreaterThan(100); // beyond the old fixed default
+		} finally {
+			await c.end();
+			proxy.close();
+		}
+	});
+
+	test('a fixed depth does not follow the round trip', async () => {
+		if (TEST_CONFIG.host === undefined) return;
+		const proxy = await delayProxy(6);
+		const c = await testConnect({ host: '127.0.0.1', port: proxy.port, pipeline: { depth: 50 } });
+		try {
+			await c.query('select 1');
+			expect(c.stats.pipelineDepth).toBe(50);
+		} finally {
+			await c.end();
+			proxy.close();
+		}
 	});
 });

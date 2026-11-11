@@ -119,6 +119,7 @@ export interface NormalizedConfig {
 	prepare: boolean; // false -> never use server-side named prepared statements (transaction-pooler safe)
 	binaryParams: boolean; // upgrade fast-type params to binary on prepared reuse (OIDs from ParameterDescription)
 	pipelineDepth: number; // max queries in flight on one connection at once (1 = gated / no pipelining)
+	pipelineAuto: boolean; // depth follows the lowest measured round trip (see autoDepth)
 	pipelineFlush: 'sync' | 'microtask'; // batch same-tick writes into one socket write ('microtask') or write per dispatch ('sync')
 	temporal: 'date' | 'string'; // default decode for date/timestamp(tz) columns without an explicit target
 	reuseBinaryOids: Set<number>; // BINARY_FAST minus config.types overrides: cols to upgrade to binary on prepared-statement reuse
@@ -131,7 +132,13 @@ export interface NormalizedConfig {
 }
 
 const RTT_WINDOW = 5; // keep this many most-recent round-trip samples (ms) for connection.rtt
-const DEFAULT_PIPELINE_DEPTH = 100; // max in-flight queries on one connection when pipelining is on (matches postgres.js)
+const DEFAULT_PIPELINE_DEPTH = 100; // the 'auto' floor, and the depth before the first round-trip sample
+// 'auto' depth: in flight = rate x round trip (Little's law). One connection peaks at about 70k cheap
+// queries/s (client-bound), so ~100 per ms of round trip keeps it busy; bounded to [100, 4096].
+const AUTO_DEPTH_PER_MS = 100;
+const MAX_AUTO_DEPTH = 4096;
+const autoDepth = (rttMs: number): number =>
+	Math.min(MAX_AUTO_DEPTH, Math.max(DEFAULT_PIPELINE_DEPTH, Math.ceil(AUTO_DEPTH_PER_MS * rttMs)));
 const FLUSH_THRESHOLD = 64 * 1024; // flush the batch immediately once it reaches this many bytes, even in microtask mode (bounds memory, starts the transfer)
 
 // Per-name statement cache. paramOids come from ParameterDescription; the binary param plan is
@@ -306,6 +313,22 @@ export function isUntrustedCertificate(err: unknown): boolean {
 	const message = e?.message ?? '';
 	return e?.name === 'InvalidData' && message.includes('invalid peer certificate')
 		&& !/Expired|NotValidYet/.test(message);
+}
+
+// The starting depth, and whether it follows the round trip. An explicit value beats pooler detection.
+const resolvePipeline = (p: ConnectConfig['pipeline'], behindPooler: boolean): { depth: number; auto: boolean } =>
+	p === false || (p == null && behindPooler)
+		? { depth: 1, auto: false }
+		: typeof p === 'object' && typeof p.depth === 'number'
+		? { depth: Math.max(1, p.depth), auto: false }
+		: { depth: DEFAULT_PIPELINE_DEPTH, auto: true }; // omitted, true, {}, or { depth: 'auto' }
+
+/** The starting pipeline depth of a connection built from `config` (1 = no pipelining). Resolves the
+ *  host and port the way the Connection constructor does, so pooler detection matches. */
+export function pipelineDepthOf(config: ConnectConfig): number {
+	const host = config.host || process.env.PGHOST || 'localhost';
+	const port = config.port || Number(process.env.PGPORT) || 5432;
+	return resolvePipeline(config.pipeline, config.pooler ?? transactionPoolerDetected(host, port)).depth;
 }
 
 // A CancelRequest needs a second connection to the server, so only a connection that a pool opened
@@ -484,6 +507,11 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		return { writes: this._flushes, roundTrips: this._roundTrips };
 	}
 
+	/** @internal Queries queued or in flight. The pool reads it to pick the least-loaded connection. */
+	get _load(): number {
+		return this.queue.length + this.inflight.length;
+	}
+
 	get stats(): { queued: number; inflight: number; maxInflight: number; pipelineDepth: number; writes: number } {
 		return {
 			queued: this.queue.length,
@@ -512,6 +540,13 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		if (!Number.isFinite(ms) || ms < 0) return;
 		this.rttSamples.push(ms);
 		if (this.rttSamples.length > RTT_WINDOW) this.rttSamples.shift();
+		// 'auto' depth follows the connection's LOWEST round trip: the network floor. A query's sample
+		// includes its wait behind earlier pipelined queries and its server time, so a recent average
+		// would grow with load. The floor only moves down, so the depth is set rarely.
+		if (ms < this.rttFloor) {
+			this.rttFloor = ms;
+			if (this.cfg.pipelineAuto) this.cfg.pipelineDepth = autoDepth(ms);
+		}
 	}
 	private markPing(): void {
 		this.lastPingAt = performance.now();
@@ -539,6 +574,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private unflushed = 0; // tasks serialized into outbuf since the last flush (round-trip accounting)
 	private spCounter = 0; // monotonic counter for auto-generated SAVEPOINT names (nested begin)
 	private rttSamples: number[] = []; // network round-trip samples (ms), oldest→newest, capped at RTT_WINDOW
+	private rttFloor = Infinity; // lowest round trip seen (ms): the 'auto' pipeline depth follows it
 	private lastPingAt = 0; // send time of the last handshake msg awaiting a reply (0 = none pending)
 	private prepared = new Map<string, PreparedEntry>();
 	private staleStatements = new Set<string>(); // names invalidated by DDL (0A000/26000) — Close before re-Parse
@@ -606,7 +642,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			);
 		}
 		const port = config.port || Number(process.env.PGPORT) || 5432;
-		const pooled = config.pooler ?? transactionPoolerDetected(host, port); // gates the `prepare` + `pipeline` auto-defaults
+		// a transaction pooler (PgBouncer, Supavisor), not a Pool connection (that is pooledConnections)
+		const behindPooler = config.pooler ?? transactionPoolerDetected(host, port); // gates the `prepare` + `pipeline` auto-defaults
 		this.cfg = {
 			host,
 			port,
@@ -627,19 +664,11 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			statementTimeout: config.statementTimeout,
 			idleInTransactionSessionTimeout: config.idleInTransactionSessionTimeout,
 			channelBinding: config.channelBinding,
-			prepare: config.prepare ?? !pooled, // explicit wins; else off behind a pooler
+			prepare: config.prepare ?? !behindPooler, // explicit wins; else off behind a pooler
 			binaryParams: config.binaryParams ?? true,
 			// Pipelining: default on (auto-off behind a transaction pooler, where multiple in-flight implicit
 			// transactions on one client conn confuse the pooler's per-tx server assignment). Explicit wins.
-			pipelineDepth: ((
-				p,
-			) => (p === false
-				? 1
-				: p === true
-				? DEFAULT_PIPELINE_DEPTH
-				: p == null
-				? (pooled ? 1 : DEFAULT_PIPELINE_DEPTH)
-				: Math.max(1, p.depth ?? DEFAULT_PIPELINE_DEPTH)))(config.pipeline),
+			...((r) => ({ pipelineDepth: r.depth, pipelineAuto: r.auto }))(resolvePipeline(config.pipeline, behindPooler)),
 			pipelineFlush: (typeof config.pipeline === 'object' && config.pipeline.flush) || 'microtask', // coalesce same-tick writes by default
 			temporal: config.temporal ?? 'date',
 			decoders: decode?.decoders ?? buildDecoders(config.types, config.jsonBigints),
@@ -659,7 +688,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			transport: config.transport,
 			path: config.path,
 			plugins: config.plugins ?? [],
-			isBehindPooler: pooled,
+			isBehindPooler: behindPooler,
 		};
 		this.instrumented = this.cfg.plugins.length > 0;
 		const hasEval = isEvalAvailable();

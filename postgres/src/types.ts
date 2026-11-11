@@ -199,14 +199,22 @@ export interface ConnectConfig {
 	 *  match its column falls back to text for that one value, so server semantics (including
 	 *  out-of-range errors) are unchanged. First executions always go out text. Default: on. */
 	binaryParams?: boolean;
-	/** Pipeline independent queries on a SINGLE connection: keep several in flight at once instead of
-	 *  waiting a full round trip between each (collapses N round trips into ~1 for concurrently-issued
-	 *  queries, e.g. `Promise.all`). Results still return in request order; the server executes them
-	 *  serially (pipelining hides network latency, not server CPU). Default: on (depth 100), auto-off
-	 *  behind a transaction-mode pooler. `false` = one query at a time (gated); `{ depth }` caps in-flight.
-	 *  `flush` controls socket-write batching: `'microtask'` (default) coalesces queries issued in the same
-	 *  tick into ONE write (fewer syscalls); `'sync'` writes each as it's dispatched (lowest latency). */
-	pipeline?: boolean | { depth?: number; flush?: 'sync' | 'microtask' };
+	/** Pipeline independent queries on one connection: keep several in flight instead of waiting a round
+	 *  trip between each (N concurrently issued queries, e.g. `Promise.all`, take ~1 round trip). Results
+	 *  return in request order; the server runs them one at a time (pipelining hides network latency, not
+	 *  server CPU).
+	 *  - omitted / `true`: on with `depth: 'auto'`; omitted is off behind a transaction pooler (`pooler`).
+	 *  - `false`: one query at a time (depth 1).
+	 *  - `{ depth: 'auto' }`: the in-flight limit follows the connection's lowest measured round trip,
+	 *    100 per ms, between 100 and 4096 (about 100 on a local network, 1000 at 10 ms).
+	 *    `stats.pipelineDepth` shows the value in effect, `rtt.min` the round trip.
+	 *  - `{ depth: n }`: a fixed limit of n.
+	 *  - `flush`: `'microtask'` (default) sends queries issued in the same tick in one socket write;
+	 *    `'sync'` writes each query at once.
+	 *  An explicit value wins over pooler detection. In a pool, pipelining also lets standalone queries
+	 *  (`pool.query`, `pool.execute`) share connections instead of checking one out each; `false` turns
+	 *  that off too. */
+	pipeline?: boolean | { depth?: number | 'auto'; flush?: 'sync' | 'microtask' };
 	/** Auto-reconnect this connection after an unexpected drop (default off). Object
 	 *  tunes backoff (baseMs/maxMs) and maxRetries (null/omitted = retry forever). */
 	reconnect?: boolean | { baseMs?: number; maxMs?: number; maxRetries?: number };
