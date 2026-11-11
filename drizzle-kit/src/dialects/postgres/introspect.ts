@@ -1062,7 +1062,6 @@ export const fromDatabase = async (
 			with: idx.with?.join(', ') ?? '',
 			where: metadata.where,
 			columns: columns,
-			concurrently: false,
 			forUnique,
 			forPK,
 		});

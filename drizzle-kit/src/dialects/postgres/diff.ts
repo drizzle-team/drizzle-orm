@@ -396,8 +396,6 @@ export const ddlDiff = async (
 	const indexesAlters = alters.filter((it): it is DiffEntities['indexes'] => {
 		if (it.entityType !== 'indexes' || it.$left.table !== it.$right.table) return false;
 
-		delete it.concurrently;
-
 		return ddl2.indexes.hasDiff(it);
 	});
 
@@ -406,7 +404,7 @@ export const ddlDiff = async (
 		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? mode !== 'push' : true);
 		const forColumns = !!idx.columns && (idx.columns.from.length === idx.columns.to.length ? mode !== 'push' : true);
 
-		if (idx.isUnique || idx.concurrently || idx.method || idx.with || forColumns || forWhere) {
+		if (idx.isUnique || idx.method || idx.with || forColumns || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
 
 			// when a column used by the index is being dropped, emit a plain drop_index instead of recreate

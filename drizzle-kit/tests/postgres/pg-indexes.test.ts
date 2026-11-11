@@ -168,7 +168,7 @@ test('altering indexes', async () => {
 		}, (t) => [
 			index('removeColumn').on(t.name, t.id),
 			index('addColumn').on(t.name.desc()).with({ fillfactor: 70 }),
-			index('removeExpression').on(t.name.desc(), sql`name`).concurrently(),
+			index('removeExpression').on(t.name.desc(), sql`name`),
 			index('addExpression').on(t.id.desc()),
 			index('changeExpression').on(t.id.desc(), sql`name`),
 			index('changeName').on(t.name.desc(), t.id.asc().nullsLast()).with({ fillfactor: 70 }),
@@ -184,7 +184,7 @@ test('altering indexes', async () => {
 		}, (t) => [
 			index('removeColumn').on(t.name),
 			index('addColumn').on(t.name.desc(), t.id.nullsLast()).with({ fillfactor: 70 }),
-			index('removeExpression').on(t.name.desc()).concurrently(),
+			index('removeExpression').on(t.name.desc()),
 			index('addExpression').on(t.id.desc()),
 			index('changeExpression').on(t.id.desc(), sql`name desc`),
 			index('newName').on(t.name.desc(), sql`name`).with({ fillfactor: 70 }),
@@ -205,7 +205,7 @@ test('altering indexes', async () => {
 		'DROP INDEX "addColumn";',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70);',
 		'DROP INDEX "removeExpression";',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC NULLS LAST);',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC NULLS LAST);',
 		'DROP INDEX "changeExpression";',
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC NULLS LAST,name desc);',
 		'DROP INDEX "changeWith";',
@@ -225,7 +225,7 @@ test('altering indexes', async () => {
 		'DROP INDEX "removeColumn";',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
 		'DROP INDEX "removeExpression";',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC NULLS LAST);',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC NULLS LAST);',
 		'CREATE INDEX "newName" ON "users" ("name" DESC NULLS LAST,name) WITH (fillfactor=70);',
 	]);
 });
@@ -285,7 +285,7 @@ test('Indexes properties that should not trigger push changes', async () => {
 			name: text('name'),
 		}, (t) => [
 			index('changeExpression').on(t.id.desc(), sql`name`),
-			index('indx1').on(t.name.desc()).concurrently(),
+			index('indx1').on(t.name.desc()),
 			index('indx2').on(t.name.desc()).where(sql`true`),
 			index('indx3').on(t.name.op('text_ops')).where(sql`true`),
 			index('indx4').on(sql`lower(name)`).where(sql`true`),
@@ -339,7 +339,7 @@ test('indexes #0', async (t) => {
 			) => [
 				index('removeColumn').on(t.name, t.id),
 				index('addColumn').on(t.name.desc()).with({ fillfactor: 70 }),
-				index('removeExpression').on(t.name.desc(), sql`name`).concurrently(),
+				index('removeExpression').on(t.name.desc(), sql`name`),
 				index('addExpression').on(t.id.desc()),
 				index('changeExpression').on(t.id.desc(), sql`name`),
 				index('changeName').on(t.name.desc(), t.id.asc().nullsLast()).with({ fillfactor: 70 }),
@@ -359,7 +359,7 @@ test('indexes #0', async (t) => {
 			(t) => [
 				index('removeColumn').on(t.name),
 				index('addColumn').on(t.name.desc(), t.id.nullsLast()).with({ fillfactor: 70 }),
-				index('removeExpression').on(t.name.desc()).concurrently(),
+				index('removeExpression').on(t.name.desc()),
 				index('addExpression').on(t.id.desc()),
 				index('changeExpression').on(t.id.desc(), sql`name desc`),
 				index('newName').on(t.name.desc(), sql`name`).with({ fillfactor: 70 }),
@@ -384,7 +384,7 @@ test('indexes #0', async (t) => {
 		'DROP INDEX "addColumn";',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70);',
 		'DROP INDEX "removeExpression";',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC NULLS LAST);',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC NULLS LAST);',
 		'DROP INDEX "changeExpression";',
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC NULLS LAST,name desc);',
 		'DROP INDEX "changeWith";',
@@ -407,7 +407,7 @@ test('indexes #0', async (t) => {
 		'DROP INDEX "removeColumn";',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
 		'DROP INDEX "removeExpression";',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC NULLS LAST);',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC NULLS LAST);',
 		'CREATE INDEX "newName" ON "users" ("name" DESC NULLS LAST,name) WITH (fillfactor=70);',
 		// 'CREATE INDEX "changeExpression" ON "users" ("id" DESC NULLS LAST,name desc);',
 	]);
@@ -450,7 +450,7 @@ test('index #2', async (t) => {
 			id: serial('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
-			index('indx').on(t.name.desc()).concurrently(),
+			index('indx').on(t.name.desc()),
 			index('indx1').on(t.name.desc()),
 			index('indx2').on(t.name.op('text_ops')),
 			index('indx3').on(sql`lower(name)`),
