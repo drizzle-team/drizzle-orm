@@ -54,6 +54,8 @@ export interface SQLiteSelectConfig {
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
+	unscoped?: boolean;
+	context?: any;
 	having?: SQL;
 	table: SQLiteTable | Subquery | SQLiteViewBase | SQL;
 	limit?: number | Placeholder;

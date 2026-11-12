@@ -59,6 +59,8 @@ export interface MySqlSelectConfig {
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
+	unscoped?: boolean;
+	context?: any;
 	having?: SQL;
 	table: MySqlTable | Subquery | MySqlViewBase | SQL;
 	limit?: number | Placeholder;

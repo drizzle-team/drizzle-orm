@@ -1,5 +1,6 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
+import type { SQLWrapper } from '~/sql/sql.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getPgColumnBuilders, type PgColumnsBuilders } from './columns/all.ts';
@@ -65,6 +66,9 @@ export type PgTableWithColumns<T extends TableConfig> =
 			PgTableWithColumns<T>,
 			'enableRLS'
 		>;
+		withDefaultScope: (
+			scope: (table: PgTableWithColumns<T>, context?: any) => SQLWrapper | undefined,
+		) => PgTableWithColumns<T>;
 	};
 
 /** @internal */
@@ -126,6 +130,15 @@ export function pgTableWithSchema<
 	return Object.assign(table, {
 		enableRLS: () => {
 			table[PgTable.Symbol.EnableRLS] = true;
+			return table as PgTableWithColumns<{
+				name: TTableName;
+				schema: TSchemaName;
+				columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+				dialect: 'pg';
+			}>;
+		},
+		withDefaultScope: (scope: (table: any, context?: any) => SQLWrapper | undefined) => {
+			table[Table.Symbol.DefaultScope] = scope;
 			return table as PgTableWithColumns<{
 				name: TTableName;
 				schema: TSchemaName;

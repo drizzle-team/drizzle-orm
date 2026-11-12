@@ -11,6 +11,7 @@ import type {
 } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import { applyDefaultScopeToWhere } from '~/scope.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -44,6 +45,8 @@ export type MySqlDelete<
 
 export interface MySqlDeleteConfig {
 	where?: SQL | undefined;
+	unscoped?: boolean;
+	context?: any;
 	limit?: number | Placeholder;
 	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
 	table: MySqlTable;
@@ -141,6 +144,16 @@ export class MySqlDeleteBase<
 		return this as any;
 	}
 
+	unscoped(): this {
+		this.config.unscoped = true;
+		return this;
+	}
+
+	withContext(context: any): this {
+		this.config.context = context;
+		return this;
+	}
+
 	orderBy(
 		builder: (deleteTable: TTable) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
 	): MySqlDeleteWithout<this, TDynamic, 'orderBy'>;
@@ -174,7 +187,14 @@ export class MySqlDeleteBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildDeleteQuery(this.config);
+		if (this.config.unscoped) {
+			return this.dialect.buildDeleteQuery(this.config);
+		}
+		const where = applyDefaultScopeToWhere(this.config.table, this.config.where, this.config.context);
+		return this.dialect.buildDeleteQuery({
+			...this.config,
+			where,
+		});
 	}
 
 	toSQL(): Query {

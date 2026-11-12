@@ -13,6 +13,7 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { applyDefaultScopeToWhere } from '~/scope.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -49,6 +50,8 @@ export type PgDelete<
 
 export interface PgDeleteConfig {
 	where?: SQL | undefined;
+	unscoped?: boolean;
+	context?: any;
 	table: PgTable;
 	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
@@ -230,9 +233,26 @@ export class PgDeleteBase<
 		return this as any;
 	}
 
+	unscoped(): this {
+		this.config.unscoped = true;
+		return this;
+	}
+
+	withContext(context: any): this {
+		this.config.context = context;
+		return this;
+	}
+
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildDeleteQuery(this.config);
+		if (this.config.unscoped) {
+			return this.dialect.buildDeleteQuery(this.config);
+		}
+		const where = applyDefaultScopeToWhere(this.config.table, this.config.where, this.config.context);
+		return this.dialect.buildDeleteQuery({
+			...this.config,
+			where,
+		});
 	}
 
 	toSQL(): Query {
