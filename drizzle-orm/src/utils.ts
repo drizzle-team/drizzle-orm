@@ -6,7 +6,7 @@ import type { Logger } from './logger.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
 import { Param, SQL, View } from './sql/sql.ts';
-import type { DriverValueDecoder } from './sql/sql.ts';
+import type { DriverValueDecoder, SQLWrapper } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
@@ -131,7 +131,7 @@ export function mapUpdateSet(table: Table, values: Record<string, unknown>): Upd
 	return Object.fromEntries(entries);
 }
 
-export type UpdateSet = Record<string, SQL | Param | AnyColumn | null | undefined>;
+export type UpdateSet = Record<string, SQL | Param | SQLWrapper | AnyColumn | null | undefined>;
 
 export type OneOrMany<T> = T | T[];
 
