@@ -2396,7 +2396,7 @@ export class LibSQLModifyColumn extends Convertor {
 
 		const sqlStatements: string[] = [];
 
-		// collect index info
+		// collect index info for the table being modified
 		const indexes: {
 			name: string;
 			tableName: string;
@@ -2404,11 +2404,12 @@ export class LibSQLModifyColumn extends Convertor {
 			isUnique: boolean;
 			where?: string | undefined;
 		}[] = [];
-		for (const table of Object.values(json2.tables)) {
-			for (const index of Object.values(table.indexes)) {
+		const targetTable = json2.tables[tableName];
+		if (targetTable) {
+			for (const index of Object.values(targetTable.indexes)) {
 				const unsquashed = SQLiteSquasher.unsquashIdx(index);
-				sqlStatements.push(`DROP INDEX "${unsquashed.name}";`);
-				indexes.push({ ...unsquashed, tableName: table.name });
+				sqlStatements.push(`DROP INDEX IF EXISTS "${unsquashed.name}";`);
+				indexes.push({ ...unsquashed, tableName: targetTable.name });
 			}
 		}
 
