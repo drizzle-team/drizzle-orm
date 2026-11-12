@@ -4,7 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { AbortedTransactionError, type Generated, Kysely, PostgresDialect, sql } from 'kysely';
 import { type Migration, Migrator } from 'kysely/migration';
-import { createPool, Cursor, type KyselyPool } from '../../src/compat/kysely-node.ts';
+import { createPool, Cursor, type KyselyPool, type KyselyPoolOptions } from '../../src/compat/kysely-node.ts';
 import { TEST_CONFIG, VARIANT, withConn } from '../helpers/db.ts';
 
 const T = `kysely_${process.pid}`;
@@ -28,8 +28,8 @@ const backends = async (app: string) =>
 				.rows[0] as unknown[])[0],
 		)
 	);
-const kysely = (o: Parameters<typeof createPool>[0] & object = {}) => {
-	const pool = createPool({ ...TEST_CONFIG, decode: VARIANT, ...o });
+const kysely = (o: Parameters<typeof createPool>[0] & object = {}, options?: KyselyPoolOptions) => {
+	const pool = createPool({ ...TEST_CONFIG, decode: VARIANT, ...o }, options);
 	return { pool, db: new Kysely<DB>({ dialect: new PostgresDialect({ pool, cursor: Cursor }) }) };
 };
 
@@ -228,6 +228,70 @@ describe('compat-kysely', () => {
 					.execute(db)).rows[0]!.n;
 			}
 			expect(running).toBe(0);
+		}
+	});
+
+	// autoName: each distinct SQL gets a statement name, so the server keeps it prepared on the connection.
+	test('autoName (the default) prepares each distinct SQL once per connection', async () => {
+		const text = db.selectFrom(T).select(['name', 'n8']).where('id', '=', 0).compile().sql; // only this test runs it
+		const prepared = await db.transaction().execute(async (tx) => {
+			for (let i = 1; i <= 3; i++) await tx.selectFrom(T).select(['name', 'n8']).where('id', '=', i).execute();
+			return sql<{ name: string }>`select name from pg_prepared_statements where statement = ${text}`.execute(tx);
+		});
+		expect(prepared.rows).toHaveLength(1); // three executions, one statement
+		expect(prepared.rows[0]!.name).toMatch(/^_k/);
+	});
+
+	test('autoName: false sends every query unnamed', async () => {
+		const { db: k } = kysely({}, { autoName: false });
+		try {
+			const prepared = await k.transaction().execute(async (tx) => {
+				await tx.selectFrom(T).select('name').where('id', '=', 1).execute();
+				return sql<{ n: number }>`select count(*)::int4 n from pg_prepared_statements`.execute(tx);
+			});
+			expect(prepared.rows[0]!.n).toBe(0);
+		} finally {
+			await k.destroy();
+		}
+	});
+
+	// autoName's default is the pool's own `prepare`: behind a pooler no names are attached at all (not
+	// attached and then dropped by the driver), and a pooled URL with an explicit prepare: true names again.
+	test('autoName follows pool.prepare', async () => {
+		const url =
+			`postgres://${TEST_CONFIG.user}:${TEST_CONFIG.password}@${TEST_CONFIG.host}:${TEST_CONFIG.port}/${TEST_CONFIG.database}?pgbouncer=true`;
+		for (const [extra, wantNamed] of [[{}, false], [{ prepare: true }, true]] as const) {
+			const pool = createPool({ url, decode: VARIANT, ...extra });
+			expect([pool.pool.behindPooler, pool.pool.prepare]).toEqual([true, wantNamed]);
+			const names: Array<string | undefined> = [];
+			const query = pool.pool.query.bind(pool.pool);
+			pool.pool.query = ((sql: string, params: unknown[], opts?: { name?: string }) => {
+				names.push(opts?.name);
+				return query(sql, params, opts as never);
+			}) as typeof pool.pool.query;
+			const k = new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
+			try {
+				await k.selectFrom(T).select('name').where('id', '=', 1).execute();
+				expect(names).toHaveLength(1);
+				expect(names[0] === undefined).toBe(!wantNamed);
+			} finally {
+				await k.destroy();
+			}
+		}
+	});
+
+	test('a pooled URL (?pgbouncer=true) sends every query unnamed, autoName or not', async () => {
+		const url =
+			`postgres://${TEST_CONFIG.user}:${TEST_CONFIG.password}@${TEST_CONFIG.host}:${TEST_CONFIG.port}/${TEST_CONFIG.database}?pgbouncer=true`;
+		const k = new Kysely<DB>({ dialect: new PostgresDialect({ pool: createPool({ url, decode: VARIANT }) }) });
+		try {
+			const prepared = await k.transaction().execute(async (tx) => {
+				await tx.selectFrom(T).select('name').where('id', '=', 1).execute();
+				return sql<{ n: number }>`select count(*)::int4 n from pg_prepared_statements`.execute(tx);
+			});
+			expect(prepared.rows[0]!.n).toBe(0);
+		} finally {
+			await k.destroy();
 		}
 	});
 

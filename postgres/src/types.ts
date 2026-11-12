@@ -179,6 +179,11 @@ export interface ConnectConfig {
 	 *  exact; 'string' = the exact digits, JSON-serialisable (what pg and postgres.js return); 'number' =
 	 *  a JS number, lossy above 2^53. Per-column targets in a shape/queryTyped always override this. */
 	int8?: 'bigint' | 'string' | 'number';
+	/** Decode every column to the exact text Postgres sent (a string, or null for NULL): no number,
+	 *  Date, JSON or array parsing, and no binary formats on prepared re-executions. For layers that run
+	 *  their own decoding on server text, such as `@drizzle-team/postgres/compat-prisma8`. A column with a
+	 *  target from a shape keeps it. */
+	textValues?: boolean;
 	/** Per-OID decoder overrides for the parsed ('array'/'object') modes. */
 	types?: Record<number, Decoder>;
 	/** How to decode integers inside ANY json/jsonb value that exceed 2^53 (which plain
@@ -190,12 +195,15 @@ export interface ConnectConfig {
 	/** Use server-side NAMED prepared statements for `{ name }` queries and the reused-chunks builder.
 	 *  Set `false` behind a transaction-mode pooler (PgBouncer/Supavisor) where a named statement prepared
 	 *  on one backend may not exist on the next — every query then goes unnamed (Parse+Bind+Execute).
-	 *  Default: auto — off when a pooler is detected (Neon `-pooler` host, Supabase `pooler.supabase.com`
-	 *  / port 6543, or the Vercel serverless runtime), on otherwise. Explicit value always wins. */
+	 *  Default: auto — off when a pooler is detected (Neon `-pooler` host, port 6543 for Supabase Supavisor
+	 *  in transaction mode, or the Vercel serverless runtime) or declared (`pooler`), on otherwise. Neon's
+	 *  pooled endpoints are the exception: their PgBouncer keeps named statements across backends, so it
+	 *  stays on there. Explicit value always wins; a connection string can carry it as `?prepare=false`. */
 	prepare?: boolean;
 	/** Declares whether the connection goes through a transaction-mode pooler, such as PgBouncer. It
 	 *  replaces the detection from the host and port that `prepare` describes. Behind a pooler, `prepare`
-	 *  and `pipeline` default to off, and a connection whose query was canceled is closed. */
+	 *  and `pipeline` default to off, and a connection whose query was canceled is closed. A connection
+	 *  string can carry it as `?pooler=true`, or as `?pgbouncer=true`, the flag Prisma and Supabase use. */
 	pooler?: boolean;
 	/** Encode params in BINARY wire format for the fast types (int2/int4/int8, float8, bool,
 	 *  timestamp/timestamptz) when a named prepared statement is REUSED — the param OIDs are then

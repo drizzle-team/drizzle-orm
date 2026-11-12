@@ -18,12 +18,17 @@ describe('prepare auto-detect (no connection)', () => {
 	test('pooler: false → on, even on a detected pooler host', () => {
 		expect(P({ host: 'ep-x-pooler.aws.neon.tech', pooler: false })).toBe(true);
 	});
-	test('Neon "-pooler" host → off', () => {
-		expect(P({ host: 'ep-cool-name-pooler.us-east-2.aws.neon.tech' })).toBe(false);
+	test('Neon "-pooler" host → on: still behind a pooler, whose PgBouncer keeps named statements', () => {
+		const neon = new Connection({ host: 'ep-cool-name-pooler.us-east-2.aws.neon.tech' }).cfg;
+		expect([neon.isBehindPooler, neon.prepare, neon.pipelineDepth]).toEqual([true, true, 1]);
+		expect(P({ host: 'ep-x-pooler.us-east-1.postgres.vercel-storage.com' })).toBe(true); // Vercel Postgres is Neon
+		expect(P({ host: 'db-pooler.example.com' })).toBe(false); // a "-pooler." host elsewhere: unknown pooler, off
 	});
-	test('Supabase pooler host / port 6543 → off', () => {
+	test('port 6543 (Supavisor transaction mode) → off; Supabase session mode (5432) is no pooler', () => {
 		expect(P({ host: 'aws-0-us-east-1.pooler.supabase.com', port: 6543 })).toBe(false);
 		expect(P({ host: 'anything', port: 6543 })).toBe(false);
+		const session = new Connection({ host: 'aws-0-us-east-1.pooler.supabase.com', port: 5432 }).cfg;
+		expect([session.isBehindPooler, session.prepare]).toEqual([false, true]);
 	});
 	test('Vercel runtime → off (overridable)', () => {
 		const prev = process.env.VERCEL;
@@ -39,7 +44,8 @@ describe('prepare auto-detect (no connection)', () => {
 		expect(P({ host: '127.0.0.1', port: 5432 })).toBe(true);
 	});
 	test('explicit config always wins', () => {
-		expect(P({ host: 'ep-x-pooler.aws.neon.tech', prepare: true })).toBe(true);
+		expect(P({ host: 'ep-x-pooler.aws.neon.tech', prepare: false })).toBe(false);
+		expect(P({ host: 'aws-0-us-east-1.pooler.supabase.com', port: 6543, prepare: true })).toBe(true);
 		expect(P({ host: 'db.example.com', port: 5432, prepare: false })).toBe(false);
 	});
 });

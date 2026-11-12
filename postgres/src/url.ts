@@ -20,9 +20,16 @@ function decodePart(s: string, what: string, url: string): string {
 	}
 }
 
+function urlFlag(value: string, param: string): boolean {
+	if (value === 'true') return true;
+	if (value === 'false') return false;
+	throw new Error(`@drizzle/postgres: invalid ${param} value ${JSON.stringify(value)} (expected \`true\` | \`false\`)`);
+}
+
 /** Parse `postgres://user:pass@host:port/db?sslmode=…` into a partial config. Supports the userinfo,
- *  host/port, database, and the `sslmode`/`application_name`/`connect_timeout` params, plus a unix-socket
- *  `?host=/path`. Percent-encoded userinfo/database are decoded; IPv6 brackets are stripped. */
+ *  host/port, database, and the `sslmode`/`application_name`/`connect_timeout`/`options`/`channel_binding`/
+ *  `pooler`/`pgbouncer`/`prepare` params, plus a unix-socket `?host=/path`. Percent-encoded userinfo/database
+ *  are decoded; IPv6 brackets are stripped. */
 export function parseConnectionString(url: string): Partial<ConnectConfig> {
 	let u: URL;
 	try {
@@ -76,6 +83,13 @@ export function parseConnectionString(url: string): Partial<ConnectConfig> {
 		}
 		out.channelBinding = cb;
 	}
+	// Pooled connections: `pgbouncer=true` is Prisma's and Supabase's flag for a transaction-mode PgBouncer, and
+	// `pooler` names the config field; either sets `pooler` (which turns named statements, pipelining and the
+	// shared pool off, ADR 0019). `prepare` sets `prepare` alone.
+	const pooler = q.get('pooler') ?? q.get('pgbouncer');
+	if (pooler !== null) out.pooler = urlFlag(pooler, q.get('pooler') !== null ? 'pooler' : 'pgbouncer');
+	const prepare = q.get('prepare');
+	if (prepare !== null) out.prepare = urlFlag(prepare, 'prepare');
 	const sslmode = q.get('sslmode') ?? q.get('ssl');
 	if (sslmode) {
 		if (sslmode === 'disable') out.ssl = false;

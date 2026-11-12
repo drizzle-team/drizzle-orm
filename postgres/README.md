@@ -136,6 +136,13 @@ const db = new Kysely<DB>({
 
 Rows decode as Kysely's types expect: objects, and `int8` as a string unless the config sets `int8`.
 
+Kysely compiles a query to the same SQL text every time, so each distinct text gets a server-side statement
+name: Postgres parses and plans it once per connection, not on every execution. `createPool(config, { autoName:
+false })` turns that off. Each distinct SQL stays prepared on the connections that ran it, with no limit, so an
+app that builds SQL with varying text (`IN` lists of every length, inlined values) may prefer it off. It is
+off by default where the pool doesn't use named statements (`pool.prepare` is false): behind a transaction
+pooler, or with `prepare: false`.
+
 Kysely checks out a connection for every query. This pool doesn't: a standalone query is a shared
 pool query, pipelined with other callers' queries on the least-loaded connection. A connection is
 held from `begin` to the end of a transaction, for `.stream()` (`cursor: Cursor` is needed for it), and
@@ -145,3 +152,33 @@ for Kysely's `'cancel query'` and `'kill session'` abort strategies, so they sig
 other. Put session state (`SET`, temporary tables, session advisory locks) in a transaction or in the
 pool config (`options: '-c search_path=app'`). For the same reason `onCreateConnection` and
 `onReserveConnection` run once per Kysely checkout, not once per connection.
+
+## Prisma
+
+`@drizzle-team/postgres/compat-prisma7` is a drop-in for `@prisma/adapter-pg`:
+
+```ts
+import { PrismaClient } from './generated/prisma/client'
+import { PrismaPg } from '@drizzle-team/postgres/compat-prisma7'
+
+const prisma = new PrismaClient({ adapter: new PrismaPg(process.env.DATABASE_URL) })
+```
+
+Results, column types and errors match `@prisma/adapter-pg` 7.10.1. Prisma starts every transaction through
+the adapter, so statements outside one are shared pool queries, pipelined with other callers' queries on the
+least-loaded connection, and a transaction holds a connection of its own. `PrismaPg` takes a connection string
+or a pool config, not a pool: the pool it creates decodes values the way Prisma expects.
+
+`@drizzle-team/postgres/compat-prisma8` gives Prisma 8's Postgres client a pool to bind to:
+
+```ts
+import postgres from '@prisma/orm-postgres/runtime'
+import { createPool } from '@drizzle-team/postgres/compat-prisma8'
+
+const db = postgres({ contract, binding: { kind: 'pgPool', pool: createPool(process.env.DATABASE_URL) } })
+```
+
+Every value decodes to the server's text, which Prisma 8's codecs read, and every session starts with
+Prisma's settings (`DateStyle=ISO`, `lc_monetary=C`). Prisma checks a connection out for each statement;
+this pool runs those statements as shared queries and holds a connection from `BEGIN` to the end of a
+transaction. Cursors are not supported: Prisma reads the rows in one piece instead.

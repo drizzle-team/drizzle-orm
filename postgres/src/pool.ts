@@ -16,12 +16,14 @@ import { addBrand } from './brand.ts';
 import { replicate, type ReplicateHandle, type ReplicateOptions } from './cdc.ts';
 import { installVercelCompat, type VercelPoolSurface } from './compat/vercel.ts';
 import {
+	behindPoolerOf,
 	type Connection,
 	createDecodeState,
 	createPooledConnection,
 	type DecodeState,
 	isUntrustedCertificate,
 	pipelineDepthOf,
+	prepareOf,
 } from './connection.ts';
 import type { TxFn } from './connection.ts';
 import { Cursor, type CursorOptions } from './cursor.ts';
@@ -163,7 +165,19 @@ export class Pool {
 		this.idleMs = cfg.idleTimeoutMillis ?? 0;
 		this.notifyRelease = installVercelCompat(this, this.idleMs);
 		this.shareQueries = pipelineDepthOf(cfg) > 1;
+		this.behindPooler = behindPoolerOf(cfg);
+		this.prepare = prepareOf(cfg);
 	}
+
+	/** Whether this pool's connections go through a transaction-mode pooler (PgBouncer, Supavisor, a Neon
+	 *  `-pooler` host): detected from the host and port, or stated by the `pooler` option or a `?pooler=` /
+	 *  `?pgbouncer=` URL flag (ADR 0019). Not to be confused with a pooled connection, which is any
+	 *  connection this pool opened. */
+	readonly behindPooler: boolean;
+
+	/** Whether queries may use server-side named statements: the `prepare` option, else off behind a pooler.
+	 *  A `{ name }` on a query is dropped when this is false. */
+	readonly prepare: boolean;
 
 	get size(): number {
 		return this.all.size;

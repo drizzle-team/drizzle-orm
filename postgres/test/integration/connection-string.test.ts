@@ -32,6 +32,18 @@ describe('parseConnectionString (no connection)', () => {
 		expect(parseConnectionString('postgres://h/d?sslmode=require').ssl).toBe('require');
 		expect(parseConnectionString('postgres://h/d?sslmode=verify-full').ssl).toBe('verify-full');
 	});
+	test('pooler / pgbouncer / prepare flags', () => {
+		expect(parseConnectionString('postgres://h/d?pgbouncer=true')).toMatchObject({ pooler: true });
+		expect(parseConnectionString('postgres://h/d?pooler=false&prepare=true')).toMatchObject({
+			pooler: false,
+			prepare: true,
+		});
+		expect(parseConnectionString('postgres://h/d?pooler=true&pgbouncer=false')).toMatchObject({ pooler: true }); // pooler wins
+		expect(parseConnectionString('postgres://h/d')).not.toHaveProperty('pooler');
+		expect(() => parseConnectionString('postgres://h/d?pgbouncer=1')).toThrow('invalid pgbouncer value "1"');
+		expect(() => parseConnectionString('postgres://h/d?prepare=no')).toThrow('invalid prepare value "no"');
+	});
+
 	test('application_name, connect_timeout (s→ms), unix ?host, IPv6 brackets stripped', () => {
 		expect(parseConnectionString('postgres://h/d?application_name=svc&connect_timeout=5')).toMatchObject({
 			applicationName: 'svc',
@@ -141,6 +153,37 @@ describe('url in config: merge + pooler auto-detect (no connection)', () => {
 	test('a Supabase 6543 URL turns prepare off automatically', () => {
 		expect(new Connection({ url: 'postgres://u:p@aws-0-x.pooler.supabase.com:6543/postgres' }).cfg.prepare).toBe(false);
 		expect(new Connection({ url: 'postgres://u:p@127.0.0.1:5432/d' }).cfg.prepare).toBe(true);
+	});
+	test('?pgbouncer=true and ?pooler=true declare a pooler the host does not reveal', () => {
+		for (const q of ['pgbouncer=true', 'pooler=true']) {
+			const c = new Connection({ url: `postgres://u:p@db.internal:5432/d?${q}` });
+			expect([c.cfg.isBehindPooler, c.cfg.prepare, c.cfg.pipelineDepth]).toEqual([true, false, 1]);
+		}
+		// ...and =false overrides the detection, as the `pooler` field does
+		const c = new Connection({ url: 'postgres://u:p@aws-0-x.pooler.supabase.com:6543/postgres?pooler=false' });
+		expect([c.cfg.isBehindPooler, c.cfg.prepare]).toEqual([false, true]);
+	});
+	test('a pool reports behindPooler and prepare from the same rules', async () => {
+		const cases: Array<[string | Parameters<typeof createPool>[0], boolean, boolean]> = [
+			['postgres://u:p@db.internal:5432/d', false, true],
+			['postgres://u:p@ep-x-pooler.us-east-2.aws.neon.tech/d', true, true], // Neon's pooler keeps named statements
+			['postgres://u:p@aws-0-x.pooler.supabase.com:6543/postgres', true, false],
+			['postgres://u:p@aws-0-x.pooler.supabase.com:5432/postgres', false, true], // Supavisor session mode
+			['postgres://u:p@db.internal:5432/d?pgbouncer=true', true, false],
+			['postgres://u:p@db.internal:5432/d?prepare=false', false, false],
+			[{ url: 'postgres://u:p@db.internal:5432/d?pgbouncer=true', prepare: true }, true, true],
+		];
+		for (const [config, behindPooler, prepare] of cases) {
+			const pool = createPool(config as never);
+			expect([pool.behindPooler, pool.prepare]).toEqual([behindPooler, prepare]);
+			await pool.end();
+		}
+	});
+	test('?prepare=false turns named statements off alone; explicit fields still win over the URL', () => {
+		const c = new Connection({ url: 'postgres://u:p@db.internal:5432/d?prepare=false' });
+		expect([c.cfg.isBehindPooler, c.cfg.prepare]).toEqual([false, false]);
+		expect(new Connection({ url: 'postgres://u:p@h/d?prepare=false', prepare: true }).cfg.prepare).toBe(true);
+		expect(new Connection({ url: 'postgres://u:p@h/d?pgbouncer=true', pooler: false }).cfg.isBehindPooler).toBe(false);
 	});
 });
 

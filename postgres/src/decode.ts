@@ -391,6 +391,37 @@ const ASCII_EXTRA = [
 	4536, // multiranges: int4, num, ts, tstz, date, int8
 ];
 export const ASCII_SAFE = new Set([...ASCII_COMMON, ...ASCII_EXTRA]);
+// Types whose text output is always ASCII, for decoding a column as its server text (textValues): the
+// ASCII_SAFE strings plus the types that otherwise decode to numbers/booleans/bytes, and arrays of all of them
+// (an array literal of ASCII elements is ASCII). Not money (lc_monetary decides its currency text).
+export const ASCII_TEXT = new Set([
+	...ASCII_SAFE,
+	16, // bool
+	17, // bytea: hex or escape output, both ASCII
+	21,
+	23,
+	26, // int2, int4, oid
+	700,
+	701, // float4, float8
+	1000, // bool[]
+	1001, // bytea[]
+	1005,
+	1007,
+	1016,
+	1028, // int2[], int4[], int8[], oid[]
+	1021,
+	1022,
+	1231, // float4[], float8[], numeric[]
+	1182,
+	1183,
+	1115,
+	1185,
+	1187,
+	1270, // date[], time[], timestamp[], timestamptz[], interval[], timetz[]
+	2951, // uuid[]
+	1041,
+	651, // inet[], cidr[]
+]);
 
 // OIDs whose BINARY result-format decode is materially faster than text (bench/per-type-decode.bench.ts):
 // int2/int4/oid 1.6-1.8x, int8 4x, float8 4.6x, date/timestamp(tz) 6-10x, bytea 3.7x. A declared shape

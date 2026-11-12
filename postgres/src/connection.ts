@@ -4,7 +4,7 @@ import type { Duplex } from 'node:stream';
 import { md5Password, peerCertDer, type Scram, scramForChannel } from './auth.ts';
 import { addBrand } from './brand.ts';
 import { buildDecoders, decoderFor } from './decode.ts';
-import { BINARY_FAST, type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
+import { ASCII_TEXT, BINARY_FAST, type CodegenCol, hasTypeDefinition, INSTANT_OIDS, tagArrayCol } from './decode.ts';
 import {
 	type BindEncoder,
 	compileBindEncoder,
@@ -123,6 +123,7 @@ export interface NormalizedConfig {
 	pipelineFlush: 'sync' | 'microtask'; // batch same-tick writes into one socket write ('microtask') or write per dispatch ('sync')
 	temporal: 'date' | 'string'; // default decode for date/timestamp(tz) columns without an explicit target
 	int8: 'bigint' | 'string' | 'number'; // default decode for int8 columns without an explicit target
+	textValues: boolean; // every column without an explicit target decodes to its server text
 	reuseBinaryOids: Set<number>; // BINARY_FAST minus config.types overrides: cols to upgrade to binary on prepared-statement reuse
 	reconnect: { enabled: boolean; base: number; max: number; maxRetries: number | null };
 	transport?: Transport;
@@ -279,14 +280,32 @@ function beginClause(o: TxOptions | undefined): string {
 	return parts.length ? 'begin ' + parts.join(' ') : 'begin';
 }
 
-// Detect a transaction-mode pooler (where server-side NAMED prepared statements are unsafe — a Parse on
-// one backend may not exist on the next Bind). Used only to DEFAULT `prepare` off; explicit config wins.
+// Detect a transaction-mode pooler, which gives a client connection a backend per transaction (ADR 0019). It
+// DEFAULTS `pipeline` (and the pool's sharing) off, and `prepare` too unless the pooler keeps named statements;
+// explicit config wins.
 function transactionPoolerDetected(host: string, port: number): boolean {
 	if (host.includes('-pooler.')) return true; // Neon PgBouncer pooled endpoint
-	if (host.includes('pooler.supabase.com') || port === 6543) return true; // Supabase Supavisor transaction pooler
+	// Supabase Supavisor in transaction mode. Its session mode, port 5432 on the same pooler host, keeps one
+	// backend per client connection, so it is not a transaction pooler.
+	if (port === 6543) return true;
 	if (process.env.VERCEL || process.env.VERCEL_ENV) return true; // Vercel serverless: connections are ~always pooled
 	return false;
 }
+
+// Neon's pooled endpoints (Neon, and Vercel Postgres, which runs on Neon) run PgBouncer with prepared-statement
+// tracking (max_prepared_statements): a named statement keeps working whichever backend a transaction lands on,
+// so `prepare` stays on there. Checked against a live -pooler endpoint (test/integration/neon-pooler.test.ts).
+// Any other pooler may not track them, so named statements stay off behind it.
+const keepsNamedStatements = (host: string): boolean =>
+	host.includes('-pooler.') && /\.(?:neon\.tech|vercel-storage\.com)$/i.test(host);
+
+// The server's column descriptions (type OIDs, …) of a socket result, under a symbol: the public result is
+// exactly { rows, columns, rowCount, command }, and compat layers whose callers need the types (compat-prisma7
+// reports column types) read them here.
+export const RESULT_FIELDS = Symbol.for('drizzle-postgres.resultFields');
+/** The server's column descriptions of a socket query result, or undefined for results from other entries. */
+export const resultFields = (result: object): Field[] | undefined =>
+	(result as { [RESULT_FIELDS]?: Field[] })[RESULT_FIELDS];
 
 // Neon's proxy (Neon, and Vercel Postgres, which runs on Neon) forwards `options` and application_name to
 // Postgres but drops other startup parameters, DateStyle among them. neon-ws marks its socket factory,
@@ -358,9 +377,23 @@ const resolvePipeline = (p: ConnectConfig['pipeline'], behindPooler: boolean): {
 /** The starting pipeline depth of a connection built from `config` (1 = no pipelining). Resolves the
  *  host and port the way the Connection constructor does, so pooler detection matches. */
 export function pipelineDepthOf(config: ConnectConfig): number {
+	return resolvePipeline(config.pipeline, behindPoolerOf(config)).depth;
+}
+
+/** Whether a (url-resolved) config's connections go through a transaction pooler: the `pooler` option (or
+ *  `?pooler=` / `?pgbouncer=` in its URL), else detected from the host and port. The one place a Connection
+ *  and a Pool both read it from. */
+export function behindPoolerOf(config: ConnectConfig): boolean {
 	const host = config.host || process.env.PGHOST || 'localhost';
 	const port = config.port || Number(process.env.PGPORT) || 5432;
-	return resolvePipeline(config.pipeline, config.pooler ?? transactionPoolerDetected(host, port)).depth;
+	return config.pooler ?? transactionPoolerDetected(host, port);
+}
+
+/** Whether a (url-resolved) config's connections use server-side named statements: `prepare`, else off
+ *  behind a transaction pooler that doesn't keep them across backends (all but Neon's). */
+export function prepareOf(config: ConnectConfig): boolean {
+	if (config.prepare !== undefined) return config.prepare;
+	return !behindPoolerOf(config) || keepsNamedStatements(config.host || process.env.PGHOST || 'localhost');
 }
 
 // A CancelRequest needs a second connection to the server, so only a connection that a pool opened
@@ -692,7 +725,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		}
 		const port = config.port || Number(process.env.PGPORT) || 5432;
 		// a transaction pooler (PgBouncer, Supavisor), not a Pool connection (that is pooledConnections)
-		const behindPooler = config.pooler ?? transactionPoolerDetected(host, port); // gates the `prepare` + `pipeline` auto-defaults
+		const behindPooler = behindPoolerOf(config); // gates the `prepare` + `pipeline` auto-defaults
 		this.cfg = {
 			host,
 			port,
@@ -713,7 +746,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			statementTimeout: config.statementTimeout,
 			idleInTransactionSessionTimeout: config.idleInTransactionSessionTimeout,
 			channelBinding: config.channelBinding,
-			prepare: config.prepare ?? !behindPooler, // explicit wins; else off behind a pooler
+			prepare: prepareOf(config), // explicit wins; else off behind a pooler that doesn't keep named statements
 			binaryParams: config.binaryParams ?? true,
 			// Pipelining: default on (auto-off behind a transaction pooler, where multiple in-flight implicit
 			// transactions on one client conn confuse the pooler's per-tx server assignment). Explicit wins.
@@ -721,10 +754,14 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			pipelineFlush: (typeof config.pipeline === 'object' && config.pipeline.flush) || 'microtask', // coalesce same-tick writes by default
 			temporal: config.temporal ?? 'date',
 			int8: config.int8 ?? 'bigint',
+			textValues: config.textValues ?? false,
 			decoders: decode?.decoders ?? buildDecoders(config.types, config.jsonBigints),
 			// types to auto-upgrade to binary on prepared-statement reuse — the bench-fast set, minus any OID the
 			// user overrode via config.types (binary decode bypasses the text override, so leave those as text).
-			reuseBinaryOids: new Set([...BINARY_FAST].filter((oid) => !(config.types && oid in config.types))),
+			// textValues: binary results aren't the server's text, so nothing upgrades
+			reuseBinaryOids: config.textValues
+				? new Set()
+				: new Set([...BINARY_FAST].filter((oid) => !(config.types && oid in config.types))),
 			reconnect: ((rc) => {
 				const o = rc && typeof rc === 'object' ? rc : {};
 				return {
@@ -1203,6 +1240,16 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private resolveCols(cols: CodegenCol[]): CodegenCol[] {
 		const tsString = this.cfg.temporal === 'string';
 		const int8 = this.cfg.int8;
+		if (this.cfg.textValues) {
+			// every column as its server text (oid 25 = text), unless a shape says otherwise: latin1 for types whose
+			// text is always ASCII (skips the UTF-8 scan), UTF-8 for the rest
+			return cols.map((c): CodegenCol => {
+				if (c.js || c.json || hasTypeDefinition(c)) return tagArrayCol(c);
+				return ASCII_TEXT.has(c.oid)
+					? { name: c.name, oid: 25, js: 'latin1', format: 'text' }
+					: { name: c.name, oid: 25, format: 'text' };
+			});
+		}
 		return cols.map((c0) => {
 			const c = tagArrayCol(c0); // wire array OID -> decode '{…}' to a JS array (no-op on already-tagged shape cols)
 			if (int8 !== 'bigint' && !c.json) {
@@ -1920,12 +1967,14 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				t.streamEnd?.({ command: t.command, rowCount: t.rowCount });
 			} else {
 				const m = this.fireEnd(t);
+				const fields = t.fields ?? [];
 				const res: QueryResult<never> = {
 					rows: t.rows as never[],
-					columns: (t.fields ?? []).map((f) => f.name),
+					columns: fields.map((f) => f.name),
 					rowCount: t.rowCount ?? null,
 					command: t.command ?? null,
 				};
+				(res as { [RESULT_FIELDS]?: Field[] })[RESULT_FIELDS] = fields;
 				if (t.wantMetrics && m) res.metrics = m;
 				if (t.debug) res.debug = this.buildDebug(t);
 				t.resolve?.(res);

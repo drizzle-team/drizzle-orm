@@ -33,6 +33,28 @@ import type { PoolConfig } from '../types.ts';
 const NEEDS_SESSION = /^\s*(?:begin|start\s+transaction)\b|\bpg_backend_pid\s*\(/i;
 
 type Held = { conn: Connection<{ pooled: true }>; release: () => void };
+type Opts = { mode: 'object'; name?: string };
+
+// autoName: Kysely compiles the same query to the same SQL text every time, so each distinct text gets a
+// server-side statement name, and Postgres parses and plans it once per connection instead of on every
+// execution (re-executions also get binary results for the fast types). The pool's connections know the name
+// from then on; a name is never reused for other SQL. There is no cap: each distinct SQL the app sends stays
+// prepared on every connection that ran it until the connection closes. It is on by default only where the
+// pool uses named statements (pool.prepare): not behind a transaction pooler, not with `prepare: false`.
+class StatementNames {
+	#byText = new Map<string, Opts>();
+	#next = 0;
+
+	opts(sql: string): Opts {
+		let o = this.#byText.get(sql);
+		if (o === undefined) {
+			o = { mode: 'object', name: `_k${(this.#next++).toString(36)}` };
+			this.#byText.set(sql, o);
+		}
+		return o;
+	}
+}
+const UNNAMED: Opts = { mode: 'object' };
 
 /** The result PostgresDialect reads. `command` is whatever Postgres reported ('CREATE TABLE', …); the type
  *  lists the ones Kysely inspects, as Kysely's own PostgresQueryResult does. */
@@ -47,23 +69,26 @@ export class KyselyClient {
 	/** Read by PostgresDialect for its abort strategies; absent, so it asks the server (and the lease pins). */
 	readonly processID = undefined;
 	#pool: Pool;
+	#names: StatementNames | null;
 	#held: Held | null = null;
 	#pinning: Promise<Held> | null = null;
 
-	constructor(pool: Pool) {
+	constructor(pool: Pool, names: StatementNames | null = null) {
 		this.#pool = pool;
+		this.#names = names;
 	}
 
 	query<R = Record<string, unknown>>(sql: string, params?: readonly unknown[]): Promise<KyselyQueryResult<R>>;
 	query<R>(cursor: KyselyCursor<R>): KyselyCursor<R>;
 	query(q: string | KyselyCursor<unknown>, params: readonly unknown[] = []): unknown {
 		if (q instanceof KyselyCursor) return q._attach(this);
+		const opts = this.#names ? this.#names.opts(q) : UNNAMED;
 		const held = this.#held;
-		if (held) return held.conn.query(q, params as unknown[], { mode: 'object' });
+		if (held) return held.conn.query(q, params as unknown[], opts);
 		if (NEEDS_SESSION.test(q)) {
-			return this._hold().then((h) => h.conn.query(q, params as unknown[], { mode: 'object' }));
+			return this._hold().then((h) => h.conn.query(q, params as unknown[], opts));
 		}
-		return this.#pool.query(q, params as unknown[], { mode: 'object' });
+		return this.#pool.query(q, params as unknown[], opts);
 	}
 
 	/** Return the lease. `destroy` (Kysely passes it after a failed ROLLBACK) closes a held connection
@@ -134,9 +159,13 @@ export class KyselyCursor<R = Record<string, unknown>> {
 export class KyselyPool {
 	/** The driver pool underneath, for anything Kysely doesn't cover (pool.query, stats, …). */
 	readonly pool: Pool;
+	#names: StatementNames | null;
 
-	constructor(pool: Pool) {
+	constructor(pool: Pool, options: KyselyPoolOptions = {}) {
 		this.pool = pool;
+		// Off by default where the pool can't use named statements (behind a transaction pooler, or
+		// `prepare: false`): the driver would drop the names anyway, so don't keep them.
+		this.#names = (options.autoName ?? pool.prepare) ? new StatementNames() : null;
 	}
 
 	/** Read by PostgresDialect only to build a control client, which this pool doesn't offer. */
@@ -146,7 +175,7 @@ export class KyselyPool {
 
 	/** A lease: no connection is checked out until the lease needs one session (see the file header). */
 	async connect(): Promise<KyselyClient> {
-		return new KyselyClient(this.pool);
+		return new KyselyClient(this.pool, this.#names);
 	}
 
 	end(): Promise<void> {
@@ -154,13 +183,22 @@ export class KyselyPool {
 	}
 }
 
-/** Create a pool for Kysely's PostgresDialect. Accepts a config or a `postgres://…` connection string;
- *  `int8` defaults to 'string', as Kysely's types expect. */
-export function createPool(config: string | PoolConfig = {}): KyselyPool {
-	const c = typeof config === 'string' ? { url: config } : config;
-	return new KyselyPool(new Pool({ int8: 'string', ...c }));
+export interface KyselyPoolOptions {
+	/** Give each distinct SQL text a server-side statement name, so Postgres parses and plans it once per
+	 *  connection. Default: the pool's `prepare` — on, except behind a transaction pooler or with
+	 *  `prepare: false`, where the driver sends every query unnamed. Every distinct SQL stays prepared on the
+	 *  connections that ran it. */
+	autoName?: boolean;
 }
 
+/** Create a pool for Kysely's PostgresDialect. Accepts a config or a `postgres://…` connection string;
+ *  `int8` defaults to 'string', as Kysely's types expect. */
+export function createPool(config: string | PoolConfig = {}, options?: KyselyPoolOptions): KyselyPool {
+	const c = typeof config === 'string' ? { url: config } : config;
+	return new KyselyPool(new Pool({ int8: 'string', ...c }), options);
+}
+
+addBrand(StatementNames, 'StatementNames');
 addBrand(KyselyClient, 'KyselyClient');
 addBrand(KyselyCursor, 'KyselyCursor');
 addBrand(KyselyPool, 'KyselyPool');

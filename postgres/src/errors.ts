@@ -44,6 +44,10 @@ export class PgError extends Error {
 	hint?: string;
 	position?: string;
 	constraint?: string;
+	/** The column the error is about (Postgres' `c` field), when the server names one. */
+	column?: string;
+	/** The server source line that raised the error (Postgres' `L` field). */
+	line?: string;
 	/** A cancel request for an earlier query in the pipeline most likely stopped this query. */
 	isLateCancel?: boolean;
 	/** Set by `batch()`: the position, in the set passed in, of the query that failed. */
@@ -53,6 +57,10 @@ export class PgError extends Error {
 	constructor(fields: PgErrorFields) {
 		super(fields.message ?? 'PostgreSQL error');
 		this.name = 'PgError';
+		// JavaScriptCore (Bun, Safari) gives every Error its own numeric `line` and `column`, its source position.
+		// Postgres uses both names for its own fields, so set them from the server, present or not.
+		this.column = fields.column;
+		this.line = fields.line;
 		Object.assign(this, fields);
 	}
 }
