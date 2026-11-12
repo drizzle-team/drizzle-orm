@@ -47,6 +47,9 @@ export function mapResultRow<TResult>(
 						const objectName = path[0]!;
 						if (!(objectName in nullifyMap)) {
 							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
+						} else if (value !== null) {
+							// A single non-null field means the joined row exists, so the nested object must be kept.
+							nullifyMap[objectName] = false;
 						} else if (
 							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
 						) {
