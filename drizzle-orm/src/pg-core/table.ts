@@ -29,6 +29,8 @@ export type TableConfig = TableConfigBase<PgColumn>;
 export const InlineForeignKeys = Symbol.for('drizzle:PgInlineForeignKeys');
 /** @internal */
 export const EnableRLS = Symbol.for('drizzle:EnableRLS');
+/** @internal */
+export const EnableForceRLS = Symbol.for('drizzle:EnableForceRLS');
 
 export class PgTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'PgTable';
@@ -37,6 +39,7 @@ export class PgTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
 		EnableRLS: EnableRLS as typeof EnableRLS,
+		EnableForceRLS: EnableForceRLS as typeof EnableForceRLS,
 	});
 
 	/**@internal */
@@ -44,6 +47,9 @@ export class PgTable<T extends TableConfig = TableConfig> extends Table<T> {
 
 	/** @internal */
 	[EnableRLS]: boolean = false;
+
+	/** @internal */
+	[EnableForceRLS]: boolean = false;
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]: ((self: Record<string, PgColumn>) => PgTableExtraConfig) | undefined =
@@ -64,6 +70,10 @@ export type PgTableWithColumns<T extends TableConfig> =
 		enableRLS: () => Omit<
 			PgTableWithColumns<T>,
 			'enableRLS'
+		>;
+		forceRLS: () => Omit<
+			PgTableWithColumns<T>,
+			'forceRLS'
 		>;
 	};
 
@@ -126,6 +136,17 @@ export function pgTableWithSchema<
 	return Object.assign(table, {
 		enableRLS: () => {
 			table[PgTable.Symbol.EnableRLS] = true;
+			return table as PgTableWithColumns<{
+				name: TTableName;
+				schema: TSchemaName;
+				columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+				dialect: 'pg';
+			}>;
+		},
+		forceRLS: () => {
+			// FORCE ROW LEVEL SECURITY is a no-op unless RLS is also enabled, so enabling it implies enableRLS.
+			table[PgTable.Symbol.EnableRLS] = true;
+			table[PgTable.Symbol.EnableForceRLS] = true;
 			return table as PgTableWithColumns<{
 				name: TTableName;
 				schema: TSchemaName;

@@ -66,9 +66,11 @@ import {
 	JsonDropValueFromEnumStatement,
 	JsonDropViewStatement,
 	JsonEnableRLSStatement,
+	JsonForceRLSStatement,
 	JsonIndRenamePolicyStatement,
 	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
+	JsonNoForceRLSStatement,
 	JsonPgCreateIndexStatement,
 	JsonRecreateSingleStoreTableStatement,
 	JsonRecreateTableStatement,
@@ -382,14 +384,49 @@ class PgDisableRlsConvertor extends Convertor {
 	}
 }
 
+class PgForceRlsConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'force_rls' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonForceRLSStatement): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} FORCE ROW LEVEL SECURITY;`;
+	}
+}
+
+class PgNoForceRlsConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'no_force_rls' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonNoForceRLSStatement): string {
+		const tableNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.tableName}"`
+			: `"${statement.tableName}"`;
+
+		return `ALTER TABLE ${tableNameWithSchema} NO FORCE ROW LEVEL SECURITY;`;
+	}
+}
+
 class PgCreateTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_table' && dialect === 'postgresql';
 	}
 
 	convert(st: JsonCreateTableStatement) {
-		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
-			st;
+		const {
+			tableName,
+			schema,
+			columns,
+			compositePKs,
+			uniqueConstraints,
+			checkConstraints,
+			policies,
+			isRLSEnabled,
+			isForceRLSEnabled,
+		} = st;
 
 		let statement = '';
 		const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
@@ -490,7 +527,17 @@ class PgCreateTableConvertor extends Convertor {
 			schema,
 		});
 
-		return [statement, ...(policies && policies.length > 0 || isRLSEnabled ? [enableRls] : [])];
+		const forceRls = new PgForceRlsConvertor().convert({
+			type: 'force_rls',
+			tableName,
+			schema,
+		});
+
+		return [
+			statement,
+			...(policies && policies.length > 0 || isRLSEnabled ? [enableRls] : []),
+			...(isRLSEnabled && isForceRLSEnabled ? [forceRls] : []),
+		];
 	}
 }
 
@@ -4059,6 +4106,8 @@ convertors.push(new PgRenameIndPolicyConvertor());
 
 convertors.push(new PgEnableRlsConvertor());
 convertors.push(new PgDisableRlsConvertor());
+convertors.push(new PgForceRlsConvertor());
+convertors.push(new PgNoForceRlsConvertor());
 
 convertors.push(new PgDropRoleConvertor());
 convertors.push(new PgAlterRoleConvertor());

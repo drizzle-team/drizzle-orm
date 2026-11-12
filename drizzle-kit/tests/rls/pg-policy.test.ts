@@ -1654,3 +1654,122 @@ test('alter policy in the table: using', async (t) => {
 		},
 	]);
 });
+
+test('create table with force rls enabled', async (t) => {
+	const schema1 = {};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}).forceRLS(),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY NOT NULL\n);
+`,
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+		'ALTER TABLE "users" FORCE ROW LEVEL SECURITY;',
+	]);
+});
+
+test('force rls on existing table', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}).enableRLS(),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}).forceRLS(),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" FORCE ROW LEVEL SECURITY;']);
+	expect(statements).toStrictEqual([
+		{
+			schema: '',
+			tableName: 'users',
+			type: 'force_rls',
+		},
+	]);
+});
+
+test('no force rls on existing table', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}).forceRLS(),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}).enableRLS(),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" NO FORCE ROW LEVEL SECURITY;']);
+	expect(statements).toStrictEqual([
+		{
+			schema: '',
+			tableName: 'users',
+			type: 'no_force_rls',
+		},
+	]);
+});
+
+test('add policy + force rls', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => ({
+			rls: pgPolicy('test', { as: 'permissive' }),
+		})).forceRLS(),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+		'ALTER TABLE "users" FORCE ROW LEVEL SECURITY;',
+		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
+	]);
+	expect(statements).toStrictEqual([
+		{
+			schema: '',
+			tableName: 'users',
+			type: 'enable_rls',
+		},
+		{
+			schema: '',
+			tableName: 'users',
+			type: 'force_rls',
+		},
+		{
+			data: {
+				as: 'PERMISSIVE',
+				for: 'ALL',
+				name: 'test',
+				to: ['public'],
+				on: undefined,
+				using: undefined,
+				withCheck: undefined,
+			},
+			schema: '',
+			tableName: 'users',
+			type: 'create_policy',
+		},
+	]);
+});
