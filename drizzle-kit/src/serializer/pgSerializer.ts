@@ -1145,9 +1145,12 @@ WHERE
 		}
 	}
 
-	const schemasForLinkedPoliciesInSchema = Object.values(tsSchema?.policies ?? {}).map((it) => it.schema!);
+	const schemasForLinkedPoliciesInSchema = Object.values(tsSchema?.policies ?? {})
+		.map((it) => it.schema!)
+		.filter((s) => !schemaFilters.includes(s) ? false : true);
 
 	const wherePolicies = [...schemaFilters, ...schemasForLinkedPoliciesInSchema]
+		.filter((s, i, arr) => arr.indexOf(s) === i)
 		.map((t) => `schemaname = '${t}'`)
 		.join(' or ');
 
