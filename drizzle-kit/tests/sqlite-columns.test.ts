@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
 	foreignKey,
@@ -1046,4 +1047,54 @@ test('text default values escape single quotes', async (t) => {
 	expect(sqlStatements[0]).toStrictEqual(
 		"ALTER TABLE `table` ADD `text` text DEFAULT 'escape''s quotes';",
 	);
+});
+
+test('expression defaults wrap in parentheses for create table', async (t) => {
+	const schema = {
+		events: sqliteTable('events', {
+			id: integer('id').primaryKey(),
+			createdAt: text('created_at').default(sql`datetime('now')`),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite({}, schema, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toContain("DEFAULT (datetime('now'))");
+});
+
+test('expression defaults wrap in parentheses for add column', async (t) => {
+	const schema1 = {
+		events: sqliteTable('events', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+
+	const schema2 = {
+		events: sqliteTable('events', {
+			id: integer('id').primaryKey(),
+			createdAt: text('created_at').default(sql`datetime('now')`),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toContain("DEFAULT (datetime('now'))");
+});
+
+test('literal defaults not wrapped in extra parentheses', async (t) => {
+	const schema = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+			name: text('name').default('hello'),
+			active: integer('active', { mode: 'boolean' }).default(true),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite({}, schema, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toContain("DEFAULT 'hello'");
+	expect(sqlStatements[0]).toContain('DEFAULT true');
 });
