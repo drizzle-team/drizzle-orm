@@ -18,7 +18,7 @@ export type GetZodType<
 		? z.ZodEnum<{ [K in Assume<TColumn['_']['enumValues'], [string, ...string[]]>[number]]: K }>
 	: TColumn['_']['columnType'] extends 'PgGeometry' | 'PgPointTuple' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>
 	: TColumn['_']['columnType'] extends 'PgLine' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber, z.ZodNumber], null>
-	: TColumn['_']['data'] extends Date ? CanCoerce<TCoerce, 'date'> extends true ? z.coerce.ZodCoercedDate : z.ZodDate
+	: TColumn['_']['data'] extends Date ? CanCoerce<TCoerce, 'date'> extends true ? z.coerce.ZodCoercedDate<Date> : z.ZodDate
 	: TColumn['_']['data'] extends Buffer ? z.ZodType<Buffer>
 	: TColumn['_']['dataType'] extends 'array'
 		? z.ZodArray<GetZodPrimitiveType<Assume<TColumn['_']['data'], any[]>[number], '', TCoerce>>
@@ -66,11 +66,11 @@ type GetZodPrimitiveType<
 	| 'SingleStoreSerial'
 	| 'SQLiteInteger'
 	| 'MySqlYear'
-	| 'SingleStoreYear' ? CanCoerce<TCoerce, 'number'> extends true ? z.coerce.ZodCoercedNumber : z.ZodInt
-	: TData extends number ? CanCoerce<TCoerce, 'number'> extends true ? z.coerce.ZodCoercedNumber : z.ZodNumber
-	: TData extends bigint ? CanCoerce<TCoerce, 'bigint'> extends true ? z.coerce.ZodCoercedBigInt : z.ZodBigInt
-	: TData extends boolean ? CanCoerce<TCoerce, 'boolean'> extends true ? z.coerce.ZodCoercedBoolean : z.ZodBoolean
-	: TData extends string ? CanCoerce<TCoerce, 'string'> extends true ? z.coerce.ZodCoercedString : z.ZodString
+	| 'SingleStoreYear' ? CanCoerce<TCoerce, 'number'> extends true ? z.coerce.ZodCoercedNumber<number> : z.ZodInt
+	: TData extends number ? CanCoerce<TCoerce, 'number'> extends true ? z.coerce.ZodCoercedNumber<number> : z.ZodNumber
+	: TData extends bigint ? CanCoerce<TCoerce, 'bigint'> extends true ? z.coerce.ZodCoercedBigInt<bigint> : z.ZodBigInt
+	: TData extends boolean ? CanCoerce<TCoerce, 'boolean'> extends true ? z.coerce.ZodCoercedBoolean<boolean> : z.ZodBoolean
+	: TData extends string ? CanCoerce<TCoerce, 'string'> extends true ? z.coerce.ZodCoercedString<string> : z.ZodString
 	: z.ZodType;
 
 type HandleSelectColumn<
