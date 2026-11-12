@@ -76,6 +76,8 @@ export const fromDatabase = async (
 		rows: Record<string, unknown>[],
 		error: Error | null,
 	) => void = () => {},
+	// studio does not show procedures, so it skips their query
+	options: { procedures?: boolean } = {},
 ): Promise<InterimSchema & { tables: TableWithPartition[] }> => {
 	const schemas: Schema[] = [];
 	const enums: Enum[] = [];
@@ -1206,9 +1208,10 @@ export const fromDatabase = async (
 	}
 	progressCallback('views', views.length, 'done');
 
-	const { procedures, unsupportedProcedures, definitions: procedureDefinitions } = filteredNamespacesStringForSQL
-		? await introspectProcedures(db, filteredNamespacesStringForSQL)
-		: { procedures: [], unsupportedProcedures: [], definitions: {} };
+	const { procedures, unsupportedProcedures, definitions: procedureDefinitions } =
+		options.procedures !== false && filteredNamespacesStringForSQL
+			? await introspectProcedures(db, filteredNamespacesStringForSQL)
+			: { procedures: [], unsupportedProcedures: [], definitions: {} };
 
 	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
 	const resultTables = tables.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));

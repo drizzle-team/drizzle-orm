@@ -47,7 +47,7 @@ import {
 import fs from 'fs';
 import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { fetchPartitions } from 'src/ext/studio-postgres';
+import { fetchPartitions, fromDatabase as studioFromDatabase } from 'src/ext/studio-postgres';
 import { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
 import { needToPostpone } from 'tests/utils';
@@ -1845,6 +1845,24 @@ test('fetchPartitions finds a table with a quote in its name', async () => {
 	await db.query(`CREATE TABLE "it's_1" PARTITION OF "it's" FOR VALUES IN (1);`);
 
 	expect((await fetchPartitions(db, 'public', "it's")).map((it) => it.name)).toStrictEqual(["it's_1"]);
+});
+
+test('studio fromDatabase does not introspect procedures', async () => {
+	await db.query(`CREATE TABLE users (id int);`);
+	await db.query(`CREATE PROCEDURE noop() LANGUAGE sql AS $$ SELECT 1 $$;`);
+
+	expect((await fromDatabase(db)).procedures.map((it) => it.name)).toStrictEqual(['noop']);
+
+	const queries: string[] = [];
+	const result = await studioFromDatabase({
+		query: (sql, params) => {
+			queries.push(sql);
+			return db.query(sql, params);
+		},
+	});
+	expect(result.procedures).toStrictEqual([]);
+	expect(result.tables.map((it) => it.name)).toStrictEqual(['users']);
+	expect(queries.some((it) => it.includes('pg_catalog.pg_proc'))).toBe(false);
 });
 
 test('fromDatabase returns privileges of tables only, in a schema with uppercase letters too', async () => {
