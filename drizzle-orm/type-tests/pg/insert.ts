@@ -187,6 +187,23 @@ Expect<
 }
 
 {
+	db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, arrayCol: [] }).onConflictDoNothing({
+		target: sql`lower(${users.class})`,
+	});
+	db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, arrayCol: [] }).onConflictDoNothing({
+		target: [users.id, sql`lower(${users.class})`],
+	});
+	db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, arrayCol: [] }).onConflictDoUpdate({
+		target: sql`lower(${users.class})`,
+		set: { class: 'A' },
+	});
+	db.insert(users).values({ age1: 0, class: 'A', enumCol: 'a', homeCity: 0, arrayCol: [] }).onConflictDoUpdate({
+		target: [users.id, sql`lower(${users.class})`],
+		set: { class: 'A' },
+	});
+}
+
+{
 	function withReturning<T extends PgInsert>(qb: T) {
 		return qb.returning();
 	}
