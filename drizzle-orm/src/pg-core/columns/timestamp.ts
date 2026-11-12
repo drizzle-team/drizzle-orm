@@ -59,7 +59,7 @@ export class PgTimestamp<T extends ColumnBaseConfig<'date', 'PgTimestamp'>> exte
 	}
 
 	override mapFromDriverValue(value: Date | string): Date {
-		if (typeof value === 'string') return new Date(this.withTimezone ? value : value + '+0000');
+		if (typeof value === 'string') return parsePgTimestamp(value, this.withTimezone);
 
 		return value;
 	}
@@ -160,4 +160,67 @@ export function timestamp(a?: string | PgTimestampConfig, b: PgTimestampConfig =
 		return new PgTimestampStringBuilder(name, config.withTimezone ?? false, config.precision);
 	}
 	return new PgTimestampBuilder(name, config?.withTimezone ?? false, config?.precision);
+}
+
+/**
+ * Matches the text form Postgres uses for `timestamp` and `timestamptz` under the
+ * default ISO `DateStyle`: `YYYY-MM-DD HH:MM:SS[.ffffff][+HH[:MM[:SS]]][ BC]`.
+ *
+ * The year may have more than four digits, the fraction may have up to six digits,
+ * and the offset may carry minutes and seconds (Postgres prints local mean time
+ * offsets such as `+09:18:59` for instants before a zone's standard time).
+ */
+const pgTimestampRegex =
+	/^(\d{4,})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:([+-])(\d{2})(?::(\d{2}))?(?::(\d{2}))?)?( BC)?$/;
+
+/**
+ * Parses the text form of a Postgres `timestamp` / `timestamptz` into a `Date`.
+ *
+ * `new Date(text)` is not enough: the text is not in the ECMAScript date-time string
+ * format, so engines fall back to heuristics that reject offsets with seconds, turn
+ * years 1–99 into 1901–1999, and reject years with more than four digits.
+ *
+ * A value this function does not recognise falls back to `new Date` so that any
+ * other format still behaves as before.
+ */
+function parsePgTimestamp(value: string, withTimezone: boolean): Date {
+	const match = pgTimestampRegex.exec(value);
+	if (!match) {
+		return new Date(withTimezone ? value : value + '+0000');
+	}
+
+	const [
+		,
+		year,
+		month,
+		day,
+		hours,
+		minutes,
+		seconds,
+		fraction,
+		offsetSign,
+		offsetHours,
+		offsetMinutes,
+		offsetSeconds,
+		bc,
+	] = match;
+
+	// `Date.UTC` maps years 0–99 onto 1900–1999; setting the fields separately does not.
+	const date = new Date(0);
+	date.setUTCFullYear(bc ? 1 - Number(year) : Number(year), Number(month) - 1, Number(day));
+	date.setUTCHours(
+		Number(hours),
+		Number(minutes),
+		Number(seconds),
+		fraction ? Number((fraction + '00').slice(0, 3)) : 0,
+	);
+
+	if (withTimezone && offsetSign) {
+		const offsetInSeconds = Number(offsetHours) * 3600
+			+ (offsetMinutes ? Number(offsetMinutes) * 60 : 0)
+			+ (offsetSeconds ? Number(offsetSeconds) : 0);
+		date.setTime(date.getTime() - (offsetSign === '+' ? 1 : -1) * offsetInSeconds * 1000);
+	}
+
+	return date;
 }
