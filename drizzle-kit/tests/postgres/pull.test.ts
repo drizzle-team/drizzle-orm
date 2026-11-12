@@ -1904,6 +1904,8 @@ test('fromDatabase returns the columns of a composite foreign key in the order o
 
 test('fromDatabase returns standalone sequences only', async () => {
 	await db.query(`CREATE SEQUENCE standalone_seq;`);
+	// created before the table so it has a lower oid than the identity sequence
+	await db.query(`CREATE SEQUENCE ident_owned_seq;`);
 	await db.query(`CREATE TABLE users (id serial, ident int generated always as identity);`);
 	await db.query(`CREATE TABLE measurement (id serial, d date) PARTITION BY RANGE (d);`);
 	await db.query(`CREATE TABLE measurement_2023 (id serial, d date);`);
@@ -1912,6 +1914,8 @@ test('fromDatabase returns standalone sequences only', async () => {
 			FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
 	`);
 	await db.query(`CREATE SEQUENCE owned_seq OWNED BY users.id;`);
+	// the identity column also owns another sequence, its identity sequence must still be picked
+	await db.query(`ALTER SEQUENCE ident_owned_seq OWNED BY users.ident;`);
 
 	const { sequences, columns } = await fromDatabase(db);
 
