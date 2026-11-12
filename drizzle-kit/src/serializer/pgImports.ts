@@ -12,6 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { Relations } from 'drizzle-orm/relations';
 import { safeRegister } from '../cli/commands/utils';
+import { push_array } from '../utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyPgTable[] = [];
@@ -84,15 +85,15 @@ export const prepareFromPgImports = async (imports: string[]) => {
 			const i0: Record<string, unknown> = require(`${it}`);
 			const prepared = prepareFromExports(i0);
 
-			tables.push(...prepared.tables);
-			enums.push(...prepared.enums);
-			schemas.push(...prepared.schemas);
-			sequences.push(...prepared.sequences);
-			views.push(...prepared.views);
-			matViews.push(...prepared.matViews);
-			roles.push(...prepared.roles);
-			policies.push(...prepared.policies);
-			relations.push(...prepared.relations);
+			push_array(tables, prepared.tables);
+			push_array(enums, prepared.enums);
+			push_array(schemas, prepared.schemas);
+			push_array(sequences, prepared.sequences);
+			push_array(views, prepared.views);
+			push_array(matViews, prepared.matViews);
+			push_array(roles, prepared.roles);
+			push_array(policies, prepared.policies);
+			push_array(relations, prepared.relations);
 		}
 	});
 

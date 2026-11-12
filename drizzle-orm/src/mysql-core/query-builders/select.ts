@@ -22,7 +22,14 @@ import { SQL, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
-import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
+import {
+	applyMixins,
+	getTableColumns,
+	getTableLikeName,
+	haveSameKeys,
+	orderSelectedFields,
+	push_array,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { IndexBuilder } from '../indexes.ts';
 import { convertIndexToString, extractUsedTable, toArray } from '../utils.ts';
@@ -776,7 +783,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 		MySqlSetOperatorExcludedMethods,
 		true
 	> {
-		this.config.setOperators.push(...setOperators);
+		push_array(this.config.setOperators, setOperators);
 		return this as any;
 	}
 

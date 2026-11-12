@@ -16,6 +16,7 @@ import type { Column, Prettify, Relation, Table } from '../types/tables.ts';
 import { generatorsMap } from './GeneratorFuncs.ts';
 import type { AbstractGenerator, GenerateArray, GenerateInterval, GenerateWeightedCount } from './Generators.ts';
 
+import { push_array } from '../utils.ts';
 import { latestVersion } from './apiVersion.ts';
 import { equalSets, generateHashFromString } from './utils.ts';
 
@@ -416,7 +417,7 @@ export class SeedService {
 			}
 
 			children = [...tablesInOutRelations[parent]!.dependantTableNames];
-			leafTablesNames.push(...children);
+			push_array(leafTablesNames, children);
 		}
 		return orderedTablesNames;
 	};

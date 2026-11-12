@@ -5,6 +5,7 @@ import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
 import type { Assume, Equal } from '~/utils.ts';
+import { push_array } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
@@ -75,12 +76,12 @@ function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
 	const result: QueryWithTypings = { sql: '', params: [] };
 	for (const query of queries) {
 		result.sql += query.sql;
-		result.params.push(...query.params);
+		push_array(result.params, query.params);
 		if (query.typings?.length) {
 			if (!result.typings) {
 				result.typings = [];
 			}
-			result.typings.push(...query.typings);
+			push_array(result.typings, query.typings);
 		}
 	}
 	return result;
@@ -130,7 +131,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 	}
 
 	append(query: SQL): this {
-		this.queryChunks.push(...query.queryChunks);
+		push_array(this.queryChunks, query.queryChunks);
 		return this;
 	}
 
