@@ -2407,7 +2407,7 @@ export class LibSQLModifyColumn extends Convertor {
 		for (const table of Object.values(json2.tables)) {
 			for (const index of Object.values(table.indexes)) {
 				const unsquashed = SQLiteSquasher.unsquashIdx(index);
-				sqlStatements.push(`DROP INDEX "${unsquashed.name}";`);
+				sqlStatements.push(`DROP INDEX IF EXISTS "${unsquashed.name}";`);
 				indexes.push({ ...unsquashed, tableName: table.name });
 			}
 		}
@@ -3735,7 +3735,7 @@ export class SqliteDropIndexConvertor extends Convertor {
 
 	convert(statement: JsonDropIndexStatement): string {
 		const { name } = PgSquasher.unsquashIdx(statement.data);
-		return `DROP INDEX \`${name}\`;`;
+		return `DROP INDEX IF EXISTS \`${name}\`;`;
 	}
 }
 
