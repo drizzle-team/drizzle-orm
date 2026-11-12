@@ -968,9 +968,9 @@ AND
 		progressCallback('checks', checksCount, 'fetching');
 	}
 	for (const checkConstraintRow of checkConstraints) {
-		const constraintName = checkConstraintRow['CONSTRAINT_NAME'];
-		const constraintValue = checkConstraintRow['CHECK_CLAUSE'];
-		const tableName = checkConstraintRow['TABLE_NAME'];
+		const constraintName = checkConstraintRow['CONSTRAINT_NAME'] ?? checkConstraintRow['constraint_name'];
+		const constraintValue = checkConstraintRow['CHECK_CLAUSE'] ?? checkConstraintRow['check_clause'];
+		const tableName = checkConstraintRow['TABLE_NAME'] ?? checkConstraintRow['table_name'];
 
 		const tableInResult = result[tableName];
 		// if (typeof tableInResult === 'undefined') continue;
