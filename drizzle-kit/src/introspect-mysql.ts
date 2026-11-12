@@ -811,7 +811,6 @@ const column = (
 		return out;
 	}
 
-	console.log('uknown', type);
 	return `// Warning: Can't parse ${type} from database\n\t// ${type}Type: ${type}("${name}")`;
 };
 
