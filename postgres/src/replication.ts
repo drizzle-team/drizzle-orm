@@ -459,6 +459,7 @@ export class ReplicationConnection {
 			pipelineAuto: false,
 			pipelineFlush: 'sync',
 			temporal: 'date',
+			int8: 'bigint',
 			reuseBinaryOids: new Set(),
 			reconnect: { enabled: false, base: 0, max: 0, maxRetries: 0 },
 			plugins: [],

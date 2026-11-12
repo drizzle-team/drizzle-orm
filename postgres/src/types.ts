@@ -175,6 +175,10 @@ export interface ConnectConfig {
 	 *  infinity, none of which a JS Date can hold). Per-column `:string`/`:date`/`:ms` targets in a
 	 *  shape/queryTyped always override this. Note: Date is millisecond-precision. */
 	temporal?: 'date' | 'string';
+	/** How int8 (bigint) columns and int8[] elements decode by default: 'bigint' (default) = a JS BigInt,
+	 *  exact; 'string' = the exact digits, JSON-serialisable (what pg and postgres.js return); 'number' =
+	 *  a JS number, lossy above 2^53. Per-column targets in a shape/queryTyped always override this. */
+	int8?: 'bigint' | 'string' | 'number';
 	/** Per-OID decoder overrides for the parsed ('array'/'object') modes. */
 	types?: Record<number, Decoder>;
 	/** How to decode integers inside ANY json/jsonb value that exceed 2^53 (which plain

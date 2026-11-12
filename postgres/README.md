@@ -54,7 +54,8 @@ await db.end()
 
 `n8` (bigint) comes back as a native JS `BigInt`, and `amount` (numeric) comes back as a
 string, since both types can exceed the range a JS number can represent without losing
-precision.
+precision. `int8: 'string'` in the config returns bigint as its exact digits instead (what `pg`
+returns), and `int8: 'number'` as a JS number, lossy above 2^53.
 
 Built-in array columns (`int4[]`, `text[]`, `jsonb[]`, `timestamptz[]`, …) decode to JS
 arrays, with each element following the scalar rules above — so `int8[]` yields `BigInt`s
@@ -119,3 +120,28 @@ entry: `@drizzle-team/postgres/node`, `/cf` or `/deno`. Each exposes the same AP
 `@drizzle-team/postgres/effect` implements Effect's `SqlClient` on top of the Drizzle Postgres pool, and its layers
 include the transport of each runtime. See [src/effect/README.md](src/effect/README.md) for
 setup, runtimes and examples.
+
+## Kysely
+
+`@drizzle-team/postgres/compat-kysely` gives Kysely's own `PostgresDialect` a pool to drive:
+
+```ts
+import { Kysely, PostgresDialect } from 'kysely'
+import { createPool, Cursor } from '@drizzle-team/postgres/compat-kysely'
+
+const db = new Kysely<DB>({
+  dialect: new PostgresDialect({ pool: createPool(process.env.DATABASE_URL), cursor: Cursor }),
+})
+```
+
+Rows decode as Kysely's types expect: objects, and `int8` as a string unless the config sets `int8`.
+
+Kysely checks out a connection for every query. This pool doesn't: a standalone query is a shared
+pool query, pipelined with other callers' queries on the least-loaded connection. A connection is
+held from `begin` to the end of a transaction, for `.stream()` (`cursor: Cursor` is needed for it), and
+for Kysely's `'cancel query'` and `'kill session'` abort strategies, so they signal the right backend.
+
+`db.connection()` gets no connection of its own: its callback's queries are shared queries like any
+other. Put session state (`SET`, temporary tables, session advisory locks) in a transaction or in the
+pool config (`options: '-c search_path=app'`). For the same reason `onCreateConnection` and
+`onReserveConnection` run once per Kysely checkout, not once per connection.

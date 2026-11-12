@@ -100,6 +100,13 @@
 			"types": "./dist/buffer-polyfill.d.ts",
 			"default": "./dist/buffer-polyfill.js"
 		},
+		"./compat-kysely": {
+			"types": "./dist/compat/kysely.d.ts",
+			"workerd": "./dist/compat/kysely-cf.js",
+			"deno": "./dist/compat/kysely-deno.js",
+			"bun": "./dist/compat/kysely-node.js",
+			"node": "./dist/compat/kysely-node.js"
+		},
 		"./effect": {
 			"types": "./dist/effect/index.d.ts",
 			"workerd": "./dist/effect/cf.js",
@@ -182,6 +189,7 @@
 		"cli-highlight": "^2.1.11",
 		"effect": "4.0.6",
 		"fast-check": "^4.8.0",
+		"kysely": "0.29.8",
 		"mitata": "^1.0.34",
 		"pg": "^8.22.0",
 		"pkg-pr-new": "0.0.88",

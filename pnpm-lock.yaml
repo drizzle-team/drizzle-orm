@@ -186,7 +186,7 @@ importers:
         version: link:drizzle-orm/dist
       drizzle-orm-old:
         specifier: npm:drizzle-orm@^0.27.2
-        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@5.20261019.1)(@libsql/client@0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@13.0.3)(bun-types@1.4.4)(mysql2@3.24.4(@types/node@25.5.0))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.13.0)(sqlite3@5.1.7(supports-color@10.2.2))
+        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@5.20261019.1)(@libsql/client@0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@13.0.3)(bun-types@1.4.4)(kysely@0.29.8)(mysql2@3.24.4(@types/node@25.5.0))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.13.0)(sqlite3@5.1.7(supports-color@10.2.2))
       eslint-plugin-drizzle-internal:
         specifier: link:eslint/eslint-plugin-drizzle-internal
         version: link:eslint/eslint-plugin-drizzle-internal
@@ -1154,6 +1154,9 @@ importers:
       fast-check:
         specifier: ^4.8.0
         version: 4.10.2
+      kysely:
+        specifier: 0.29.8
+        version: 0.29.8
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
@@ -8160,6 +8163,10 @@ packages:
   kleur@4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
+
+  kysely@0.29.8:
+    resolution: {integrity: sha512-ixHU1H4R+LeC5Y0nAhYgiGRFpFRHm2DXKEmJSs/vbes9sKXyssyzxzE/NYiOJX5fY0BL28biCre3GqlCqUwyXQ==}
+    engines: {node: '>=22.0.0'}
 
   lan-network@0.1.7:
     resolution: {integrity: sha512-mnIlAEMu4OyEvUNdzco9xpuB9YVcPkQec+QsgycBCtPZvEqWPCDPfbAE4OJMdBBWpZWtpCn1xw9jJYlwjWI5zQ==}
@@ -17130,7 +17137,7 @@ snapshots:
     dependencies:
       wordwrap: 1.0.0
 
-  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@5.20261019.1)(@libsql/client@0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@13.0.3)(bun-types@1.4.4)(mysql2@3.24.4(@types/node@25.5.0))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.13.0)(sqlite3@5.1.7(supports-color@10.2.2)):
+  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@5.20261019.1)(@libsql/client@0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@13.0.3)(bun-types@1.4.4)(kysely@0.29.8)(mysql2@3.24.4(@types/node@25.5.0))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.13.0)(sqlite3@5.1.7(supports-color@10.2.2)):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
       '@cloudflare/workers-types': 5.20261019.1
@@ -17144,6 +17151,7 @@ snapshots:
       '@vercel/postgres': 0.8.0
       better-sqlite3: 13.0.3
       bun-types: 1.4.4
+      kysely: 0.29.8
       mysql2: 3.24.4(@types/node@25.5.0)
       pg: 8.22.0
       postgres: 3.4.9
@@ -18779,6 +18787,8 @@ snapshots:
   kleur@3.0.3: {}
 
   kleur@4.1.5: {}
+
+  kysely@0.29.8: {}
 
   lan-network@0.1.7: {}
 

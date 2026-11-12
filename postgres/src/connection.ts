@@ -122,6 +122,7 @@ export interface NormalizedConfig {
 	pipelineAuto: boolean; // depth follows the lowest measured round trip (see autoDepth)
 	pipelineFlush: 'sync' | 'microtask'; // batch same-tick writes into one socket write ('microtask') or write per dispatch ('sync')
 	temporal: 'date' | 'string'; // default decode for date/timestamp(tz) columns without an explicit target
+	int8: 'bigint' | 'string' | 'number'; // default decode for int8 columns without an explicit target
 	reuseBinaryOids: Set<number>; // BINARY_FAST minus config.types overrides: cols to upgrade to binary on prepared-statement reuse
 	reconnect: { enabled: boolean; base: number; max: number; maxRetries: number | null };
 	transport?: Transport;
@@ -719,6 +720,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			...((r) => ({ pipelineDepth: r.depth, pipelineAuto: r.auto }))(resolvePipeline(config.pipeline, behindPooler)),
 			pipelineFlush: (typeof config.pipeline === 'object' && config.pipeline.flush) || 'microtask', // coalesce same-tick writes by default
 			temporal: config.temporal ?? 'date',
+			int8: config.int8 ?? 'bigint',
 			decoders: decode?.decoders ?? buildDecoders(config.types, config.jsonBigints),
 			// types to auto-upgrade to binary on prepared-statement reuse — the bench-fast set, minus any OID the
 			// user overrode via config.types (binary decode bypasses the text override, so leave those as text).
@@ -1196,10 +1198,17 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	// temporal:'string' forces date/timestamp(tz)
 	// columns with no explicit target to the exact-string TEXT decode — dropping any binary upgrade, since
 	// binary can't yield the PG text (lossless for µs/BC/infinity that a JS Date can't represent).
+	// int8:'string'|'number' sets the target of int8 columns and int8[] elements with none; binary
+	// decoding has both targets, so the format stays as resolved.
 	private resolveCols(cols: CodegenCol[]): CodegenCol[] {
 		const tsString = this.cfg.temporal === 'string';
+		const int8 = this.cfg.int8;
 		return cols.map((c0) => {
 			const c = tagArrayCol(c0); // wire array OID -> decode '{…}' to a JS array (no-op on already-tagged shape cols)
+			if (int8 !== 'bigint' && !c.json) {
+				if (c.oid === 20 && !c.js) return { ...c, js: int8 };
+				if (c.array && c.array.elem === 20 && !c.array.js) return { ...c, array: { ...c.array, js: int8 } };
+			}
 			if (!tsString) return c;
 			if (!c.js && !c.json && INSTANT_OIDS.has(c.oid)) return { ...c, js: 'string', format: 'text' };
 			if (c.array && !c.array.js && INSTANT_OIDS.has(c.array.elem)) {
