@@ -537,6 +537,14 @@ export const fromDatabase = async (
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
 	progressCallback('columns', 0, 'fetching');
 
+	// Sequence join (`seq`): the sequence backing each column, at most one row per column.
+	// - A join instead of a per-column subquery: the subquery ran once per column and was slow.
+	// - pg_sequence is joined as a filter only: it keeps dependencies whose dependent object is a sequence.
+	// - classid/refclassid are pinned to pg_class because OIDs are unique only per catalog.
+	//   refclassid is also the leading column of the pg_depend index; without it every lookup is a scan.
+	// - deptype 'a' is a serial's owned sequence, 'i' is an identity's internal sequence.
+	//   When a column has both, the identity sequence wins (see ORDER BY).
+	// - The filter falls back to 'false' when there are no tables: the outer query returns no rows then either.
 	const columnsQuery = db.query<{
 		tableId: number | string;
 		kind: 'r' | 'p' | 'v' | 'm';
@@ -570,20 +578,28 @@ export const fromDatabase = async (
 			attgenerated::text as "generatedType", 
 			attidentity::text as "identityType",
 			pg_catalog.format_type(atttypid, atttypmod) as "type",
-			(
-				SELECT d.objid FROM pg_catalog.pg_depend d
-				WHERE d.refobjid OPERATOR(pg_catalog.=) attr.attrelid
-					AND d.refobjsubid OPERATOR(pg_catalog.=) attr.attnum
-					AND d.objid IN (SELECT seqrelid FROM pg_catalog.pg_sequence)
-				LIMIT 1
-			) AS "seqId"
+			seq.objid as "seqId"
 		FROM
 			pg_catalog.pg_attribute attr
 			JOIN pg_catalog.pg_class cls ON cls.oid OPERATOR(pg_catalog.=) attr.attrelid
 			JOIN pg_catalog.pg_namespace nsp ON nsp.oid OPERATOR(pg_catalog.=) cls.relnamespace
 			JOIN pg_catalog.pg_type t ON t.oid OPERATOR(pg_catalog.=) attr.atttypid
+			LEFT JOIN (
+				SELECT DISTINCT ON (d.refobjid, d.refobjsubid) d.refobjid, d.refobjsubid, d.objid
+				FROM
+					pg_catalog.pg_depend d
+					JOIN pg_catalog.pg_sequence s ON s.seqrelid OPERATOR(pg_catalog.=) d.objid
+					WHERE
+						d.classid OPERATOR(pg_catalog.=) 'pg_catalog.pg_class'::pg_catalog.regclass
+						AND d.refclassid OPERATOR(pg_catalog.=) 'pg_catalog.pg_class'::pg_catalog.regclass
+						AND d.deptype IN ('a', 'i')
+						AND ${filterByTableIds ? `d.refobjid IN ${filterByTableIds}` : 'false'}
+					ORDER BY d.refobjid, d.refobjsubid, (d.deptype OPERATOR(pg_catalog.=) 'i') DESC, d.objid
+			) seq
+			ON seq.refobjid OPERATOR(pg_catalog.=) attr.attrelid
+				AND seq.refobjsubid OPERATOR(pg_catalog.=) attr.attnum
 		WHERE
-		${filterByTableAndViewIds ? ` attrelid IN ${filterByTableAndViewIds}` : 'false'}
+			${filterByTableAndViewIds ? ` attrelid IN ${filterByTableAndViewIds}` : 'false'}
 			AND attnum OPERATOR(pg_catalog.>) 0
 			AND attisdropped OPERATOR(pg_catalog.=) FALSE
 		ORDER BY attnum;
