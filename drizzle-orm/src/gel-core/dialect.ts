@@ -101,6 +101,7 @@ export class GelDialect {
 	// }
 
 	escapeName(name: string): string {
+		if (name == null) return '""';
 		return `"${name}"`;
 	}
 
