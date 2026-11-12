@@ -129,6 +129,7 @@ export interface NormalizedConfig {
 	path?: string;
 	plugins: Plugin[];
 	isBehindPooler?: boolean;
+	viaNeonProxy?: boolean; // Neon's proxy drops startup parameters but forwards `options` (styleStartupParams)
 }
 
 const RTT_WINDOW = 5; // keep this many most-recent round-trip samples (ms) for connection.rtt
@@ -284,6 +285,36 @@ function transactionPoolerDetected(host: string, port: number): boolean {
 	if (host.includes('pooler.supabase.com') || port === 6543) return true; // Supabase Supavisor transaction pooler
 	if (process.env.VERCEL || process.env.VERCEL_ENV) return true; // Vercel serverless: connections are ~always pooled
 	return false;
+}
+
+// Neon's proxy (Neon, and Vercel Postgres, which runs on Neon) forwards `options` and application_name to
+// Postgres but drops other startup parameters, DateStyle among them. neon-ws marks its socket factory,
+// so a Neon connection is recognised whatever the host is called.
+export const NEON_PROXY = Symbol.for('drizzle-postgres.neonProxy');
+export function viaNeonProxy(host: string, socket: unknown): boolean {
+	return /\.neon\.tech$|\.vercel-storage\.com$/i.test(host)
+		|| !!(socket as { [NEON_PROXY]?: boolean } | undefined)?.[NEON_PROXY];
+}
+
+// Output styles the text decoders depend on, sent with every startup (connect, reconnect, replication).
+// A startup value outranks ALTER DATABASE / ALTER ROLE ... SET, and RESET returns to it. DateStyle decides
+// how date/timestamp(tz) print, and any style but ISO is unparseable (src/temporal.ts). IntervalStyle only
+// changes interval strings, so it stays off behind a transaction pooler: PgBouncer before 1.20 rejects a
+// startup parameter it doesn't track, and it has always tracked DateStyle. Through Neon's proxy, which drops
+// both, they go into `options` as -c settings, also on Neon's pooled endpoints, where PgBouncer applies them
+// (checked against a live -pooler endpoint). A style the caller sets in `options` is theirs.
+export function styleStartupParams(
+	options: string | undefined,
+	behindPooler: boolean,
+	neonProxy: boolean,
+): { options?: string; DateStyle?: string; IntervalStyle?: string } {
+	const date = !options || !/datestyle/i.test(options);
+	const interval = (neonProxy || !behindPooler) && (!options || !/intervalstyle/i.test(options));
+	if (!neonProxy) {
+		return { options, DateStyle: date ? 'ISO' : undefined, IntervalStyle: interval ? 'postgres' : undefined };
+	}
+	const set = [options, date && '-c DateStyle=ISO', interval && '-c IntervalStyle=postgres'].filter(Boolean);
+	return { options: set.length ? set.join(' ') : undefined };
 }
 // Errors that won't fix themselves on retry (bad auth/config) — stop reconnecting.
 function isFatalAuth(err: unknown): boolean {
@@ -706,6 +737,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			path: config.path,
 			plugins: config.plugins ?? [],
 			isBehindPooler: behindPooler,
+			viaNeonProxy: viaNeonProxy(host, config.socket),
 		};
 		this.instrumented = this.cfg.plugins.length > 0;
 		const hasEval = isEvalAvailable();
@@ -897,7 +929,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			database: this.cfg.database,
 			application_name: this.cfg.applicationName,
 			client_encoding: 'UTF8',
-			options: this.cfg.options, // '-c key=val …' — server-applied, so RESET ALL restores rather than wipes
+			// options: '-c key=val …' — server-applied, so RESET ALL restores rather than wipes
+			...styleStartupParams(this.cfg.options, !!this.cfg.isBehindPooler, !!this.cfg.viaNeonProxy),
 			statement_timeout: this.cfg.statementTimeout != null ? String(Math.floor(this.cfg.statementTimeout)) : undefined,
 			idle_in_transaction_session_timeout: this.cfg.idleInTransactionSessionTimeout != null
 				? String(Math.floor(this.cfg.idleInTransactionSessionTimeout))

@@ -12,6 +12,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { connect, createPool } from '../../src/neon-ws.ts';
 import type { Connection, Pool } from '../../src/neon-ws.ts';
+import { neonWsConfig } from '../helpers/neon.ts';
 
 const URL = process.env.NEON_WS_URL;
 const d = describe.skipIf(!URL);
@@ -19,7 +20,7 @@ const d = describe.skipIf(!URL);
 d('@drizzle-team/postgres/neon-ws over the Neon WebSocket proxy', () => {
 	let c: Connection;
 	beforeAll(async () => {
-		c = await connect(URL!);
+		c = await connect(neonWsConfig(URL!));
 	});
 	afterAll(async () => {
 		await c?.end();
@@ -28,6 +29,34 @@ d('@drizzle-team/postgres/neon-ws over the Neon WebSocket proxy', () => {
 	test('connects + authenticates (SCRAM over the tunnel) and reports server params', () => {
 		expect(c.state).toBe('ready');
 		expect(c.serverParams.server_version).toBeTruthy();
+	});
+
+	// Neon's proxy drops the DateStyle/IntervalStyle startup parameters but forwards `options`, so the driver
+	// sends them there. A database whose defaults differ shows they arrive.
+	test('a database defaulting to DateStyle German still prints ISO: the styles travel in options', async () => {
+		const db = `datestyle_${process.pid}`;
+		await c.query(`drop database if exists ${db} with (force)`);
+		await c.query(`create database ${db}`);
+		try {
+			await c.query(`alter database ${db} set datestyle = 'German'`);
+			await c.query(`alter database ${db} set intervalstyle = 'iso_8601'`);
+			const u = new globalThis.URL(URL!);
+			u.pathname = `/${db}`;
+			const g = await connect(neonWsConfig(u.toString()));
+			try {
+				const r = await g.query(
+					"select current_setting('datestyle'), current_setting('intervalstyle'), '2024-02-03 12:34:56.789+00'::timestamptz",
+				);
+				const [date, interval, ts] = r.rows[0] as [string, string, Date];
+				expect(date).toMatch(/^ISO, /);
+				expect(interval).toBe('postgres');
+				expect(ts.toISOString()).toBe('2024-02-03T12:34:56.789Z');
+			} finally {
+				await g.end();
+			}
+		} finally {
+			await c.query(`drop database if exists ${db} with (force)`);
+		}
 	});
 
 	test('scalars, params, and core type decoders', async () => {
@@ -115,7 +144,7 @@ d('@drizzle-team/postgres/neon-ws over the Neon WebSocket proxy', () => {
 	});
 
 	test('pool: query, parallel fan-out, and transaction', async () => {
-		const pool: Pool = createPool(URL!);
+		const pool: Pool = createPool(neonWsConfig(URL!));
 		try {
 			const r = await pool.query('select 42 as answer', [], { mode: 'object' });
 			expect((r.rows[0] as unknown as { answer: number }).answer).toBe(42);

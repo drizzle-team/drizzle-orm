@@ -22,6 +22,8 @@ import {
 	instantFromBytes,
 	instantFromString,
 	instantSnippet,
+	nonIsoTemporal,
+	nonIsoTemporalThrow,
 	PG_EPOCH_MS,
 } from './temporal.ts';
 import type { Decoder } from './types.ts';
@@ -180,8 +182,12 @@ const byteaLeaf: Leaf = (
 ) => (s.charCodeAt(0) === 92 && s.charCodeAt(1) === 120 ? Buffer.from(s.slice(2), 'hex') : Buffer.from(s, 'utf8')); // '\x' hex
 
 /** ms-since-epoch from a PG temporal text element (src/temporal.ts) so array Date values are bit-identical
- *  to the scalar timestamp path. ±infinity and non-ISO text -> NaN (Invalid Date). */
-const parseInstantMs = (s: string): number => instantFromString(s) ?? NaN;
+ *  to the scalar timestamp path. ±infinity -> NaN (Invalid Date); non-ISO text throws (nonIsoTemporal). */
+const parseInstantMs = (s: string): number => {
+	const ms = instantFromString(s);
+	if (ms === undefined) throw nonIsoTemporal(s);
+	return ms;
+};
 
 /** Element OID (+ optional element :target) -> leaf decoder, mirroring the scalar pickText/defaultJs defaults. */
 function elemLeafFor(elemOid: number, js?: string): Leaf {
@@ -469,9 +475,9 @@ const f64FromBytes = (v: string) =>
 // ms = first 3 fractional digits (micros truncated; Date is ms-only). Parser: src/temporal.ts.
 export const INSTANT_OIDS = new Set([1082, 1114, 1184]); // date, timestamp, timestamptz
 const tsFromBytes = (v: string, kind: 'date' | 'ms') =>
-	`{ let ems, ok; ${instantSnippet('b', 'o', 'o + l', 'ems', 'ok')} if (!ok) ems = NaN; ${
-		kind === 'date' ? `${v} = new Date(ems)` : `${v} = ems`
-	} }`;
+	`{ let ems, ok; ${instantSnippet('b', 'o', 'o + l', 'ems', 'ok')} if (!ok) ${
+		nonIsoTemporalThrow("b.toString('latin1', o, o + l)")
+	}; ${kind === 'date' ? `${v} = new Date(ems)` : `${v} = ems`} }`;
 
 // The natural JS target for a wire OID (before any per-column override).
 export function defaultJs(oid: number): 'number' | 'string' | 'bool' | 'json' | 'bytea' | 'helper' {
@@ -986,8 +992,12 @@ const txtF64: CellDecoder = (b, o, l) => {
 const txtF4Precise: CellDecoder = (b, o, l) => Math.fround(txtF64(b, o, l) as number); // float4:precise -> exact stored f32
 
 // temporal :date/:ms (direct field parse -> Date.UTC; naive = UTC, tz applies offset; micros -> ms).
-// Same parser as the JIT snippet and parseInstantMs (src/temporal.ts): ±infinity / non-ISO -> NaN.
-const tsParse = (b: Buffer, o: number, l: number): number => instantFromBytes(b, o, l) ?? NaN;
+// Same parser as the JIT snippet and parseInstantMs (src/temporal.ts): ±infinity -> NaN, non-ISO throws.
+const tsParse = (b: Buffer, o: number, l: number): number => {
+	const ms = instantFromBytes(b, o, l);
+	if (ms === undefined) throw nonIsoTemporal(b.toString('latin1', o, o + l));
+	return ms;
+};
 const tsDate: CellDecoder = (b, o, l) => new Date(tsParse(b, o, l));
 const tsEpoch: CellDecoder = (b, o, l) => tsParse(b, o, l);
 
