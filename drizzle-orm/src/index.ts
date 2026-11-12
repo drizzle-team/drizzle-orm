@@ -4,6 +4,7 @@ export * from './column.ts';
 export * from './entity.ts';
 export * from './errors.ts';
 export * from './logger.ts';
+export * from './metadata.ts';
 export * from './operations.ts';
 export * from './query-promise.ts';
 export * from './relations.ts';
