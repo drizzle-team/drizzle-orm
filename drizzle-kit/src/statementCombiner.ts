@@ -5,7 +5,17 @@ import {
 	prepareCreateIndexesJson,
 } from './jsonStatements';
 import { SingleStoreSchemaSquashed } from './serializer/singlestoreSchema';
-import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
+import { Column, SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
+
+// SQLite forbids ALTER TABLE ... ADD COLUMN when the default value is a
+// non-constant expression (CURRENT_TIMESTAMP, CURRENT_DATE, CURRENT_TIME,
+// or any parenthesised expression). These cases must use table recreation.
+// https://www.sqlite.org/lang_altertable.html#altertableaddcolumn
+const NON_CONSTANT_DEFAULT_RE = /\b(CURRENT_TIMESTAMP|CURRENT_DATE|CURRENT_TIME)\b/i;
+
+function hasNonConstantDefault(column: Column): boolean {
+	return typeof column.default === 'string' && NON_CONSTANT_DEFAULT_RE.test(column.default);
+}
 
 export const prepareLibSQLRecreateTable = (
 	table: SQLiteSchemaSquashed['tables'][keyof SQLiteSchemaSquashed['tables']],
@@ -252,7 +262,7 @@ export const libSQLCombineStatements = (
 			continue;
 		}
 
-		if (statement.type === 'sqlite_alter_table_add_column' && statement.column.primaryKey) {
+		if (statement.type === 'sqlite_alter_table_add_column' && (statement.column.primaryKey || hasNonConstantDefault(statement.column))) {
 			const tableName = statement.tableName;
 
 			const statementsForTable = newStatements[tableName];
@@ -355,7 +365,7 @@ export const sqliteCombineStatements = (
 			continue;
 		}
 
-		if (statement.type === 'sqlite_alter_table_add_column' && statement.column.primaryKey) {
+		if (statement.type === 'sqlite_alter_table_add_column' && (statement.column.primaryKey || hasNonConstantDefault(statement.column))) {
 			const tableName = statement.tableName;
 
 			const statementsForTable = newStatements[tableName];
