@@ -20,7 +20,7 @@ export interface PgPolicyConfig {
 	withCheck?: SQL;
 }
 
-export class PgPolicy implements PgPolicyConfig {
+export class PgPolicy {
 	static readonly [entityKind]: string = 'PgPolicy';
 
 	readonly as: PgPolicyConfig['as'];
