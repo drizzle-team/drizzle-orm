@@ -73,7 +73,6 @@ export const createDDL = () => {
 			where: 'string?',
 			with: 'string',
 			method: 'string',
-			concurrently: 'boolean',
 		},
 		fks: {
 			schema: 'string',

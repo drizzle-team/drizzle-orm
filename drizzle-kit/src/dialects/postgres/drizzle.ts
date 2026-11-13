@@ -584,7 +584,6 @@ export const fromDrizzleSchema = (
 					columns: indexColumns,
 					isUnique: value.config.unique,
 					where: where ? where : null,
-					concurrently: value.config.concurrently ?? false,
 					method: value.config.method ?? 'btree',
 					with: withOpt,
 					forPK: false,

@@ -44,7 +44,6 @@ export const idx = (schema: string, table: string, name: string, columns: string
 		where: null,
 		with: '',
 		method: 'btree',
-		concurrently: false,
 		columns: columns.map((value) => ({
 			value,
 			isExpression: false,

@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	AnyMsSqlColumn,
@@ -35,7 +36,6 @@ import { fromDatabaseForDrizzle } from 'src/dialects/mssql/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/mssql/mocks';
-import { needToPostpone } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
@@ -1292,7 +1292,7 @@ test('introspect schemas owned by any principal type', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6564
-test.skipIf(needToPostpone)('Issue No 6564', async () => {
+test.skipIf(postponed)('Issue No 6564', async () => {
 	await db.query(`create table t (id int primary key, a nvarchar(3), c as (a))`);
 
 	// the test runs in a transaction, so the user without VIEW DEFINITION is impersonated on the same connection,

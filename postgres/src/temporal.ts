@@ -18,6 +18,21 @@
 //    seconds field so the instant, not the wall clock, is what gets range-checked.
 
 export const PG_EPOCH_MS = 946684800000; // 2000-01-01 UTC in unix ms
+
+// Every DateStyle but ISO prints dates the parser rejects ('03.02.2024 12:34:56.789 UTC', '02/03/2024',
+// 'Sat Feb 03 12:34:56.789 2024 UTC'), and their zone abbreviations can't be mapped back to an offset.
+// Wire text is ISO because the driver sends DateStyle=ISO at startup, so a cell that isn't means the session
+// changed it: throw, never return an Invalid Date. Json strings are exempt (to_json always prints ISO, and a
+// hand-written string may be anything): those fall back to Date.parse.
+const NON_ISO_HEAD = '@drizzle/postgres: cannot decode ';
+const NON_ISO_TAIL = " as a date or timestamp: it is not ISO text, so the session's DateStyle is not ISO."
+	+ ' The driver sets DateStyle=ISO when it connects; a SET datestyle in the session, or a server or gateway'
+	+ " that doesn't apply the startup setting, changes it. Use `temporal: 'string'` (or a :string column target)"
+	+ ' to receive the text as is.';
+export const nonIsoTemporal = (text: string): Error => new Error(NON_ISO_HEAD + JSON.stringify(text) + NON_ISO_TAIL);
+/** Inline-code version of `throw nonIsoTemporal(text)` for generated mappers, which have no helper scope. */
+export const nonIsoTemporalThrow = (textExpr: string): string =>
+	`throw new Error(${JSON.stringify(NON_ISO_HEAD)} + JSON.stringify(${textExpr}) + ${JSON.stringify(NON_ISO_TAIL)})`;
 export const Y400_MS = 12622780800000; // 146097 days: 400 Gregorian years, always exact
 
 /** Inline-code version. Reads bytes `buf[start..end)` and assigns `out` (number, NaN for ±infinity) and

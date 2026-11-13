@@ -55,7 +55,6 @@ const postgresIndex = (table: string, name: string, columns: string[]): Postgres
 	where: null,
 	with: '',
 	method: 'btree',
-	concurrently: false,
 	forPK: false,
 	forUnique: false,
 });

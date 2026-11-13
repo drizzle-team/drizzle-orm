@@ -475,6 +475,8 @@ describe('result-object shape & destructuring contract', () => {
 	test('result is exactly { rows, columns, rowCount, command }; missing props are undefined, not throws', async () => {
 		const r = await c.query('select 1 as a');
 		expect(Object.keys(r).sort()).toEqual(['columns', 'command', 'rowCount', 'rows']);
+		// No symbols either (Vitest's toEqual compares them): column metadata is attached only for compat-prisma7.
+		expect(Object.getOwnPropertySymbols(r)).toEqual([]);
 		// divergence from node-postgres (`fields`) / postgres.js (array-with-metadata)
 		expect((r as unknown as { fields?: unknown }).fields).toBeUndefined();
 	});

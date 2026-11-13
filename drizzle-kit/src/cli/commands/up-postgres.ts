@@ -5,12 +5,13 @@ import { DuplicateEntityError, fromEntities } from '../../dialects/postgres/ddl'
 import { folderOrderError, sortsAfter } from '../../dialects/postgres/folder';
 import { reconstruct } from '../../dialects/postgres/reconstruct';
 import {
+	type AnyDeltaPostgresSnapshot,
 	type PostgresSnapshot,
 	type PostgresSnapshotV8,
 	snapshotValidator,
 	stateDifference,
 } from '../../dialects/postgres/snapshot';
-import { isSnapshotV8, upToV8 } from '../../dialects/postgres/versions';
+import { isDeltaSnapshot, isSnapshotV8, latestVersion, upToV10, upToV8 } from '../../dialects/postgres/versions';
 import { UnsupportedMergeError, upToV9, withStateKeyNames } from '../../dialects/postgres/versions-v9';
 import { originUUID } from '../../utils';
 import { assertSnapshotStatus, prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
@@ -24,7 +25,7 @@ const reportIssueHint =
 const conversionError = (name: string, reason: string, next: string, meta: Record<string, string>) =>
 	new CommandOutputCliError(
 		'up',
-		`Cannot convert migration ${name} to snapshot format 9: ${reason}. No snapshot was converted. ${next}`,
+		`Cannot convert migration ${name} to snapshot format ${latestVersion}: ${reason}. No snapshot was converted. ${next}`,
 		meta,
 	);
 
@@ -42,15 +43,20 @@ const journalOrderError = (file: { name: string; path: string }, parent: { name:
 
 // Reports a migration history that `up` cannot convert. `reason` and `fix` must be full sentences with a final
 // period, because the message joins them with no punctuation.
-const historyError = (reason: string, fix: string, meta: Record<string, string> = {}) =>
+const historyError = (
+	reason: string,
+	fix: string,
+	meta: Record<string, string> = {},
+) =>
 	new CommandOutputCliError(
 		'up',
-		`Cannot convert the migrations folder to snapshot format 9: ${reason} No file was changed. ${fix}`,
+		`Cannot convert the migrations folder to snapshot format ${latestVersion}: ${reason} No file was changed. ${fix}`,
 		{ kind: 'history', ...meta },
 	);
 
-// Converts the snapshots of the migrations folder `out` to format 9 and returns the paths of the written files.
-// It moves and writes files only after every snapshot is converted and checked, so a failure leaves the folder
+// Converts the snapshots of the migrations folder `out` to the latest format and returns the paths of the written
+// files. Every file goes to format 8 (`upToV8`), the folder goes to format 9 (`upToV9`), and every file goes to the
+// latest format (`upToV10`). It moves and writes files only after every snapshot is converted and checked, so a failure leaves the folder
 // as it was. A journal folder (the drizzle-kit 0.x layout) is read in place and moved last.
 export const upPgHandler = async (out: string): Promise<string[]> => {
 	const moves = planFoldersV3(out);
@@ -86,18 +92,22 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 			return { ...it, raw, status };
 		});
 
-	// A folder that holds only format 9 snapshots needs no conversion. `check` validates such a folder, so `up`
-	// does not validate it here.
+	// A folder that holds only snapshots of the latest format needs no conversion. `check` validates such a folder,
+	// so `up` does not validate it here.
 	const converted: { path: string; text: string }[] = [];
 	if (sources.some((it) => it.status === 'nonLatest')) {
 		const files = sources.map(({ raw, ...it }) => {
-			const snapshot: PostgresSnapshotV8 | PostgresSnapshot = Number(raw.version) < 8 ? upToV8(raw).snapshot : raw;
+			const snapshot: PostgresSnapshotV8 | AnyDeltaPostgresSnapshot = Number(raw.version) < 8
+				? upToV8(raw).snapshot
+				: raw;
 			return { ...it, snapshot };
 		}).sort((a, b) => (a.folder < b.folder ? -1 : 1));
-		// `validate` returns `nonLatest` for a format 8 file without a check of its shape, so `isSnapshotV8`
-		// checks that shape here.
+		// `validate` returns `nonLatest` for an older file without a check of its shape, so `isSnapshotV8` checks
+		// the shape of a format 8 file here, and `isDeltaSnapshot` the shape of a file of format 9 or later
 		const malformedFile = files.find(({ status, snapshot }) =>
-			status === 'malformed' || (snapshot.version === '8' && !isSnapshotV8(snapshot))
+			status === 'malformed'
+			|| (snapshot.version === '8' && !isSnapshotV8(snapshot))
+			|| (Number(snapshot.version) >= 9 && !isDeltaSnapshot(snapshot))
 		);
 		if (malformedFile) {
 			throw conversionError(
@@ -128,8 +138,7 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 			}
 		}
 
-		// `upToV9` turns each snapshot with no parent into a base snapshot. A folder can hold one base snapshot,
-		// so a `second` snapshot with no parent is an error.
+		// A folder can hold one base snapshot, so a `second` snapshot with no parent is an error.
 		const [first, second] = files.filter((it) => it.snapshot.prevIds.every((id) => !id || id === originUUID));
 		if (second) {
 			throw historyError(
@@ -140,9 +149,12 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 			);
 		}
 
-		let snapshotTexts: string[];
+		let v9: AnyDeltaPostgresSnapshot[];
 		try {
-			snapshotTexts = (await upToV9(files)).map((it) => JSON.stringify(it, null, 2));
+			// `upToV9` checks inside if version is not v8 - skip
+			// so only v8 is converted
+			// upToV9 needs the state of its parents, so we leave as separate function
+			v9 = await upToV9(files);
 		} catch (e) {
 			if (e instanceof DrizzleCliError) throw e;
 			if (e instanceof UnsupportedMergeError) {
@@ -166,11 +178,23 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 			throw historyError((e as Error).message, reportIssueHint);
 		}
 
-		// `written` parses `snapshotTexts` back, so the checks below see the same JSON that is written to disk.
+		// `upToV10` checks inside if snapshot is not v9 -> skip
+		// all snapshots must be v9+, because we upped them above
+		// to v8 and to v9 kept as separate functions, but here we can use nesting (inside of `upToV11` use `upToV10` and so on)
+		let v10: PostgresSnapshot[];
+		try {
+			v10 = upToV10(v9);
+		} catch (e) {
+			throw historyError((e as Error).message, reportIssueHint);
+		}
+		const snapshotTexts = v10.map((it) => JSON.stringify(it, null, 2));
+		// `written` parses `snapshotTexts` back, so the checks below read the snapshots as `check` reads the files
 		const written = snapshotTexts.map((it) => JSON.parse(it) as PostgresSnapshot);
 		const byId = new Map(written.map((it) => [it.id, it]));
-		for (const [idx, { path, folder, name, snapshot }] of files.entries()) {
-			if (snapshot.version === '9') continue;
+		for (const [idx, { path, folder, name, snapshot, status }] of files.entries()) {
+			// revalidate snapshots after up
+			if (status === 'valid') continue;
+
 			const { errors } = snapshotValidator.parse(written[idx]);
 			if (errors) {
 				throw conversionError(name, `the new snapshot is not valid (${errors.join('; ')})`, reportIssueHint, {
@@ -178,19 +202,22 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 					snapshot: path,
 				});
 			}
-			const state = reconstruct(byId, snapshot.id);
-			const entity = stateDifference(fromEntities(withStateKeyNames(snapshot.ddl, state)), state);
-			if (entity !== undefined) {
-				throw conversionError(
-					name,
-					`its reconstructed state differs from the format 8 state at ${entity}`,
-					reportIssueHint,
-					{
-						kind: 'state_mismatch',
-						snapshot: path,
-						entity,
-					},
-				);
+			// only a format 8 file has the full state to compare with
+			if (snapshot.version === '8') {
+				const state = reconstruct(byId, snapshot.id);
+				const entity = stateDifference(fromEntities(withStateKeyNames(snapshot.ddl, state)), state);
+				if (entity !== undefined) {
+					throw conversionError(
+						name,
+						`its reconstructed state differs from the format 8 state at ${entity}`,
+						reportIssueHint,
+						{
+							kind: 'state_mismatch',
+							snapshot: path,
+							entity,
+						},
+					);
+				}
 			}
 			converted.push({ path: join(out, folder, 'snapshot.json'), text: snapshotTexts[idx] });
 		}

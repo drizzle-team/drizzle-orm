@@ -553,3 +553,55 @@ describe('aurora: error body edge cases', () => {
 		expect(err.message).toContain('HTTP 500');
 	});
 });
+
+describe('row building: many rows share a few chunks', () => {
+	const respond = (columnMetadata: unknown[], records: unknown[][]) =>
+		(async () => new Response(JSON.stringify({ columnMetadata, records }), { status: 200 })) as unknown as typeof fetch;
+	const meta = (typeName: string, name: string) => ({ name, label: name, typeName });
+
+	test('rows that cross chunk boundaries, wide cells, multi-byte text, nulls', async () => {
+		// 3,000 rows of ~60 bytes fill several chunks; every 500th row holds a cell larger than a chunk
+		const wide = 'ж'.repeat(200_000); // 400,000 UTF-8 bytes
+		const text = (i: number) => (i % 500 === 499 ? wide + i : i % 7 === 0 ? `naïve €${i} 日本` : `row ${i}`);
+		const records = Array.from({ length: 3000 }, (_, i) => [
+			{ longValue: i },
+			i % 5 === 0 ? { isNull: true } : { stringValue: text(i) },
+			{ booleanValue: i % 2 === 0 },
+			{ stringValue: String(9007199254740993n + BigInt(i)) },
+		]);
+		const db = await connect(
+			CFG(respond([meta('int4', 'id'), meta('text', 't'), meta('bool', 'b'), meta('int8', 'big')], records)),
+		);
+		const { rows } = await db.query('select 1', [], { mode: 'object' });
+		expect(rows.length).toBe(3000);
+		for (let i = 0; i < 3000; i++) {
+			const r = rows[i] as { id: number; t: string | null; b: boolean; big: bigint };
+			if (
+				r.id !== i || r.t !== (i % 5 === 0 ? null : text(i)) || r.b !== (i % 2 === 0)
+				|| r.big !== 9007199254740993n + BigInt(i)
+			) {
+				throw new Error(
+					`row ${i} decoded wrong: ${JSON.stringify({ id: r.id, t: r.t?.slice(0, 20), b: r.b, big: String(r.big) })}`,
+				);
+			}
+		}
+		const arr = await db.query('select 1', []);
+		expect(arr.rows[6]).toEqual([6, 'row 6', true, 9007199254740999n]);
+	});
+
+	test('a decoder may keep the bytes it was given: later rows do not overwrite them', async () => {
+		const records = Array.from({ length: 2000 }, (_, i) => [{ stringValue: 'value-' + i }]);
+		const kept: Buffer[] = [];
+		const db = await connect({
+			...CFG(respond([meta('text', 'v')], records)),
+			types: { 25: (b: Buffer) => (kept.push(b), b) },
+		});
+		const { rows } = await db.query('select 1', [], { mode: 'object' });
+		expect(rows.length).toBe(2000);
+		for (let i = 0; i < 2000; i++) {
+			if (kept[i]!.toString() !== 'value-' + i) {
+				throw new Error(`kept bytes of row ${i} now read ${kept[i]!.toString()}`);
+			}
+		}
+	});
+});

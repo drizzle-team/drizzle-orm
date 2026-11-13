@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import {
 	and,
 	asc,
@@ -1534,7 +1535,7 @@ export function tests(
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
 		test
-			.skipIf(Date.now() < +new Date('2026-11-24'))
+			.skipIf(postponed)
 			.concurrent(
 				'prepared statement with placeholder in .inArray',
 				async ({ db, push }) => {

@@ -5,12 +5,13 @@
 // catalog DDL, which DOES persist over HTTP.
 //
 //   NEON_HTTP_URL='postgresql://user:pass@ep-xxx.region.aws.neon.tech/db?sslmode=require' bun run test:neon-http
-// Skips when unset.
+// or the local proxy (test/helpers/neon.ts). Skips when unset.
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { connect as wireConnect } from '../../src/index.ts'; // node net/tls transport (direct TCP to Neon)
 import type { Connection } from '../../src/index.ts';
 import { connect as httpConnect } from '../../src/neon-http.ts';
 import type { NeonHttpClient } from '../../src/neon-http.ts';
+import { neonHttpConfig } from '../helpers/neon.ts';
 
 const URL = process.env.NEON_HTTP_URL;
 const d = describe.skipIf(!URL);
@@ -75,7 +76,7 @@ d('@drizzle-team/postgres/neon-http decode parity vs the wire driver (same Neon 
 	let wire: Connection;
 
 	beforeAll(async () => {
-		http = await httpConnect(URL!);
+		http = await httpConnect(neonHttpConfig(URL!));
 		wire = await wireConnect(URL!);
 		// catalog types (persist over HTTP, unlike temp tables) — idempotent
 		await http.query('drop type if exists parity_mood cascade');
@@ -133,7 +134,7 @@ d('@drizzle-team/postgres/neon-http decode parity vs the wire driver (same Neon 
 // Config + shape machinery flows through the HTTP client the same as the wire driver.
 d('@drizzle-team/postgres/neon-http config & shape decode', () => {
 	test('jsonBigints:"bigint" preserves oversized ints inside jsonb', async () => {
-		const db = await httpConnect({ url: URL!, jsonBigints: 'bigint' });
+		const db = await httpConnect(neonHttpConfig(URL!, { jsonBigints: 'bigint' as const }));
 		try {
 			const r = await db.query(`select '{"n": 9007199254740993}'::jsonb as j`, [], { mode: 'object' });
 			expect((r.rows[0] as { j: { n: bigint } }).j.n).toBe(9007199254740993n);
@@ -143,7 +144,7 @@ d('@drizzle-team/postgres/neon-http config & shape decode', () => {
 	});
 
 	test('temporal:"string" returns exact PG text (lossless µs)', async () => {
-		const db = await httpConnect({ url: URL!, temporal: 'string' });
+		const db = await httpConnect(neonHttpConfig(URL!, { temporal: 'string' as const }));
 		try {
 			const r = await db.query(`select '2024-01-15 10:30:45.123456+00'::timestamptz as ts`, [], { mode: 'object' });
 			expect((r.rows[0] as { ts: string }).ts).toContain('2024-01-15 10:30:45.123456');
@@ -153,7 +154,7 @@ d('@drizzle-team/postgres/neon-http config & shape decode', () => {
 	});
 
 	test('types override applies to the parsed decode', async () => {
-		const db = await httpConnect({ url: URL!, types: { 23: (b) => 'INT4:' + b.toString('utf8') } });
+		const db = await httpConnect(neonHttpConfig(URL!, { types: { 23: (b: Buffer) => 'INT4:' + b.toString('utf8') } }));
 		try {
 			const r = await db.query('select 7::int4 as x', [], { mode: 'object' });
 			expect((r.rows[0] as { x: string }).x).toBe('INT4:7');
@@ -163,7 +164,7 @@ d('@drizzle-team/postgres/neon-http config & shape decode', () => {
 	});
 
 	test('shape js-target override (int8:number) decodes via the same mapper', async () => {
-		const db = await httpConnect(URL!);
+		const db = await httpConnect(neonHttpConfig(URL!));
 		try {
 			const r = await db.query('select 5::int8 as v', [], { shape: { v: 'int8:number' } });
 			expect((r.rows[0] as { v: number }).v).toBe(5);

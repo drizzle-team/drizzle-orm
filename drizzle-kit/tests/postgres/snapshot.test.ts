@@ -3,6 +3,7 @@ import { type Delta, delta } from 'src/dialects/dialect';
 import { createDDL } from 'src/dialects/postgres/ddl';
 import { reconstruct, startingState } from 'src/dialects/postgres/reconstruct';
 import { type PostgresBaseSnapshot, type PostgresSnapshot, snapshotValidator } from 'src/dialects/postgres/snapshot';
+import { latestVersion } from 'src/dialects/postgres/versions';
 import { originUUID } from 'src/utils';
 import { describe, expect, test } from 'vitest';
 import { columnRow } from './folder-flow';
@@ -28,7 +29,7 @@ const columnKey = (table: string, name: string) => `columns\0${JSON.stringify(['
 
 const base = (id: string, ddl: ReturnType<typeof createDDL>): PostgresBaseSnapshot => ({
 	type: 'base',
-	version: '9',
+	version: latestVersion,
 	dialect: 'postgres',
 	id,
 	prevIds: [originUUID],
@@ -38,7 +39,7 @@ const base = (id: string, ddl: ReturnType<typeof createDDL>): PostgresBaseSnapsh
 
 const diff = (id: string, prevIds: string[], deltas: Delta[]): PostgresSnapshot => ({
 	type: 'diff',
-	version: '9',
+	version: latestVersion,
 	dialect: 'postgres',
 	id,
 	prevIds,
@@ -241,7 +242,7 @@ describe('reconstruct', () => {
 
 		const first: PostgresBaseSnapshot = {
 			type: 'base',
-			version: '9',
+			version: latestVersion,
 			dialect: 'postgres',
 			id: 's0',
 			prevIds: [originUUID],
@@ -340,12 +341,41 @@ describe('snapshotValidator', () => {
 		expect(valid({ ...base('a', users), ddl: [{ entityType: 'tables', name: 1 }] })).toBe(false);
 	});
 
+	// Format 9 had `concurrently` in every row of an index, and format 10 dropped it. So a snapshot of the latest
+	// format with `concurrently` is malformed, and `up` must drop it from the rows and the deltas of format 9.
+	test('rejects concurrently in the rows and the deltas of indexes', () => {
+		const indexed = ddlOf('users', ['id']);
+		indexed.indexes.push({
+			schema: 'public',
+			table: 'users',
+			name: 'users_id_idx',
+			nameExplicit: true,
+			columns: [{ value: 'id', isExpression: false, asc: true, nullsFirst: false, opclass: null }],
+			isUnique: false,
+			where: null,
+			with: '',
+			method: 'btree',
+		});
+		const index = indexed.indexes.list()[0];
+		const key = 'indexes\0["public","users_id_idx"]';
+		const withConcurrently = indexed.entities.list().map((it) =>
+			it.entityType === 'indexes' ? { ...it, concurrently: false } : it
+		);
+
+		expect(valid(base('a', indexed))).toBe(true);
+		expect(valid({ ...base('a', indexed), ddl: withConcurrently })).toBe(false);
+		expect(valid(diff('b', ['a'], [{ op: 'create', row: index }]))).toBe(true);
+		expect(valid(diff('b', ['a'], [{ op: 'create', row: { ...index, concurrently: true } }]))).toBe(false);
+		expect(valid(diff('b', ['a'], [{ op: 'alter', key, set: { where: 'true' } }]))).toBe(true);
+		expect(valid(diff('b', ['a'], [{ op: 'alter', key, set: { concurrently: true } }]))).toBe(false);
+	});
+
 	// `file` builds each snapshot with `JSON.parse`, because only `JSON.parse` makes a key `__proto__` an own
 	// field of the row, as a snapshot file on disk does.
 	test('rejects a base with an entity whose type or field is a name that every object inherits', () => {
 		const file = (entity: string) =>
 			JSON.parse(
-				`{"type":"base","version":"9","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
+				`{"type":"base","version":"${latestVersion}","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
 					+ '"footprints":[]}',
 			);
 		const table = '"entityType":"tables","schema":"public","name":"users","isRlsEnabled":false';
@@ -360,7 +390,7 @@ describe('snapshotValidator', () => {
 	test('rejects a base with an entity type that is not a string', () => {
 		const file = (entity: string) =>
 			JSON.parse(
-				`{"type":"base","version":"9","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
+				`{"type":"base","version":"${latestVersion}","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
 					+ '"footprints":[]}',
 			);
 

@@ -33,8 +33,8 @@ test('deleting a middle migration stops every command with the missing parent an
 		+ 'or delete 20260101120003_main and every later migration, then run generate again.';
 	await expect(flow.check('main')).rejects.toThrow(message);
 	await expect(flow.generate('main', v3)).rejects.toThrow(message);
-	// `up` does not throw for this broken folder, because it converts only older formats and does not check
-	// the history of format 9 snapshots.
+	// `up` does not throw for this broken folder, because every snapshot is of the latest format. `up` checks the
+	// history only of a folder that holds a snapshot to convert, and then it checks every snapshot of the folder.
 	expect(await flow.up('main')).toStrictEqual([]);
 	const client = await borrowPGlite();
 	onTestFinished(() => returnPGlite(client));

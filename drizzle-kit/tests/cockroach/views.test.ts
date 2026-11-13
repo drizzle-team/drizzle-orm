@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import { eq, gt, sql } from 'drizzle-orm';
 import {
 	cockroachMaterializedView,
@@ -8,7 +9,6 @@ import {
 } from 'drizzle-orm/cockroach-core';
 import { stripAnsi } from 'hanji/utils';
 import { explain } from 'src/cli/views';
-import { needToPostpone } from 'tests/utils';
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
@@ -1436,7 +1436,7 @@ test.concurrent(
 );
 
 // TODO enhancement: dependents of a recreated view are not recreated, DROP VIEW "v1" fails since "v2" depends on it
-test.skipIf(needToPostpone)(
+test.skipIf(postponed)(
 	'topological sort test. recreate view that another view depends on',
 	async ({ db }) => {
 		const t = cockroachTable('t', { id: int4() });
@@ -1466,7 +1466,7 @@ test.skipIf(needToPostpone)(
 
 // TODO enhancement: views are dropped in declaration order, DROP VIEW "v1" fails since "v2" depends on it
 // since metadata uses everyting from fromDrizzleSchema(), there is no info about dropped and their deps
-test.skipIf(needToPostpone)('topological sort test. drop 2 dependent views', async ({ db }) => {
+test.skipIf(postponed)('topological sort test. drop 2 dependent views', async ({ db }) => {
 	const t = cockroachTable('t', { id: int4() });
 
 	const v1 = cockroachView('v1').as((qb) => qb.select().from(t));

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
+import { postponed } from '@drizzle/test-utils';
 import { eq, gt, gte, like, lt, not, sql } from 'drizzle-orm';
 import { bigint, int, mysqlTable, primaryKey, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
@@ -173,7 +174,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/4302
-	test.skipIf(Date.now() < +new Date('2026-11-24')).concurrent(
+	test.skipIf(postponed).concurrent(
 		'insert $returningId: issue #4302',
 		async ({ db, push }) => {
 			const uniqueKeys = ['ao865jf3mcmkfkk8o5ri495z', 'dyqs529eom0iczo2efxzbcut'];

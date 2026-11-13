@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import { DrizzleQueryError, eq, exists, getCacheKey, notExists, type SQL, sql } from 'drizzle-orm';
 import { alias, integer, pgSchema, pgTable, pgTableCreator, pgView, QueryBuilder, text } from 'drizzle-orm/pg-core';
 import { describe, expect, onTestFinished, vi } from 'vitest';
@@ -812,7 +813,7 @@ export function tests(test: Test) {
 				).toStrictEqual(['cache_groups', 'cache_users', 'cache_posts']);
 			});
 
-			test.skipIf(Date.now() < +new Date('2026-11-24'))(
+			test.skipIf(postponed)(
 				"View collects tables of all columns it's created from",
 				({ caches }) => {
 					const { explicit: db } = caches;

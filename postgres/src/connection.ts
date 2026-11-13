@@ -4,7 +4,7 @@ import type { Duplex } from 'node:stream';
 import { md5Password, peerCertDer, type Scram, scramForChannel } from './auth.ts';
 import { addBrand } from './brand.ts';
 import { buildDecoders, decoderFor } from './decode.ts';
-import { BINARY_FAST, type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
+import { ASCII_TEXT, BINARY_FAST, type CodegenCol, hasTypeDefinition, INSTANT_OIDS, tagArrayCol } from './decode.ts';
 import {
 	type BindEncoder,
 	compileBindEncoder,
@@ -18,9 +18,10 @@ import {
 	setTransactionSnapshotSql,
 } from './encode.ts';
 import { parseErrorFields, PgError } from './errors.ts';
-import { buildMapperFactory, isEvalAvailable, type RowMapper, type RowMapperFactory } from './mapper.ts';
+import { isEvalAvailable, type RowMapper, RowMappers } from './mapper.ts';
 import {
 	type ParamsEncoder,
+	parseCommandComplete,
 	parseDataRow,
 	parseParameterDescription,
 	Parser,
@@ -118,8 +119,12 @@ export interface NormalizedConfig {
 	prepare: boolean; // false -> never use server-side named prepared statements (transaction-pooler safe)
 	binaryParams: boolean; // upgrade fast-type params to binary on prepared reuse (OIDs from ParameterDescription)
 	pipelineDepth: number; // max queries in flight on one connection at once (1 = gated / no pipelining)
+	pipelineAuto: boolean; // depth follows the lowest measured round trip (see autoDepth)
 	pipelineFlush: 'sync' | 'microtask'; // batch same-tick writes into one socket write ('microtask') or write per dispatch ('sync')
 	temporal: 'date' | 'string'; // default decode for date/timestamp(tz) columns without an explicit target
+	int8: 'bigint' | 'string' | 'number'; // default decode for int8 columns without an explicit target
+	textValues: boolean; // every column without an explicit target decodes to its server text
+	resultFields: boolean; // results carry the column descriptions under RESULT_FIELDS (compat-prisma7)
 	reuseBinaryOids: Set<number>; // BINARY_FAST minus config.types overrides: cols to upgrade to binary on prepared-statement reuse
 	reconnect: { enabled: boolean; base: number; max: number; maxRetries: number | null };
 	transport?: Transport;
@@ -127,10 +132,17 @@ export interface NormalizedConfig {
 	path?: string;
 	plugins: Plugin[];
 	isBehindPooler?: boolean;
+	viaNeonProxy?: boolean; // Neon's proxy drops startup parameters but forwards `options` (styleStartupParams)
 }
 
 const RTT_WINDOW = 5; // keep this many most-recent round-trip samples (ms) for connection.rtt
-const DEFAULT_PIPELINE_DEPTH = 100; // max in-flight queries on one connection when pipelining is on (matches postgres.js)
+const DEFAULT_PIPELINE_DEPTH = 100; // the 'auto' floor, and the depth before the first round-trip sample
+// 'auto' depth: in flight = rate x round trip (Little's law). One connection peaks at about 70k cheap
+// queries/s (client-bound), so ~100 per ms of round trip keeps it busy; bounded to [100, 4096].
+const AUTO_DEPTH_PER_MS = 100;
+const MAX_AUTO_DEPTH = 4096;
+const autoDepth = (rttMs: number): number =>
+	Math.min(MAX_AUTO_DEPTH, Math.max(DEFAULT_PIPELINE_DEPTH, Math.ceil(AUTO_DEPTH_PER_MS * rttMs)));
 const FLUSH_THRESHOLD = 64 * 1024; // flush the batch immediately once it reaches this many bytes, even in microtask mode (bounds memory, starts the transfer)
 
 // Per-name statement cache. paramOids come from ParameterDescription; the binary param plan is
@@ -140,6 +152,17 @@ interface PreparedEntry {
 	fields: Field[];
 	paramOids?: number[];
 	plan?: ParamsEncoder | null;
+	// Row mappers for re-executions, filled on first reuse (fixed slots, no key). The entry is replaced
+	// whenever the statement is re-described, so these can never outlive its columns.
+	reuse?: StatementMappers; // plain query: per-column binary upgrade (reuseBinaryOids)
+	binary?: StatementMappers; // { binary: true }: every column binary
+}
+
+interface StatementMappers {
+	cols: CodegenCol[]; // resolved
+	resultFormat: number[];
+	object?: RowMapper;
+	array?: RowMapper;
 }
 
 // Identity of a Parse on the wire: same name may NOT be reused for different sql OR different declared
@@ -150,10 +173,6 @@ const mergeUnknownCols = (cols: CodegenCol[], fields: Field[]): CodegenCol[] =>
 	mergeUnknown(cols, fields, (f) => f.dataTypeOid);
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-const firstCstr = (b: Buffer): string => {
-	const z = b.indexOf(0);
-	return b.toString('utf8', 0, z < 0 ? b.length : z);
-};
 
 const parseKey = (
 	t: Task,
@@ -262,13 +281,61 @@ function beginClause(o: TxOptions | undefined): string {
 	return parts.length ? 'begin ' + parts.join(' ') : 'begin';
 }
 
-// Detect a transaction-mode pooler (where server-side NAMED prepared statements are unsafe — a Parse on
-// one backend may not exist on the next Bind). Used only to DEFAULT `prepare` off; explicit config wins.
+// Detect a transaction-mode pooler, which gives a client connection a backend per transaction (ADR 0019). It
+// DEFAULTS `pipeline` (and the pool's sharing) off, and `prepare` too unless the pooler keeps named statements;
+// explicit config wins.
 function transactionPoolerDetected(host: string, port: number): boolean {
 	if (host.includes('-pooler.')) return true; // Neon PgBouncer pooled endpoint
-	if (host.includes('pooler.supabase.com') || port === 6543) return true; // Supabase Supavisor transaction pooler
+	// Supabase Supavisor in transaction mode. Its session mode, port 5432 on the same pooler host, keeps one
+	// backend per client connection, so it is not a transaction pooler.
+	if (port === 6543) return true;
 	if (process.env.VERCEL || process.env.VERCEL_ENV) return true; // Vercel serverless: connections are ~always pooled
 	return false;
+}
+
+// Neon's pooled endpoints (Neon, and Vercel Postgres, which runs on Neon) run PgBouncer with prepared-statement
+// tracking (max_prepared_statements): a named statement keeps working whichever backend a transaction lands on,
+// so `prepare` stays on there. Checked against a live -pooler endpoint (test/integration/neon-pooler.test.ts).
+// Any other pooler may not track them, so named statements stay off behind it.
+const keepsNamedStatements = (host: string): boolean =>
+	host.includes('-pooler.') && /\.(?:neon\.tech|vercel-storage\.com)$/i.test(host);
+
+// The server's column descriptions (type OIDs, …) of a socket result, for compat layers whose callers need the
+// types (compat-prisma7 reports column types). Only a connection whose config carries `[RESULT_FIELDS]: true`
+// attaches them, under this symbol; every other result is exactly { rows, columns, rowCount, command }.
+export const RESULT_FIELDS = Symbol.for('drizzle-postgres.resultFields');
+/** The server's column descriptions of a socket query result, or undefined for results from other entries. */
+export const resultFields = (result: object): Field[] | undefined =>
+	(result as { [RESULT_FIELDS]?: Field[] })[RESULT_FIELDS];
+
+// Neon's proxy (Neon, and Vercel Postgres, which runs on Neon) forwards `options` and application_name to
+// Postgres but drops other startup parameters, DateStyle among them. neon-ws marks its socket factory,
+// so a Neon connection is recognised whatever the host is called.
+export const NEON_PROXY = Symbol.for('drizzle-postgres.neonProxy');
+export function viaNeonProxy(host: string, socket: unknown): boolean {
+	return /\.neon\.tech$|\.vercel-storage\.com$/i.test(host)
+		|| !!(socket as { [NEON_PROXY]?: boolean } | undefined)?.[NEON_PROXY];
+}
+
+// Output styles the text decoders depend on, sent with every startup (connect, reconnect, replication).
+// A startup value outranks ALTER DATABASE / ALTER ROLE ... SET, and RESET returns to it. DateStyle decides
+// how date/timestamp(tz) print, and any style but ISO is unparseable (src/temporal.ts). IntervalStyle only
+// changes interval strings, so it stays off behind a transaction pooler: PgBouncer before 1.20 rejects a
+// startup parameter it doesn't track, and it has always tracked DateStyle. Through Neon's proxy, which drops
+// both, they go into `options` as -c settings, also on Neon's pooled endpoints, where PgBouncer applies them
+// (checked against a live -pooler endpoint). A style the caller sets in `options` is theirs.
+export function styleStartupParams(
+	options: string | undefined,
+	behindPooler: boolean,
+	neonProxy: boolean,
+): { options?: string; DateStyle?: string; IntervalStyle?: string } {
+	const date = !options || !/datestyle/i.test(options);
+	const interval = (neonProxy || !behindPooler) && (!options || !/intervalstyle/i.test(options));
+	if (!neonProxy) {
+		return { options, DateStyle: date ? 'ISO' : undefined, IntervalStyle: interval ? 'postgres' : undefined };
+	}
+	const set = [options, date && '-c DateStyle=ISO', interval && '-c IntervalStyle=postgres'].filter(Boolean);
+	return { options: set.length ? set.join(' ') : undefined };
 }
 // Errors that won't fix themselves on retry (bad auth/config) — stop reconnecting.
 function isFatalAuth(err: unknown): boolean {
@@ -298,6 +365,36 @@ export function isUntrustedCertificate(err: unknown): boolean {
 	const message = e?.message ?? '';
 	return e?.name === 'InvalidData' && message.includes('invalid peer certificate')
 		&& !/Expired|NotValidYet/.test(message);
+}
+
+// The starting depth, and whether it follows the round trip. An explicit value beats pooler detection.
+const resolvePipeline = (p: ConnectConfig['pipeline'], behindPooler: boolean): { depth: number; auto: boolean } =>
+	p === false || (p == null && behindPooler)
+		? { depth: 1, auto: false }
+		: typeof p === 'object' && typeof p.depth === 'number'
+		? { depth: Math.max(1, p.depth), auto: false }
+		: { depth: DEFAULT_PIPELINE_DEPTH, auto: true }; // omitted, true, {}, or { depth: 'auto' }
+
+/** The starting pipeline depth of a connection built from `config` (1 = no pipelining). Resolves the
+ *  host and port the way the Connection constructor does, so pooler detection matches. */
+export function pipelineDepthOf(config: ConnectConfig): number {
+	return resolvePipeline(config.pipeline, behindPoolerOf(config)).depth;
+}
+
+/** Whether a (url-resolved) config's connections go through a transaction pooler: the `pooler` option (or
+ *  `?pooler=` / `?pgbouncer=` in its URL), else detected from the host and port. The one place a Connection
+ *  and a Pool both read it from. */
+export function behindPoolerOf(config: ConnectConfig): boolean {
+	const host = config.host || process.env.PGHOST || 'localhost';
+	const port = config.port || Number(process.env.PGPORT) || 5432;
+	return config.pooler ?? transactionPoolerDetected(host, port);
+}
+
+/** Whether a (url-resolved) config's connections use server-side named statements: `prepare`, else off
+ *  behind a transaction pooler that doesn't keep them across backends (all but Neon's). */
+export function prepareOf(config: ConnectConfig): boolean {
+	if (config.prepare !== undefined) return config.prepare;
+	return !behindPoolerOf(config) || keepsNamedStatements(config.host || process.env.PGHOST || 'localhost');
 }
 
 // A CancelRequest needs a second connection to the server, so only a connection that a pool opened
@@ -348,6 +445,7 @@ interface Task {
 	sql: string;
 	group?: BatchGroup | null; // the pipelinedTransaction() this statement belongs to (null: none)
 	groupEnd?: boolean; // this is the group's trailing COMMIT
+	explicit?: boolean; // issued by an explicit pipelining call (batch, pool.pipeline): not held to pipelineDepth
 	params: readonly unknown[];
 	name?: string | undefined;
 	mode: ResultMode;
@@ -471,6 +569,31 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 
 	/** Live scheduler snapshot: how many queries are queued, in flight now, and the max ever in flight
 	 *  at once (a nonzero-above-1 max confirms pipelining actually engaged). */
+	/** @internal Socket writes and round trips so far, which pool.batch compares to report a batch's own. */
+	get _wireCounters(): { writes: number; roundTrips: number } {
+		return { writes: this._flushes, roundTrips: this._roundTrips };
+	}
+
+	/** @internal Issue `fn`'s queries as one explicit pipeline: they are not held to `pipelineDepth`, so
+	 *  `pipeline: false` does not turn them into one round trip each. Behind a transaction pooler they
+	 *  stay at the depth: each is its own transaction, and the pooler may give the next one another
+	 *  backend while it is already on the wire. `fn` must enqueue synchronously. */
+	_pipelined<T>(fn: () => T): T {
+		if (this.cfg.isBehindPooler) return fn();
+		const was = this.explicitPipeline;
+		this.explicitPipeline = true;
+		try {
+			return fn();
+		} finally {
+			this.explicitPipeline = was;
+		}
+	}
+
+	/** @internal Queries queued or in flight. The pool reads it to pick the least-loaded connection. */
+	get _load(): number {
+		return this.queue.length + this.inflight.length;
+	}
+
 	get stats(): { queued: number; inflight: number; maxInflight: number; pipelineDepth: number; writes: number } {
 		return {
 			queued: this.queue.length,
@@ -499,6 +622,13 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		if (!Number.isFinite(ms) || ms < 0) return;
 		this.rttSamples.push(ms);
 		if (this.rttSamples.length > RTT_WINDOW) this.rttSamples.shift();
+		// 'auto' depth follows the connection's LOWEST round trip: the network floor. A query's sample
+		// includes its wait behind earlier pipelined queries and its server time, so a recent average
+		// would grow with load. The floor only moves down, so the depth is set rarely.
+		if (ms < this.rttFloor) {
+			this.rttFloor = ms;
+			if (this.cfg.pipelineAuto) this.cfg.pipelineDepth = autoDepth(ms);
+		}
 	}
 	private markPing(): void {
 		this.lastPingAt = performance.now();
@@ -515,6 +645,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private queue: Task[] = [];
 	private batchGroup: BatchGroup | null = null; // set while pipelinedTransaction() issues its statements: query() tags each task with it
 	private batchTail = false; // set while pipelinedTransaction() issues its trailing COMMIT
+	private explicitPipeline = false; // set while a batch or pool.pipeline() issues its statements: query() tags them `explicit`
 	private inflight: Task[] = []; // in-flight FIFO (oldest→newest); the backend replies in this order, so the
 	// head (inflight[0]) is the task currently receiving results. length ≤ pipelineDepth
 	private outbuf = new Writer(); // outbound batch: pipelined tasks serialize here, flushed once per dispatch pass
@@ -522,8 +653,11 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private writeBackedUp = false; // socket write buffer is full — pause dispatching new pipelined tasks until 'drain'
 	private _maxInflight = 0; // high-water mark of concurrent in-flight queries (diagnostics / tests)
 	private _flushes = 0; // count of outbound socket writes for query batches (coalescing diagnostic)
+	private _roundTrips = 0; // flushes sent while nothing earlier awaited a response (read by pool.batch metrics)
+	private unflushed = 0; // tasks serialized into outbuf since the last flush (round-trip accounting)
 	private spCounter = 0; // monotonic counter for auto-generated SAVEPOINT names (nested begin)
 	private rttSamples: number[] = []; // network round-trip samples (ms), oldest→newest, capped at RTT_WINDOW
+	private rttFloor = Infinity; // lowest round trip seen (ms): the 'auto' pipeline depth follows it
 	private lastPingAt = 0; // send time of the last handshake msg awaiting a reply (0 = none pending)
 	private prepared = new Map<string, PreparedEntry>();
 	private staleStatements = new Set<string>(); // names invalidated by DDL (0A000/26000) — Close before re-Parse
@@ -546,7 +680,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	// so naming always wins. The common (uniform) case is 1-2 statements; only a pathological per-row-varying
 	// batch accrues one statement per distinct chunk SQL. (On a transaction pooler query() drops names anyway.)
 	private valuesMeta = new Map<string, string>();
-	private mapperFactory: RowMapperFactory; // interpreted or jit, chosen once from config.decode; caches per column plan
+	private rowMappers: RowMappers; // per-shape mapper cache: this connection's own, or its pool's
 	// query-builder fast path: a chunks array (tagged template / builder) has stable identity, so cache
 	private scramState?: Scram;
 
@@ -570,7 +704,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private everConnected = false;
 	private instrumented = false; // plugins present -> capture per-query timings + fire hooks
 
-	constructor(config: ConnectConfig = {}) {
+	/** @param decode - @internal a pool's decode state, shared by all of its connections */
+	constructor(config: ConnectConfig = {}, decode?: DecodeState) {
 		config = resolveUrl(config); // fold a `url` connection string into defaults (explicit fields still win)
 		// Only the no-TLS-at-all case is decidable here. A custom `socket` owns its own TLS (so `ssl: false`
 		// means "I handle it", not "no encryption") and may well expose the certificate — see the `socket`
@@ -590,7 +725,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			);
 		}
 		const port = config.port || Number(process.env.PGPORT) || 5432;
-		const pooled = config.pooler ?? transactionPoolerDetected(host, port); // gates the `prepare` + `pipeline` auto-defaults
+		// a transaction pooler (PgBouncer, Supavisor), not a Pool connection (that is pooledConnections)
+		const behindPooler = behindPoolerOf(config); // gates the `prepare` + `pipeline` auto-defaults
 		this.cfg = {
 			host,
 			port,
@@ -611,25 +747,23 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			statementTimeout: config.statementTimeout,
 			idleInTransactionSessionTimeout: config.idleInTransactionSessionTimeout,
 			channelBinding: config.channelBinding,
-			prepare: config.prepare ?? !pooled, // explicit wins; else off behind a pooler
+			prepare: prepareOf(config), // explicit wins; else off behind a pooler that doesn't keep named statements
 			binaryParams: config.binaryParams ?? true,
 			// Pipelining: default on (auto-off behind a transaction pooler, where multiple in-flight implicit
 			// transactions on one client conn confuse the pooler's per-tx server assignment). Explicit wins.
-			pipelineDepth: ((
-				p,
-			) => (p === false
-				? 1
-				: p === true
-				? DEFAULT_PIPELINE_DEPTH
-				: p == null
-				? (pooled ? 1 : DEFAULT_PIPELINE_DEPTH)
-				: Math.max(1, p.depth ?? DEFAULT_PIPELINE_DEPTH)))(config.pipeline),
+			...((r) => ({ pipelineDepth: r.depth, pipelineAuto: r.auto }))(resolvePipeline(config.pipeline, behindPooler)),
 			pipelineFlush: (typeof config.pipeline === 'object' && config.pipeline.flush) || 'microtask', // coalesce same-tick writes by default
 			temporal: config.temporal ?? 'date',
-			decoders: buildDecoders(config.types, config.jsonBigints),
+			int8: config.int8 ?? 'bigint',
+			textValues: config.textValues ?? false,
+			resultFields: (config as { [RESULT_FIELDS]?: boolean })[RESULT_FIELDS] === true,
+			decoders: decode?.decoders ?? buildDecoders(config.types, config.jsonBigints),
 			// types to auto-upgrade to binary on prepared-statement reuse — the bench-fast set, minus any OID the
 			// user overrode via config.types (binary decode bypasses the text override, so leave those as text).
-			reuseBinaryOids: new Set([...BINARY_FAST].filter((oid) => !(config.types && oid in config.types))),
+			// textValues: binary results aren't the server's text, so nothing upgrades
+			reuseBinaryOids: config.textValues
+				? new Set()
+				: new Set([...BINARY_FAST].filter((oid) => !(config.types && oid in config.types))),
 			reconnect: ((rc) => {
 				const o = rc && typeof rc === 'object' ? rc : {};
 				return {
@@ -643,11 +777,13 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			transport: config.transport,
 			path: config.path,
 			plugins: config.plugins ?? [],
-			isBehindPooler: pooled,
+			isBehindPooler: behindPooler,
+			viaNeonProxy: viaNeonProxy(host, config.socket),
 		};
 		this.instrumented = this.cfg.plugins.length > 0;
 		const hasEval = isEvalAvailable();
-		this.mapperFactory = buildMapperFactory(config.decode, hasEval); // 'auto' (default): jit where eval available, else interpreted
+		// 'auto' (default): jit where eval available, else interpreted
+		this.rowMappers = decode?.rowMappers ?? new RowMappers(config.decode, this.cfg.decoders, hasEval);
 		const encMode = config.encode ?? 'auto';
 		if (encMode === 'jit' && !hasEval) {
 			throw new Error(
@@ -736,6 +872,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			rowCount: t.rowCount ?? (t.rows ? t.rows.length : null),
 			columnCount: t.fields?.length ?? 0,
 			command: t.command ?? null,
+			statementName: t.name,
 			prepared: t.info?.prepared ?? false,
 			...(err ? { error: err } : {}),
 		};
@@ -833,7 +970,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			database: this.cfg.database,
 			application_name: this.cfg.applicationName,
 			client_encoding: 'UTF8',
-			options: this.cfg.options, // '-c key=val …' — server-applied, so RESET ALL restores rather than wipes
+			// options: '-c key=val …' — server-applied, so RESET ALL restores rather than wipes
+			...styleStartupParams(this.cfg.options, !!this.cfg.isBehindPooler, !!this.cfg.viaNeonProxy),
 			statement_timeout: this.cfg.statementTimeout != null ? String(Math.floor(this.cfg.statementTimeout)) : undefined,
 			idle_in_transaction_session_timeout: this.cfg.idleInTransactionSessionTimeout != null
 				? String(Math.floor(this.cfg.idleInTransactionSessionTimeout))
@@ -954,17 +1092,21 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 							this.current.error = e as Error;
 						}
 					} else if (!this.current._typed) {
-						const bin = this.current.binary;
-						try {
-							const cols = this.current.fields.map((
-								f,
-							) => (bin
+						const t = this.current;
+						const bin = !!t.binary;
+						const fields = t.fields!;
+						const cols = () =>
+							fields.map((f) => (bin
 								? { name: f.name, oid: f.dataTypeOid, format: 'binary' as const }
 								: { name: f.name, oid: f.dataTypeOid })
 							);
-							this.assignMapper(this.current, cols);
+						try {
+							// cached by the RowDescription bytes; columns are only built on a miss
+							if ((t.mode === 'array' || t.mode === 'object') && !t.debug) {
+								t.mapper = this.rowMappers.forDesc(body, bin, t.mode, () => this.resolveCols(cols()));
+							} else this.assignMapper(t, cols());
 						} catch (e) {
-							this.current.error = e as Error;
+							t.error = e as Error;
 						} /* e.g. { binary: true } on a type with no binary decoder */
 					}
 					if (this.current._cacheName) this.cacheStatement(this.current);
@@ -981,10 +1123,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				return this.dataRow(body); // wire: the frame IS the row — nothing to decode
 			case 'C':
 				if (this.current && wire === undefined) {
-					const tag = firstCstr(body);
-					this.current.command = tag.split(' ')[0];
-					const m = tag.match(/(\d+)\s*$/);
-					this.current.rowCount = m ? parseInt(m[1]!, 10) : null;
+					parseCommandComplete(body, this.current);
 				}
 				return;
 			case 'E': {
@@ -1098,10 +1237,27 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	// temporal:'string' forces date/timestamp(tz)
 	// columns with no explicit target to the exact-string TEXT decode — dropping any binary upgrade, since
 	// binary can't yield the PG text (lossless for µs/BC/infinity that a JS Date can't represent).
+	// int8:'string'|'number' sets the target of int8 columns and int8[] elements with none; binary
+	// decoding has both targets, so the format stays as resolved.
 	private resolveCols(cols: CodegenCol[]): CodegenCol[] {
 		const tsString = this.cfg.temporal === 'string';
+		const int8 = this.cfg.int8;
+		if (this.cfg.textValues) {
+			// every column as its server text (oid 25 = text), unless a shape says otherwise: latin1 for types whose
+			// text is always ASCII (skips the UTF-8 scan), UTF-8 for the rest
+			return cols.map((c): CodegenCol => {
+				if (c.js || c.json || hasTypeDefinition(c)) return tagArrayCol(c);
+				return ASCII_TEXT.has(c.oid)
+					? { name: c.name, oid: 25, js: 'latin1', format: 'text' }
+					: { name: c.name, oid: 25, format: 'text' };
+			});
+		}
 		return cols.map((c0) => {
 			const c = tagArrayCol(c0); // wire array OID -> decode '{…}' to a JS array (no-op on already-tagged shape cols)
+			if (int8 !== 'bigint' && !c.json) {
+				if (c.oid === 20 && !c.js) return { ...c, js: int8 };
+				if (c.array && c.array.elem === 20 && !c.array.js) return { ...c, array: { ...c.array, js: int8 } };
+			}
 			if (!tsString) return c;
 			if (!c.js && !c.json && INSTANT_OIDS.has(c.oid)) return { ...c, js: 'string', format: 'text' };
 			if (c.array && !c.array.js && INSTANT_OIDS.has(c.array.elem)) {
@@ -1115,6 +1271,11 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private assignMapper(t: Task, cols: CodegenCol[]): void {
 		t.mapper = this.getMapper(cols, t.mode);
 		if (t.debug) t._debugCols = cols;
+	}
+
+	private statementMappers(cols: CodegenCol[]): StatementMappers {
+		const resolved = this.resolveCols(cols);
+		return { cols: resolved, resultFormat: resolved.map((c) => (c.format === 'binary' ? 1 : 0)) };
 	}
 
 	// Assemble the { debug: true } decode plan from what the task resolved to.
@@ -1142,8 +1303,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 
 	private getMapper(cols: CodegenCol[], mode: ResultMode): RowMapper | undefined {
 		if (mode !== 'array' && mode !== 'object') return undefined;
-		cols = this.resolveCols(cols);
-		return this.mapperFactory(cols, mode, this.cfg.decoders);
+		return this.rowMappers.forCols(this.resolveCols(cols), mode);
 	}
 
 	private dataRow(body: Buffer): void {
@@ -1178,8 +1338,11 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			if (this.inflight.length === 0) this.retire();
 			return;
 		}
+		// An explicitly pipelined statement (batch, pool.pipeline) is not held to the depth: the caller asked
+		// for one round trip, and `pipeline: false` only turns off pipelining of independent queries.
 		while (
-			this.queue.length && this.inflight.length < this.cfg.pipelineDepth && !this.writeBackedUp && this.canStartNext()
+			this.queue.length && (this.inflight.length < this.cfg.pipelineDepth || this.queue[0]!.explicit)
+			&& !this.writeBackedUp && this.canStartNext()
 		) {
 			this.startTask(this.queue.shift()!);
 			// Flush mid-burst once the batch is large, so write() backpressure is OBSERVED before we bury the socket's
@@ -1193,7 +1356,10 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		// in the same tick (e.g. Promise.all) leave in ONE socket write. Flush synchronously when pipelining is
 		// off (depth 1 — nothing to coalesce) or once the batch is already large (bound memory, start the wire
 		// transfer). A microtask that fires after a sync flush just finds an empty batch and no-ops.
-		if (this.cfg.pipelineFlush === 'microtask' && this.cfg.pipelineDepth > 1 && this.outbuf.mark() < FLUSH_THRESHOLD) {
+		if (
+			this.cfg.pipelineFlush === 'microtask' && (this.cfg.pipelineDepth > 1 || this.explicitPipeline)
+			&& this.outbuf.mark() < FLUSH_THRESHOLD
+		) {
 			this.scheduleFlush();
 		} else this.flushWrites();
 	}
@@ -1332,6 +1498,9 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		const bytes = Buffer.from(this.outbuf.slice());
 		this.outbuf.reset();
 		this._flushes++;
+		// Nothing sent earlier is still awaiting its response, so this write waits a full round trip.
+		if (this.inflight.length <= this.unflushed) this._roundTrips++;
+		this.unflushed = 0;
 		const s = this.socket;
 		if (s && !s.write(bytes) && !this.writeBackedUp) {
 			// Write buffer full: its size reflects the transport + bandwidth-delay product, so this is where we learn
@@ -1371,6 +1540,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		if (t.groupEnd && t.group!.failed) t.sql = 'rollback'; // a sibling never went out: don't commit the rest
 		let parsedName: string | undefined // this task wrote a NAMED Parse (recorded in parseInflight only once the whole task serialized)
 		;
+		let parseSkipped = false; // named, and an identical Parse is already queued ahead in this pipeline
 		try {
 			if (t.copySource || t.copyOut) writeQuery(w, t.sql);
 			// COPY: simple 'Q' (cleanest copy state machine); 'G' pumps the source, 'd' feeds copyTo
@@ -1393,23 +1563,32 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 							// shape / queryTyped: the caller already chose per-column formats + mapper in query(); keep them.
 							// Exception: a shape with 'unknown' columns deferred its mapper — build it from the cached fields.
 							if (t._shapeCols && !t.mapper) this.assignMapper(t, mergeUnknownCols(t._shapeCols, cached.fields));
-						} else if (t.binary) {
-							this.assignMapper(
-								t,
+						} else if (t.binary && (t.mode === 'array' || t.mode === 'object')) {
+							// { binary: true }: all binary (mapper slot on the statement entry)
+							const m = cached.binary ??= this.statementMappers(
 								cached.fields.map((f) => ({ name: f.name, oid: f.dataTypeOid, format: 'binary' as const })),
-							); // { binary: true }: all binary
+							);
+							t.mapper = m[t.mode] ??= this.rowMappers.forCols(m.cols, t.mode);
+							if (t.debug) t._debugCols = m.cols;
 						} else if (t.mode === 'array' || t.mode === 'object') {
 							// Plain query (no shape), 2nd+ execution: the result OIDs are now known from the first roundtrip's
 							// RowDescription, so request BINARY for the bench-fast types (same decoded value as text, smaller +
 							// faster). The first execution went out text. resolveCols honors temporal:'string'.
-							const cols = this.resolveCols(
+							// Mapper slot on the statement entry: built on the first reuse, a property read after that.
+							const m = cached.reuse ??= this.statementMappers(
 								cached.fields.map((f) => (this.cfg.reuseBinaryOids.has(f.dataTypeOid)
 									? { name: f.name, oid: f.dataTypeOid, format: 'binary' as const }
 									: { name: f.name, oid: f.dataTypeOid })
 								),
 							);
-							this.assignMapper(t, cols);
-							t.resultFormat = cols.map((c) => (c.format === 'binary' ? 1 : 0));
+							t.mapper = m[t.mode] ??= this.rowMappers.forCols(m.cols, t.mode);
+							t.resultFormat = m.resultFormat;
+							if (t.debug) t._debugCols = m.cols;
+						} else if (t.binary) {
+							this.assignMapper(
+								t,
+								cached.fields.map((f) => ({ name: f.name, oid: f.dataTypeOid, format: 'binary' as const })),
+							); // buffer/raw: no mapper, debug columns only
 						} else {
 							this.assignMapper(t, cached.fields.map((f) => ({ name: f.name, oid: f.dataTypeOid }))); // buffer/raw: text bytes
 						}
@@ -1432,6 +1611,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 					// response fills the cache.
 					const myKey = parseKey(t);
 					const inflightKey = t.name ? this.parseInflight.get(t.name) : undefined;
+					if (t.name && inflightKey === myKey) parseSkipped = true;
 					if (!t.name || inflightKey !== myKey) {
 						if (t.name && inflightKey !== undefined) {
 							writeClose(w, 'S', t.name);
@@ -1443,8 +1623,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 					writeDescribe(w, 'S', name);
 					if (t.name) t._cacheName = t.name;
 				}
-				t._reused = reuse;
-				if (t.info) t.info.prepared = reuse;
+				t._reused = reuse || parseSkipped; // Parse skipped: cached, or the same Parse is queued ahead
+				if (t.info) t.info.prepared = t._reused;
 				// Write-through params: values encode DIRECTLY into the outbound batch (no per-value Buffers or
 				// wrapper objects). Fast types upgrade to BINARY via a compiled per-statement plan — the encode-side
 				// mirror of reuseBinaryOids — from caller-declared paramTypes (first execution, unnamed too) or from
@@ -1500,6 +1680,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		}
 		this.inflight.push(t);
 		if (this.inflight.length > this._maxInflight) this._maxInflight = this.inflight.length;
+		this.unflushed++;
 		if (t.timeout != null) {
 			t.timer = setTimeout(
 				() =>
@@ -1788,12 +1969,14 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				t.streamEnd?.({ command: t.command, rowCount: t.rowCount });
 			} else {
 				const m = this.fireEnd(t);
+				const fields = t.fields ?? [];
 				const res: QueryResult<never> = {
 					rows: t.rows as never[],
-					columns: (t.fields ?? []).map((f) => f.name),
+					columns: fields.map((f) => f.name),
 					rowCount: t.rowCount ?? null,
 					command: t.command ?? null,
 				};
+				if (this.cfg.resultFields) (res as { [RESULT_FIELDS]?: Field[] })[RESULT_FIELDS] = fields;
 				if (t.wantMetrics && m) res.metrics = m;
 				if (t.debug) res.debug = this.buildDebug(t);
 				t.resolve?.(res);
@@ -1806,6 +1989,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	// terminal event settles, no hung promise" invariant. Shared by fatal() and end().
 	private settlePending(e: Error): void {
 		this.outbuf.reset(); // drop any batched-but-unflushed bytes
+		this.unflushed = 0;
 		this.parseInflight.clear(); // any recorded Parse may never have reached the wire
 		this.lateCancel = null;
 		// Reject every in-flight query. Prefer an informative server error already received for one (e.g. a
@@ -1867,6 +2051,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			dead?.destroy();
 		} catch { /* */ }
 		this.outbuf.reset(); // drop any batched-but-unflushed bytes
+		this.unflushed = 0;
 		// Reject every in-flight query (NEVER replay). The head may carry a server error; the rest take `err`.
 		while (this.inflight.length) {
 			const t = this.inflight.shift()!;
@@ -2085,6 +2270,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				paramTypes: opts.params && resolveParamTypes(opts.params),
 				group: this.batchGroup,
 				groupEnd: this.batchTail,
+				explicit: this.explicitPipeline,
 			};
 			if (mode === 'wire') {
 				if (opts.shape || opts.binary) {
@@ -2098,12 +2284,18 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			} else if (opts.shape) {
 				// declared column shape: decode with the SAME cached jit/interpreted mapper as any query, and
 				// request binary wire format for any column marked format:'binary'. (mode is array|object here.)
-				const cols = this.resolveCols(
-					typeof opts.shape === 'function' ? (opts.shape.$cols as CodegenCol[]) : shapeCols(opts.shape),
+				// resolved once per shape object (identity); an inline shape is a new object each call -> resolved each call
+				const shape = opts.shape;
+				const plan = this.rowMappers.plan(
+					shape,
+					() => this.resolveCols(typeof shape === 'function' ? (shape.$cols as CodegenCol[]) : shapeCols(shape)),
 				);
-				if (cols.some((c) => c.oid === 0)) task._shapeCols = cols; // 'unknown' cols: defer the mapper until real OIDs arrive
-				else this.assignMapper(task, cols);
-				task.resultFormat = cols.map((c) => (c.format === 'binary' ? 1 : 0)); // shapeCols upgraded boost types ('unknown' is always text)
+				if (plan.deferred) task._shapeCols = plan.cols; // 'unknown' cols: defer the mapper until real OIDs arrive
+				else if (mode === 'array' || mode === 'object') {
+					task.mapper = this.rowMappers.planMapper(plan, mode);
+					if (opts.debug) task._debugCols = plan.cols;
+				} else this.assignMapper(task, plan.cols);
+				task.resultFormat = plan.resultFormat; // shapeCols upgraded boost types ('unknown' is always text)
 				task._typed = true;
 			} else if (opts.binary) {
 				// force BINARY for every column; the mapper is built binary from RowDescription OIDs in the 'T'
@@ -2137,7 +2329,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		const p = new Promise<QueryResult<never>>((resolve, reject) => {
 			if (this.state === 'closed') return reject(new Error('connection is closed'));
 			const mode = opts.mode ?? 'object';
-			const cols = this.resolveCols(columns);
+			const plan = this.rowMappers.plan(columns, () => this.resolveCols(columns)); // cached by array identity
+			const cols = plan.cols;
 			const task: Task = {
 				sql,
 				params,
@@ -2148,9 +2341,10 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				timeout: opts.timeout,
 				signal: opts.signal,
 				debug: opts.debug,
-				mapper: this.getMapper(cols, mode),
-				resultFormat: cols.map((c) => (c.format === 'binary' ? 1 : 0)),
+				mapper: this.rowMappers.planMapper(plan, mode),
+				resultFormat: plan.resultFormat,
 				_typed: true,
+				explicit: this.explicitPipeline,
 			};
 			if (opts.debug) task._debugCols = cols;
 			this.beginPerf(task, params, opts.metrics);
@@ -2613,8 +2807,9 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	 *  Rejects with the first rejection to fire: statements settle in wire order, so a 25P02 fallout never
 	 *  masks the error that caused it, and a failed snapshot import or COMMIT (e.g. a deferred constraint)
 	 *  surfaces as itself. Resolves with the statements' results, in order. `issue` MUST enqueue synchronously:
-	 *  a statement issued after an `await` lands behind COMMIT, outside the transaction. With pipelining off
-	 *  (depth 1: transaction poolers) the same sequence runs gated, one statement per round trip.
+	 *  a statement issued after an `await` lands behind COMMIT, outside the transaction. The statements
+	 *  pipeline at any depth, including `pipeline: false` and behind a transaction pooler (one transaction
+	 *  keeps one backend).
 	 *  Allocation-lean by design (batches are hot): no Promise.allSettled records or intermediate arrays — one
 	 *  results array, one shared rejection handler, and one `then` per statement. */
 	pipelinedTransaction<T>(
@@ -2625,10 +2820,14 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			return Promise.reject(new Error('batch needs a fresh transaction — the connection is already inside one'));
 		}
 		const group: BatchGroup = { failed: false };
-		const begin = this.query(beginClause(options)) as Promise<unknown>;
-		const snap = options?.snapshot != null
-			? this.query(setTransactionSnapshotSql(options.snapshot)) as Promise<unknown>
-			: null;
+		// One transaction, so its statements pipeline at any depth, even behind a transaction pooler: the
+		// pooler keeps the same backend from BEGIN to COMMIT.
+		const beginSql = beginClause(options); // built first: a throw here must not leave the flag set
+		const snapSql = options?.snapshot != null ? setTransactionSnapshotSql(options.snapshot) : null;
+		const wasExplicit = this.explicitPipeline;
+		this.explicitPipeline = true;
+		const begin = this.query(beginSql) as Promise<unknown>;
+		const snap = snapSql !== null ? this.query(snapSql) as Promise<unknown> : null;
 		// Statements rejected before they are even queued (closed connection, bad params, pre-aborted signal)
 		// leave no task behind to flip the group, so count what issue() actually got onto the queue.
 		const before = this.queue.length + this.inflight.length;
@@ -2647,6 +2846,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		const tail = this.query('commit') as Promise<unknown>;
 		this.batchGroup = null;
 		this.batchTail = false;
+		this.explicitPipeline = wasExplicit;
 
 		const results = new Array<T>(body.length);
 		return new Promise<T[]>((resolve, reject) => {
@@ -3000,9 +3200,22 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 
 addBrand(Connection, 'Connection');
 
+/** Decoder map + row mapper cache. A pool builds one and hands it to every connection it opens, so a
+ *  shape compiles once per pool. Never shared across pools/clients: they may point at different databases,
+ *  where the same type (an extension type, enum, domain) has a different OID. */
+export interface DecodeState {
+	decoders: Map<number, Decoder>;
+	rowMappers: RowMappers;
+}
+
+export function createDecodeState(config: ConnectConfig): DecodeState {
+	const decoders = buildDecoders(config.types, config.jsonBigints);
+	return { decoders, rowMappers: new RowMappers(config.decode, decoders) };
+}
+
 /** Creates a connection that a pool owns. Only such a connection cancels its queries. */
-export function createPooledConnection(config: ConnectConfig): Connection<{ pooled: true }> {
-	const conn = new Connection<{ pooled: true }>(config);
+export function createPooledConnection(config: ConnectConfig, decode?: DecodeState): Connection<{ pooled: true }> {
+	const conn = new Connection<{ pooled: true }>(config, decode);
 	pooledConnections.add(conn);
 	return conn;
 }

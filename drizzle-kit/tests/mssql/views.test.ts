@@ -1,6 +1,6 @@
+import { postponed } from '@drizzle/test-utils';
 import { eq, gt, sql } from 'drizzle-orm';
 import { bit, int, mssqlSchema, mssqlTable, mssqlView, varchar } from 'drizzle-orm/mssql-core';
-import { needToPostpone } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -1015,7 +1015,7 @@ test('create 2 dependent views', async () => {
 
 // TODO enhancement: alter_view statements are emitted before sorted create_view statements,
 // so "v2" is altered before "v_new" exists
-test.skipIf(needToPostpone)(
+test.skipIf(postponed)(
 	'topological sort test. existing view starts reading a new view',
 	async () => {
 		const t = mssqlTable('t', { id: int() });

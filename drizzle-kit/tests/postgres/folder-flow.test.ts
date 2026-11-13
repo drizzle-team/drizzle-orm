@@ -1,7 +1,9 @@
 import { freshPGlite } from '@drizzle/test-utils/pglite';
-import { PGlite } from '@electric-sql/pglite';
+import { sql } from 'drizzle-orm';
 import { index, integer, pgTable, primaryKey, text, unique, varchar } from 'drizzle-orm/pg-core';
+import { join } from 'path';
 import { errorToEnvelope } from 'src/cli/errors';
+import { latestVersion } from 'src/dialects/postgres/versions';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
 import {
@@ -16,7 +18,7 @@ import {
 	step,
 } from './folder-flow';
 
-// Verifies the main flows of snapshot format 9 through the real `generate`, `check`, `up` and `pull` commands.
+// Verifies the main flows of the latest snapshot format through the real `generate`, `check`, `up` and `pull` commands.
 // A linear history writes a base snapshot and then diff snapshots, and each snapshot stores the deltas and the
 // footprints of its migration. `check` reads only the stored footprints. Branches that commute merge into one
 // leaf, and branches that conflict stop `check` and `generate`. A hand-edited snapshot that does not
@@ -387,7 +389,7 @@ test('commands ask to run up on format 8 snapshots, and up converts them', async
 
 	expect(flow.snapshot('main', '20250101000000_init')).toStrictEqual({
 		type: 'base',
-		version: '9',
+		version: latestVersion,
 		dialect: 'postgres',
 		id: 'p1',
 		prevIds: [ORIGIN],
@@ -398,6 +400,43 @@ test('commands ask to run up on format 8 snapshots, and up converts them', async
 	const { folder } = await flow.generate('main', v1);
 	expect(flow.snapshot('main', folder)).toMatchObject({ type: 'diff', prevIds: ['p1'] });
 	expect(flow.state('main', folder)).toStrictEqual(schemaState(v1));
+});
+
+// drizzle-kit 1.0.0-rc.5 wrote the `format-9-linear` folder, with `concurrently` in the rows and the deltas of its
+// indexes. `v4` is its schema after the last migration, without `.concurrently()`, and with one more column.
+test('commands ask to run up on format 9 snapshots, and up converts them', async () => {
+	const flow = createFolderFlow();
+	flow.seed('main', join(__dirname, 'old-snapshots', 'format-9-linear'));
+	const folders = flow.folders('main');
+	const v4 = {
+		users: pgTable(
+			'users',
+			{ id: integer().primaryKey(), email: varchar(), name: text(), age: integer(), bio: text() },
+			(
+				t,
+			) => [
+				index('users_email_idx').on(t.email).where(sql`${t.email} is not null`),
+				index('users_name_idx').on(t.name),
+			],
+		),
+	};
+
+	await expect(flow.check('main')).rejects.toThrow('please run "drizzle-kit up"');
+	await expect(flow.generate('main', v4)).rejects.toThrow('please run "drizzle-kit up"');
+	expect(flow.folders('main')).toStrictEqual(folders);
+
+	expect(await flow.up('main')).toHaveLength(3);
+
+	expect(folders.map((it) => flow.snapshot('main', it).version)).toStrictEqual(['10', '10', '10']);
+	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+	const { folder } = await flow.generate('main', v4);
+	expect(flow.snapshot('main', folder)).toMatchObject({
+		type: 'diff',
+		prevIds: [flow.snapshot('main', folders[2]).id],
+	});
+	// The indexes get no SQL, because the converted state has no `concurrently` that differs from the schema.
+	expect(flow.sql('main', folder)).toBe('ALTER TABLE "users" ADD COLUMN "bio" text;');
+	expect(flow.state('main', folder)).toStrictEqual(schemaState(v4));
 });
 
 test('pull into an empty folder writes a base snapshot that generate continues', async () => {
@@ -411,7 +450,7 @@ test('pull into an empty folder writes a base snapshot that generate continues',
 	await flow.pull('main', client);
 	const [pulled] = flow.folders('main');
 	const base = flow.snapshot('main', pulled);
-	expect(base).toMatchObject({ type: 'base', version: '9', dialect: 'postgres', prevIds: [ORIGIN] });
+	expect(base).toMatchObject({ type: 'base', version: latestVersion, dialect: 'postgres', prevIds: [ORIGIN] });
 	expect(base.footprints).toMatchObject([{
 		statementType: 'create_table',
 		statementTarget: ['table', 'public', 'users'],
@@ -423,7 +462,7 @@ test('pull into an empty folder writes a base snapshot that generate continues',
 	expect(flow.folders('main')).toStrictEqual([pulled, folder]);
 	expect(flow.snapshot('main', folder)).toStrictEqual({
 		type: 'diff',
-		version: '9',
+		version: latestVersion,
 		dialect: 'postgres',
 		id: flow.snapshot('main', folder).id,
 		prevIds: [base.id],
