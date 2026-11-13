@@ -10,17 +10,17 @@ export class DrizzleError extends Error {
 	}
 }
 
-export class DrizzleQueryError extends Error {
+export class DrizzleQueryError extends DrizzleError {
+	static override readonly [entityKind]: string = 'DrizzleQueryError';
+
 	constructor(
 		public query: string,
 		public params: any[],
-		public override cause?: Error,
+		public override cause?: unknown,
 	) {
-		super(`Failed query: ${query}\nparams: ${params}`);
+		super({ message: `Failed query: ${query}\nparams: ${params}`, cause });
+		this.name = 'DrizzleQueryError';
 		Error.captureStackTrace(this, DrizzleQueryError);
-
-		// ES2022+: preserves original error on `.cause`
-		if (cause) (this as any).cause = cause;
 	}
 }
 
