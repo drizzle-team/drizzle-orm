@@ -44,6 +44,14 @@ export class EffectPgDatabase<TRelations extends AnyRelations = EmptyRelations>
  *   Effect.provide(PgDrizzle.DefaultServices),
  * );
  * ```
+ *
+ * Driver quirks:
+ * - BC `date`s are read as `Invalid Date`s
+ * - Years 1 - 99 of `timestamptz` values are read as 19xx
+ *
+ * Unsupported column types (throw on non-null values):
+ * - `timestamp` in both modes (decoded in process-local time)
+ * - `timestamptz` in `string` mode (offset dropped)
  */
 export const make = Effect.fn('PgDrizzle.make')(
 	function*<

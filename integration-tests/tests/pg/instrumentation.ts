@@ -27,6 +27,7 @@ import { drizzle as drizzleNeonHttp, type NeonHttpDatabase } from 'drizzle-orm/n
 import { drizzle as drizzleNeonWs } from 'drizzle-orm/neon-serverless';
 import { drizzle as drizzleNetlify, type ServerlessDrizzleClient } from 'drizzle-orm/netlify-db';
 import { drizzle as drizzleNodePostgres, nodePgCodecs } from 'drizzle-orm/node-postgres';
+import { nodePgRawTextTypes } from 'drizzle-orm/node-postgres';
 import type {
 	PgEnum,
 	PgEnumObject,
@@ -267,6 +268,8 @@ class ServerSimulator {
 					text: sql,
 					values: params,
 					rowMode: 'array',
+					// `all` serves queries drizzle decodes with codecs, which decode these column types from text
+					types: nodePgRawTextTypes,
 				});
 
 				return { data: result.rows as any };

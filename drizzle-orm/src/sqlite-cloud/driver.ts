@@ -58,6 +58,10 @@ export type DatabaseOpts = (Database extends { new(path: string, opts: infer D):
 	path: string;
 };
 
+/**
+ * Driver quirks:
+ * - Integers past the safe integer range are read as numbers: `numeric` columns throw on them
+ */
 export function drizzle<TRelations extends AnyRelations = EmptyRelations, TClient extends Database = Database>(
 	...params: [
 		string,

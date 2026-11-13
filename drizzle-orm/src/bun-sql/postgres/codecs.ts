@@ -1,16 +1,13 @@
 /// <reference types="bun-types" />
 
 import type { SQL } from 'bun';
+import { unsupportedCodec } from '~/codecs.ts';
 import { entityKind, is } from '~/entity.ts';
 import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
-	castToEpochMs,
-	castToJsonText,
-	castToText,
 	castToTextArr,
-	epochMsToDate,
 	makeBoxArray,
 	makeGeometryArray,
 	parseGeometryArrayAndNormalize,
@@ -19,12 +16,15 @@ import {
 	parseLineABC,
 	parseLineTuple,
 	parsePgArrayAndNormalize,
+	parsePgArrayOfStrings,
 	parsePgVector,
 	parsePointTuple,
 	parsePointXY,
+	pgDateTextFromUtcDate,
+	pgTimestampTextFromUtcDate,
 	refineGenericPgCodecs,
-	textToDateArray,
-	textToDateWithTzArray,
+	shortestFloat32,
+	shortestFloat32Array,
 } from '~/pg-core/codecs.ts';
 
 /** `sql.json(value)` for bun < v1.4.4 */
@@ -50,90 +50,85 @@ const makeJsonParamNormalizer = (client: SQL): (v: unknown) => unknown =>
 		? (value) => JSON.stringify(value)
 		: (value) => new BunSqlJsonParam(value);
 
+const driver = 'bun-sql';
+
+// `bun` decodes `infinity` / `-infinity` dates and timestamps to `Infinity` / `-Infinity` numbers
+const invalidDate = new Date(Number.NaN);
+const dateFromBun = (value: Date | number): Date =>
+	value === Infinity || value === -Infinity ? invalidDate : value as Date;
+const timeZoneReason = 'the driver decodes `timestamptz` values to `Date`s, dropping the offset the server formats in '
+	+ "the session's time zone, and accepts no per-query parsers";
+const timestampText = pgTimestampTextFromUtcDate(false);
+const dateTextFromBun = (value: Date | number): string =>
+	value === Infinity ? 'infinity' : value === -Infinity ? '-infinity' : pgDateTextFromUtcDate(value as Date);
+
 /** JSON param marker exists only on client and isn't importable outside of it */
 export const bunSqlPgCodecs = (client: SQL) => {
 	const normalizeJsonParam = makeJsonParamNormalizer(client);
 
 	return refineGenericPgCodecs({
 		date: {
-			cast: castToEpochMs,
-			castArray: castToJsonText,
-			normalize: epochMsToDate,
-			normalizeArray: textToDateArray,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalize: dateFromBun,
+			normalizeArray: arrayCompatNormalize(dateFromBun),
 		},
 		'date:string': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalize: dateTextFromBun,
+			normalizeArray: arrayCompatNormalize(dateTextFromBun),
 		},
 		uuid: {
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		timestamp: {
-			cast: castToEpochMs,
-			castArray: castToJsonText,
-			normalize: epochMsToDate,
-			normalizeArray: textToDateWithTzArray,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalize: dateFromBun,
+			normalizeArray: arrayCompatNormalize(dateFromBun),
 		},
 		timestamptz: {
-			cast: castToEpochMs,
-			castArray: castToJsonText,
-			normalize: epochMsToDate,
-			normalizeArray: textToDateArray,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalize: dateFromBun,
+			normalizeArray: arrayCompatNormalize(dateFromBun),
 		},
 		'timestamp:string': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalize: timestampText,
+			normalizeArray: arrayCompatNormalize(timestampText),
 		},
 		'timestamptz:string': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalize: unsupportedCodec('timestamp with time zone', driver, timeZoneReason),
+			normalizeArray: unsupportedCodec('timestamp with time zone', driver, timeZoneReason),
 		},
 		float4: {
-			cast: castToText,
-			castArray: castToTextArr,
-			normalize: Number,
-			normalizeArray: arrayCompatNormalize(Number),
 			normalizeParamArray: (v) => makePgArray(v),
+			normalize: shortestFloat32,
+			normalizeArray: shortestFloat32Array,
 		},
 		bigint: {
-			cast: castToText,
-			castArray: castToTextArr,
+			normalizeParamArray: (v) => makePgArray(v),
 			normalize: BigInt,
 			normalizeArray: arrayCompatNormalize(BigInt),
-			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'bigint:number': {
-			cast: castToText,
-			castArray: castToTextArr,
+			normalizeParamArray: (v) => makePgArray(v),
 			normalize: Number,
 			normalizeArray: arrayCompatNormalize(Number),
-			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'bigint:string': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalize: String,
+			normalizeArray: arrayCompatNormalize(String),
 		},
 		bigserial: {
-			cast: castToText,
-			castArray: castToTextArr,
+			normalizeParamArray: (v) => makePgArray(v),
 			normalize: BigInt,
 			normalizeArray: arrayCompatNormalize(BigInt),
-			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'bigserial:number': {
-			cast: castToText,
-			castArray: castToTextArr,
+			normalizeParamArray: (v) => makePgArray(v),
 			normalize: Number,
 			normalizeArray: arrayCompatNormalize(Number),
-			normalizeParamArray: (v) => makePgArray(v),
 		},
 		int: {
 			normalizeArray: (
@@ -210,13 +205,9 @@ export const bunSqlPgCodecs = (client: SQL) => {
 		smallserial: { normalizeParamArray: (v) => makePgArray(v) },
 		text: { normalizeParamArray: (v) => makePgArray(v) },
 		time: {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		timetz: {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		tsmultirange: { normalizeParamArray: (v) => makePgArray(v) },
@@ -230,22 +221,14 @@ export const bunSqlPgCodecs = (client: SQL) => {
 		xml: { normalizeParamArray: (v) => makePgArray(v) },
 		bytea: { normalizeParamArray: (v) => makePgArray(v) },
 		enum: {
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayOfStrings,
 		},
 		json: {
-			cast: castToText,
-			castArray: castToTextArr,
-			normalize: JSON.parse,
-			normalizeArray: arrayCompatNormalize(JSON.parse),
 			normalizeParam: normalizeJsonParam,
 			normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 		},
 		jsonb: {
-			cast: castToText,
-			castArray: castToTextArr,
-			normalize: JSON.parse,
-			normalizeArray: arrayCompatNormalize(JSON.parse),
 			normalizeParam: normalizeJsonParam,
 			normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 		},
@@ -260,58 +243,41 @@ export const bunSqlPgCodecs = (client: SQL) => {
 			normalizeParamArray: makeGeometryArray,
 		},
 		interval: {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		line: {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalize: parseLineABC,
 			normalizeArray: arrayCompatNormalize(parseLineABC),
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'line:tuple': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalize: parseLineTuple,
 			normalizeArray: arrayCompatNormalize(parseLineTuple),
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		macaddr8: {
 			castArrayInJson: castToTextArr,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		numeric: {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'numeric:number': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalize: Number,
 			normalizeArray: arrayCompatNormalize(Number),
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'numeric:bigint': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalize: BigInt,
 			normalizeArray: arrayCompatNormalize(BigInt),
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		point: {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalize: parsePointXY,
 			normalizeArray: arrayCompatNormalize(parsePointXY),
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'point:tuple': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalize: parsePointTuple,
 			normalizeArray: arrayCompatNormalize(parsePointTuple),
 			normalizeParamArray: (v) => makePgArray(v),

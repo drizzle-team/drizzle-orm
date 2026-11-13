@@ -56,7 +56,6 @@ export interface SingleStoreSelectConfig {
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
 	mapper?: (raw: any) => any;
-	useSelectionCastCodecs?: boolean;
 	where?: SQL;
 	having?: SQL;
 	table: SingleStoreTable | Subquery | SQL; // | SingleStoreViewBase

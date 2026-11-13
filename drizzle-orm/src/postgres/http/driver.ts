@@ -7,7 +7,7 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { postgresHttpShapeCodecs } from '../codecs.ts';
+import { postgresCodecs } from '../codecs.ts';
 import { createShapeGenerator } from '../shape.ts';
 import {
 	type PostgresHttpBatchOptions,
@@ -74,7 +74,7 @@ function construct<
 ): PostgresHttpDatabase<TRelations> & {
 	$client: TClient;
 } {
-	const codecs = config.codecs ?? postgresHttpShapeCodecs;
+	const codecs = config.codecs ?? postgresCodecs;
 	const dialect = new PgDialect({
 		codecs,
 		useJitMappers: jitCompatCheck(config.jit),

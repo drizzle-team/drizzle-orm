@@ -44,6 +44,14 @@ export class EffectPgDatabase<TRelations extends AnyRelations = EmptyRelations>
  *   Effect.provide(PgDrizzle.DefaultServices),
  * );
  * ```
+ *
+ * Driver quirks:
+ * - `timestamp` in `string` mode loses microseconds
+ * - The driver itself fails on `point`, `line`, `bit`, `interval[]` and multidimensional arrays
+ *
+ * Unsupported column types (throw on non-null values):
+ * - `timestamptz` in `string` mode (offset dropped)
+ * - `macaddr`, `macaddr8`, `enum[]`, `geometry`, `vector`, `sparsevec` (binary format decoded as corrupted text)
  */
 export const make = Effect.fn('PgDrizzle.make')(
 	function*<

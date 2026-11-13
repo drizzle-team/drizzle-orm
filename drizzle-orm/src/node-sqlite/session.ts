@@ -54,6 +54,8 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 		let stmt: ReturnType<typeof this.client.prepare>;
 		try {
 			stmt = this.client.prepare(query.sql);
+
+			if (mapper) stmt.setReadBigInts(true);
 		} catch (e) {
 			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}

@@ -79,7 +79,7 @@ import {
 } from './all-types';
 import { Test } from './instrumentation';
 import { clear, init, rqbPost, rqbUser } from './schema';
-import { normalizeDataWithDbCodecs } from './utils';
+import { fetchDecodedQueryRows, normalizeDataWithDbCodecs } from './utils';
 
 const allTypesTable = makeAllTypes('all_types');
 
@@ -284,7 +284,13 @@ async function runDeepNullification(db: SQLiteAsyncDatabase<'async' | 'sync', an
 	]);
 }
 
-export function tests(test: Test, exclude: string[] = []) {
+export function tests(
+	test: Test,
+	exclude: string[] = [],
+	/** How the client returns integers of rows that aren't decoded (no selection, no `.mapWith()`) */
+	{ rawIntegers = 'number' }: { rawIntegers?: 'number' | 'bigint' } = {},
+) {
+	const rawInt = (value: number) => rawIntegers === 'bigint' ? BigInt(value) : value;
 	test.beforeEach(({ task, skip }) => {
 		if (exclude.includes(task.name)) skip();
 	});
@@ -671,6 +677,71 @@ export function tests(test: Test, exclude: string[] = []) {
 				{ id: 1, name: 'John' },
 				{ id: 2, name: 'John' },
 			]);
+		});
+
+		test.concurrent('select distinct ordered by cast columns', async ({ db }) => {
+			const table = sqliteTable('distinct_cast_order', {
+				id: integer('id').notNull(),
+				amount: numeric('amount', { mode: 'bigint' }).notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer not null, amount numeric not null)`);
+
+			await db.insert(table).values([
+				{ id: 1, amount: 9n },
+				{ id: 2, amount: 100n },
+				{ id: 2, amount: 100n },
+				{ id: 3, amount: 10n },
+			]);
+
+			const byAmount = await db
+				.selectDistinct({ id: table.id, amount: table.amount })
+				.from(table)
+				.orderBy(desc(table.amount));
+
+			expect(byAmount).toEqual([
+				{ id: 2, amount: 100n },
+				{ id: 3, amount: 10n },
+				{ id: 1, amount: 9n },
+			]);
+		});
+
+		test.concurrent('order by aliased cast columns', async ({ db }) => {
+			const table = sqliteTable('alias_cast_order', {
+				id: integer('id').notNull(),
+				amount: numeric('amount', { mode: 'bigint' }).notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer not null, amount numeric not null)`);
+
+			await db.insert(table).values([
+				{ id: 1, amount: 9n },
+				{ id: 2, amount: 100n },
+				{ id: 3, amount: 10n },
+			]);
+
+			const amountAlias = table.amount.as('amount_alias');
+			const amountSql = sql<bigint>`${table.amount}`.mapWith(table.amount).as('amount_sql');
+
+			const byColumnAlias = await db.select({ id: table.id, amount: amountAlias }).from(table).orderBy(
+				desc(amountAlias),
+			);
+			const bySqlAlias = await db.select({ id: table.id, amount: amountSql }).from(table).orderBy(desc(amountSql));
+			const byDistinctAlias = await db
+				.selectDistinct({ id: table.id, amount: amountAlias })
+				.from(table)
+				.orderBy(desc(amountAlias));
+
+			const expected = [
+				{ id: 2, amount: 100n },
+				{ id: 3, amount: 10n },
+				{ id: 1, amount: 9n },
+			];
+			expect(byColumnAlias).toEqual(expected);
+			expect(bySqlAlias).toEqual(expected);
+			expect(byDistinctAlias).toEqual(expected);
 		});
 
 		test.concurrent('insert returning sql', async ({ db }) => {
@@ -1744,13 +1815,13 @@ export function tests(test: Test, exclude: string[] = []) {
 			const query = sql`select id, name from "users"`;
 
 			const result = await db.all<{ id: number; name: string }>(query);
-			expect(result).toEqual([{ id: 1, name: 'John' }]);
+			expect(result).toEqual([{ id: rawInt(1), name: 'John' }]);
 
 			const objects = await db.all<{ id: number; name: string }>(query, 'objects');
-			expect(objects).toEqual([{ id: 1, name: 'John' }]);
+			expect(objects).toEqual([{ id: rawInt(1), name: 'John' }]);
 
 			const arrays = await db.all<[number, string]>(query, 'arrays');
-			expect(arrays).toEqual([[1, 'John']]);
+			expect(arrays).toEqual([[rawInt(1), 'John']]);
 		});
 
 		test.concurrent('insert via db.get', async ({ db }) => {
@@ -1759,7 +1830,7 @@ export function tests(test: Test, exclude: string[] = []) {
 					usersTable.name.name,
 				)}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 			);
-			expect(inserted).toEqual({ id: 1, name: 'John' });
+			expect(inserted).toEqual({ id: rawInt(1), name: 'John' });
 		});
 
 		test.concurrent('insert via db.run + select via db.get', async ({ db }) => {
@@ -1770,13 +1841,13 @@ export function tests(test: Test, exclude: string[] = []) {
 			const query = sql`select ${usersTable.id}, ${usersTable.name} from ${usersTable}`;
 
 			const result = await db.get<{ id: number; name: string }>(query);
-			expect(result).toEqual({ id: 1, name: 'John' });
+			expect(result).toEqual({ id: rawInt(1), name: 'John' });
 
 			const object = await db.get<{ id: number; name: string }>(query, 'objects');
-			expect(object).toEqual({ id: 1, name: 'John' });
+			expect(object).toEqual({ id: rawInt(1), name: 'John' });
 
 			const array = await db.get<[number, string]>(query, 'arrays');
-			expect(array).toEqual([1, 'John']);
+			expect(array).toEqual([rawInt(1), 'John']);
 		});
 
 		test.concurrent('insert via db.get w/ query builder', async ({ db }) => {
@@ -1788,7 +1859,7 @@ export function tests(test: Test, exclude: string[] = []) {
 					.values({ name: 'John' })
 					.returning({ id: usersTable.id, name: usersTable.name }),
 			);
-			expect(inserted).toEqual({ id: 1, name: 'John' });
+			expect(inserted).toEqual({ id: rawInt(1), name: 'John' });
 		});
 
 		test.concurrent('select from a many subquery', async ({ db }) => {
@@ -1945,7 +2016,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				db
 					.select({
 						region: orders.region,
-						totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
+						totalSales: sql<number>`sum(${orders.amount})`.mapWith(Number).as('total_sales'),
 					})
 					.from(orders)
 					.groupBy(orders.region),
@@ -1972,8 +2043,8 @@ export function tests(test: Test, exclude: string[] = []) {
 				.select({
 					region: orders.region,
 					product: orders.product,
-					productUnits: sql<number>`cast(sum(${orders.quantity}) as int)`,
-					productSales: sql<number>`cast(sum(${orders.amount}) as int)`,
+					productUnits: sql<number>`cast(sum(${orders.quantity}) as int)`.mapWith(Number),
+					productSales: sql<number>`cast(sum(${orders.amount}) as int)`.mapWith(Number),
 				})
 				.from(orders)
 				.where(
@@ -2226,7 +2297,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				.run();
 
 			const res = await db
-				.select({ count: sql`count(*)` })
+				.select({ count: sql`count(*)`.mapWith(Number) })
 				.from(usersTable)
 				.all();
 
@@ -2252,7 +2323,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				.select({
 					id: citiesTable.id,
 					name: sql<string>`upper(${citiesTable.name})`.as('upper_name'),
-					usersCount: sql<number>`count(${users2Table.id})`.as('users_count'),
+					usersCount: sql<number>`count(${users2Table.id})`.mapWith(Number).as('users_count'),
 				})
 				.from(citiesTable)
 				.leftJoin(users2Table, eq(users2Table.cityId, citiesTable.id))
@@ -2365,7 +2436,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		test.concurrent('select from raw sql', async ({ db }) => {
 			const result = await db
 				.select({
-					id: sql<number>`id`,
+					id: sql<number>`id`.mapWith(Number),
 					name: sql<string>`name`,
 				})
 				.from(sql`(select 1 as id, 'John' as name) as users`)
@@ -2379,7 +2450,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		test.concurrent('select from raw sql with joins', async ({ db }) => {
 			const result = await db
 				.select({
-					id: sql<number>`users.id`,
+					id: sql<number>`users.id`.mapWith(Number),
 					name: sql<string>`users.name`.as('userName'),
 					userCity: sql<string>`users.city`,
 					cityName: sql<string>`cities.name`.as('cityName'),
@@ -2408,10 +2479,10 @@ export function tests(test: Test, exclude: string[] = []) {
 		test.concurrent('join on aliased sql from select', async ({ db }) => {
 			const result = await db
 				.select({
-					userId: sql<number>`users.id`.as('userId'),
+					userId: sql<number>`users.id`.mapWith(Number).as('userId'),
 					name: sql<string>`users.name`.as('userName'),
 					userCity: sql<string>`users.city`,
-					cityId: sql<number>`cities.id`.as('cityId'),
+					cityId: sql<number>`cities.id`.mapWith(Number).as('cityId'),
 					cityName: sql<string>`cities.name`.as('cityName'),
 				})
 				.from(
@@ -2448,7 +2519,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			const users = db.$with('users').as(
 				db
 					.select({
-						id: sql<number>`id`.as('userId'),
+						id: sql<number>`id`.mapWith(Number).as('userId'),
 						name: sql<string>`name`.as('userName'),
 						city: sql<string>`city`.as('city'),
 					})
@@ -2460,7 +2531,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			const cities = db.$with('cities').as(
 				db
 					.select({
-						id: sql<number>`id`.as('cityId'),
+						id: sql<number>`id`.mapWith(Number).as('cityId'),
 						name: sql<string>`name`.as('cityName'),
 					})
 					.from(sql`(select 1 as id, 'Paris' as name) as cities`),
@@ -5576,7 +5647,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
 				sql:
-					'select "id" from (select "id" from "pagination_4" where "pagination_4"."id" < ? union select "id" from "pagination_4" where "pagination_4"."id" >= ? order by "id" limit ? offset ?) "drizzle_union"',
+					'select "id" from "pagination_4" where "pagination_4"."id" < ? union select "id" from "pagination_4" where "pagination_4"."id" >= ? order by "id" limit ? offset ?',
 				params: [4, 3, 2, 0],
 			});
 			expect(await query().limit(0)).toStrictEqual([]);
@@ -5829,14 +5900,16 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			const columns = getColumns(allTypesTable);
 
-			const queryRaw = await db.all<Record<string, unknown>>(
+			const queryRaw = await fetchDecodedQueryRows<Record<string, unknown>>(
+				db as any,
 				db.select(
 					Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
-				).from(allTypesTable).getSQL(true),
+				).from(allTypesTable).getSQL(),
 			);
 			const queryRes = normalizeDataWithDbCodecs({ db, columns, data: queryRaw, mode: 'query' })[0];
 
-			const rqbRaw = await db.all<Record<string, unknown> & { self: string }>(
+			const rqbRaw = await fetchDecodedQueryRows<Record<string, unknown> & { self: string }>(
+				db as any,
 				db.query.allTypesTable.findFirst({
 					with: {
 						self: true,

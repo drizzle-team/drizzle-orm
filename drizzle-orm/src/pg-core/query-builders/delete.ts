@@ -45,7 +45,6 @@ export interface PgDeleteConfig {
 	shape?: any;
 	withList?: Subquery[];
 	comment?: SQL;
-	useSelectionCastCodecs?: boolean;
 }
 
 export type PgDeleteReturningAll<
@@ -276,14 +275,12 @@ export class PgDeleteBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildDeleteQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */

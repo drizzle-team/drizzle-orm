@@ -13,6 +13,7 @@ import {
 import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import { drizzle as drizzleSingleStore, type SingleStoreDatabase } from 'drizzle-orm/singlestore';
+import { makeSingleStoreRawTextTypeCast } from 'drizzle-orm/singlestore';
 import type { SingleStoreEnumColumn, SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import type { SingleStoreView } from 'drizzle-orm/singlestore-core/view';
 import { drizzle as drizzleProxy } from 'drizzle-orm/singlestore-proxy';
@@ -85,6 +86,8 @@ export class TestCache extends Cache {
 	}
 }
 
+const rawTextTypeCast = makeSingleStoreRawTextTypeCast();
+
 class ServerSimulator {
 	constructor(private db: Connection) {}
 
@@ -95,6 +98,8 @@ class ServerSimulator {
 					sql,
 					values: params,
 					rowsAsArray: true,
+					// queries drizzle decodes with codecs decode these column types from text
+					typeCast: rawTextTypeCast,
 				});
 
 				return { data: result[0] as any };
@@ -106,6 +111,8 @@ class ServerSimulator {
 				const result = await this.db.query({
 					sql,
 					values: params,
+					// relational queries, which drizzle decodes with codecs, run in this method as well
+					typeCast: rawTextTypeCast,
 				});
 
 				return { data: result as any };

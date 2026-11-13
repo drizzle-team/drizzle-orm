@@ -455,7 +455,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
 			sql:
-				'select `id` from ((select `id` from `pagination_4` where `pagination_4`.`id` < ?) union (select `id` from `pagination_4` where `pagination_4`.`id` >= ?) order by `id` limit ? offset ?) `drizzle_union`',
+				'(select `id` from `pagination_4` where `pagination_4`.`id` < ?) union (select `id` from `pagination_4` where `pagination_4`.`id` >= ?) order by `id` limit ? offset ?',
 			params: [4, 3, 2, 0],
 		});
 		expect(await query().limit(0)).toStrictEqual([]);

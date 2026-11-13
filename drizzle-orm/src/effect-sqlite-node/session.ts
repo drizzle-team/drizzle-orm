@@ -1,5 +1,6 @@
 import type { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
 import * as Effect from 'effect/Effect';
+import { SafeIntegers } from 'effect/sql/SqlClient';
 import type { SqlError } from 'effect/sql/SqlError';
 import type { StatementResultingChanges } from 'node:sqlite';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
@@ -55,22 +56,29 @@ export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
 		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): SQLiteEffectPreparedQuery<T, EffectSQLiteNodeQueryEffectHKT> {
+		const withSafeIntegers = mapper
+			? <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.provideService(effect, SafeIntegers, true)
+			: <A, E, R>(effect: Effect.Effect<A, E, R>) => effect;
 		const executors: SQLiteEffectQueryExecutors = {
 			all: (params) => {
 				const q = this.client.unsafe(query.sql, params);
 
-				if (mode === 'arrays') return q.values;
+				if (mode === 'arrays') return withSafeIntegers(q.values);
 				// Null-prototype object => object
-				if (mode === 'objects') return q.withoutTransform.pipe(Effect.map((e) => e.map((row) => ({ ...row }))));
-				return q.withoutTransform;
+				if (mode === 'objects') {
+					return withSafeIntegers(q.withoutTransform.pipe(Effect.map((e) => e.map((row) => ({ ...row })))));
+				}
+				return withSafeIntegers(q.withoutTransform);
 			},
 			get: (params) => {
 				const q = this.client.unsafe(query.sql, params);
 
-				if (mode === 'arrays') return q.values.pipe(Effect.map((e) => e[0]));
+				if (mode === 'arrays') return withSafeIntegers(q.values.pipe(Effect.map((e) => e[0])));
 				// Null-prototype object => object
-				if (mode === 'objects') return q.withoutTransform.pipe(Effect.map((e) => e[0] ? { ...e[0] } : e[0]));
-				return q.withoutTransform.pipe(Effect.map((e) => e[0]));
+				if (mode === 'objects') {
+					return withSafeIntegers(q.withoutTransform.pipe(Effect.map((e) => e[0] ? { ...e[0] } : e[0])));
+				}
+				return withSafeIntegers(q.withoutTransform.pipe(Effect.map((e) => e[0])));
 			},
 			run: (params) => this.client.unsafe(query.sql, params).raw,
 		};

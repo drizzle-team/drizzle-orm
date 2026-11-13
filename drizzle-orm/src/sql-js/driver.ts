@@ -15,6 +15,10 @@ export class SQLJsDatabase<TRelations extends AnyRelations = EmptyRelations>
 	static override readonly [entityKind]: string = 'SQLJsDatabase';
 }
 
+/**
+ * Driver quirks:
+ * - Integers past the safe integer range are read as numbers: `numeric` columns throw on them
+ */
 export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	client: Database,
 	config: DrizzleSQLiteConfig<TRelations> = {},

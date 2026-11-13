@@ -74,6 +74,16 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	return db as any;
 }
 
+/**
+ * Driver quirks:
+ * - `time` values are cut to milliseconds
+ * - `timestamp` values with fractional seconds lose `BC`
+ * - `null` elements of arrays are dropped (`[1, null, 3]` is returned as `[1, 3]`)
+ *
+ * Unsupported column types (throw on non-null values):
+ * - `timetz`, `timestamptz` in `string` mode (converted to UTC, offset dropped)
+ * - `bytea[]` (returned empty)
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AwsDataApiClient = RDSDataClient,

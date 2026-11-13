@@ -101,6 +101,11 @@ export function getMsSqlConnectionParams(connectionString: string): mssql.config
 	}
 }
 
+/**
+ * Unsupported column types (throw on non-null values):
+ * - `decimal`, `numeric` in `string` mode (decoded to numbers, losing precision)
+ * - `decimal`, `numeric` in `bigint` mode: values past the safe integer range throw
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NodeMsSqlClient = AutoPool,

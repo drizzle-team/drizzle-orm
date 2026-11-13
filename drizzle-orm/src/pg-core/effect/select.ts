@@ -111,7 +111,7 @@ export class PgEffectSelectBase<
 		const { session, cacheConfig } = this;
 
 		const fieldsList = this._resolveSelection();
-		const sequel = this.getSQL(true);
+		const sequel = this.getSQL();
 		const query = this.dialect.sqlToQuery(sequel);
 		const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
 		const mapper = this.dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths);

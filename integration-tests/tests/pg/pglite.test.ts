@@ -355,7 +355,13 @@ describe('pglite extensions', () => {
 		const queryRes = normalizeDataWithDbCodecs({
 			db,
 			columns: getColumns(allTypesTable),
-			data: (await db.execute(db.select().from(allTypesTable).getSQL(true))).rows as Record<string, unknown>[],
+			// query-path raw values come from a mapped prepared query, so that per-query parsers apply as for regular selects
+			data: await (<any> db).session.prepareQuery(
+				(<any> db).dialect.sqlToQuery(db.select().from(allTypesTable).getSQL()),
+				'arrays',
+				false,
+				(rows: unknown[][]) => rows,
+			).execute(),
 			mode: 'query',
 		})[0];
 

@@ -58,6 +58,14 @@ function construct<
 	return db as any;
 }
 
+/**
+ * Requirements:
+ * - Sessions must use the ISO `DateStyle` (the default): temporal values of other `DateStyle`s throw
+ *
+ * Driver quirks:
+ * - Before `postgres` 4.0.0, `null` elements of arrays are decoded as `NaN` (numbers), `'NULL'` (text), `false`
+ *   (`boolean`) or throw (`json`, `jsonb`)
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends Sql = Sql,

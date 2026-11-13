@@ -29,6 +29,8 @@ export type SQLiteBunRunResult = Changes;
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
+const safeIntegersMark = '\n/* drizzle: safe integers */';
+
 export class SQLiteBunSession<TRelations extends AnyRelations>
 	extends SQLiteAsyncSession<'sync', SQLiteBunRunResult, TRelations>
 {
@@ -60,7 +62,13 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 	): SQLiteAsyncPreparedQuery<T & { run: SQLiteBunRunResult }> {
 		let stmt: ReturnType<typeof this.client.query>;
 		try {
-			stmt = this.client.query(query.sql);
+			if (mapper) {
+				// integers past the safe integer range lose precision as numbers: queries decoded by codecs read them as
+				// bigints. `query()` statements are cached per SQL text and finalized by the database, the comment gives
+				// them a cache entry of their own, so `safeIntegers` doesn't leak into other queries with the same SQL
+				stmt = this.client.query(query.sql + safeIntegersMark);
+				stmt.safeIntegers(true);
+			} else stmt = this.client.query(query.sql);
 		} catch (e) {
 			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}

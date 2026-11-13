@@ -689,8 +689,7 @@ describe('postgres to snake case', () => {
 			.union(db.select({ firstName: users.firstName }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql:
-				'select "first_name" from ((select "first_name" from "users") union (select "first_name" from "users")) "drizzle_union"',
+			sql: '(select "first_name" from "users") union (select "first_name" from "users")',
 			params: [],
 		});
 	});
@@ -702,8 +701,7 @@ describe('postgres to snake case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql:
-				'select "first_name" from ((select "first_name" from "users") union (select "first_name" from "users")) "drizzle_union"',
+			sql: '(select "first_name" from "users") union (select "first_name" from "users")',
 			params: [],
 		});
 	});
@@ -718,7 +716,7 @@ describe('postgres to snake case', () => {
 			.orderBy(order, byName);
 
 		expect(query.toSQL().sql).toBe(
-			'select "first_name" from ((select "first_name" from "users") union (select "first_name" from "users") order by "first_name" desc, lower("first_name") || \'x\') "drizzle_union"',
+			'(select "first_name" from "users") union (select "first_name" from "users") order by "first_name" desc, lower("first_name") || \'x\'',
 		);
 		// Same SQL objects keep their qualifiers in other queries
 		expect(db.select({ firstName: users.firstName }).from(users).orderBy(order, byName).toSQL().sql).toBe(
@@ -952,93 +950,6 @@ describe('postgres to snake case', () => {
 		expect(query.toSQL()).toEqual({
 			sql: 'delete from "users" where "users"."id" = $1 returning "first_name", "AGE" as "usersAge"',
 			params: [1],
-		});
-	});
-
-	describe('selection casts', () => {
-		const castClient = postgres('');
-		const defaultCodecs = postgresJsCodecs(castClient);
-		const castCodecs = { ...defaultCodecs, int: { ...defaultCodecs.int, cast: castToText } };
-		const castDb = drizzle({ client: castClient, codecs: castCodecs });
-		const casts = snakeCase.table('casts', { castValue: integer() });
-		const castTargets = snakeCase.table('cast_targets', { targetId: text() });
-		const castSubquery = () => castDb.select({ castValue: casts.castValue }).from(casts).as('sq');
-
-		it(`Cast respects alias config`, ({ expect }) => {
-			expect(castDb.select({ c: casts.castValue }).from(casts).toSQL().sql).toEqual(
-				'select "cast_value"::text from "casts"',
-			);
-			expect(castDb.select({ c: casts.castValue.as('alias') }).from(casts).toSQL().sql).toEqual(
-				'select "cast_value"::text as "alias" from "casts"',
-			);
-		});
-
-		it(`Cast applied to selected subquery depending on it's selection`, ({ expect }) => {
-			expect(castDb.select({ x: castSubquery() }).from(castTargets).toSQL().sql).toEqual(
-				'select (select "cast_value" from "casts")::text "sq" from "cast_targets"',
-			);
-		});
-
-		it('Nested queries ignore casts', ({ expect }) => {
-			const outer = castDb.select({ x: castSubquery() }).from(castTargets).as('outer');
-
-			expect(castDb.select().from(outer).toSQL().sql).toEqual(
-				'select (select "cast_value" from "casts")::text "sq" from (select (select "cast_value" from "casts") "sq" from "cast_targets") "outer"',
-			);
-		});
-
-		it('Queries in operators ignore casts', ({ expect }) => {
-			const inner = () => castDb.select({ castValue: casts.castValue }).from(casts);
-
-			expect(castDb.select({ x: casts.castValue }).from(casts).where(eq(casts.castValue, inner())).toSQL().sql)
-				.toEqual(
-					'select "cast_value"::text from "casts" where "casts"."cast_value" = (select "cast_value" from "casts")',
-				);
-			expect(castDb.select({ x: casts.castValue }).from(casts).where(inArray(casts.castValue, inner())).toSQL().sql)
-				.toEqual(
-					'select "cast_value"::text from "casts" where "casts"."cast_value" in (select "cast_value" from "casts")',
-				);
-			expect(castDb.select({ x: casts.castValue }).from(casts).where(exists(inner())).toSQL().sql)
-				.toEqual('select "cast_value"::text from "casts" where exists (select "cast_value" from "casts")');
-		});
-
-		it(`Column as decoder applies cast`, ({ expect }) => {
-			expect(
-				castDb.select({
-					x: sql`${casts.castValue}`.mapWith(casts.castValue),
-					y: sql`${casts.castValue}`.mapWith(casts.castValue).as('y'),
-				}).from(casts).toSQL().sql,
-			)
-				.toEqual('select "cast_value"::text, "cast_value"::text as "y" from "casts"');
-		});
-
-		it(`Cast doesn't bleed params into selection`, ({ expect }) => {
-			// Regression test for pre-existing issue
-			const query = castDb.select({ x: castSubquery() }).from(castTargets).toSQL();
-
-			expect(query.params).toEqual([]);
-			expect(query.sql).not.toMatch(/\$\d|\?|@par/);
-		});
-
-		it(`No double spaces in union's 'order by' `, ({ expect }) => {
-			const branch = () => castDb.select({ x: casts.castValue }).from(casts);
-			const query = branch()
-				.unionAll(branch())
-				.orderBy(sql`1`)
-				.limit(3);
-
-			expect(query.toSQL().sql).toEqual(
-				'select "cast_value"::text from ((select "cast_value" from "casts") union all (select "cast_value" from "casts") order by 1 limit $1) "drizzle_union"',
-			);
-			expect(query.toSQL().sql).not.toContain('order by 1  ');
-		});
-
-		it(`$with field is cast by field's alias`, ({ expect }) => {
-			const w = castDb.$with('w').as(castDb.select({ castValue: casts.castValue }).from(casts));
-
-			expect(castDb.with(w).select({ x: w }).from(w).toSQL().sql).toEqual(
-				'with "w" as (select "cast_value" from "casts") select "w"::text from "w"',
-			);
 		});
 	});
 

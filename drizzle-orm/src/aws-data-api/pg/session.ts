@@ -17,6 +17,8 @@ import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import { getValueFromDataApi, toSqlParameter } from '../common/index.ts';
 
+export const awsDataApiRawTextResultSetOptions = { longReturnType: 'STRING' } as const;
+
 export type AwsDataApiClient = RDSDataClient;
 
 export interface AwsDataApiSessionOptions {
@@ -82,6 +84,7 @@ export class AwsDataApiSession<
 				database: this.options.database,
 				transactionId: this.transactionId,
 				includeResultMetadata: mode === 'objects' || mode === 'raw',
+				resultSetOptions: mapper ? awsDataApiRawTextResultSetOptions : undefined,
 			});
 
 			const result = await this.client.send(command);

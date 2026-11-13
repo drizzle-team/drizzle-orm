@@ -53,6 +53,10 @@ export class DrizzleD1Database<TRelations extends AnyRelations = EmptyRelations>
 	}
 }
 
+/**
+ * Driver quirks:
+ * - Integers past the safe integer range are read as numbers: `numeric` columns throw on them
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AnyD1Database = AnyD1Database,

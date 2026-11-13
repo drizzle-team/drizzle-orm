@@ -3477,7 +3477,13 @@ export function tests(test: Test) {
 
 			const session = (<any> db).session as DsqlAsyncSession;
 
-			const queryRes = await session.arrays<unknown[]>(db.select().from(allTypesTable).getSQL(true)).then((
+			// query-path raw values come from a mapped prepared query, so that per-query parser overrides apply as for regular selects
+			const queryRes = await session.prepareQuery<any>(
+				(<any> db).dialect.sqlToQuery(db.select().from(allTypesTable).getSQL()),
+				'arrays',
+				false,
+				(rows: unknown[][]) => rows,
+			).execute().then((
 				e,
 			) =>
 				normalizeDataWithDbCodecs({

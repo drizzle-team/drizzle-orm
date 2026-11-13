@@ -37,6 +37,7 @@ import {
 	bit,
 	customType,
 	date,
+	decimal,
 	except,
 	foreignKey,
 	getTableConfig,
@@ -483,6 +484,69 @@ test('select distinct', async ({ db }) => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/1603
+test('select distinct ordered by cast columns', async ({ db }) => {
+	const table = mssqlTable('distinct_cast_order', {
+		id: int('id').notNull(),
+		amount: decimal('amount', { mode: 'number', precision: 10, scale: 2 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (id int not null, amount decimal(10, 2) not null)`);
+
+	await db.insert(table).values([
+		{ id: 1, amount: 9 },
+		{ id: 2, amount: 100 },
+		{ id: 2, amount: 100 },
+		{ id: 3, amount: 10 },
+	]);
+
+	const byAmount = await db
+		.selectDistinct({ id: table.id, amount: table.amount })
+		.from(table)
+		.orderBy(desc(table.amount));
+
+	expect(byAmount).toEqual([
+		{ id: 2, amount: 100 },
+		{ id: 3, amount: 10 },
+		{ id: 1, amount: 9 },
+	]);
+});
+
+test('order by aliased cast columns', async ({ db }) => {
+	const table = mssqlTable('alias_cast_order', {
+		id: int('id').notNull(),
+		amount: decimal('amount', { mode: 'number', precision: 10, scale: 2 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (id int not null, amount decimal(10, 2) not null)`);
+
+	await db.insert(table).values([
+		{ id: 1, amount: 9 },
+		{ id: 2, amount: 100 },
+		{ id: 3, amount: 10 },
+	]);
+
+	const amountAlias = table.amount.as('amount_alias');
+	const amountSql = sql<number>`${table.amount}`.mapWith(table.amount).as('amount_sql');
+
+	const byColumnAlias = await db.select({ id: table.id, amount: amountAlias }).from(table).orderBy(desc(amountAlias));
+	const bySqlAlias = await db.select({ id: table.id, amount: amountSql }).from(table).orderBy(desc(amountSql));
+	const byDistinctAlias = await db
+		.selectDistinct({ id: table.id, amount: amountAlias })
+		.from(table)
+		.orderBy(desc(amountAlias));
+
+	const expected = [
+		{ id: 2, amount: 100 },
+		{ id: 3, amount: 10 },
+		{ id: 1, amount: 9 },
+	];
+	expect(byColumnAlias).toEqual(expected);
+	expect(bySqlAlias).toEqual(expected);
+	expect(byDistinctAlias).toEqual(expected);
+});
+
 test('Nested partial select left join: null first column', async ({ db }) => {
 	const orgs = mssqlTable('issue1603_orgs', {
 		id: int('id').primaryKey(),
@@ -6356,6 +6420,8 @@ test('all possible columns', async ({ db }) => {
 
 	const currentDate = new Date('2025-04-18T00:00:00.000Z');
 	// insert
+	// `mssql` decodes `decimal`, `numeric` to numbers: string modes throw an unsupported column type error, they're
+	// inserted as `null`s, which never reach a decoder
 	await db.insert(allPossibleColumns).values({
 		bigintBigint: BigInt(100),
 		bigintString: '100',
@@ -6399,10 +6465,10 @@ test('all possible columns', async ({ db }) => {
 		datetimeOffsetModeStringDefault: undefined,
 		datetimeOffsetModeStringWithPrecisionDefault: undefined,
 
-		decimal: '1.33',
-		decimalWithPrecision: '4.11',
-		decimalWithConfig: '41.34234526',
-		decimalDefaultString: undefined,
+		decimal: null,
+		decimalWithPrecision: null,
+		decimalWithConfig: null,
+		decimalDefaultString: null,
 		decimalDefaultNumber: undefined,
 
 		float: 5234.132,
@@ -6412,10 +6478,10 @@ test('all possible columns', async ({ db }) => {
 		int: 140,
 		intDefault: undefined,
 
-		numeric: '33.2',
-		numericWithPrecision: '33.4',
-		numericWithConfig: '41.34512',
-		numericDefault: undefined,
+		numeric: null,
+		numericWithPrecision: null,
+		numericWithConfig: null,
+		numericDefault: null,
 		numericDefaultNumber: undefined,
 
 		real: 421.4,
@@ -6540,20 +6606,20 @@ test('all possible columns', async ({ db }) => {
 			datetimeOffsetDefault: currentDate,
 			datetimeOffsetModeStringDefault: currentDate.toISOString(),
 			datetimeOffsetModeStringWithPrecisionDefault: currentDate.toISOString(),
-			decimal: '1',
-			decimalWithPrecision: '4',
-			decimalWithConfig: '41.34234526',
+			decimal: null,
+			decimalWithPrecision: null,
+			decimalWithConfig: null,
 			decimalDefaultNumber: 1,
-			decimalDefaultString: '1',
+			decimalDefaultString: null,
 			float: 5234.132,
 			floatWithPrecision: 1.2300000190734863,
 			floatDefault: 32.412,
 			int: 140,
 			intDefault: 43,
-			numeric: '33',
-			numericWithPrecision: '33',
-			numericWithConfig: '41.34512000',
-			numericDefault: '1',
+			numeric: null,
+			numericWithPrecision: null,
+			numericWithConfig: null,
+			numericDefault: null,
 			numericDefaultNumber: 1,
 			real: 421.4,
 			realDefault: 5231.412,
@@ -7427,7 +7493,7 @@ test('pagination: set operations', async ({ db }) => {
 
 	expect(query().offset(0).toSQL()).toStrictEqual({
 		sql:
-			'select [id] from ((select [id] from [cities] where [cities].[id] < @par0) union (select [id] from [cities] where [cities].[id] >= @par1)) [drizzle_union] order by [id] offset @par2 rows',
+			'(select [id] from [cities] where [cities].[id] < @par0) union (select [id] from [cities] where [cities].[id] >= @par1) order by [id] offset @par2 rows',
 		params: [4, 3, 0],
 	});
 	expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);

@@ -17,6 +17,7 @@ import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import { expect, vi } from 'vitest';
 import { DB, push, runCommonEffectSQLiteTests } from './effect-common';
+import { unsafeNumericSkips, unsafeNumericTests } from './effect-unsupported-types';
 import { TestCache } from './instrumentation';
 import relations from './relations';
 
@@ -55,7 +56,10 @@ runCommonEffectSQLiteTests({
 	testLayer: TestLive,
 	SQLiteDrizzle: SQLiteDrizzle,
 	createDB,
+	// D1 returns integers as numbers: unsafe integers in `numeric` columns have already lost precision and throw an
+	// unsupported column type error, tests holding them are redefined with safe values
 	skipTests: [
+		...unsafeNumericSkips,
 		// .run() includes time data
 		'Cache: write + query all methods & verify data intergrity',
 		// Transactions are not supported in D1
@@ -98,6 +102,8 @@ runCommonEffectSQLiteTests({
 		// Recommended way to apply migrations is via `drizzle-kit generate` + `wrangler d1 migrations apply dbname`
 	],
 	addTests: (it) => {
+		unsafeNumericTests(it, createDB);
+
 		it.effect('Cache: write + query all methods & verify data intergrity - D1', () =>
 			Effect.gen(function*() {
 				const baseCache = new TestCache('explicit');

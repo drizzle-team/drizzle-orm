@@ -1,5 +1,6 @@
 import type { SqliteClient } from '@effect/sql-sqlite-bun/SqliteClient';
 import * as Effect from 'effect/Effect';
+import { SafeIntegers } from 'effect/sql/SqlClient';
 import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
@@ -54,18 +55,21 @@ export class EffectSQLiteBunSession<TRelations extends AnyRelations>
 		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): SQLiteEffectPreparedQuery<T, EffectSQLiteBunQueryEffectHKT> {
+		const withSafeIntegers = mapper
+			? <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.provideService(effect, SafeIntegers, true)
+			: <A, E, R>(effect: Effect.Effect<A, E, R>) => effect;
 		const executors: SQLiteEffectQueryExecutors = {
 			all: (params) => {
 				const q = this.client.unsafe(query.sql, params);
 
-				if (mode === 'arrays') return q.values;
-				return q.withoutTransform;
+				if (mode === 'arrays') return withSafeIntegers(q.values);
+				return withSafeIntegers(q.withoutTransform);
 			},
 			get: (params) => {
 				const q = this.client.unsafe(query.sql, params);
 
-				if (mode === 'arrays') return q.values.pipe(Effect.map((e) => e[0]));
-				return q.withoutTransform.pipe(Effect.map((e) => e[0]));
+				if (mode === 'arrays') return withSafeIntegers(q.values.pipe(Effect.map((e) => e[0])));
+				return withSafeIntegers(q.withoutTransform.pipe(Effect.map((e) => e[0])));
 			},
 			run: (params) => this.client.unsafe(query.sql, params).raw,
 		};

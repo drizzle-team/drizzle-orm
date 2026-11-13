@@ -7,7 +7,7 @@ import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { createShapeGenerator } from '../shape.ts';
-import { postgresAuroraShapeCodecs } from './codecs.ts';
+import { postgresAuroraCodecs } from './codecs.ts';
 import type { PostgresAuroraClient, PostgresAuroraQueryResultHKT } from './session.ts';
 import { PostgresAuroraSession } from './session.ts';
 
@@ -34,7 +34,7 @@ function construct<
 ): PostgresAuroraDatabase<TRelations> & {
 	$client: PostgresAuroraClient extends TClient ? AuroraClient : TClient;
 } {
-	const codecs = config.codecs ?? postgresAuroraShapeCodecs;
+	const codecs = config.codecs ?? postgresAuroraCodecs;
 	const dialect = new PostgresAuroraDialect({
 		codecs,
 		useJitMappers: jitCompatCheck(config.jit),
@@ -68,6 +68,16 @@ function construct<
 	return db as any;
 }
 
+/**
+ * Driver quirks:
+ * - `time` values are cut to milliseconds
+ * - `timestamp` values with fractional seconds lose `BC`
+ * - `null` elements of arrays are dropped (`[1, null, 3]` is returned as `[1, 3]`)
+ *
+ * Unsupported column types (throw on non-null values):
+ * - `timetz`, `timestamptz` in `string` mode (converted to UTC, offset dropped)
+ * - `bytea[]` (returned empty)
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends PostgresAuroraClient = AuroraClient,

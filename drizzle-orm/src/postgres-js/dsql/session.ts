@@ -15,6 +15,7 @@ import { PgAsyncPreparedQuery } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT } from '~/pg-core/session.ts';
 import type { PreparedQueryConfig } from '~/pg-core/session.ts';
+import { decodePostgresJsRawRows } from '~/postgres-js/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -56,7 +57,7 @@ export interface PostgresJsDsqlSessionOptions {
 	paramsInErrors?: boolean;
 }
 
-export class PostgresJsDsqlSession<TSQL extends Sql, TRelations extends AnyRelations>
+export class PostgresJsDsqlSession<TSQL extends Sql | TransactionSql, TRelations extends AnyRelations>
 	extends DsqlAsyncSession<PostgresJsDsqlQueryResultHKT, TRelations>
 {
 	static override readonly [entityKind]: string = 'PostgresJsDsqlSession';
@@ -85,6 +86,11 @@ export class PostgresJsDsqlSession<TSQL extends Sql, TRelations extends AnyRelat
 		cacheConfig?: WithCacheConfig,
 	) {
 		const executor = async (params?: unknown[]) => {
+			if (mapper) {
+				return this.client.unsafe(query.sql, params ?? [] as any[], {
+					prepare: name !== false,
+				}).raw().then((rows) => decodePostgresJsRawRows(this.client, rows, mode === 'objects' ? 'objects' : 'arrays'));
+			}
 			if (mode === 'objects') {
 				return this.client.unsafe(query.sql, params ?? [] as any[], {
 					prepare: name !== false,

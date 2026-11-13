@@ -1,22 +1,33 @@
 import {
 	type QueryResult,
 	type QueryResultRow,
+	types,
 	type VercelClient,
 	VercelPool,
 	type VercelPoolClient,
 } from '@vercel/postgres';
+import type { CustomTypesConfig } from 'pg';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import { pgRawTextOids } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/index.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
+
+const rawText = (value: string) => value;
+
+export const vercelPgRawTextTypes: CustomTypesConfig = {
+	getTypeParser:
+		<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
+			pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format as any)),
+};
 
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 
@@ -64,6 +75,7 @@ export class VercelPgSession<
 				name: queryName,
 				rowMode: mode === 'arrays' ? 'array' : undefined as any,
 				text: query.sql,
+				types: mapper ? vercelPgRawTextTypes : undefined,
 			}, params).then((r) => mode === 'raw' ? r : r.rows);
 		};
 

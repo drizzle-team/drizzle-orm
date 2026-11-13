@@ -28,6 +28,8 @@ const SQLiteClientLive = LibsqlClient.layer({
 	// the base client afterwards. The shared cache makes all connections share
 	// one in-memory DB.
 	url: 'file::memory:?cache=shared',
+	// `intMode: 'number'` (the default) throws a `RangeError` on integers outside of the safe integer range
+	intMode: 'bigint',
 });
 
 const dbEffect = SQLiteDrizzle.make({ relations }).pipe(Effect.provide(SQLiteDrizzle.DefaultServices));
@@ -61,6 +63,7 @@ runCommonEffectSQLiteTests({
 	testLayer: TestLive,
 	SQLiteDrizzle: SQLiteDrizzle,
 	createDB,
+	rawIntegers: 'bigint',
 	addTests: (it) => {
 		it.effect('migrator', () =>
 			Effect.gen(function*() {

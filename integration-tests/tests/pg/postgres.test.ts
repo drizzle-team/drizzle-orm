@@ -31,7 +31,6 @@ import {
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
-	sessionDateStyles,
 } from './all-types';
 import { tests } from './common';
 import { postgresTest as test } from './instrumentation';

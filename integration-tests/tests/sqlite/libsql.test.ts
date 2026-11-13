@@ -249,5 +249,6 @@ const skip = [
 ];
 
 cacheTests(test, skip);
-tests(test, skip);
+
+tests(test, skip, { rawIntegers: 'bigint' });
 libsqlConcatSubstringTest(test);

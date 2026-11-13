@@ -1,4 +1,10 @@
-import type { FullQueryResults, NeonQueryFunction, NeonQueryPromise } from '@neondatabase/serverless';
+import {
+	type CustomTypesConfig,
+	type FullQueryResults,
+	type NeonQueryFunction,
+	type NeonQueryPromise,
+	types,
+} from '@neondatabase/serverless';
 import type { BatchItem } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
@@ -6,6 +12,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, type PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import { pgRawTextOids } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -13,6 +20,22 @@ import type { Query } from '~/sql/sql.ts';
 import type { NeonAuthToken } from '~/utils.ts';
 
 export type NeonHttpClient = NeonQueryFunction<any, any>;
+
+const rawText = (value: string) => value;
+
+/**
+ * Per-query `types` returning `pgRawTextOids` as text for codecs to decode, other types through the client's default
+ * parsers. Applied to queries decoded by codecs (queries with a mapper), proxy servers apply them to such queries as well.
+ * Typed as `{}` to be spread into query options: `@neondatabase/serverless` reads per-query `types` since `0.10`, but only
+ * declares it since `1.0`
+ */
+export const neonHttpRawTextTypes: {} = {
+	types: {
+		getTypeParser:
+			<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
+				pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format as any)),
+	} satisfies CustomTypesConfig,
+};
 
 export interface NeonHttpSessionOptions {
 	logger?: Logger;
@@ -73,6 +96,7 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 				arrayMode: mode === 'arrays',
 				fullResults: true,
 				authToken: this.options.authToken,
+				...(mapper ? neonHttpRawTextTypes : undefined),
 			}).then((it: any) => it.rows);
 		};
 
@@ -102,6 +126,7 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 				q(builtQuery.sql, builtQuery.params, {
 					fullResults: true,
 					arrayMode: preparedQuery.mode === 'arrays',
+					...(preparedQuery.mode === 'arrays' && preparedQuery.mapper ? neonHttpRawTextTypes : undefined),
 				}),
 			);
 		}
