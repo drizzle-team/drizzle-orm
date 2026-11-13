@@ -7,7 +7,7 @@ import { DrizzleCliError, errorToEnvelope } from './errors';
 import { highlightSQL } from './highlighter';
 import { check, exportRaw, generate, mcp, migrate, pull, push, skills, studio, up } from './schema';
 import { ormCoreVersions, QueryError } from './utils';
-import { error, humanError, humanLog } from './views';
+import { humanError, humanLog, unknownError } from './views';
 
 const writeStderr = (message: string) => {
 	process.stderr.write(`${message}\n`);
@@ -166,7 +166,7 @@ const main = async () => {
 						!(typeof e === 'object' && e !== null && 'message' in e && typeof e.message === 'string')
 					) return false;
 
-					humanError(error(e.message));
+					humanError(unknownError(e));
 					return true;
 				}
 
