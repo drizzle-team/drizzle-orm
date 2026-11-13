@@ -108,7 +108,7 @@ export const generateSingleStoreSnapshot = (
 								chalk.underline.blue(
 									column.name,
 								)
-							} column is confilcting with a unique constraint name already defined for ${
+							} column is conflicting with a unique constraint name already defined for ${
 								chalk.underline.blue(
 									existingUnique.columns.join(','),
 								)
@@ -193,7 +193,7 @@ export const generateSingleStoreSnapshot = (
 								chalk.underline.blue(
 									columnNames.join(','),
 								)
-							} columns is confilcting with a unique constraint name already defined for ${
+							} columns is conflicting with a unique constraint name already defined for ${
 								chalk.underline.blue(
 									existingUnique.columns.join(','),
 								)
@@ -257,7 +257,7 @@ export const generateSingleStoreSnapshot = (
 									chalk.underline.blue(
 										indexColumns.join(','),
 									)
-								} columns is confilcting with a unique constraint name already defined for ${
+								} columns is conflicting with a unique constraint name already defined for ${
 									chalk.underline.blue(
 										uniqueConstraintObject[name].columns.join(','),
 									)
