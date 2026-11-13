@@ -23,6 +23,10 @@ import type {
 } from '../../dialects/postgres/snapshot';
 import { getOrNull } from '../../dialects/utils';
 
+// The snapshot format that drizzle-kit writes and reads. A new format bumps it and adds its step to
+// `upToLatest` in versions.ts, which converts every older snapshot of format 9 or later.
+export const latestVersion = '10';
+
 // Tells whether a file of format 9 or later has the lists that `upToV10` reads: `prevIds`, and `ddl` of a base
 // snapshot or `deltas` of a diff snapshot. The caller checks the version.
 export const isDeltaSnapshot = (it: Record<string, any>): it is AnyDeltaPostgresSnapshot =>

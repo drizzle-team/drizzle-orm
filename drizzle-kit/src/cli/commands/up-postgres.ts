@@ -6,13 +6,12 @@ import { folderOrderError, sortsAfter } from '../../dialects/postgres/folder';
 import { reconstruct } from '../../dialects/postgres/reconstruct';
 import {
 	type AnyDeltaPostgresSnapshot,
-	latestVersion,
 	type PostgresSnapshot,
 	type PostgresSnapshotV8,
 	snapshotValidator,
 	stateDifference,
 } from '../../dialects/postgres/snapshot';
-import { isDeltaSnapshot, isSnapshotV8, upToV10, upToV8 } from '../../dialects/postgres/versions';
+import { isDeltaSnapshot, isSnapshotV8, latestVersion, upToV10, upToV8 } from '../../dialects/postgres/versions';
 import { UnsupportedMergeError, upToV9, withStateKeyNames } from '../../dialects/postgres/versions-v9';
 import { originUUID } from '../../utils';
 import { assertSnapshotStatus, prepareOutFolder, validatorForDialect } from '../../utils/utils-node';

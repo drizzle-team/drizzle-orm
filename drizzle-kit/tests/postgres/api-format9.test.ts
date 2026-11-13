@@ -1,7 +1,8 @@
-import { index, integer, pgTable, varchar } from 'drizzle-orm/pg-core';
+import { index, integer, pgEnum, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { readFileSync } from 'fs';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { latestVersion, type PostgresSchemaState, snapshotValidator } from 'src/dialects/postgres/snapshot';
+import { type PostgresSchemaState, snapshotValidator } from 'src/dialects/postgres/snapshot';
+import { latestVersion } from 'src/dialects/postgres/versions';
 import { generateDrizzleJson, generateMigration, reconstruct, up } from 'src/ext/api-postgres';
 import { expect, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
@@ -39,7 +40,7 @@ const format8 = (state: PostgresSchemaState) => ({
 
 const oldSnapshot = (path: string) => JSON.parse(readFileSync(`tests/postgres/old-snapshots/${path}`, 'utf8'));
 
-// drizzle-kit 1.0.0-rc.5 with drizzle-orm 1.0.0-rc.5 returned the state in `format-9-linear/format-9-state.json` from
+// drizzle-kit 1.0.0-rc.5 with drizzle-orm 1.0.0-rc.5 returned the state in `format-9-state.json` from
 // generateDrizzleJson: format 9, with `concurrently` in every row of an index. Its schema created users_id_idx with
 // `.concurrently()` and users_email_idx without it. `rc5Schema` is that schema without `.concurrently()`, which
 // drizzle-orm does not have anymore.
@@ -105,7 +106,7 @@ test('generateMigration takes format 8 states in either argument position', asyn
 
 // A saved rc.5 state and a state of the same schema give no SQL, although only the rc.5 state has `concurrently`.
 test('generateMigration gives no SQL between a format 9 state of drizzle-kit 1.0.0-rc.5 and a state of the same schema', async () => {
-	const rc5 = oldSnapshot('format-9-linear/format-9-state.json');
+	const rc5 = oldSnapshot('format-9-state.json');
 	const state = await generateDrizzleJson(rc5Schema);
 	expect(rc5.version).toBe('9');
 
@@ -188,15 +189,41 @@ test('up converts one saved state of an older format without a history', () => {
 });
 
 test('up converts a format 9 state of drizzle-kit 1.0.0-rc.5 and drops concurrently from the rows of indexes', async () => {
-	const rc5 = oldSnapshot('format-9-linear/format-9-state.json');
+	const rc5 = oldSnapshot('format-9-state.json');
 	const state = await generateDrizzleJson(rc5Schema);
 	expect(JSON.stringify(rc5.ddl)).toContain('"concurrently":true');
 
 	const { snapshot, hints } = up(rc5);
 
-	console.log('snapshot: ', snapshot.ddl);
 	expect(hints).toStrictEqual([]);
 	expect(snapshot).toMatchObject({ version: '10', dialect: 'postgres', id: rc5.id, prevIds: [ORIGIN] });
+	expect(normalizeDDL(snapshot.ddl)).toStrictEqual(normalizeDDL(state.ddl));
+});
+
+// drizzle-kit 1.0.0-rc.4 wrote this state as the last snapshot of the `format-8-linear` fixture, with
+// `"concurrently": false` in the row of users_email_idx. `schema` is the schema of that snapshot.
+test('up converts a format 8 state of drizzle-kit 1.0.0-rc.4 and drops concurrently from the rows of indexes', async () => {
+	const rc4 = oldSnapshot('format-8-linear/20260928145210_roles/snapshot.json');
+	const role = pgEnum('role', ['admin', 'user']);
+	const users = pgTable('users', {
+		id: integer().primaryKey(),
+		email: varchar().notNull(),
+		name: text(),
+		role: role().default('user'),
+	}, (t) => [index('users_email_idx').on(t.email)]);
+	const schema = {
+		role,
+		users,
+		posts: pgTable('posts', { id: integer().primaryKey(), authorId: integer().references(() => users.id) }),
+	};
+	const state = await generateDrizzleJson(schema);
+	expect(rc4.version).toBe('8');
+	expect(JSON.stringify(rc4.ddl)).toContain('"concurrently":false');
+
+	const { snapshot, hints } = up(rc4);
+
+	expect(hints).toStrictEqual([]);
+	expect(snapshot).toMatchObject({ version: latestVersion, dialect: 'postgres', id: rc4.id, prevIds: rc4.prevIds });
 	expect(normalizeDDL(snapshot.ddl)).toStrictEqual(normalizeDDL(state.ddl));
 });
 

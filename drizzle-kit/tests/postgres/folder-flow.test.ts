@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { index, integer, pgTable, primaryKey, text, unique, varchar } from 'drizzle-orm/pg-core';
 import { join } from 'path';
 import { errorToEnvelope } from 'src/cli/errors';
-import { latestVersion } from 'src/dialects/postgres/snapshot';
+import { latestVersion } from 'src/dialects/postgres/versions';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
 import {

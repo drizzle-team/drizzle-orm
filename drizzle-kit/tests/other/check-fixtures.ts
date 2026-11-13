@@ -1,10 +1,11 @@
 import { integer as pgInteger, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { latestVersion } from 'src/dialects/postgres/versions';
 import { footprintsOf } from '../../src/dialects/postgres/commutativity';
 import { createDDL } from '../../src/dialects/postgres/ddl';
 import { ddlDiffDry } from '../../src/dialects/postgres/diff';
-import { latestVersion, type PostgresSnapshot } from '../../src/dialects/postgres/snapshot';
+import type { PostgresSnapshot } from '../../src/dialects/postgres/snapshot';
 import { drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
 
 export const ORIGIN = '00000000-0000-0000-0000-000000000000';

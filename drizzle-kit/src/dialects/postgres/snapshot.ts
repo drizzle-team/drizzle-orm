@@ -7,6 +7,7 @@ import { type Delta, parseEntityKey } from '../dialect';
 import { array, validator } from '../simpleValidator';
 import type { PostgresDDL, PostgresEntity } from './ddl';
 import { createDDL } from './ddl';
+import { latestVersion } from './versions';
 
 const indexV2 = object({
 	name: string(),
@@ -539,10 +540,6 @@ export type PostgresSnapshotV8 = {
 	ddl: PostgresEntity[];
 	renames: string[];
 };
-
-// The snapshot format that drizzle-kit writes and reads. A new format bumps it and adds its step to
-// `upToLatest` in versions.ts, which converts every older snapshot of format 9 or later.
-export const latestVersion = '10';
 
 const ddl = createDDL();
 const definitions = ddl._.defs;

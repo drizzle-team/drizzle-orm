@@ -21,13 +21,8 @@ import type {
 	View,
 } from '../dialects/postgres/ddl';
 import { fromEntities, interimToDDL } from '../dialects/postgres/ddl';
-import {
-	latestVersion,
-	type PostgresBaseSnapshot,
-	type PostgresBaseSnapshotV9,
-	type PostgresSchemaState,
-} from '../dialects/postgres/snapshot';
-import { isSnapshotV8, upToV10, upToV8 } from '../dialects/postgres/versions';
+import type { PostgresBaseSnapshot, PostgresBaseSnapshotV9, PostgresSchemaState } from '../dialects/postgres/snapshot';
+import { isSnapshotV8, latestVersion, upToV10, upToV8 } from '../dialects/postgres/versions';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
 

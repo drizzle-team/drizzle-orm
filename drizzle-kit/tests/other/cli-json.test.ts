@@ -16,7 +16,7 @@ import {
 	type PreparedPostgresSchema,
 	SchemaSource as PgSchemaSource,
 } from '../../src/dialects/postgres/drizzle';
-import { latestVersion } from '../../src/dialects/postgres/snapshot';
+import { latestVersion } from '../../src/dialects/postgres/versions';
 import {
 	fromExports as sqliteFromExports,
 	SchemaSource as SqliteSchemaSource,

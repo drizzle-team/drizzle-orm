@@ -19,7 +19,8 @@ import { cpSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { CommandOutputCliError, errorToEnvelope } from 'src/cli/errors';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { latestVersion, type PostgresSnapshotV8, snapshotValidator } from 'src/dialects/postgres/snapshot';
+import { type PostgresSnapshotV8, snapshotValidator } from 'src/dialects/postgres/snapshot';
+import { latestVersion } from 'src/dialects/postgres/versions';
 import { expect, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
 import {
@@ -35,7 +36,8 @@ import { drizzleToDDL } from './mocks';
 
 // Verifies that `up` converts postgres migrations folders of format 4, 5, 7 and 8 to snapshot format 10. Each
 // converted snapshot must reconstruct to the state of its original file, and old renames must become rename
-// deltas. When `up` refuses a broken folder or a merge that format 9 cannot reconstruct, it changes no file.
+// deltas. When `up` refuses a broken folder or a merge whose combined state cannot be reconstructed, it changes
+// no file.
 // `check` must report the conflict of two converted branches that rename the two ends of one foreign key.
 // The old folders are committed fixtures in `old-snapshots`, or the tests write them in temporary
 // directories. `migrate` runs on PGlite.
@@ -482,7 +484,7 @@ test('up refuses a format 8 snapshot with one index name on two tables of one sc
 	expect(flow.files('main')).toStrictEqual(before);
 });
 
-test('up returns ok for a format 9 folder with a broken history, and check reports it', async () => {
+test('up returns ok for a folder of the latest format with a broken history, and check reports it', async () => {
 	const { flow } = seedFormat8('format-8-linear');
 	await flow.up('main');
 	flow.deleteFolder('main', '20260928145209_posts');
@@ -494,8 +496,8 @@ test('up returns ok for a format 9 folder with a broken history, and check repor
 	await expect(flow.check('main')).rejects.toThrow('is missing from the migrations folder');
 });
 
-// Checks that every file of an old linear folder became format 9 with its parent link, and that each
-// snapshot reconstructs to its state in `states`.
+// Checks that every file of an old linear folder became a snapshot of the latest format with its parent link,
+// and that each snapshot reconstructs to its state in `states`.
 const expectConverted = (
 	flow: FolderFlow,
 	originals: Record<string, any>[],
@@ -517,7 +519,7 @@ const expectConverted = (
 const patchRows = (state: string[], patch: (row: Record<string, any>) => Record<string, any>) =>
 	normalizeDDL(state.map((it) => patch(JSON.parse(it))));
 
-test('up converts a format 4 folder to format 9', async () => {
+test('up converts a format 4 folder to the latest format', async () => {
 	const flow = createFolderFlow();
 	const init = readFixture('format-4', '20230203200203', 'snapshot.json');
 	// The repository history has only one postgres format 4 snapshot, so the test writes its child.
@@ -569,7 +571,7 @@ const format5State = patchRows(
 	},
 );
 
-test('up converts a format 5 journal folder to format 9', async () => {
+test('up converts a format 5 journal folder to the latest format', async () => {
 	const flow = createFolderFlow();
 	flow.seed('main', join(fixtures, 'format-5'));
 
@@ -614,7 +616,7 @@ const format7States = () => [
 ];
 const format7Files = ['0000_snapshot.json', '0001_snapshot.json', '0002_snapshot.json'];
 
-test('up converts a format 7 journal folder to format 9', async () => {
+test('up converts a format 7 journal folder to the latest format', async () => {
 	const flow = createFolderFlow();
 	flow.seed('main', join(fixtures, 'format-7'));
 
@@ -841,6 +843,99 @@ test('up converts a linear format 9 history that drizzle-kit 1.0.0-rc.5 wrote', 
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.tryGenerate('main', format9Linear[2])).toMatchObject({ status: 'no_changes' });
 	expect(await flow.up('main')).toStrictEqual([]);
+});
+
+// One git branch converted the shared migrations with drizzle-kit 1.0.0-rc.5, which gives the `format-9-linear`
+// files. Another branch stayed on drizzle-kit 1.0.0-rc.4 and added a migration in format 8 on top of the same
+// history, with `concurrently` in every row of an index. After the git merge, the parent of the format 8 file is
+// a format 9 file, so `up` reconstructs the parent from format 9 snapshots that still have `concurrently`.
+test('up converts a format 8 migration whose parent is a format 9 snapshot', async () => {
+	const flow = createFolderFlow();
+	flow.seed('main', join(fixtures, 'format-9-linear'));
+	const folders = flow.folders('main');
+	const groups = pgTable('groups', { id: integer() });
+	const merged = { ...format9Linear[2], groups };
+
+	// rc.4 stored the value of `.concurrently()`: users_name_idx kept it, and migration 3 removed it from
+	// users_email_idx.
+	const rows = [
+		...schemaState(format9Linear[2]).map((it) => JSON.parse(it)).map((row) =>
+			row.entityType === 'indexes' ? { ...row, concurrently: row.name === 'users_name_idx' } : row
+		),
+		...drizzleToDDL({ groups }).ddl.entities.list(),
+	];
+	const rc4 = tempDir('dk-format-8-');
+	const onRc4 = '20261113103756_rc4';
+	writeSnapshot(rc4, onRc4, {
+		version: '8',
+		dialect: 'postgres',
+		id: randomUUID(),
+		prevIds: [flow.snapshot('main', folders[2]).id],
+		ddl: rows,
+		renames: [],
+	});
+	writeFileSync(join(rc4, onRc4, 'migration.sql'), 'CREATE TABLE "groups" (\n\t"id" integer\n);\n');
+	flow.seed('main', rc4);
+	expect(flow.folders('main').map((it) => flow.snapshot('main', it).version)).toStrictEqual(['9', '9', '9', '8']);
+
+	expect(await flow.up('main')).toHaveLength(4);
+
+	expect(flow.folders('main').map((it) => flow.snapshot('main', it).version)).toStrictEqual(
+		flow.folders('main').map(() => latestVersion),
+	);
+	const texts = flow.files('main').filter(([path]) => path.endsWith('snapshot.json')).map(([, text]) => text);
+	expect(texts.join('\n')).not.toContain('concurrently');
+	// The parent and the format 8 file differ only in the table groups, so no delta touches an index.
+	expect(JSON.stringify(flow.deltas('main', onRc4))).not.toContain('indexes');
+	expect(flow.state('main', onRc4)).toStrictEqual(schemaState(merged));
+	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+	expect(await flow.tryGenerate('main', merged)).toMatchObject({ status: 'no_changes' });
+});
+
+test('up writes nothing when a format 9 snapshot is malformed', async () => {
+	const flow = createFolderFlow();
+	flow.seed('main', join(fixtures, 'format-9-linear'));
+	const folder = '20261113103631_name';
+	const { deltas: _, ...broken } = flow.snapshot('main', folder) as Record<string, unknown>;
+	flow.overwriteSnapshot('main', folder, JSON.stringify(broken, null, 2));
+	const before = flow.files('main');
+
+	const error = await flow.up('main').catch((e: unknown) => e);
+
+	expect(error).toBeInstanceOf(CommandOutputCliError);
+	expect((error as Error).message).toContain(
+		`Cannot convert migration ${folder} to snapshot format 10: its snapshot.json is malformed. No snapshot was converted. Restore `,
+	);
+	expect(errorToEnvelope(error)).toStrictEqual(
+		upError('malformed', { snapshot: expect.stringContaining(join(folder, 'snapshot.json')) }),
+	);
+	expect(flow.files('main')).toStrictEqual(before);
+});
+
+test('up reports a format 9 snapshot that cannot be converted to format 10, and changes no file', async () => {
+	const flow = createFolderFlow();
+	flow.seed('main', join(fixtures, 'format-9-linear'));
+	const folder = '20261113103755_age';
+	// An alter delta of an index without `set` passes the shape check, and `upToV10` cannot convert it.
+	flow.appendDeltas('main', folder, { op: 'alter', key: 'indexes\0["public","users_email_idx"]' } as any);
+	const before = flow.files('main');
+
+	const error = await flow.up('main').catch((e: unknown) => e);
+
+	expect(error).toBeInstanceOf(CommandOutputCliError);
+	expect(error).toStrictEqual(
+		new CommandOutputCliError(
+			'up',
+			`Cannot convert the migrations folder to snapshot format 10: Cannot destructure property 'concurrently' of 'row' as it is undefined. No file was changed. Keep the current snapshot files and report this issue at https://github.com/drizzle-team/drizzle-orm/issues.`,
+			{ kind: 'history' },
+		),
+	);
+	expect((error as Error).message).toMatch(/^Cannot convert the migrations folder to snapshot format 10: /);
+	expect(errorToEnvelope(error)).toStrictEqual({
+		error: { command: 'up', kind: 'history', code: 'command_output_error' },
+		status: 'error',
+	});
+	expect(flow.files('main')).toStrictEqual(before);
 });
 
 // Rewrites the snapshots of `folders` on `branch` as drizzle-kit 1.0.0-rc.5 wrote them: format 9, with

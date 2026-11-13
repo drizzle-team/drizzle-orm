@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { latestVersion } from 'src/dialects/postgres/versions';
 import type { Footprint } from '../../commutativity/engine';
 import type { Delta } from '../../dialects/dialect';
 import { footprintsOf } from '../../dialects/postgres/commutativity';
@@ -24,7 +25,7 @@ import { prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
 import { leafFolders, readFolder, withoutMigrations } from '../../dialects/postgres/folder';
 import { prepareSnapshot, stateOfSchema } from '../../dialects/postgres/serializer';
-import { latestVersion, type PostgresSnapshot } from '../../dialects/postgres/snapshot';
+import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 import { originUUID } from '../../utils';
 import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
