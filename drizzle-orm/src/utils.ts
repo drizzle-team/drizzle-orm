@@ -17,7 +17,8 @@ export function mapResultRow<TResult>(
 	row: unknown[],
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
-	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
+	// Key -> path of the nested object, joined with a NUL character (which cannot occur in a
+	// selection key), value -> table name if all fields in the nested object are from the same table, false otherwise
 	const nullifyMap: Record<string, string | false> = {};
 
 	const result = columns.reduce<Record<string, any>>(
@@ -43,14 +44,16 @@ export function mapResultRow<TResult>(
 					const rawValue = row[columnIndex]!;
 					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
 
-					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
-						const objectName = path[0]!;
-						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
+					if (joinsNotNullableMap && is(field, Column) && path.length >= 2) {
+						const objectPath = path.slice(0, -1);
+						const objectKey = objectPath.join('\u0000');
+						const tableName = getTableName(field.table);
+						if (!(objectKey in nullifyMap)) {
+							nullifyMap[objectKey] = value === null ? tableName : false;
 						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
+							typeof nullifyMap[objectKey] === 'string' && nullifyMap[objectKey] !== tableName
 						) {
-							nullifyMap[objectName] = false;
+							nullifyMap[objectKey] = false;
 						}
 					}
 				}
@@ -62,9 +65,20 @@ export function mapResultRow<TResult>(
 
 	// Nullify all nested objects from nullifyMap that are nullable
 	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
-		for (const [objectName, tableName] of Object.entries(nullifyMap)) {
+		for (const [objectKey, tableName] of Object.entries(nullifyMap)) {
 			if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
-				result[objectName] = null;
+				const objectPath = objectKey.split('\u0000');
+				let node: Record<string, any> = result;
+				for (const pathChunk of objectPath.slice(0, -1)) {
+					node = node[pathChunk];
+					// A parent object may already have been nullified; its children are covered by it
+					if (typeof node !== 'object' || node === null) {
+						break;
+					}
+				}
+				if (typeof node === 'object' && node !== null) {
+					node[objectPath[objectPath.length - 1]!] = null;
+				}
 			}
 		}
 	}
