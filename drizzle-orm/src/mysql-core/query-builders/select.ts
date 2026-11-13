@@ -18,7 +18,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
-import { SQL, View } from '~/sql/sql.ts';
+import { SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
@@ -114,7 +114,9 @@ export class MySqlSelectBuilder<
 		} else if (is(source, MySqlViewBase)) {
 			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
 		} else if (is(source, SQL)) {
-			fields = {};
+			// Raw SQL sources aren't modeled, so there are no columns to enumerate:
+			// select all columns from it instead of an empty (and invalid) field list.
+			fields = { '*': sql.raw('*') };
 		} else {
 			fields = getTableColumns<MySqlTable>(source);
 		}
