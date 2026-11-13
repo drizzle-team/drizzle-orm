@@ -2661,6 +2661,10 @@ export const applyMysqlSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonRenameTables);
+	// MySQL rejects a rename while a check constraint still references the column,
+	// so drop checks before renames; they are re-created after the alter.
+	jsonStatements.push(...jsonDeletedCheckConstraints);
+
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
 	jsonStatements.push(...dropViews);
@@ -2668,7 +2672,6 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...alterViews);
 
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
-	jsonStatements.push(...jsonDeletedCheckConstraints);
 
 	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
 
