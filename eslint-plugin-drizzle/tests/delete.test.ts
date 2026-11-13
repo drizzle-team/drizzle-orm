@@ -73,6 +73,33 @@ ruleTester.run('enforce delete with where (default options)', myRule, {
 	],
 });
 
+ruleTester.run('enforce delete with where (#private receivers)', myRule, {
+	valid: [
+		`class UserRepo { #db; clear() { return this.#db.delete(users).where(eq(users.id, 1)); } }`,
+		{
+			code: `class UserRepo { #other; clear() { return this.#other.delete(users); } }`,
+			options: [{ drizzleObjectName: 'db' }],
+		},
+	],
+	invalid: [
+		{
+			code: `class UserRepo { #db; clear() { return this.#db.delete(users); } }`,
+			errors: [{
+				messageId: 'enforceDeleteWithWhere',
+				data: { drizzleObjName: 'this.#db' },
+			}],
+		},
+		{
+			code: `class UserRepo { #db; clear() { return this.#db.delete(users); } }`,
+			errors: [{
+				messageId: 'enforceDeleteWithWhere',
+				data: { drizzleObjName: 'this.#db' },
+			}],
+			options: [{ drizzleObjectName: 'db' }],
+		},
+	],
+});
+
 ruleTester.run('enforce delete with where (string option)', myRule, {
 	valid: [
 		{ code: 'const a = db.delete({}).where({});', options: [{ drizzleObjectName: 'db' }] },

@@ -275,3 +275,30 @@ ruleTester.run('enforce update with where (array option)', myRule, {
 		},
 	],
 });
+
+ruleTester.run('enforce update with where (#private receivers)', myRule, {
+	valid: [
+		`class UserRepo { #db; clear() { return this.#db.update(users).set({}).where(eq(users.id, 1)); } }`,
+		{
+			code: `class UserRepo { #other; clear() { return this.#other.update(users).set({}); } }`,
+			options: [{ drizzleObjectName: 'db' }],
+		},
+	],
+	invalid: [
+		{
+			code: `class UserRepo { #db; clear() { return this.#db.update(users).set({}); } }`,
+			errors: [{
+				messageId: 'enforceUpdateWithWhere',
+				data: { drizzleObjName: 'this.#db' },
+			}],
+		},
+		{
+			code: `class UserRepo { #db; clear() { return this.#db.update(users).set({}); } }`,
+			errors: [{
+				messageId: 'enforceUpdateWithWhere',
+				data: { drizzleObjName: 'this.#db' },
+			}],
+			options: [{ drizzleObjectName: 'db' }],
+		},
+	],
+});

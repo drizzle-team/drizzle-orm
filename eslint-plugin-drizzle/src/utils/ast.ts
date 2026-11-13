@@ -13,6 +13,8 @@ export const resolveMemberExpressionPath = (node: TSESTree.MemberExpression) => 
 		if (objectExpression.type === 'MemberExpression') {
 			if (objectExpression.property.type === 'Identifier') {
 				addToFullName(objectExpression.property.name);
+			} else if (objectExpression.property.type === 'PrivateIdentifier') {
+				addToFullName(`#${objectExpression.property.name}`);
 			}
 			objectExpression = objectExpression.object;
 		} else if (objectExpression.type === 'CallExpression' && objectExpression.callee.type === 'Identifier') {
@@ -21,6 +23,8 @@ export const resolveMemberExpressionPath = (node: TSESTree.MemberExpression) => 
 		} else if (objectExpression.type === 'CallExpression' && objectExpression.callee.type === 'MemberExpression') {
 			if (objectExpression.callee.property.type === 'Identifier') {
 				addToFullName(`${objectExpression.callee.property.name}(...)`);
+			} else if (objectExpression.callee.property.type === 'PrivateIdentifier') {
+				addToFullName(`#${objectExpression.callee.property.name}(...)`);
 			}
 			objectExpression = objectExpression.callee.object;
 		} else if (objectExpression.type === 'Identifier') {
