@@ -2,7 +2,12 @@ import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import { type Delta, delta } from 'src/dialects/dialect';
 import { createDDL } from 'src/dialects/postgres/ddl';
 import { reconstruct, startingState } from 'src/dialects/postgres/reconstruct';
-import { type PostgresBaseSnapshot, type PostgresSnapshot, snapshotValidator } from 'src/dialects/postgres/snapshot';
+import {
+	latestVersion,
+	type PostgresBaseSnapshot,
+	type PostgresSnapshot,
+	snapshotValidator,
+} from 'src/dialects/postgres/snapshot';
 import { originUUID } from 'src/utils';
 import { describe, expect, test } from 'vitest';
 import { columnRow } from './folder-flow';
@@ -28,7 +33,7 @@ const columnKey = (table: string, name: string) => `columns\0${JSON.stringify(['
 
 const base = (id: string, ddl: ReturnType<typeof createDDL>): PostgresBaseSnapshot => ({
 	type: 'base',
-	version: '9',
+	version: latestVersion,
 	dialect: 'postgres',
 	id,
 	prevIds: [originUUID],
@@ -38,7 +43,7 @@ const base = (id: string, ddl: ReturnType<typeof createDDL>): PostgresBaseSnapsh
 
 const diff = (id: string, prevIds: string[], deltas: Delta[]): PostgresSnapshot => ({
 	type: 'diff',
-	version: '9',
+	version: latestVersion,
 	dialect: 'postgres',
 	id,
 	prevIds,
@@ -241,7 +246,7 @@ describe('reconstruct', () => {
 
 		const first: PostgresBaseSnapshot = {
 			type: 'base',
-			version: '9',
+			version: latestVersion,
 			dialect: 'postgres',
 			id: 's0',
 			prevIds: [originUUID],
@@ -345,7 +350,7 @@ describe('snapshotValidator', () => {
 	test('rejects a base with an entity whose type or field is a name that every object inherits', () => {
 		const file = (entity: string) =>
 			JSON.parse(
-				`{"type":"base","version":"9","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
+				`{"type":"base","version":"${latestVersion}","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
 					+ '"footprints":[]}',
 			);
 		const table = '"entityType":"tables","schema":"public","name":"users","isRlsEnabled":false';
@@ -360,7 +365,7 @@ describe('snapshotValidator', () => {
 	test('rejects a base with an entity type that is not a string', () => {
 		const file = (entity: string) =>
 			JSON.parse(
-				`{"type":"base","version":"9","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
+				`{"type":"base","version":"${latestVersion}","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
 					+ '"footprints":[]}',
 			);
 

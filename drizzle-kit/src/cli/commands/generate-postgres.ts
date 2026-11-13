@@ -24,7 +24,7 @@ import { prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
 import { leafFolders, readFolder, withoutMigrations } from '../../dialects/postgres/folder';
 import { prepareSnapshot, stateOfSchema } from '../../dialects/postgres/serializer';
-import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
+import { latestVersion, type PostgresSnapshot } from '../../dialects/postgres/snapshot';
 import { originUUID } from '../../utils';
 import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -51,7 +51,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	// Builds the snapshot of the new migration. `deltas` turn `ddlPrev` into `state`, and `footprints` follow
 	// the order of the SQL.
 	const snapshotOf = (state: PostgresDDL, deltas: Delta[], footprints: Footprint[]): PostgresSnapshot => {
-		const header = { version: '9', dialect: 'postgres', id: randomUUID() } as const;
+		const header = { version: latestVersion, dialect: 'postgres', id: randomUUID() } as const;
 		if (prevIds.length === 0) {
 			return { type: 'base', ...header, prevIds: [originUUID], footprints, ddl: state.entities.list() };
 		}

@@ -21,14 +21,25 @@ import type {
 	View,
 } from '../dialects/postgres/ddl';
 import { fromEntities, interimToDDL } from '../dialects/postgres/ddl';
-import type { PostgresSchemaState } from '../dialects/postgres/snapshot';
-import { isSnapshotV8, upToV8 } from '../dialects/postgres/versions';
+import {
+	latestVersion,
+	type PostgresBaseSnapshot,
+	type PostgresBaseSnapshotV9,
+	type PostgresSchemaState,
+} from '../dialects/postgres/snapshot';
+import { isSnapshotV8, upToV10, upToV8 } from '../dialects/postgres/versions';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
 
 const schemaState = (id: string, prevIds: string[], ddl: PostgresEntity[]): PostgresSchemaState => {
 	const parents = prevIds.filter((it) => it && it !== originUUID);
-	return { version: '9', dialect: 'postgres', id, prevIds: parents.length === 0 ? [originUUID] : parents, ddl };
+	return {
+		version: latestVersion,
+		dialect: 'postgres',
+		id,
+		prevIds: parents.length === 0 ? [originUUID] : parents,
+		ddl,
+	};
 };
 
 export const generateDrizzleJson = async (
@@ -256,7 +267,10 @@ export const startStudioServer = async (
 	});
 };
 
-// Converts one full state of any format to a schema state. `drizzle-kit up` converts a whole migrations folder.
+// Converts one full state of any format to a schema state. `drizzle-kit up` converts a whole migrations folder,
+// and this function takes the same steps for one state as `drizzle-kit up` takes for a base snapshot: `upToV8`,
+// and then the steps from format 9 on. A base snapshot keeps its full state in format 9, so a state of format 8
+// holds the rows of a format 9 base snapshot and goes on to `upToV10` as one.
 export const up = (it: Record<string, any>): { snapshot: PostgresSchemaState; hints: string[] } => {
 	if (it.type === 'diff') {
 		throw new Error(
@@ -271,7 +285,19 @@ export const up = (it: Record<string, any>): { snapshot: PostgresSchemaState; hi
 				+ 'or a full state of an older format.',
 		);
 	}
-	return { snapshot: schemaState(snapshot.id, snapshot.prevIds, snapshot.ddl), hints };
+	// A state has no `type` and no `footprints`, so the base snapshot gets them. `schemaState` drops them again.
+	// create `base` snapshot to ba able to `up` to the latest
+	const base: PostgresBaseSnapshotV9 | PostgresBaseSnapshot = {
+		type: 'base',
+		version: snapshot.version === '8' ? '9' : String(snapshot.version) as '10',
+		dialect: 'postgres',
+		id: snapshot.id,
+		prevIds: snapshot.prevIds,
+		ddl: snapshot.ddl,
+		footprints: [],
+	};
+	const [latest] = upToV10([base]) as PostgresBaseSnapshot[];
+	return { snapshot: schemaState(latest.id, latest.prevIds, latest.ddl), hints };
 };
 
 // Reconstructs the schema state of snapshot `id`, or of the only leaf when `id` is not given. `files` maps each

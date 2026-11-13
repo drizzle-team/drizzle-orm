@@ -1,7 +1,7 @@
-import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
+import { index, integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { readFileSync } from 'fs';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { type PostgresSchemaState, snapshotValidator } from 'src/dialects/postgres/snapshot';
+import { latestVersion, type PostgresSchemaState, snapshotValidator } from 'src/dialects/postgres/snapshot';
 import { generateDrizzleJson, generateMigration, reconstruct, up } from 'src/ext/api-postgres';
 import { expect, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
@@ -39,6 +39,17 @@ const format8 = (state: PostgresSchemaState) => ({
 
 const oldSnapshot = (path: string) => JSON.parse(readFileSync(`tests/postgres/old-snapshots/${path}`, 'utf8'));
 
+// drizzle-kit 1.0.0-rc.5 with drizzle-orm 1.0.0-rc.5 returned the state in `format-9-linear/format-9-state.json` from
+// generateDrizzleJson: format 9, with `concurrently` in every row of an index. Its schema created users_id_idx with
+// `.concurrently()` and users_email_idx without it. `rc5Schema` is that schema without `.concurrently()`, which
+// drizzle-orm does not have anymore.
+const rc5Schema = {
+	users: pgTable('users', { id: integer(), email: varchar() }, (t) => [
+		index('users_id_idx').on(t.id),
+		index('users_email_idx').on(t.email),
+	]),
+};
+
 const folderFiles = (flow: FolderFlow, branch: string) =>
 	Object.fromEntries(flow.folders(branch).map((folder) => [folder, flow.snapshot(branch, folder)]));
 
@@ -49,7 +60,7 @@ test('generateDrizzleJson returns a schema state, which is not a snapshot', asyn
 	const state = await generateDrizzleJson(v1);
 
 	expect(Object.keys(state).sort()).toStrictEqual(['ddl', 'dialect', 'id', 'prevIds', 'version']);
-	expect(state).toMatchObject({ version: '9', dialect: 'postgres', prevIds: [ORIGIN] });
+	expect(state).toMatchObject({ version: latestVersion, dialect: 'postgres', prevIds: [ORIGIN] });
 	expect(state.ddl).toContainEqual(expect.objectContaining({ entityType: 'tables', name: 'users' }));
 	expect(await generateDrizzleJson(v1, '')).toMatchObject({ prevIds: [ORIGIN] });
 	expect(snapshotValidator.parse(state).success).toBe(false);
@@ -92,6 +103,16 @@ test('generateMigration takes format 8 states in either argument position', asyn
 	expect(await generateMigration(after, format8(before))).toStrictEqual(dropEmail);
 });
 
+// A saved rc.5 state and a state of the same schema give no SQL, although only the rc.5 state has `concurrently`.
+test('generateMigration gives no SQL between a format 9 state of drizzle-kit 1.0.0-rc.5 and a state of the same schema', async () => {
+	const rc5 = oldSnapshot('format-9-linear/format-9-state.json');
+	const state = await generateDrizzleJson(rc5Schema);
+	expect(rc5.version).toBe('9');
+
+	expect(await generateMigration(rc5, state)).toStrictEqual([]);
+	expect(await generateMigration(state, rc5)).toStrictEqual([]);
+});
+
 test('generateMigration converts format 5 and format 7 states in either argument position', async () => {
 	const empty = { version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [], renames: [] };
 
@@ -132,7 +153,7 @@ test('generateMigration rejects a diff snapshot', async () => {
 	const parent = await generateDrizzleJson(v1);
 	const diff = {
 		type: 'diff',
-		version: '9',
+		version: latestVersion,
 		dialect: 'postgres',
 		id: 'd1',
 		prevIds: [parent.id],
@@ -152,12 +173,31 @@ test('up converts one saved state of an older format without a history', () => {
 	const legacy = up(oldSnapshot('format-7/meta/0001_snapshot.json'));
 
 	expect(first).toStrictEqual({
-		snapshot: { version: '9', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] },
+		snapshot: { version: latestVersion, dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] },
 		hints: [],
 	});
-	expect(second.snapshot).toStrictEqual({ version: '9', dialect: 'postgres', id: 'p2', prevIds: ['p1'], ddl: [] });
-	expect(legacy.snapshot).toMatchObject({ version: '9', dialect: 'postgres' });
+	expect(second.snapshot).toStrictEqual({
+		version: latestVersion,
+		dialect: 'postgres',
+		id: 'p2',
+		prevIds: ['p1'],
+		ddl: [],
+	});
+	expect(legacy.snapshot).toMatchObject({ version: latestVersion, dialect: 'postgres' });
 	expect(legacy.snapshot.ddl).toContainEqual(expect.objectContaining({ entityType: 'tables', name: 'posts' }));
+});
+
+test('up converts a format 9 state of drizzle-kit 1.0.0-rc.5 and drops concurrently from the rows of indexes', async () => {
+	const rc5 = oldSnapshot('format-9-linear/format-9-state.json');
+	const state = await generateDrizzleJson(rc5Schema);
+	expect(JSON.stringify(rc5.ddl)).toContain('"concurrently":true');
+
+	const { snapshot, hints } = up(rc5);
+
+	console.log('snapshot: ', snapshot.ddl);
+	expect(hints).toStrictEqual([]);
+	expect(snapshot).toMatchObject({ version: '10', dialect: 'postgres', id: rc5.id, prevIds: [ORIGIN] });
+	expect(normalizeDDL(snapshot.ddl)).toStrictEqual(normalizeDDL(state.ddl));
 });
 
 test('up returns a schema state unchanged', async () => {
@@ -188,7 +228,7 @@ test('reconstruct rebuilds any snapshot of a linear folder, and the leaf when no
 	expect(normalizeDDL(leaf.ddl)).toStrictEqual(schemaState(v3));
 	expect(normalizeDDL(second.ddl)).toStrictEqual(schemaState(v2));
 	expect(second).toStrictEqual({
-		version: '9',
+		version: latestVersion,
 		dialect: 'postgres',
 		id: middle.id,
 		prevIds: middle.prevIds,
@@ -290,7 +330,7 @@ test('reconstruct reports a base snapshot that lists an entity twice with the sa
 test('reconstruct reports a malformed snapshot, an unknown id and an empty folder', async () => {
 	const base = {
 		type: 'base',
-		version: '9',
+		version: latestVersion,
 		dialect: 'postgres',
 		id: 'b1',
 		prevIds: [ORIGIN],
@@ -313,6 +353,24 @@ test('reconstruct reports a malformed snapshot, an unknown id and an empty folde
 test('reconstruct asks to run up for a format 8 snapshot', async () => {
 	const files = {
 		'20250101000000_init': { version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [], renames: [] },
+	};
+
+	await expect(reconstruct(files)).rejects.toThrow(
+		'20250101000000_init is not of the latest version, please run "drizzle-kit up"',
+	);
+});
+
+test('reconstruct asks to run up for a format 9 snapshot', async () => {
+	const files = {
+		'20250101000000_init': {
+			type: 'base',
+			version: '9',
+			dialect: 'postgres',
+			id: 'p1',
+			prevIds: [ORIGIN],
+			ddl: [],
+			footprints: [],
+		},
 	};
 
 	await expect(reconstruct(files)).rejects.toThrow(

@@ -1,3 +1,4 @@
+import { type Delta, parseEntityKey } from '../../dialects/dialect';
 import { createDDL, type Index } from '../../dialects/postgres/ddl';
 import {
 	defaultNameForIndex,
@@ -7,6 +8,7 @@ import {
 	trimDefaultValueSuffix,
 } from '../../dialects/postgres/grammar';
 import type {
+	AnyDeltaPostgresSnapshot,
 	Column,
 	Index as LegacyIndex,
 	PgSchema,
@@ -14,10 +16,54 @@ import type {
 	PgSchemaV5,
 	PgSchemaV6,
 	PgSchemaV7,
+	PostgresSnapshot,
 	PostgresSnapshotV8,
+	PostgresSnapshotV9,
 	TableV5,
 } from '../../dialects/postgres/snapshot';
 import { getOrNull } from '../../dialects/utils';
+
+// Tells whether a file of format 9 or later has the lists that `upToV10` reads: `prevIds`, and `ddl` of a base
+// snapshot or `deltas` of a diff snapshot. The caller checks the version.
+export const isDeltaSnapshot = (it: Record<string, any>): it is AnyDeltaPostgresSnapshot =>
+	Array.isArray(it.prevIds) && Array.isArray(it.type === 'diff' ? it.deltas : it.ddl);
+
+// Converts base and diff snapshots to format 10 and returns the converted copies, in the order of `snapshots`. The
+// given snapshots stay as they are. Format 10 has no `concurrently` in the rows of indexes, because drizzle-orm has
+// no `.concurrently()` on indexes anymore. A diff snapshot has it in the create deltas of indexes, and in the alter
+// deltas of an index that got or lost `.concurrently()`. Such an alter changed no SQL, so it is dropped when
+// `concurrently` was its only field. The footprints stay as they are, because they describe the SQL of the migration
+export const upToV10 = (snapshots: (PostgresSnapshotV9 | PostgresSnapshot)[]): PostgresSnapshot[] => {
+	const withoutConcurrently = <T extends object>(row: T): T => {
+		const { concurrently: _, ...rest } = row as T & { concurrently?: unknown };
+		return rest as T;
+	};
+
+	return snapshots.map((snapshot): PostgresSnapshot => {
+		if (snapshot.version !== '9') return snapshot;
+
+		if (snapshot.type === 'base') {
+			return {
+				...snapshot,
+				version: '10',
+				ddl: snapshot.ddl.map((row) => (row.entityType === 'indexes' ? withoutConcurrently(row) : row)),
+			};
+		}
+
+		return {
+			...snapshot,
+			version: '10',
+			deltas: snapshot.deltas.flatMap((it): Delta[] => {
+				if (it.op === 'create' && it.row.entityType === 'indexes') return [{ ...it, row: withoutConcurrently(it.row) }];
+				if (it.op === 'alter' && parseEntityKey(it.key)[0] === 'indexes') {
+					const set = withoutConcurrently(it.set);
+					return Object.keys(set).length > 0 ? [{ ...it, set }] : [];
+				}
+				return [it];
+			}),
+		};
+	});
+};
 
 // Tells whether a format 8 file has the two lists that the conversion to format 9 reads: `ddl` and `prevIds`.
 // A missing `renames` counts as empty, and the caller checks the version. A schema state of the programmatic
@@ -202,7 +248,6 @@ export const upToV8 = (
 				columns,
 				isUnique: idx.isUnique,
 				method: idx.method,
-				concurrently: idx.concurrently,
 				where: idx.where ?? null,
 				with: idx.with && Object.keys(idx.with).length > 0
 					? Object.entries(idx.with)

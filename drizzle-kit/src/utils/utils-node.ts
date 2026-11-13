@@ -11,7 +11,10 @@ import {
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
-import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
+import {
+	latestVersion as pgLatestVersion,
+	snapshotValidator as pgSnapshotValidator,
+} from '../dialects/postgres/snapshot';
 import { snapshotValidator as singlestoreSnapshotValidator } from '../dialects/singlestore/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
 import { assertUnreachable } from '.';
@@ -164,7 +167,7 @@ const assertVersion = (
 };
 
 const postgresValidator = (snapshot: object): ValidationResult => {
-	const versionError = assertVersion(snapshot, 9);
+	const versionError = assertVersion(snapshot, Number(pgLatestVersion));
 	if (versionError) return { status: versionError };
 
 	const res = pgSnapshotValidator.parse(snapshot);
