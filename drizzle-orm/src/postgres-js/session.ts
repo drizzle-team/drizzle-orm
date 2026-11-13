@@ -20,10 +20,10 @@ interface PostgresJsColumn {
 }
 
 /**
- * `postgres.js` has no per-query parser options, so queries decoded by codecs (queries with a mapper) are executed in
- * `raw` mode and decoded here: `pgRawTextOids` stay text for codecs to decode, other columns go through the client's own
- * parsers and value transform exactly as `postgres.js` applies them in non-raw modes. Proxy servers apply it to such
- * queries as well
+ * `postgres.js` has no per-query parser options, so queries decoded by codecs (queries with a mapper, but not `call`
+ * ones) are executed in `raw` mode and decoded here: `pgRawTextOids` stay text for codecs to decode, other columns go
+ * through the client's own parsers and value transform exactly as `postgres.js` applies them in non-raw modes. Proxy
+ * servers apply it to such queries as well
  * @param mode - `objects` keys rows by column names
  */
 export function decodePostgresJsRawRows(
@@ -105,19 +105,19 @@ export class PostgresJsSession<TSQL extends Sql | TransactionSql, TRelations ext
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	) {
 		const executor = async (params?: unknown[]) => {
-			if (mapper) {
+			if (mapper && mode !== 'call') {
 				return this.client.unsafe(query.sql, params ?? [] as any[], {
 					prepare: name !== false,
 				}).raw().then((rows) => decodePostgresJsRawRows(this.client, rows, mode === 'objects' ? 'objects' : 'arrays'));
 			}
-			if (mode === 'objects') {
+			if (mode === 'objects' || mode === 'call') {
 				return this.client.unsafe(query.sql, params ?? [] as any[], {
 					prepare: name !== false,
 				}).then((rows) => Object.values(rows));

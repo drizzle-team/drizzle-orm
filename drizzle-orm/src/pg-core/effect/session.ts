@@ -41,7 +41,7 @@ export class PgEffectPreparedQuery<
 		protected executor: (params?: unknown[]) => Effect.Effect<unknown, unknown, unknown>,
 		query: Query,
 		mapper: ((rows: any[]) => any) | undefined,
-		readonly mode: 'arrays' | 'objects' | 'raw',
+		readonly mode: 'arrays' | 'objects' | 'raw' | 'call',
 		private logger: EffectLoggerShape,
 		// cache instance
 		protected cache: EffectCacheShape,
@@ -156,7 +156,7 @@ export abstract class PgEffectSession<
 
 	abstract override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper?: (rows: any[]) => any,
 		queryMetadata?: QueryMetadata,

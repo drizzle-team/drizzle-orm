@@ -28,8 +28,9 @@ export const allDataTypes = mssqlTable('all_data_types', {
 	biginteger: bigint('bigint', { mode: 'bigint' }),
 	bigintNumber: bigint('bigint_number', { mode: 'number' }),
 	real: real('real'),
-	decimal: decimal('decimal'),
-	numeric: numeric('numeric'),
+	// the `mssql` driver decodes `decimal`, `numeric` to numbers, so their default `string` mode is unsupported
+	decimal: decimal('decimal', { mode: 'number' }),
+	numeric: numeric('numeric', { mode: 'number' }),
 	float: float('float'),
 	binary: binary('binary', { length: 5 }),
 	varbinary: varbinary('varbinary', { length: 5 }),

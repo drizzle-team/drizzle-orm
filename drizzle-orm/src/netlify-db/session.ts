@@ -81,7 +81,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
@@ -102,7 +102,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 				arrayMode: mode === 'arrays',
 				fullResults: true,
 				authToken: this.options.authToken,
-				...(mapper ? neonHttpRawTextTypes : undefined),
+				...(mapper && mode !== 'call' ? neonHttpRawTextTypes : undefined),
 			}).then((it: any) => it.rows);
 		};
 
@@ -251,7 +251,7 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
@@ -268,7 +268,7 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 				name: queryName,
 				rowMode: mode === 'arrays' ? 'array' : undefined as any,
 				text: query.sql,
-				types: mapper ? netlifyDbRawTextTypes : undefined,
+				types: mapper && mode !== 'call' ? netlifyDbRawTextTypes : undefined,
 			}, params).then((r) => mode === 'raw' ? r : r.rows);
 		};
 

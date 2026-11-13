@@ -43,7 +43,7 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
@@ -52,7 +52,7 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 		const executor = async (params?: unknown[]) => {
 			return this.client.query(query.sql, params, {
 				rowMode: mode === 'arrays' ? 'array' : 'object',
-				parsers: mapper ? pgliteRawTextParsers : undefined,
+				parsers: mapper && mode !== 'call' ? pgliteRawTextParsers : undefined,
 			}).then((r) => mode === 'raw' ? r : r.rows);
 		};
 

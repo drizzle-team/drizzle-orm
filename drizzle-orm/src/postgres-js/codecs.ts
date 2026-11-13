@@ -1,11 +1,11 @@
 import type { Sql } from 'postgres';
+import type { NormalizeArrayCodec, NormalizeCodec } from '~/codecs.ts';
 import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
 	makeBoxArray,
 	makeGeometryArray,
-	parseGeometryArrayAndNormalize,
 	parseGeometryTuple,
 	parseGeometryXY,
 	parseLineABC,
@@ -21,6 +21,19 @@ import {
 	textToDateWithTz,
 	textToDateWithTzPgArray,
 } from '~/pg-core/codecs.ts';
+
+/**
+ * Arrays of extension types (and enums) come back parsed only if `postgres.js` fetched their types on connection - the
+ * type existed by then - others come back as array literals
+ */
+const fetchedTypeArray = (normalize: NormalizeCodec, delim?: string): NormalizeArrayCodec => {
+	const fromLiteral = parsePgArrayAndNormalize(normalize, delim);
+	const fromParsed = arrayCompatNormalize(normalize);
+	return (value, arrayDimensions) =>
+		typeof value === 'string' ? fromLiteral(value, arrayDimensions) : fromParsed(value, arrayDimensions);
+};
+const fetchedTypeArrayOfStrings: NormalizeArrayCodec = (value: string | unknown[]) =>
+	typeof value === 'string' ? parsePgArray(value) : value;
 
 /** JSON param marker exists only on client and isn't importable outside of it */
 export const postgresJsCodecs = (client: Sql) => {
@@ -81,7 +94,7 @@ export const postgresJsCodecs = (client: Sql) => {
 		'geography(point):tuple': { normalizeParamArray: makeGeometryArray },
 		halfvec: {
 			normalize: parsePgVector,
-			normalizeArray: arrayCompatNormalize(parsePgVector),
+			normalizeArray: fetchedTypeArray(parsePgVector),
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		inet: { normalizeParamArray: (v) => makePgArray(v) },
@@ -111,7 +124,10 @@ export const postgresJsCodecs = (client: Sql) => {
 		serial: { normalizeParamArray: (v) => makePgArray(v) },
 		smallint: { normalizeParamArray: (v) => makePgArray(v) },
 		smallserial: { normalizeParamArray: (v) => makePgArray(v) },
-		sparsevec: { normalizeParamArray: (v) => makePgArray(v) },
+		sparsevec: {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: fetchedTypeArrayOfStrings,
+		},
 		text: { normalizeParamArray: (v) => makePgArray(v) },
 		time: {
 			normalizeParamArray: (v) => makePgArray(v),
@@ -129,25 +145,24 @@ export const postgresJsCodecs = (client: Sql) => {
 		varchar: { normalizeParamArray: (v) => makePgArray(v) },
 		vector: {
 			normalize: parsePgVector,
-			normalizeArray: arrayCompatNormalize(parsePgVector),
+			normalizeArray: fetchedTypeArray(parsePgVector),
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		xml: { normalizeParamArray: (v) => makePgArray(v) },
 		bytea: { normalizeParamArray: (v) => makePgArray(v) },
 		enum: {
-			// parsed only for enums `postgres.js` fetched the types of on connection, others come back as array literals
-			normalizeArray: (v: string | string[]) => typeof v === 'string' ? parsePgArray(v) : v,
+			normalizeArray: fetchedTypeArrayOfStrings,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'geometry(point)': {
 			normalize: parseGeometryXY,
 			normalizeParamArray: makeGeometryArray,
-			normalizeArray: parseGeometryArrayAndNormalize(parseGeometryXY),
+			normalizeArray: fetchedTypeArray(parseGeometryXY, ':'),
 		},
 		'geometry(point):tuple': {
 			normalize: parseGeometryTuple,
 			normalizeParamArray: makeGeometryArray,
-			normalizeArray: parseGeometryArrayAndNormalize(parseGeometryTuple),
+			normalizeArray: fetchedTypeArray(parseGeometryTuple, ':'),
 		},
 		numeric: {
 			normalizeParamArray: (v) => makePgArray(v),

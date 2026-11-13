@@ -803,10 +803,11 @@ export class PgEffectDatabase<
 	): PgEffectRaw<TProcedure['_']['result'], TEffectHKT> {
 		const sequel = procedure.getCallSQL((args[0] ?? {}) as Record<string, unknown>);
 		const builtQuery = this.dialect.sqlToQuery(sequel);
-		// CALL yields one row of the INOUT result parameters, or none for a procedure that returns nothing.
+		// CALL yields one row of the INOUT result parameters, or none for a procedure that returns nothing. `call` mode
+		// runs as `objects`, but without the typecasts drivers apply to codec-decoded (mapped) queries: no codecs run here
 		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: TProcedure['_']['result'] }>(
 			builtQuery,
-			'objects',
+			'call',
 			false,
 			(rows) => rows[0],
 		);

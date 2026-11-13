@@ -67,7 +67,7 @@ export class AwsDataApiSession<
 
 	prepareQuery<T extends PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
@@ -83,8 +83,8 @@ export class AwsDataApiSession<
 				resourceArn: this.options.resourceArn,
 				database: this.options.database,
 				transactionId: this.transactionId,
-				includeResultMetadata: mode === 'objects' || mode === 'raw',
-				resultSetOptions: mapper ? awsDataApiRawTextResultSetOptions : undefined,
+				includeResultMetadata: mode !== 'arrays',
+				resultSetOptions: mapper && mode !== 'call' ? awsDataApiRawTextResultSetOptions : undefined,
 			});
 
 			const result = await this.client.send(command);
@@ -124,7 +124,7 @@ export class AwsDataApiSession<
 				return row;
 			});
 
-			if (mode === 'objects') return mappedRows;
+			if (mode !== 'raw') return mappedRows;
 			return Object.assign(result, { rows: mappedRows });
 		};
 

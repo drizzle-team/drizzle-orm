@@ -25,7 +25,8 @@ const rawText = (value: string) => value;
 
 /**
  * Per-query `types` returning `pgRawTextOids` as text for codecs to decode, other types through the client's default
- * parsers. Applied to queries decoded by codecs (queries with a mapper), proxy servers apply them to such queries as well.
+ * parsers. Applied to queries decoded by codecs (queries with a mapper, but not `call` ones), proxy servers apply them
+ * to such queries as well.
  * Typed as `{}` to be spread into query options: `@neondatabase/serverless` reads per-query `types` since `0.10`, but only
  * declares it since `1.0`
  */
@@ -71,7 +72,7 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
@@ -96,7 +97,7 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 				arrayMode: mode === 'arrays',
 				fullResults: true,
 				authToken: this.options.authToken,
-				...(mapper ? neonHttpRawTextTypes : undefined),
+				...(mapper && mode !== 'call' ? neonHttpRawTextTypes : undefined),
 			}).then((it: any) => it.rows);
 		};
 

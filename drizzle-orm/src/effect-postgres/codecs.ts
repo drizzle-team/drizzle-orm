@@ -7,7 +7,6 @@ import {
 	genericPgCodecs,
 	makeBoxArray,
 	makeGeometryArray,
-	parsePgVector,
 	pgTimestampTextFromUtcDate,
 	refineGenericPgCodecs,
 	shortestFloat32,
@@ -315,9 +314,9 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	halfvec: {
-		normalize: parsePgVector,
-		normalizeArray: arrayCompatNormalize(parsePgVector),
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: unsupportedCodec('halfvec', driver, binaryReason),
+		normalizeArray: unsupportedCodec('halfvec', driver, binaryReason),
 	},
 	sparsevec: {
 		normalizeParamArray: (v) => makePgArray(v),

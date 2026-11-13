@@ -79,19 +79,19 @@ export class PostgresJsDsqlSession<TSQL extends Sql | TransactionSql, TRelations
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	) {
 		const executor = async (params?: unknown[]) => {
-			if (mapper) {
+			if (mapper && mode !== 'call') {
 				return this.client.unsafe(query.sql, params ?? [] as any[], {
 					prepare: name !== false,
 				}).raw().then((rows) => decodePostgresJsRawRows(this.client, rows, mode === 'objects' ? 'objects' : 'arrays'));
 			}
-			if (mode === 'objects') {
+			if (mode === 'objects' || mode === 'call') {
 				return this.client.unsafe(query.sql, params ?? [] as any[], {
 					prepare: name !== false,
 				}).then((rows) => Object.values(rows));

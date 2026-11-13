@@ -51,7 +51,7 @@ export class EffectPgDatabase<TRelations extends AnyRelations = EmptyRelations>
  *
  * Unsupported column types (throw on non-null values):
  * - `timestamptz` in `string` mode (offset dropped)
- * - `macaddr`, `macaddr8`, `enum[]`, `geometry`, `vector`, `sparsevec` (binary format decoded as corrupted text)
+ * - `macaddr`, `macaddr8`, `enum[]`, `geometry`, `vector`, `halfvec`, `sparsevec` (binary format decoded as corrupted text)
  */
 export const make = Effect.fn('PgDrizzle.make')(
 	function*<
