@@ -28,5 +28,13 @@
 		"typeRoots": ["node_modules/@types", "src/@types"]
 	},
 	"include": ["dev", "tests", "drizzle.config.ts", "test.ts"],
-	"exclude": ["node_modules", "tests/**/tmp"]
+	"exclude": [
+		"node_modules",
+		"tests/**/tmp",
+		// resolved by jiti via fixtures' own tsconfigs in tests/other/load-module.test.ts
+		"tests/fixtures/tsconfig-paths-catch-all",
+		"tests/fixtures/tsconfig-paths-extends",
+		// deliberately invalid programs that the procedure compiler must reject
+		"tests/postgres/procedures/fixtures/errors"
+	]
 }

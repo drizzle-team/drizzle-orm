@@ -306,7 +306,7 @@ export function makeDefaultQueryMapper<TResult>(
 			// Nullify every top-level nullable group whose leaves are all null on this row.
 			if (targets) {
 				for (let i = 0; i < targets.length; ++i) {
-					const { key, leaves } = targets[i]!;
+					const { key, leaves }: { key: string; leaves: number[] } = targets[i]!;
 
 					let allNull = true;
 					for (let j = 0; j < leaves.length; ++j) {
@@ -603,6 +603,9 @@ export type Writable<T> = {
 };
 
 export type NonArray<T> = T extends any[] ? never : T;
+
+export type EnumObjectValues<T extends object> = [T[keyof T]] extends [infer V extends string] ? [V, ...V[]]
+	: [string, ...string[]];
 
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];

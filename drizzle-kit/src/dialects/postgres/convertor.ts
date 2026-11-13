@@ -1,6 +1,7 @@
 import '../../@types/utils';
 import { escapeSingleQuotes, type Simplify, wrapWith } from '../../utils';
 import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, isSerialType, mapSerialToInt } from './grammar';
+import { createProcedureSql, dropProcedureSql } from './procedures/model';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -363,6 +364,12 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
 	}
 
+	// dropping identity should come first
+	// than everything else
+	if (diff.identity && diff.identity.to === null) {
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP IDENTITY;`);
+	}
+
 	// `hasNewType` decides if SET DATA TYPE runs. It counts a new `typeSchema`, because an enum with the same
 	// name in another schema is another type. A new count of `dimensions` gets a plain cast. Postgres has no
 	// cast between most scalar types and their array types, so the user edits that USING clause.
@@ -461,9 +468,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 					`SELECT setval('${column.identity.name}'::regclass, (SELECT COALESCE(MAX(id), 1) FROM ${key}), false);`,
 				);
 			}
-		} else if (diff.identity.to === null) {
-			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP IDENTITY;`);
-		} else {
+		} else if (diff.identity.to !== null) {
 			const { from, to } = diff.identity;
 
 			if (from.type !== to.type) {
@@ -1051,6 +1056,11 @@ const toggleRlsConvertor = convertor('alter_rls', (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} ${isRlsEnabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY;`;
 });
 
+// Body-only changes are a create too: CREATE OR REPLACE swaps the body in place and keeps grants.
+const createProcedureConvertor = convertor('create_procedure', (st) => createProcedureSql(st.procedure));
+
+const dropProcedureConvertor = convertor('drop_procedure', (st) => dropProcedureSql(st.procedure));
+
 const convertors = [
 	createSchemaConvertor,
 	dropSchemaConvertor,
@@ -1110,6 +1120,8 @@ const convertors = [
 	alterPolicyConvertor,
 	recreatePolicy,
 	toggleRlsConvertor,
+	createProcedureConvertor,
+	dropProcedureConvertor,
 ];
 
 export function fromJson(

@@ -1,3 +1,4 @@
+import { createProvider, requireEnv } from '@drizzle/test-utils';
 import {
 	type AnyRelationsBuilderConfig,
 	defineRelations,
@@ -21,7 +22,6 @@ import { type Connection, createConnection } from 'mysql2/promise';
 import { test as base } from 'vitest';
 import relations from './relations';
 
-// oxlint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
 	private globalTtl: number = 1000;
 	private usedTablesPerKey: Record<string, string[]> = {};
@@ -85,7 +85,6 @@ export class TestCache extends Cache {
 	}
 }
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
 	constructor(private db: Connection) {}
 
@@ -96,12 +95,6 @@ class ServerSimulator {
 					sql,
 					values: params,
 					rowsAsArray: true,
-					typeCast: function(field: any, next: any) {
-						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-							return field.string();
-						}
-						return next();
-					},
 				});
 
 				return { data: result[0] as any };
@@ -113,12 +106,6 @@ class ServerSimulator {
 				const result = await this.db.query({
 					sql,
 					values: params,
-					typeCast: function(field: any, next: any) {
-						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-							return field.string();
-						}
-						return next();
-					},
 				});
 
 				return { data: result as any };
@@ -231,40 +218,20 @@ export const prepareProxy = async (uri: string) => {
 	return { client, query, batch };
 };
 
-const providerClosure = async <T>(items: T[]) => {
-	return async () => {
-		while (true) {
-			const c = items.shift();
-			if (!c) {
-				await new Promise((resolve) => setTimeout(resolve, 50));
-				continue;
-			}
-			return {
-				...c,
-				release: () => {
-					items.push(c);
-				},
-			};
-		}
-	};
-};
-
 export const providerForSingleStore = async () => {
-	const url = process.env['SINGLESTORE_MANY_CONNECTION_STRING'];
-	if (url === undefined) throw new Error('SINGLESTORE_MANY_CONNECTION_STRING is not set.');
+	const url = requireEnv('SINGLESTORE_MANY_CONNECTION_STRING');
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareSingleStoreClient(urlI)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForProxy = async () => {
-	const url = process.env['SINGLESTORE_MANY_CONNECTION_STRING'];
-	if (url === undefined) throw new Error('SINGLESTORE_MANY_CONNECTION_STRING is not set.');
+	const url = requireEnv('SINGLESTORE_MANY_CONNECTION_STRING');
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareSingleStoreClient(urlI)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 type ProviderSingleStore = Awaited<ReturnType<typeof providerForSingleStore>>;
@@ -303,6 +270,7 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				useJitMappers?: boolean,
 				paramsInErrors?: boolean,
+				cache?: Cache,
 			): SingleStoreDatabase<any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
 		caches: {
@@ -386,11 +354,12 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					useJitMappers?: boolean,
 					paramsInErrors?: boolean,
+					cache?: Cache,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'singlestore') {
-						return drizzleSingleStore({ client: kit.client, relations, jit: useJitMappers, paramsInErrors });
+						return drizzleSingleStore({ client: kit.client, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 
 					if (vendor === 'proxy') {
@@ -414,6 +383,7 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 							jit: useJitMappers,
 							paramsInErrors,
 							codecs: singleStoreCodecs,
+							cache,
 						});
 					}
 					throw new Error();

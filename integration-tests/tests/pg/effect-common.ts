@@ -15,6 +15,7 @@ import {
 	max,
 	sql,
 } from 'drizzle-orm';
+import type { Cache } from 'drizzle-orm/cache/core';
 import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache-effect';
 import { EffectLogger, type EffectLoggerShape, QueryEffectHKTBase } from 'drizzle-orm/effect-core';
 import {
@@ -25,6 +26,7 @@ import {
 	except,
 	getMaterializedViewConfig,
 	integer,
+	json,
 	jsonb,
 	numeric,
 	PgDialect,
@@ -57,12 +59,20 @@ import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
+import { jsonRows, parseStoredJson } from '~/json-values';
+import { expectRecentTime } from '~/recent-time';
+import { type UpstashTestCache, withUpstashCache } from '~/upstash-cache';
 import {
 	type AllTypes,
 	allTypesData,
 	allTypesRelations,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
+	assertAllTypesNullArrayElements,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
 } from './all-types';
 import { TestCache } from './instrumentation';
@@ -208,6 +218,7 @@ export interface RunCommonEffectPgTestsOptions {
 		schema: TSchema,
 		relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 		useJitMappers?: boolean,
+		cache?: Cache,
 	) => Effect.Effect<
 		PgEffectDatabase<QueryEffectHKTBase, any, ExtractTablesWithRelations<TConfig, TTables>>,
 		never,
@@ -280,6 +291,121 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
 				expect(rawRes).toStrictEqual([allTypesData]);
 			}));
+
+		it.effect('all types ~json~', () =>
+			Effect.gen(function*() {
+				const table = pgTable('all_types_json', {
+					id: integer('id').primaryKey(),
+					json: json('json'),
+					jsonb: jsonb('jsonb'),
+					arrjson: json('arrjson').array(),
+					arrjsonb: jsonb('arrjsonb').array(),
+				});
+
+				const db = yield* DB;
+				yield* push(db, { table });
+
+				const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
+
+				yield* db.insert(table).values(input);
+
+				// json text as the database stores it, read without decoding
+				const stored = yield* db.select({
+					id: table.id,
+					json: sql<string>`${table.json}::text`,
+					jsonb: sql<string>`${table.jsonb}::text`,
+					arrjson: sql<string>`array_to_json(${table.arrjson})::text`,
+					arrjsonb: sql<string>`array_to_json(${table.arrjsonb})::text`,
+				}).from(table).orderBy(table.id);
+
+				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+				expect(parseStoredJson(stored)).toStrictEqual(output);
+			}));
+
+		const createUpstashDB = (cache: UpstashTestCache, name: string) => {
+			const { en, allTypesTable } = makeAllTypes(`all_types_${name}_upstash_ef`, `en_${name}_upstash_ef`);
+
+			return createDB(
+				{ allTypesTable, ...boundsSchema },
+				(r) => ({
+					...allTypesRelations(r),
+					...boundsRelations(r),
+				}),
+				false,
+				cache,
+			).pipe(Effect.map((db) => ({ db, en, allTypesTable })));
+		};
+
+		it.effect('all types - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const { db, en, allTypesTable } = yield* createUpstashDB(cache, 'plain');
+					yield* push(db, { en, allTypesTable });
+
+					yield* Effect.promise(() =>
+						cache.expectHits('all types', async () => {
+							await run(db.insert(allTypesTable).values(allTypesData));
+							expect(await run(db.select().from(allTypesTable))).toStrictEqual([allTypesData]);
+						})
+					);
+				})
+			));
+
+		it.effect('all types ~codecs~ - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const { db, en, allTypesTable } = yield* createUpstashDB(cache, 'cdc');
+					yield* push(db, { en, allTypesTable });
+
+					yield* Effect.promise(async () => {
+						await cache.expectHits('all types', async () => {
+							await run(db.insert(allTypesTable).values(allTypesData));
+							expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+								...allTypesData,
+								self: [allTypesData],
+							});
+						});
+						await cache.expectHits('unions', () => assertAllTypesUnions(db as any, allTypesTable, run));
+						await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run, rqb: true }));
+						await cache.expectHits(
+							'null array elements',
+							() => assertAllTypesNullArrayElements(db as any, { run, rqb: true }),
+						);
+						await cache.expectHits(
+							'temporal bounds',
+							() => assertAllTypesTemporalBounds(db as any, { run, rqb: true }),
+						);
+						await cache.expectHits(
+							'empty arrays',
+							() => assertAllTypesEmptyArrays(db as any, allTypesTable, { run, rqb: true }),
+						);
+					});
+				})
+			));
+
+		it.effect('all types ~json~ - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const { db } = yield* createUpstashDB(cache, 'json');
+					const table = pgTable('all_types_json_upstash', {
+						id: integer('id').primaryKey(),
+						json: json('json'),
+						jsonb: jsonb('jsonb'),
+						arrjson: json('arrjson').array(),
+						arrjsonb: jsonb('arrjsonb').array(),
+					});
+					yield* push(db, { table });
+
+					const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
+
+					yield* Effect.promise(() =>
+						cache.expectHits('json', async () => {
+							await run(db.insert(table).values(input));
+							expect(await run(db.select().from(table).orderBy(table.id))).toStrictEqual(output);
+						})
+					);
+				})
+			));
 
 		// @effect/sql-pg can't decode multidimensional arrays - skip mtx fields
 		it.effect('time zones are preserved', () =>
@@ -1673,7 +1799,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					.returning();
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+				expectRecentTime(usersResult[0]!.createdAt, now);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);
@@ -1721,7 +1847,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				const usersResult = yield* db.delete(users).where(eq(users.name, 'John')).returning();
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+				expectRecentTime(usersResult[0]!.createdAt, now);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);
@@ -2552,7 +2678,6 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					get: (key: string, _tables: string[], _isTag: boolean, _isAutoInvalidate?: boolean) =>
 						Effect.gen(function*() {
 							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'get' as const, key }]);
-							// oxlint-disable-next-line no-useless-undefined
 							return undefined;
 						}),
 					put: (key: string, _response: any, _tables: string[], _isTag: boolean, _config?: any) =>
@@ -2738,7 +2863,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					yield* db.insert(allTypesTable).values(allTypesData);
 					const session = (<any> db).session as PgEffectSession;
 
-					const queryRes = yield* session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true))
+					const queryRes = yield* session.arrays<unknown[]>(db.select().from(allTypesTable).getSQL(true))
 						.pipe(
 							Effect.map((e) =>
 								normalizeDataWithDbCodecs({
@@ -2750,7 +2875,10 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 							),
 						);
 
-					const relDb = yield* createDB({ allTypesTable }, allTypesRelations);
+					const relDb = yield* createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+						...allTypesRelations(r),
+						...boundsRelations(r),
+					}));
 
 					const { relationRes, rootRes } = yield* session.objects<AllTypes & { self: AllTypes[] }>(
 						relDb.query.allTypesTable.findFirst({
@@ -2786,7 +2914,25 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						assertAllTypesUnions(relDb as any, allTypesTable, (query) => Effect.runPromiseWith(context)(query))
 					);
 					yield* Effect.promise(() =>
-						assertAllTypesBounds(relDb as any, (query) => Effect.runPromiseWith(context)(query))
+						assertAllTypesBounds(relDb as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
+					);
+					yield* Effect.promise(() =>
+						assertAllTypesNullArrayElements(relDb as any, {
+							run: (query) => Effect.runPromiseWith(context)(query),
+							rqb: true,
+						})
+					);
+					yield* Effect.promise(() =>
+						assertAllTypesTemporalBounds(relDb as any, {
+							run: (query) => Effect.runPromiseWith(context)(query),
+							rqb: true,
+						})
+					);
+					yield* Effect.promise(() =>
+						assertAllTypesEmptyArrays(relDb as any, allTypesTable, {
+							run: (query) => Effect.runPromiseWith(context)(query),
+							rqb: true,
+						})
 					);
 				}),
 		);

@@ -433,3 +433,70 @@ export const boundsData: BoundsRow[] = [
 		int: null,
 	},
 ];
+
+const TEMPORAL_TABLE = 'all_types_temporal_bounds';
+
+export const temporalBoundsTable = sqliteTable(TEMPORAL_TABLE, {
+	id: integer('id').primaryKey(),
+	timestamp: integer('timestamp', { mode: 'timestamp' }),
+	timestampMs: integer('timestamp_ms', { mode: 'timestamp_ms' }),
+});
+
+export type TemporalBoundsRow = {
+	id: number;
+	timestamp: Date | null;
+	timestampMs: Date | null;
+};
+
+export const createTemporalBounds = (tableName: string = TEMPORAL_TABLE) =>
+	`create table \`${tableName}\` (
+		\`id\` integer primary key,
+		\`timestamp\` integer,
+		\`timestamp_ms\` integer
+	)`;
+
+export const dropTemporalBounds = (tableName: string = TEMPORAL_TABLE) => `drop table if exists \`${tableName}\``;
+
+export const temporalBoundsData: TemporalBoundsRow[] = [
+	{ id: 1, timestamp: new Date(0), timestampMs: new Date(0) },
+	{ id: 2, timestamp: new Date(-1000), timestampMs: new Date(-1) },
+	{
+		id: 3,
+		timestamp: new Date('2024-02-29T12:34:56.000Z'),
+		timestampMs: new Date('2024-02-29T12:34:56.789Z'),
+	},
+	{
+		id: 4,
+		timestamp: new Date('0099-12-31T23:59:59.000Z'),
+		timestampMs: new Date('0099-12-31T23:59:59.999Z'),
+	},
+	{
+		id: 5,
+		timestamp: new Date('9999-12-31T23:59:59.000Z'),
+		timestampMs: new Date('9999-12-31T23:59:59.999Z'),
+	},
+	{
+		id: 6,
+		timestamp: new Date('+010000-01-01T00:00:00.000Z'),
+		timestampMs: new Date('+059009-01-01T00:00:00.000Z'),
+	},
+	{
+		id: 7,
+		timestamp: new Date('0000-01-01T00:00:00.000Z'),
+		timestampMs: new Date('-000001-12-31T23:59:59.999Z'),
+	},
+	{ id: 8, timestamp: new Date(8.64e15), timestampMs: new Date(8.64e15) },
+	{ id: 9, timestamp: new Date(-8.64e15), timestampMs: new Date(-8.64e15) },
+	{ id: 10, timestamp: null, timestampMs: null },
+];
+
+export const boundsSchema = { boundsTable, temporalBoundsTable };
+
+export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({
+	boundsTable: {
+		self: r.many.boundsTable({ from: r.boundsTable.id, to: r.boundsTable.id }),
+	},
+	temporalBoundsTable: {
+		self: r.many.temporalBoundsTable({ from: r.temporalBoundsTable.id, to: r.temporalBoundsTable.id }),
+	},
+});

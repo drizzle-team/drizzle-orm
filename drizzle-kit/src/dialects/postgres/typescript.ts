@@ -23,6 +23,8 @@ import type {
 } from './ddl';
 import { tableFromDDL } from './ddl';
 import { defaultNameForFK, defaultNameForIdentitySequence, defaultNameForPK, defaults, typeFor } from './grammar';
+import { withCallee } from './procedures/decompile';
+import { pullProcedure, type UnsupportedProcedure } from './procedures/model';
 
 // TODO: omit defaults opclass... improvement
 const imports = [
@@ -223,6 +225,7 @@ export const ddlToTypeScript = (
 	ddl: PostgresDDL,
 	columnsForViews: ViewColumn[],
 	casing: Casing,
+	unsupportedProcedures: UnsupportedProcedure[] = [],
 ) => {
 	const tableFn = `pgTable`;
 	for (const fk of ddl.fks.list()) {
@@ -434,6 +437,35 @@ export const ddlToTypeScript = (
 		})
 		.join('\n\n');
 
+	// Procedure variable names: overloads of an unsupported procedure share their SQL name.
+	const procedureNames = new Set<string>();
+	const procedureVar = (schema: string, name: string) => {
+		const base = withCasing(paramNameFor(name, schemas[schema]), casing);
+		let candidate = base;
+		for (let i = 2; procedureNames.has(candidate); i++) candidate = `${base}${i}`;
+		procedureNames.add(candidate);
+		return candidate;
+	};
+
+	// Only procedures that decompile exactly reach the DDL (pull passes the rest in as unsupported).
+	const procedureStatements = [
+		...ddl.procedures.list().map((it) => pullProcedure(it)).map((it) => {
+			if (!it.ok) return `// procedure "${it.def.schema}"."${it.def.name}" was not pulled: ${it.reason}`;
+			const schemaVar = schemas[it.def.schema];
+			if (!schemaVar) imports.add('procedure');
+			if (it.usesPgError) imports.add('PgError');
+			for (const alias of it.typeAliases) imports.add(alias);
+			const ts = schemaVar ? withCallee(it.ts, `${schemaVar}.procedure`) : it.ts;
+			return `export const ${procedureVar(it.def.schema, it.def.name)} = ${ts};`;
+		}),
+		...unsupportedProcedures.map((it) => {
+			imports.add('procedure');
+			const definition = it.definition.replaceAll('\\', '\\\\').replaceAll('`', '\\`').replaceAll('${', '\\${');
+			return `// procedure "${it.schema}"."${it.name}" is not supported: ${it.reason}\n`
+				+ `export const ${procedureVar(it.schema, it.name)} = procedure.unsupported(\`${definition}\`);`;
+		}),
+	].join('\n\n');
+
 	const uniquePgImports = [...imports];
 
 	const importsTs = `import { ${
@@ -451,6 +483,7 @@ import { sql } from "drizzle-orm"\n\n`;
 	decalrations += tableStatements.join('\n\n');
 	decalrations += '\n';
 	decalrations += viewsStatements;
+	if (procedureStatements) decalrations += `\n\n${procedureStatements}\n`;
 
 	const file = importsTs + decalrations;
 

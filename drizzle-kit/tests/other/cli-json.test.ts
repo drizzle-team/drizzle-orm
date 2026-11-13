@@ -1,3 +1,4 @@
+import { borrowPGlite, returnPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { createClient as createLibsqlClient } from '@libsql/client';
 import BetterSqlite3 from 'better-sqlite3';
@@ -98,7 +99,7 @@ afterEach(() => {
 });
 
 test('push throws a structured command_output_error for a duplicate-name schema in json mode', async () => {
-	const client = new PGlite();
+	const client = await borrowPGlite();
 
 	// Two exported tables map to the same physical name, so the real ddl mapper raises a
 	// `table_name_duplicate` SchemaError that the push handler wraps as command_output_error.
@@ -128,11 +129,11 @@ test('push throws a structured command_output_error for a duplicate-name schema 
 			},
 		});
 
-	await client.close();
+	await returnPGlite(client);
 });
 
 test('push postgres explain emits structured json payload in json mode', async () => {
-	const client = new PGlite();
+	const client = await borrowPGlite();
 	await client.query('CREATE TABLE users (name text);');
 
 	const schema = pgFromExports({ users: pgTable('users', { name: pgText().notNull() }) });
@@ -168,7 +169,7 @@ test('push postgres explain emits structured json payload in json mode', async (
 		},
 	});
 
-	await client.close();
+	await returnPGlite(client);
 });
 
 test('generate postgres explain emits structured json payload in json mode', async () => {
@@ -336,7 +337,7 @@ test('generate sqlite custom emits json payload in json mode', async () => {
 });
 
 test('push postgres schema warnings do not leak to stdout in json mode', async () => {
-	const client = new PGlite();
+	const client = await borrowPGlite();
 
 	// A standalone policy that is never linked to a table makes the real schema reader
 	// emit a `policy_not_linked` warning; the empty diff still resolves to no_changes.
@@ -365,11 +366,11 @@ test('push postgres schema warnings do not leak to stdout in json mode', async (
 	const printed = logSpy.mock.calls.map((call) => String(call[0])).join('\n');
 	expect(printed).not.toContain('policy');
 
-	await client.close();
+	await returnPGlite(client);
 });
 
 test('push postgres emits missing_hints for unresolved schema rename in json mode', async () => {
-	const client = new PGlite();
+	const client = await borrowPGlite();
 	await client.query('CREATE SCHEMA prev_schema;');
 
 	const schema = pgFromExports({ next_schema: pgSchema('next_schema') });
@@ -396,11 +397,11 @@ test('push postgres emits missing_hints for unresolved schema rename in json mod
 		],
 	});
 
-	await client.close();
+	await returnPGlite(client);
 });
 
 test('push postgres orders rename hint resolves create_or_rename and applies changes in json mode', async () => {
-	const client = new PGlite();
+	const client = await borrowPGlite();
 	await client.query('CREATE TABLE orders (id integer);');
 
 	const schema = pgFromExports({ orders1: pgTable('orders1', { id: pgInteger() }) });
@@ -429,12 +430,12 @@ test('push postgres orders rename hint resolves create_or_rename and applies cha
 	);
 	expect(tables.rows.map((r) => r.tablename)).toStrictEqual(['orders1']);
 
-	await client.close();
+	await returnPGlite(client);
 });
 
 describe('push postgres confirm_data_loss[view] in json mode', () => {
 	test('emits missing_hints when unresolved', async () => {
-		const client = new PGlite();
+		const client = await borrowPGlite();
 		await client.query('CREATE TABLE base (id integer);');
 		await client.query('INSERT INTO base (id) VALUES (1);');
 		await client.query('CREATE MATERIALIZED VIEW user_stats AS SELECT id FROM base;');
@@ -450,11 +451,11 @@ describe('push postgres confirm_data_loss[view] in json mode', () => {
 			],
 		});
 
-		await client.close();
+		await returnPGlite(client);
 	});
 
 	test('applies matching hint and runs to ok', async () => {
-		const client = new PGlite();
+		const client = await borrowPGlite();
 		await client.query('CREATE TABLE base (id integer);');
 		await client.query('INSERT INTO base (id) VALUES (1);');
 		await client.query('CREATE MATERIALIZED VIEW user_stats AS SELECT id FROM base;');
@@ -472,13 +473,13 @@ describe('push postgres confirm_data_loss[view] in json mode', () => {
 		const views = await client.query(`SELECT matviewname FROM pg_matviews WHERE matviewname = 'user_stats'`);
 		expect(views.rows).toStrictEqual([]);
 
-		await client.close();
+		await returnPGlite(client);
 	});
 });
 
 describe('push postgres confirm_data_loss[schema] in json mode', () => {
 	test('emits missing_hints when unresolved', async () => {
-		const client = new PGlite();
+		const client = await borrowPGlite();
 		await client.query('CREATE SCHEMA analytics;');
 		await client.query('CREATE TABLE analytics.events (id integer);');
 
@@ -493,11 +494,11 @@ describe('push postgres confirm_data_loss[schema] in json mode', () => {
 			],
 		});
 
-		await client.close();
+		await returnPGlite(client);
 	});
 
 	test('applies matching hint and runs to ok', async () => {
-		const client = new PGlite();
+		const client = await borrowPGlite();
 		await client.query('CREATE SCHEMA analytics;');
 		await client.query('CREATE TABLE analytics.events (id integer);');
 
@@ -514,13 +515,13 @@ describe('push postgres confirm_data_loss[schema] in json mode', () => {
 		const schemas = await client.query(`SELECT nspname FROM pg_namespace WHERE nspname = 'analytics'`);
 		expect(schemas.rows).toStrictEqual([]);
 
-		await client.close();
+		await returnPGlite(client);
 	});
 });
 
 describe('push postgres confirm_data_loss[primary_key] in json mode', () => {
 	test('emits missing_hints when unresolved', async () => {
-		const client = new PGlite();
+		const client = await borrowPGlite();
 		await client.query('CREATE TABLE users (id integer NOT NULL, CONSTRAINT users_pkey PRIMARY KEY (id));');
 		await client.query('INSERT INTO users (id) VALUES (1);');
 
@@ -540,11 +541,11 @@ describe('push postgres confirm_data_loss[primary_key] in json mode', () => {
 			],
 		});
 
-		await client.close();
+		await returnPGlite(client);
 	});
 
 	test('applies matching hint and runs to ok', async () => {
-		const client = new PGlite();
+		const client = await borrowPGlite();
 		await client.query('CREATE TABLE users (id integer NOT NULL, CONSTRAINT users_pkey PRIMARY KEY (id));');
 		await client.query('INSERT INTO users (id) VALUES (1);');
 
@@ -563,13 +564,13 @@ describe('push postgres confirm_data_loss[primary_key] in json mode', () => {
 		);
 		expect(pks.rows).toStrictEqual([]);
 
-		await client.close();
+		await returnPGlite(client);
 	});
 });
 
 describe('push postgres add_unique in json mode', () => {
 	test('proceeds without a confirm and applies the constraint', async () => {
-		const client = new PGlite();
+		const client = await borrowPGlite();
 		await client.query('CREATE TABLE users (id integer, email text);');
 		await client.query("INSERT INTO users (id, email) VALUES (1, 'a@b.com');");
 
@@ -586,7 +587,7 @@ describe('push postgres add_unique in json mode', () => {
 		);
 		expect(uniques.rows.map((r) => r.conname)).toStrictEqual(['users_email_key']);
 
-		await client.close();
+		await returnPGlite(client);
 	});
 });
 
@@ -1431,7 +1432,7 @@ describe('pull json envelopes', () => {
 	});
 
 	test('ok manifest (fresh) surfaces every path with migrationPath present', async () => {
-		const client = new PGlite();
+		const client = await borrowPGlite();
 
 		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-ok-fresh-'));
 		const runPull = await importRunPull();
@@ -1452,11 +1453,11 @@ describe('pull json envelopes', () => {
 		expect(env).not.toHaveProperty('missing_hints');
 		expect((env as { status: string }).status).toBe('ok');
 
-		await client.close();
+		await returnPGlite(client);
 	});
 
 	test('ok manifest (pre-existing snapshot) omits migrationPath', async () => {
-		const client = new PGlite();
+		const client = await borrowPGlite();
 
 		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-ok-existing-'));
 		const latestSnapshot = stageSnapshot(out, '0000_x');
@@ -1474,10 +1475,17 @@ describe('pull json envelopes', () => {
 		});
 		expect(env).not.toHaveProperty('migrationPath');
 
-		await client.close();
+		await returnPGlite(client);
 	});
 
-	test('a real connection failure never leaks the configured credentials into the error envelope', async () => {
+	// TODO
+	// comment author: AlexSherman
+	// this was initially created by Dan Kochetov
+	// but after sync with AlexBlokh and Dan Kochetov it was decided to pass
+	// full error from pull
+	// Not sure if we need to keep this test or remove
+	// Maybe will be revised later
+	test.skip('a real connection failure never leaks the configured credentials into the error envelope', async () => {
 		// The CLI holds the password and host in its config; an unreachable database makes the real
 		// driver fail to connect, and the database_driver_error envelope must echo back neither.
 		const password = 'S3NT1NEL_pw_a9F2';
@@ -1501,8 +1509,29 @@ describe('pull json envelopes', () => {
 		expect(serialized).not.toContain('query_error');
 	});
 
+	test('pull crashes with the cause', async () => {
+		const password = 'S3NT1NEL_pw_a9F2';
+		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-driver-error-'));
+		const runPull = await importRunPull();
+		const { errorToEnvelope } = await import('../../src/cli/errors');
+
+		const caught = await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() =>
+				runPull!({ ...baseConfig(out), credentials: { url: `postgresql://app:${password}@127.0.0.1:1/none` } })
+					.then(() => null, (err) => err),
+		);
+
+		expect(caught).toMatchObject({ code: 'database_driver_error' });
+
+		const serialized = JSON.stringify(errorToEnvelope(caught));
+		expect(serialized).toContain('database_driver_error');
+		expect(serialized).toContain('cause');
+		expect(serialized).toContain('QueryError: connect ECONNREFUSED 127.0.0.1:1');
+	});
+
 	test('json mode emits only the envelope and never constructs IntrospectProgress', async () => {
-		const client = new PGlite();
+		const client = await borrowPGlite();
 
 		const introspectProgress = vi.fn();
 		vi.doMock('../../src/cli/views', async () => {
@@ -1537,6 +1566,6 @@ describe('pull json envelopes', () => {
 		expect(stdoutBytes).not.toContain('[i]');
 		expect(logSpy).not.toHaveBeenCalled();
 
-		await client.close();
+		await returnPGlite(client);
 	});
 });

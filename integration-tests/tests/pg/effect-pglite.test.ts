@@ -12,6 +12,8 @@ import {
 	Schema,
 	sql,
 } from 'drizzle-orm';
+import type { Cache } from 'drizzle-orm/cache/core';
+import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
 import * as PgDrizzle from 'drizzle-orm/effect-pglite';
 import { migrate } from 'drizzle-orm/effect-pglite/migrator';
 import { getTableConfig, integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
@@ -53,8 +55,10 @@ const createDB = <
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 	useJitMappers?: boolean,
+	cache?: Cache,
 ) =>
 	PgDrizzle.make({ relations: defineRelations(schema, relations), jit: useJitMappers }).pipe(
+		Effect.provide(cache ? EffectCache.layerFromDrizzle(cache) : Layer.empty),
 		Effect.provide(PgDrizzle.DefaultServices),
 	);
 

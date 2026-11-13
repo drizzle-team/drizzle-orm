@@ -301,3 +301,12 @@ Expect<Equal<MySqlRawQueryResult, typeof insertReturningSqlPrepared>>;
 	const unionDb = {} as MySqlAsyncDatabase<HKT1> | MySqlAsyncDatabase<HKT2>;
 	await unionDb.insert(users).values({ homeCity: 1, class: 'A', age1: 1, enumCol: 'a' });
 }
+
+{
+	const values = { homeCity: 1, class: 'A', age1: 1, enumCol: 'a' } as const;
+
+	// @ts-expect-error `$returningId` can't report updated rows' ids
+	db.insert(users).values(values).onDuplicateKeyUpdate({ set: { age1: 2 } }).$returningId();
+	// @ts-expect-error `$returningId` can't report updated rows' ids
+	db.insert(users).values(values).$returningId().onDuplicateKeyUpdate({ set: { age1: 2 } });
+}

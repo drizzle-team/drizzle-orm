@@ -349,3 +349,12 @@ declare const db: EffectMysql2Database<Record<string, never>>;
 	const typed = db.execute<UserInterface>(`select 1 as id, 'a' as name`);
 	Expect<Equal<AsEffect<typeof typed>, Raw<UserInterface[]>>>;
 }
+
+{
+	const values = { homeCity: 1, class: 'A', age1: 1, enumCol: 'a' } as const;
+
+	// @ts-expect-error `$returningId` can't report updated rows' ids
+	db.insert(users).values(values).onDuplicateKeyUpdate({ set: { age1: 2 } }).$returningId();
+	// @ts-expect-error `$returningId` can't report updated rows' ids
+	db.insert(users).values(values).$returningId().onDuplicateKeyUpdate({ set: { age1: 2 } });
+}

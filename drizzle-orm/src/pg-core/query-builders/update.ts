@@ -236,7 +236,7 @@ type AccumulateToResult<
 			TSelectedFields,
 			TJoin['name'],
 			TJoin['table'] extends Table ? TJoin['table']['_']['columns']
-				: TJoin['table'] extends Subquery ? Assume<TJoin['table']['_']['selectedFields'], SelectedFields>
+				: TJoin['table'] extends Subquery ? TJoin['table']['_']['selectedFields']
 				: never,
 			TSelectMode extends 'partial' ? TSelectMode : 'multiple'
 		>

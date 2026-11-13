@@ -128,4 +128,13 @@ describe.concurrent('parsePgArray', () => {
 		expect(parsePgArray('{a,b}')).toEqual(['a', 'b']);
 		expect(parsePgArray('{a,b}', undefined)).toEqual(['a', 'b']);
 	});
+	// https://github.com/drizzle-team/drizzle-orm/issues/6460
+	it('parses unquoted NULL as null and quoted "NULL" as a string', ({ expect }) => {
+		expect(parsePgArray('{1,NULL,3}')).toStrictEqual(['1', null, '3']);
+		expect(parsePgArray('{NULL}')).toStrictEqual([null]);
+		expect(parsePgArray('{{1,NULL},{NULL,2}}')).toStrictEqual([['1', null], [null, '2']]);
+		expect(parsePgArray('{"NULL",NULL,"a"}')).toStrictEqual(['NULL', null, 'a']);
+		expect(parsePgArray('{NULLABLE,a}')).toStrictEqual(['NULLABLE', 'a']);
+		expect(parsePgArray('{point(1 2):NULL}', ':')).toStrictEqual(['point(1 2)', null]);
+	});
 });

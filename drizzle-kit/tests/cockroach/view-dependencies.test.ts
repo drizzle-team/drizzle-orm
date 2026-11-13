@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import { eq, exists, inArray, sql } from 'drizzle-orm';
 import {
 	alias,
@@ -150,7 +151,7 @@ test('view dependencies: existing parent view', () => {
 
 // TODO all below are enhancement
 // joined views are written as plain identifiers by cockroach dialect, the view object is not in the sql tree
-test.skipIf(Date.now() < +new Date('2026-11-13'))('view dependencies: joined view is not detected', () => {
+test.skipIf(postponed)('view dependencies: joined view is not detected', () => {
 	const target = cockroachView(viewName).as((qb) =>
 		qb.select({ id: table.id }).from(table).leftJoin(view1, eq(view1.id, table.id))
 	);
@@ -158,12 +159,12 @@ test.skipIf(Date.now() < +new Date('2026-11-13'))('view dependencies: joined vie
 	expect(dependenciesOf(target)).toStrictEqual([entityKey('public', getViewConfig(view1).name)]);
 });
 // aliased views in from are written as plain identifiers by cockroach dialect
-test.skipIf(Date.now() < +new Date('2026-11-13'))('view dependencies: aliased view is not detected', () => {
+test.skipIf(postponed)('view dependencies: aliased view is not detected', () => {
 	const target = cockroachView(viewName).as((qb) => qb.select().from(alias(view1, 'x')));
 
 	expect(dependenciesOf(target)).toStrictEqual([entityKey('public', getViewConfig(view1).name)]);
 });
-test.skipIf(Date.now() < +new Date('2026-11-13'))(
+test.skipIf(postponed)(
 	'view dependencies: plain text name in raw sql is not detected',
 	() => {
 		const target = cockroachView(viewName, { id: int4() }).as(sql`select * from "v1"`);

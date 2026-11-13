@@ -1,6 +1,7 @@
 {
 	"name": "drizzle-kit",
 	"version": "1.0.0-rc.5",
+	"type": "module",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -32,19 +33,19 @@
 	"author": "Drizzle Team",
 	"license": "MIT",
 	"bin": {
-		"drizzle-kit": "./bin.cjs"
+		"drizzle-kit": "./bin.js"
+	},
+	"engines": {
+		"node": "^20.19.0 || >=22.12.0"
 	},
 	"scripts": {
 		"api": "tsx ./dev/api.ts",
 		"migrate:old": "drizzle-kit generate:mysql",
 		"cli": "tsx ./src/cli/index.ts",
 		"test": "TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest run",
-		"test:types": "pnpm tsc -p ./tsconfig.typetest.json",
+		"test:types": "tsc7 -p ./tsconfig.typetest.json",
 		"build": "bun --bun run scripts/build.ts",
 		"build:artifact": "pnpm run build",
-		"build:cli": "rm -rf ./dist && tsx build.cli.ts && cp package.json dist/",
-		"build:dev": "rm -rf ./dist && tsx build.dev.ts && tsc -p tsconfig.cli-types.json && chmod +x ./dist/index.cjs",
-		"build:ext": "rm -rf ./dist && vitest run bin.test && vitest run ./tests/postgres/ && vitest run ./tests/sqlite && vitest run ./tests/mysql && tsx build.ext.ts",
 		"pack": "cp package.json README.md dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz",
@@ -56,24 +57,28 @@
 		"skills:revision:check": "tsx scripts/check-skills-revision.ts"
 	},
 	"peerDependencies": {
-		"drizzle-orm": ">=1.0.0-rc.5"
+		"drizzle-orm": ">=1.0.0-rc.5",
+		"oxc-parser": "^0.157.0"
 	},
 	"peerDependenciesMeta": {
 		"drizzle-orm": {
 			"optional": true
+		},
+		"oxc-parser": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
+		"@aws-sdk/client-rds-data": "^3.556.0",
 		"@aws/aurora-dsql-node-postgres-connector": "^0.1.9",
 		"@aws/aurora-dsql-postgresjs-connector": "^0.3.1",
-		"@aws-sdk/client-rds-data": "^3.556.0",
 		"@cloudflare/workers-types": "^4.20230518.0",
 		"@drizzle-team/brocli": "0.12.1",
-		"@drizzle-team/minipg": "0.4.2",
+		"@drizzle/test-utils": "workspace:*",
 		"@duckdb/node-api": "1.5.0-r.1",
 		"@effect/sql": "^0.48.5",
-		"@electric-sql/pglite": "^0.5.8",
-		"@electric-sql/pglite-pgvector": "^0.0.9",
+		"@electric-sql/pglite": "^0.5.15",
+		"@electric-sql/pglite-pgvector": "^0.0.16",
 		"@hono/node-server": "^1.9.0",
 		"@hono/zod-validator": "^0.2.1",
 		"@js-temporal/polyfill": "^0.5.1",
@@ -86,13 +91,13 @@
 		"@tursodatabase/database": "0.7.1",
 		"@tursodatabase/serverless": "^1.4.0",
 		"@types/better-sqlite3": "^9.6.0",
-		"@types/bun": "^1.4.0",
+		"@types/bun": "^1.4.4",
 		"@types/dockerode": "^3.3.28",
 		"@types/glob": "^8.1.0",
 		"@types/json-diff": "^1.0.3",
 		"@types/micromatch": "^4.0.9",
 		"@types/minimatch": "^5.1.2",
-		"@types/mssql": "^9.1.4",
+		"@types/mssql": "^9.1.11",
 		"@types/node": "^24.7.2",
 		"@types/pg": "^8.10.7",
 		"@types/pluralize": "^0.0.33",
@@ -102,7 +107,7 @@
 		"@vercel/postgres": "^0.8.0",
 		"ava": "^5.1.0",
 		"better-sqlite3": "^13.0.3",
-		"bun-types": "^1.4.0",
+		"bun-types": "^1.4.4",
 		"camelcase": "^7.0.1",
 		"chalk": "^5.2.0",
 		"commander": "^12.1.0",
@@ -110,13 +115,11 @@
 		"dotenv": "^16.0.3",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"env-paths": "^3.0.0",
-		"esbuild": "^0.25.10",
 		"get-port": "^6.1.2",
-		"get-tsconfig": "^4.13.6",
 		"glob": "^8.1.0",
 		"hanji": "^0.0.8",
 		"hono": "^4.7.9",
-		"jiti": "^2.6.1",
+		"jiti": "^2.7.0",
 		"json-diff": "1.0.6",
 		"micromatch": "^4.0.8",
 		"minimatch": "^7.4.3",
@@ -125,6 +128,7 @@
 		"node-fetch": "^3.3.2",
 		"ohm-js": "^17.1.0",
 		"orm044": "npm:drizzle-orm@0.44.1",
+		"oxc-parser": "^0.157.0",
 		"pg": "^8.11.5",
 		"pluralize": "^8.0.0",
 		"postgres": "^3.4.4",
@@ -139,112 +143,20 @@
 	},
 	"exports": {
 		".": {
-			"import": {
-				"types": "./index.d.mts",
-				"default": "./index.mjs"
-			},
-			"require": {
-				"types": "./index.d.ts",
-				"default": "./index.js"
-			},
-			"types": "./index.d.mts",
-			"default": "./index.mjs"
-		},
-		"./api-postgres": {
-			"import": {
-				"types": "./api-postgres.d.mts",
-				"default": "./api-postgres.mjs"
-			},
-			"require": {
-				"types": "./api-postgres.d.ts",
-				"default": "./api-postgres.js"
-			},
-			"types": "./api-postgres.d.mts",
-			"default": "./api-postgres.mjs"
-		},
-		"./api-mysql": {
-			"import": {
-				"types": "./api-mysql.d.mts",
-				"default": "./api-mysql.mjs"
-			},
-			"require": {
-				"types": "./api-mysql.d.ts",
-				"default": "./api-mysql.js"
-			},
-			"types": "./api-mysql.d.mts",
-			"default": "./api-mysql.mjs"
-		},
-		"./api-sqlite": {
-			"import": {
-				"types": "./api-sqlite.d.mts",
-				"default": "./api-sqlite.mjs"
-			},
-			"require": {
-				"types": "./api-sqlite.d.ts",
-				"default": "./api-sqlite.js"
-			},
-			"types": "./api-sqlite.d.mts",
-			"default": "./api-sqlite.mjs"
+			"types": "./index.d.ts",
+			"default": "./index.js"
 		},
 		"./cli": {
-			"import": {
-				"types": "./cli.d.mts",
-				"default": "./cli.mjs"
-			},
-			"require": {
-				"types": "./cli.d.ts",
-				"default": "./cli.js"
-			},
-			"types": "./cli.d.mts",
-			"default": "./cli.mjs"
+			"types": "./cli.d.ts",
+			"default": "./cli.js"
 		},
-		"./payload/postgres": {
-			"import": {
-				"types": "./payload-postgres.d.mts",
-				"default": "./payload-postgres.mjs"
-			},
-			"require": {
-				"types": "./payload-postgres.d.ts",
-				"default": "./payload-postgres.js"
-			},
-			"types": "./payload-postgres.d.mts",
-			"default": "./payload-postgres.mjs"
+		"./api-*": {
+			"types": "./api-*.d.ts",
+			"default": "./api-*.js"
 		},
-		"./payload/mysql": {
-			"import": {
-				"types": "./payload-mysql.d.mts",
-				"default": "./payload-mysql.mjs"
-			},
-			"require": {
-				"types": "./payload-mysql.d.ts",
-				"default": "./payload-mysql.js"
-			},
-			"types": "./payload-mysql.d.mts",
-			"default": "./payload-mysql.mjs"
-		},
-		"./payload/sqlite": {
-			"import": {
-				"types": "./payload-sqlite.d.mts",
-				"default": "./payload-sqlite.mjs"
-			},
-			"require": {
-				"types": "./payload-sqlite.d.ts",
-				"default": "./payload-sqlite.js"
-			},
-			"types": "./payload-sqlite.d.mts",
-			"default": "./payload-sqlite.mjs"
-		},
-		"./payload/mssql": {
-			"import": {
-				"types": "./payload-mssql.d.mts",
-				"default": "./payload-mssql.mjs"
-			},
-			"require": {
-				"types": "./payload-mssql.d.ts",
-				"default": "./payload-mssql.js"
-			},
-			"types": "./payload-mssql.d.mts",
-			"default": "./payload-mssql.mjs"
+		"./payload/*": {
+			"types": "./payload/*.d.ts",
+			"default": "./payload/*.js"
 		}
 	}
 }

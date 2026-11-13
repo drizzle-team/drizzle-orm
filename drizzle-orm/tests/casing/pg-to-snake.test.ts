@@ -956,8 +956,10 @@ describe('postgres to snake case', () => {
 	});
 
 	describe('selection casts', () => {
-		const castCodecs = { ...postgresJsCodecs, int: { ...postgresJsCodecs.int, cast: castToText } };
-		const castDb = drizzle({ client: postgres(''), codecs: castCodecs });
+		const castClient = postgres('');
+		const defaultCodecs = postgresJsCodecs(castClient);
+		const castCodecs = { ...defaultCodecs, int: { ...defaultCodecs.int, cast: castToText } };
+		const castDb = drizzle({ client: castClient, codecs: castCodecs });
 		const casts = snakeCase.table('casts', { castValue: integer() });
 		const castTargets = snakeCase.table('cast_targets', { targetId: text() });
 		const castSubquery = () => castDb.select({ castValue: casts.castValue }).from(casts).as('sq');
@@ -1041,15 +1043,17 @@ describe('postgres to snake case', () => {
 	});
 
 	describe('param casts', () => {
+		const paramClient = postgres('');
+		const defaultCodecs = postgresJsCodecs(paramClient);
 		const paramCodecs = {
-			...postgresJsCodecs,
+			...defaultCodecs,
 			int: {
-				...postgresJsCodecs.int,
+				...defaultCodecs.int,
 				castParam: (name: string) => `${name}::integer`,
 				normalizeParam: (value: number) => value * 10,
 			},
 		};
-		const paramDb = drizzle({ client: postgres(''), codecs: paramCodecs });
+		const paramDb = drizzle({ client: paramClient, codecs: paramCodecs });
 		const paramValues = snakeCase.table('params', { paramValue: integer() });
 
 		it('Param codecs are applied to bound params', ({ expect }) => {

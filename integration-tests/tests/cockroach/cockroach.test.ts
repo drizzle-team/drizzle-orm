@@ -111,6 +111,42 @@ test('transaction rejects when pooled connection is dropped', async () => {
 	}
 });
 
+test('failed begin on transaction does not return client to the pool', async () => {
+	const pool = new Pool({ connectionString: requireCockroachConnectionString(), max: 1, query_timeout: 1000 });
+	const poolDb = drizzle({ client: pool });
+
+	try {
+		await client.query('drop table if exists begin_timeout_probe');
+		await client.query('create table begin_timeout_probe (id text primary key)');
+
+		// `begin` response arrives past its own `query_timeout`, but within the next query's
+		const poolClient = await pool.connect();
+		poolClient.release();
+		const stream = (poolClient as any).connection.stream;
+		const { emit } = stream;
+		const held: any[][] = [];
+		stream.emit = (event: string, ...args: any[]) => {
+			if (event !== 'data') return emit.call(stream, event, ...args);
+			held.push(args);
+			return true;
+		};
+		setTimeout(() => {
+			stream.emit = emit;
+			// discarded client has no query to receive the response, replaying it would throw
+			if ((poolClient as any)._ending) return;
+			for (const args of held) stream.emit('data', ...args);
+		}, 1500);
+
+		await expect(poolDb.transaction(async () => {})).rejects.toThrow('Failed query: begin');
+
+		await pool.query(`insert into begin_timeout_probe (id) values ('1')`);
+		expect((await client.query('select id from begin_timeout_probe')).rows).toEqual([{ id: '1' }]);
+	} finally {
+		await pool.end();
+		await client.query('drop table if exists begin_timeout_probe');
+	}
+});
+
 test('migrator : default migration strategy', async () => {
 	try {
 		await db.execute(sql`drop table if exists users12`);
@@ -407,7 +443,7 @@ test('all date and time columns without timezone first case mode string', async 
 	const result2 = await db.execute<{
 		id: number;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -438,7 +474,7 @@ test('all date and time columns without timezone second case mode string', async
 	const result = await db.execute<{
 		id: number;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -471,7 +507,7 @@ test('all date and time columns without timezone third case mode date', async ()
 	const result = await db.execute<{
 		id: string;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
 	expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
@@ -510,7 +546,7 @@ test('test mode string for timestamp with timezone', async () => {
 	const result2 = await db.execute<{
 		id: string;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
@@ -545,7 +581,7 @@ test('test mode date for timestamp with timezone', async () => {
 	const result2 = await db.execute<{
 		id: string;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
 
@@ -586,7 +622,7 @@ test('test mode string for timestamp with timezone in UTC timezone', async () =>
 	const result2 = await db.execute<{
 		id: string;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
@@ -632,7 +668,7 @@ test('test mode string for timestamp with timezone in different timezone', async
 	const result2 = await db.execute<{
 		id: string;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
 

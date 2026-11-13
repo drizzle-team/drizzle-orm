@@ -14,45 +14,32 @@ import {
 	makeJitRqbMapper,
 	sql,
 } from 'drizzle-orm';
+import type { Cache } from 'drizzle-orm/cache/core';
 import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache-effect';
 import { EffectLogger, type EffectLoggerShape, QueryEffectHKTBase } from 'drizzle-orm/effect-core';
 import {
 	alias,
 	bigint,
-	binary,
-	blob,
 	boolean,
 	char,
 	date,
 	datetime,
 	decimal,
-	double,
 	except,
-	float,
 	getViewConfig,
 	int,
 	json,
-	longblob,
-	mediumblob,
-	mediumint,
 	MySqlDialect,
-	mysqlEnum,
 	mysqlSchema,
 	mysqlTable,
 	mysqlView,
 	primaryKey,
-	real,
 	serial,
-	smallint,
 	text,
 	time,
 	timestamp,
-	tinyblob,
-	tinyint,
 	union,
 	unionAll,
-	varbinary,
-	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
 import type { MySqlEffectDatabase } from 'drizzle-orm/mysql-core/effect/db';
@@ -75,7 +62,20 @@ import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
-import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
+import { jsonRows, parseStoredJson } from '~/json-values';
+import { expectRecentTime } from '~/recent-time';
+import { type UpstashTestCache, withUpstashCache } from '~/upstash-cache';
+import {
+	type AllTypes,
+	allTypesData,
+	allTypesTable,
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
+	makeAllTypes,
+} from './all-types';
 import { TestCache } from './instrumentation';
 import relations from './relations';
 import { rqbPost, rqbUser } from './schema';
@@ -227,6 +227,7 @@ export interface RunCommonEffectMySqlTestsOptions {
 		schema: TSchema,
 		relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 		useJitMappers?: boolean,
+		cache?: Cache,
 	) => Effect.Effect<
 		MySqlEffectDatabase<QueryEffectHKTBase, any, ExtractTablesWithRelations<TConfig, TTables>>,
 		never,
@@ -255,338 +256,51 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 
 		it.effect('all types', () =>
 			Effect.gen(function*() {
-				const en = mysqlEnum('en_48', ['enVal1', 'enVal2']);
-				const allTypesTable = mysqlTable('all_types_48', {
-					serial: serial('serial'),
-					bigint53: bigint('bigint53', {
-						mode: 'number',
-					}),
-					bigint64: bigint('bigint64', {
-						mode: 'bigint',
-					}),
-					bigintString: bigint('bigint_string', {
-						mode: 'string',
-					}),
-					binary: binary('binary'),
-					boolean: boolean('boolean'),
-					char: char('char'),
-					date: date('date', {
-						mode: 'date',
-					}),
-					dateStr: date('date_str', {
-						mode: 'string',
-					}),
-					datetime: datetime('datetime', {
-						mode: 'date',
-					}),
-					datetimeStr: datetime('datetime_str', {
-						mode: 'string',
-					}),
-					decimal: decimal('decimal'),
-					decimalNum: decimal('decimal_num', {
-						precision: 30,
-						mode: 'number',
-					}),
-					decimalBig: decimal('decimal_big', {
-						precision: 30,
-						mode: 'bigint',
-					}),
-					double: double('double'),
-					float: float('float'),
-					int: int('int'),
-					json: json('json'),
-					medInt: mediumint('med_int'),
-					smallInt: smallint('small_int'),
-					real: real('real'),
-					text: text('text'),
-					time: time('time', { fsp: 3 }),
-					timestamp: timestamp('timestamp', {
-						mode: 'date',
-					}),
-					timestampStr: timestamp('timestamp_str', {
-						mode: 'string',
-					}),
-					tinyInt: tinyint('tiny_int'),
-					varbin: varbinary('varbin', {
-						length: 16,
-					}),
-					varchar: varchar('varchar', {
-						length: 255,
-					}),
-					year: year('year'),
-					enum: mysqlEnum('enum', ['enV1', 'enV2']),
-					blob: blob('blob'),
-					tinyblob: tinyblob('tinyblob'),
-					mediumblob: mediumblob('mediumblob'),
-					longblob: longblob('longblob'),
-					stringblob: blob('stringblob', { mode: 'string' }),
-					stringtinyblob: tinyblob('stringtinyblob', { mode: 'string' }),
-					stringmediumblob: mediumblob('stringmediumblob', { mode: 'string' }),
-					stringlongblob: longblob('stringlongblob', { mode: 'string' }),
-				});
+				const table = makeAllTypes('all_types_48');
 
 				const db = yield* DB;
-				yield* push(db, { en, allTypesTable });
+				yield* push(db, { table });
 
-				yield* db.insert(allTypesTable).values({
-					serial: 1,
-					bigint53: 9007199254740991,
-					bigint64: 5044565289845416380n,
-					bigintString: '5044565289845416380',
-					binary: '1',
-					boolean: true,
-					char: 'c',
-					date: new Date('2025-03-12T00:00:00.000Z'),
-					dateStr: new Date('2025-03-12T00:00:00.000Z').toISOString().slice(0, 19).replace('T', ' '),
-					datetime: new Date('2025-03-12T00:00:00.000Z'),
-					datetimeStr: new Date('2025-03-12T00:00:00.000Z').toISOString().slice(0, 19).replace('T', ' '),
-					decimal: '47521',
-					decimalNum: 9007199254740991,
-					decimalBig: 5044565289845416380n,
-					double: 15.35325689124218,
-					enum: 'enV1',
-					float: 1.048596,
-					real: 1.048596,
-					text: 'C4-',
-					int: 621,
-					json: {
-						str: 'strval',
-						arr: ['str', 10],
-					},
-					medInt: 560,
-					smallInt: 14,
-					time: '04:13:22.120',
-					timestamp: new Date('2025-03-12T00:00:00.000Z'),
-					timestampStr: new Date('2025-03-12T00:00:00.000Z').toISOString().slice(0, 19).replace('T', ' '),
-					tinyInt: 7,
-					varbin: '1010110101001101',
-					varchar: 'VCHAR',
-					year: 2025,
-					blob: Buffer.from('string'),
-					longblob: Buffer.from('string'),
-					mediumblob: Buffer.from('string'),
-					tinyblob: Buffer.from('string'),
-					stringblob: 'string',
-					stringlongblob: 'string',
-					stringmediumblob: 'string',
-					stringtinyblob: 'string',
-				});
+				yield* db.insert(table).values(allTypesData);
 
-				const rawRes = yield* db.select().from(allTypesTable);
+				const rawRes = yield* db.select().from(table);
 
-				type ExpectedType = {
-					serial: number;
-					bigint53: number | null;
-					bigint64: bigint | null;
-					bigintString: string | null;
-					binary: string | null;
-					boolean: boolean | null;
-					char: string | null;
-					date: Date | null;
-					dateStr: string | null;
-					datetime: Date | null;
-					datetimeStr: string | null;
-					decimal: string | null;
-					decimalNum: number | null;
-					decimalBig: bigint | null;
-					double: number | null;
-					float: number | null;
-					int: number | null;
-					json: unknown;
-					medInt: number | null;
-					smallInt: number | null;
-					real: number | null;
-					text: string | null;
-					time: string | null;
-					timestamp: Date | null;
-					timestampStr: string | null;
-					tinyInt: number | null;
-					varbin: string | null;
-					varchar: string | null;
-					year: number | null;
-					enum: 'enV1' | 'enV2' | null;
-					blob: Buffer | null;
-					tinyblob: Buffer | null;
-					mediumblob: Buffer | null;
-					longblob: Buffer | null;
-					stringblob: string | null;
-					stringtinyblob: string | null;
-					stringmediumblob: string | null;
-					stringlongblob: string | null;
-				}[];
-
-				const expectedRes: ExpectedType = [
-					{
-						serial: 1,
-						bigint53: 9007199254740991,
-						bigint64: 5044565289845416380n,
-						bigintString: '5044565289845416380',
-						binary: '1',
-						boolean: true,
-						char: 'c',
-						date: new Date('2025-03-12T00:00:00.000Z'),
-						dateStr: '2025-03-12',
-						datetime: new Date('2025-03-12T00:00:00.000Z'),
-						datetimeStr: '2025-03-12 00:00:00',
-						decimal: '47521',
-						decimalNum: 9007199254740991,
-						decimalBig: 5044565289845416380n,
-						double: 15.35325689124218,
-						float: 1.048596,
-						int: 621,
-						json: { arr: ['str', 10], str: 'strval' },
-						medInt: 560,
-						smallInt: 14,
-						real: 1.048596,
-						text: 'C4-',
-						time: '04:13:22.120',
-						timestamp: new Date('2025-03-12T00:00:00.000Z'),
-						timestampStr: '2025-03-12 00:00:00',
-						tinyInt: 7,
-						varbin: '1010110101001101',
-						varchar: 'VCHAR',
-						year: 2025,
-						enum: 'enV1',
-						blob: Buffer.from('string'),
-						longblob: Buffer.from('string'),
-						mediumblob: Buffer.from('string'),
-						tinyblob: Buffer.from('string'),
-						stringblob: 'string',
-						stringlongblob: 'string',
-						stringmediumblob: 'string',
-						stringtinyblob: 'string',
-					},
-				];
-
-				expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
-				expect(rawRes).toStrictEqual(expectedRes);
+				expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+				expect(rawRes).toStrictEqual([allTypesData]);
 			}));
 
 		it.effect('all types ~codecs~', () =>
 			Effect.gen(function*() {
-				const db = yield* createDB({ allTypesTable: allTypesCodecsTable }, (r) => ({
+				const db = yield* createDB({ allTypesTable, ...boundsSchema }, (r) => ({
 					allTypesTable: {
 						self: r.many.allTypesTable({
 							from: r.allTypesTable.serial,
 							to: r.allTypesTable.serial,
 						}),
 					},
+					...boundsRelations(r),
 				}));
-				yield* push(db, { allTypesCodecsTable });
+				yield* push(db, { allTypesTable });
 
-				type ExpectedType = {
-					serial: number;
-					bigint53: number;
-					bigint64: bigint;
-					bigintstr: string;
-					binary: string;
-					boolean: boolean;
-					char: string;
-					date: Date;
-					datestr: string;
-					datetime: Date;
-					datetimestr: string;
-					decimal: string;
-					decimalnum: number;
-					decimalbig: bigint;
-					double: number;
-					float: number;
-					int: number;
-					json1: unknown;
-					json2: unknown;
-					json3: unknown;
-					json4: unknown;
-					medint: number;
-					smallint: number;
-					real: number;
-					text: string;
-					tinytext: string;
-					mediumtext: string;
-					longtext: string;
-					time: string;
-					timestamp: Date;
-					timestampstr: string;
-					tinyint: number;
-					varbin: string;
-					varchar: string;
-					year: number;
-					enum: 'enV1' | 'enV2';
-					blob: Buffer;
-					tinyblob: Buffer;
-					mediumblob: Buffer;
-					longblob: Buffer;
-					stringblob: string;
-					stringtinyblob: string;
-					stringmediumblob: string;
-					stringlongblob: string;
-				};
-
-				const testData: ExpectedType = {
-					serial: 1,
-					bigint53: 9007199254740991,
-					bigint64: 5044565289845416380n,
-					bigintstr: '5044565289845416380',
-					binary: '1',
-					boolean: true,
-					char: 'c',
-					date: new Date('2025-03-12'),
-					datestr: '2025-03-12',
-					datetime: new Date(1741743161623),
-					datetimestr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
-					decimal: '47521',
-					decimalnum: 9007199254740991,
-					decimalbig: 5044565289845416380n,
-					double: 15.35325689124218,
-					enum: 'enV1',
-					float: 1.048596,
-					real: 1.048596,
-					text: 'C4-',
-					tinytext: 'tiny text',
-					mediumtext: 'medium text',
-					longtext: 'long text',
-					int: 621,
-					json1: { str: 'strval', arr: ['str', 10] },
-					json2: [{ key: 'value', num: 7 }, 'v', '11', 5],
-					json3: 5,
-					json4: '5',
-					medint: 560,
-					smallint: 14,
-					time: '04:13:22.120',
-					timestamp: new Date(1741743161623),
-					timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
-					tinyint: 7,
-					varbin: '1010110101001101',
-					varchar: 'VCHAR',
-					year: 2025,
-					blob: Buffer.from('string'),
-					longblob: Buffer.from('string'),
-					mediumblob: Buffer.from('string'),
-					tinyblob: Buffer.from('string'),
-					stringblob: 'string',
-					stringlongblob: 'string',
-					stringmediumblob: 'string',
-					stringtinyblob: 'string',
-				};
-
-				yield* db.insert(allTypesCodecsTable).values(testData);
+				yield* db.insert(allTypesTable).values(allTypesData);
 
 				const session = (<any> db).session as MySqlEffectSession;
 
-				const queryRaw = yield* session.objects<ExpectedType>(
+				const queryRaw = yield* session.objects<AllTypes>(
 					db.select(
 						Object.fromEntries(
-							Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)]),
+							Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)]),
 						),
-					).from(allTypesCodecsTable).getSQL(true),
+					).from(allTypesTable).getSQL(true),
 				);
 				const queryRes = normalizeDataWithDbCodecs({
 					db,
-					columns: getColumns(allTypesCodecsTable),
+					columns: getColumns(allTypesTable),
 					data: queryRaw,
 					mode: 'query',
 				})[0];
 
-				const relationRaw = yield* session.objects<ExpectedType & { self: ExpectedType[] }>(
+				const relationRaw = yield* session.objects<AllTypes & { self: AllTypes[] }>(
 					db.query.allTypesTable.findFirst({
 						with: {
 							self: true,
@@ -596,29 +310,136 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				const { self: relationSelf, ...rootRaw } = relationRaw[0]!;
 				const relationRes = normalizeDataWithDbCodecs({
 					db,
-					columns: getColumns(allTypesCodecsTable),
+					columns: getColumns(allTypesTable),
 					data: relationSelf,
 					mode: 'json',
 				})[0]!;
 				const rootRes = normalizeDataWithDbCodecs({
 					db,
-					columns: getColumns(allTypesCodecsTable),
+					columns: getColumns(allTypesTable),
 					data: [rootRaw],
 					mode: 'query',
 				})[0]!;
 
-				expect(queryRes).toStrictEqual(testData);
-				expect(relationRes).toStrictEqual(testData);
-				expect(rootRes).toStrictEqual(testData);
+				expect(queryRes).toStrictEqual(allTypesData);
+				expect(relationRes).toStrictEqual(allTypesData);
+				expect(rootRes).toStrictEqual(allTypesData);
 
 				const unionsContext = yield* Effect.context<never>();
 				yield* Effect.promise(() =>
-					assertAllTypesUnions(db as any, allTypesCodecsTable, (query) => Effect.runPromiseWith(unionsContext)(query))
+					assertAllTypesUnions(db as any, allTypesTable, (query) => Effect.runPromiseWith(unionsContext)(query))
 				);
 
 				const context = yield* Effect.context<never>();
-				yield* Effect.promise(() => assertAllTypesBounds(db as any, (query) => Effect.runPromiseWith(context)(query)));
+				yield* Effect.promise(() =>
+					assertAllTypesBounds(db as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
+				);
+				yield* Effect.promise(() =>
+					assertAllTypesTemporalBounds(db as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
+				);
 			}));
+
+		it.effect('all types ~json~', () =>
+			Effect.gen(function*() {
+				const table = mysqlTable('all_types_json', {
+					id: int('id').primaryKey(),
+					json: json('json'),
+				});
+
+				const db = yield* DB;
+				yield* push(db, { table });
+
+				const { input, output } = jsonRows(['json']);
+
+				yield* db.insert(table).values(input);
+
+				// json text as the database stores it, read without decoding
+				const stored = yield* db.select({
+					id: table.id,
+					json: sql<string>`cast(${table.json} as char)`,
+				}).from(table).orderBy(table.id);
+
+				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+				expect(parseStoredJson(stored)).toStrictEqual(output);
+			}));
+
+		const createUpstashDB = (cache: UpstashTestCache) =>
+			createDB(
+				{ allTypesTable, ...boundsSchema },
+				(r) => ({
+					allTypesTable: {
+						self: r.many.allTypesTable({
+							from: r.allTypesTable.serial,
+							to: r.allTypesTable.serial,
+						}),
+					},
+					...boundsRelations(r),
+				}),
+				false,
+				cache,
+			);
+
+		it.effect('all types - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const db = yield* createUpstashDB(cache);
+					const table = makeAllTypes('all_types_upstash');
+					yield* push(db, { table });
+
+					yield* Effect.promise(() =>
+						cache.expectHits('all types', async () => {
+							await run(db.insert(table).values(allTypesData));
+							expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
+						})
+					);
+				})
+			));
+
+		it.effect('all types ~codecs~ - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const db = yield* createUpstashDB(cache);
+					yield* push(db, { allTypesTable });
+
+					yield* Effect.promise(async () => {
+						await cache.expectHits('all types', async () => {
+							await run(db.insert(allTypesTable).values(allTypesData));
+							expect(await run(db.select().from(allTypesTable))).toStrictEqual([allTypesData]);
+							expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+								...allTypesData,
+								self: [allTypesData],
+							});
+						});
+						await cache.expectHits('unions', () => assertAllTypesUnions(db as any, allTypesTable, run));
+						await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run, rqb: true }));
+						await cache.expectHits(
+							'temporal bounds',
+							() => assertAllTypesTemporalBounds(db as any, { run, rqb: true }),
+						);
+					});
+				})
+			));
+
+		it.effect('all types ~json~ - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const db = yield* createUpstashDB(cache);
+					const table = mysqlTable('all_types_json_upstash', {
+						id: int('id').primaryKey(),
+						json: json('json'),
+					});
+					yield* push(db, { table });
+
+					const { input, output } = jsonRows(['json']);
+
+					yield* Effect.promise(() =>
+						cache.expectHits('json', async () => {
+							await run(db.insert(table).values(input));
+							expect(await run(db.select().from(table).orderBy(table.id))).toStrictEqual(output);
+						})
+					);
+				})
+			));
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/1442
 		it.effect('date and time columns keep UTC values regardless of process timezone', () =>
@@ -1899,7 +1720,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				const usersResult = yield* db.select().from(users);
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(1000);
+				expectRecentTime(usersResult[0]!.createdAt, now, 1000);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);
@@ -1948,7 +1769,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				yield* db.delete(users).where(eq(users.name, 'John'));
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(1000);
+				expectRecentTime(usersResult[0]!.createdAt, now, 1000);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);
@@ -2775,7 +2596,6 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					get: (key: string, _tables: string[], _isTag: boolean, _isAutoInvalidate?: boolean) =>
 						Effect.gen(function*() {
 							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'get' as const, key }]);
-							// oxlint-disable-next-line no-useless-undefined
 							return undefined;
 						}),
 					put: (key: string, _response: any, _tables: string[], _isTag: boolean, _config?: any) =>

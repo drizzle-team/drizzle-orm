@@ -1,0 +1,85 @@
+export const composeHint = (service: string) =>
+	`Bring DBs up with \`bash compose/dockers.sh up ${service}\` and export the connection string before running tests.`;
+
+function missing(name: string, hint: string | undefined): Error {
+	return new Error(hint ? `${name} is not set. ${hint}` : `${name} is not set.`);
+}
+
+export function requireEnv(name: string, hint?: string): string {
+	const value = process.env[name];
+	if (!value) throw missing(name, hint);
+	return value;
+}
+
+// Outside CI a missing variable returns undefined, so the caller can skip its tests.
+// CI must run every test, so there a missing variable fails the run.
+export function optionalEnv(name: string, hint?: string): string | undefined {
+	const value = process.env[name];
+	if (!value && process.env['CI']) throw missing(name, hint);
+	return value || undefined;
+}
+
+// Calls `attempt` until it resolves, waiting `interval` ms after each failure.
+// After `timeout` ms of failures, it throws the last error.
+export async function retry<T>(attempt: () => Promise<T>, options: { interval: number; timeout: number }): Promise<T> {
+	let timeLeft = options.timeout;
+	while (true) {
+		try {
+			return await attempt();
+		} catch (error) {
+			timeLeft -= options.interval;
+			if (timeLeft <= 0) throw error;
+			await new Promise((resolve) => setTimeout(resolve, options.interval));
+		}
+	}
+}
+
+// Hands out one item at a time. `release` returns the item; a caller waits while all items are taken.
+export function createProvider<T extends object>(items: T[]): () => Promise<T & { release: () => void }> {
+	return async () => {
+		while (true) {
+			const item = items.shift();
+			if (!item) {
+				await new Promise((resolve) => setTimeout(resolve, 50));
+				continue;
+			}
+			return { ...item, release: () => items.push(item) };
+		}
+	};
+}
+
+/**
+ * The name of a database for this vitest worker alone: `<DRIZZLE_TEST_DB_PREFIX><base>_w<worker>`. Test files run
+ * side by side, each in a worker of its own, and a fixture that creates and drops a database of this name keeps them
+ * out of each other's way. The prefix is the job's on a self-hosted CI machine (compose/ports.sh), whose teardown
+ * drops by prefix whatever a killed file left behind.
+ */
+export function workerDatabaseName(base = 'drizzle'): string {
+	return `${process.env['DRIZZLE_TEST_DB_PREFIX'] ?? ''}${base}_w${process.env['VITEST_POOL_ID'] ?? process.pid}`;
+}
+
+export function parseMssqlUrl(urlString: string) {
+	const url = new URL(urlString);
+	return {
+		user: url.username,
+		password: url.password,
+		server: url.hostname,
+		port: Number.parseInt(url.port, 10),
+		database: url.pathname.replace(/^\//, ''),
+		options: {
+			encrypt: url.searchParams.get('encrypt') === 'true',
+			trustServerCertificate: url.searchParams.get('trustServerCertificate') === 'true',
+		},
+	};
+}
+
+// eslint-disable-next-line @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars
+export function Expect<T extends true>() {}
+
+export type Equal<X, Y extends X> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? true
+	: false;
+
+// Tests postponed until a fix lands skip themselves with `test.skipIf(postponed)`. One date for the whole
+// repo: when it passes, every postponed test runs again, so move it here (and nowhere else) to postpone more.
+export const POSTPONED_UNTIL = '2026-11-20';
+export const postponed = Date.now() < +new Date(POSTPONED_UNTIL);

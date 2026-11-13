@@ -18,6 +18,7 @@ import {
 	SQL,
 	sql,
 } from 'drizzle-orm';
+import type { Cache } from 'drizzle-orm/cache/core';
 import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache-effect';
 import { EffectLogger, type EffectLoggerShape, QueryEffectHKTBase } from 'drizzle-orm/effect-core';
 import {
@@ -57,11 +58,14 @@ import * as Result from 'effect/Result';
 import * as Scope from 'effect/Scope';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
+import { jsonRows, parseStoredJson } from '~/json-values';
+import { withUpstashCache } from '~/upstash-cache';
 import type { AllTypes } from '../sqlite/all-types';
 import {
 	allTypesData,
 	allTypesInput,
 	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
 	makeAllTypes,
 } from '../sqlite/all-types';
@@ -181,6 +185,7 @@ export interface RunCommonEffectSQLiteTestsOptions {
 		schema: TSchema,
 		relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 		useJitMappers?: boolean,
+		cache?: Cache,
 	) => Effect.Effect<
 		SQLiteEffectDatabase<QueryEffectHKTBase, any, ExtractTablesWithRelations<TConfig, TTables>>,
 		never,
@@ -263,8 +268,99 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				const run = (query: any) => Effect.runPromiseWith(context)(query);
 
 				yield* Effect.promise(() => assertAllTypesUnions(db as any, allTypesTable, run));
-				yield* Effect.promise(() => assertAllTypesBounds(db as any, run));
+				yield* Effect.promise(() => assertAllTypesBounds(db as any, { run }));
+				yield* Effect.promise(() => assertAllTypesTemporalBounds(db as any, { run }));
 			}));
+
+		it.effect('all types ~json~', () =>
+			Effect.gen(function*() {
+				const table = sqliteTable('all_types_json', {
+					id: integer('id').primaryKey(),
+					jsonText: text('jsonText', { mode: 'json' }),
+					jsonBlob: blob('jsonBlob', { mode: 'json' }),
+				});
+
+				const db = yield* DB;
+				yield* db.run(sql`drop table if exists ${table}`);
+				yield* push(db, { table });
+
+				const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
+
+				yield* db.insert(table).values(input);
+
+				// json text as the database stores it, read without decoding
+				const stored = yield* db.select({
+					id: table.id,
+					jsonText: sql<string>`cast(${table.jsonText} as text)`,
+					jsonBlob: sql<string>`cast(${table.jsonBlob} as text)`,
+				}).from(table).orderBy(table.id);
+
+				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+				expect(parseStoredJson(stored)).toStrictEqual(output);
+			}));
+
+		it.effect('all types - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const allTypesTable = makeAllTypes('all_types_upstash');
+					const db = yield* createDB({ allTypesTable }, () => ({}), false, cache);
+					yield* db.run(sql`drop table if exists ${allTypesTable}`);
+					yield* push(db, { allTypesTable });
+
+					const query = db.select().from(allTypesTable);
+					yield* Effect.promise(async () => {
+						await cache.expectHits('all types', async () => {
+							await run(db.insert(allTypesTable).values(allTypesInput));
+
+							expect(await run(query)).toStrictEqual([allTypesData]);
+							expect(await run(query.all())).toStrictEqual([allTypesData]);
+							expect(await run(query.get())).toStrictEqual(allTypesData);
+							expect(await run(query.values())).toHaveLength(1);
+						});
+					});
+
+					// `.run()` is never read from or written to cache (checked by the cache suites), but mutations it executes still invalidate
+					yield* db.delete(allTypesTable).run();
+					yield* Effect.promise(async () => {
+						expect(await run(query)).toStrictEqual([]);
+					});
+					yield* db.insert(allTypesTable).values(allTypesInput).run();
+
+					yield* Effect.promise(async () => {
+						await cache.expectHits('unions', () => assertAllTypesUnions(db as any, allTypesTable, run));
+						await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run }));
+						await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db as any, { run }));
+					});
+				})
+			));
+
+		it.effect('all types ~json~ - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const table = sqliteTable('all_types_json_upstash', {
+						id: integer('id').primaryKey(),
+						jsonText: text('jsonText', { mode: 'json' }),
+						jsonBlob: blob('jsonBlob', { mode: 'json' }),
+					});
+					const db = yield* createDB({ table }, () => ({}), false, cache);
+					yield* db.run(sql`drop table if exists ${table}`);
+					yield* push(db, { table });
+
+					const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
+
+					const query = db.select().from(table).orderBy(table.id);
+					yield* Effect.promise(() =>
+						cache.expectHits('json', async () => {
+							await run(db.insert(table).values(input));
+
+							expect(await run(query)).toStrictEqual(output);
+							expect(await run(query.all())).toStrictEqual(output);
+							expect(await run(query.get())).toStrictEqual(output[0]);
+							expect(await run(query.values())).toHaveLength(output.length);
+						})
+					);
+				})
+			));
 
 		it.effect('RQB v2 simple find first - no rows', () =>
 			Effect.gen(function*() {
@@ -2323,7 +2419,6 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 					get: (key: string, _tables: string[], _isTag: boolean, _isAutoInvalidate?: boolean) =>
 						Effect.gen(function*() {
 							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'get' as const, key }]);
-							// oxlint-disable-next-line no-useless-undefined
 							return undefined;
 						}),
 					put: (key: string, _response: any, _tables: string[], _isTag: boolean, _config?: any) =>
@@ -2336,7 +2431,6 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 						}),
 					cache: {
 						strategy: () => 'all' as const,
-						// oxlint-disable-next-line no-useless-undefined
 						get: async () => undefined,
 						put: async () => {},
 						onMutate: async () => {},

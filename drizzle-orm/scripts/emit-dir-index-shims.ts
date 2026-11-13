@@ -7,7 +7,7 @@ async function moduleHasDefaultExport(modulePath: string): Promise<boolean> {
 	return /(^|\n)\s*export\s+default\b/.test(src) || /(^|\n)\s*export\s*\{[^}]*\bdefault\b[^}]*\}/.test(src);
 }
 
-export async function emitDirIndexShims(entries: string[], outDir: string) {
+export async function emitDirIndexShims(entries: string[], outDir: string, dual = false) {
 	const dirIndex = entries
 		.map((raw) => raw.match(/src\/(.*)\.ts/)![1]!)
 		.filter((e) => e.endsWith('/index') && e !== 'index')
@@ -33,14 +33,16 @@ export async function emitDirIndexShims(entries: string[], outDir: string) {
 		const hasDefault = await moduleHasDefaultExport(`${outDir}/${x}/index.js`);
 		const dflt = hasDefault ? `\nexport { default } from './${baseName}/index.js';` : '';
 
-		// Build the require() argument indirectly: a literal `require('…')` in this
-		// emitter's own source gets picked up by CommonJS-interop scanners (e.g. the
-		// importing test's bundler) that try to resolve it as a real dependency. The
-		// emitted shim text is unchanged.
-		const cjsArg = `'./${baseName}/index.cjs'`;
 		await fs.writeFile(target, `export * from './${baseName}/index.js';${dflt}`);
-		await fs.writeFile(`${outDir}/${x}.cjs`, `module.exports = require(${cjsArg});`);
 		await fs.writeFile(`${outDir}/${x}.d.ts`, `export * from './${baseName}/index.js';${dflt}`);
-		await fs.writeFile(`${outDir}/${x}.d.cts`, `export * from './${baseName}/index.cjs';`);
+		if (dual) {
+			// Build the require() argument indirectly: a literal `require('…')` in this
+			// emitter's own source gets picked up by CommonJS-interop scanners (e.g. the
+			// importing test's bundler) that try to resolve it as a real dependency. The
+			// emitted shim text is unchanged.
+			const cjsArg = `'./${baseName}/index.cjs'`;
+			await fs.writeFile(`${outDir}/${x}.cjs`, `module.exports = require(${cjsArg});`);
+			await fs.writeFile(`${outDir}/${x}.d.cts`, `export * from './${baseName}/index.cjs';`);
+		}
 	}
 }

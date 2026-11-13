@@ -1,0 +1,4 @@
+input.ts:6:9 error TSPG019: loose equality (==, !=) is not supported
+    if (a == b) {
+          ^^
+  hint: use === / !==

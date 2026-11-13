@@ -1,6 +1,6 @@
+import { postponed } from '@drizzle/test-utils';
 import { eq, gt, sql } from 'drizzle-orm';
 import { int, mysqlTable, mysqlView, text } from 'drizzle-orm/mysql-core';
-import { drizzle } from 'drizzle-orm/mysql2';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -726,7 +726,7 @@ test('create 2 dependent views', async () => {
 
 // TODO enhancement: CREATE OR REPLACE statements are emitted before sorted create_view statements,
 // so "v2" is replaced before "v_new" exists
-test.skipIf(Date.now() < +new Date('2026-11-13'))(
+test.skipIf(postponed)(
 	'topological sort test. existing view starts reading a new view',
 	async () => {
 		const t = mysqlTable('t', { id: int() });

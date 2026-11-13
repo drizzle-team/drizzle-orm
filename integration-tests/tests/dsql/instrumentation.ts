@@ -1,5 +1,6 @@
 import { AuroraDSQLClient } from '@aws/aurora-dsql-node-postgres-connector';
 import { auroraDSQLPostgres } from '@aws/aurora-dsql-postgresjs-connector';
+import { createProvider } from '@drizzle/test-utils';
 import {
 	type AnyRelationsBuilderConfig,
 	defineRelations,
@@ -48,7 +49,6 @@ export type PostgresSchema = Record<
 	| unknown
 >;
 
-// oxlint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
 	private globalTtl: number = 1000;
 	private usedTablesPerKey: Record<string, string[]> = {};
@@ -202,30 +202,12 @@ type Vendor =
 	| 'node-postgres-dsql'
 	| 'postgres-js-dsql';
 
-const providerClosure = async <T>(items: T[]) => {
-	return async () => {
-		while (true) {
-			const c = items.shift();
-			if (!c) {
-				await new Promise((resolve) => setTimeout(resolve, 50));
-				continue;
-			}
-			return {
-				...c,
-				release: () => {
-					items.push(c);
-				},
-			};
-		}
-	};
-};
-
 export const provideForNodePgDsql = async () => {
 	const clients = [
 		await prepareNodePgDsql(),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForPostgresJsDsql = async () => {
@@ -233,7 +215,7 @@ export const provideForPostgresJsDsql = async () => {
 		await preparePostgresJsDsql(),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 type ProvideForNodePgDsql = Awaited<ReturnType<typeof provideForNodePgDsql>>;
@@ -262,6 +244,7 @@ const testFor = (vendor: Vendor) => {
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				useJitMappers?: boolean,
 				paramsInErrors?: boolean,
+				cache?: Cache,
 			): DsqlAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
 		caches: { all: DsqlAsyncDatabase<any, typeof relations>; explicit: DsqlAsyncDatabase<any, typeof relations> };
@@ -325,14 +308,27 @@ const testFor = (vendor: Vendor) => {
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					useJitMappers?: boolean,
 					paramsInErrors?: boolean,
+					cache?: Cache,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'node-postgres-dsql') {
-						return drizzleNodePgDsql({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzleNodePgDsql({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
 					}
 					if (vendor === 'postgres-js-dsql') {
-						return drizzlePostgresJsDsql({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzlePostgresJsDsql({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
 					}
 
 					throw new Error();

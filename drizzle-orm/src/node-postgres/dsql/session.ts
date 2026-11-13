@@ -1,6 +1,5 @@
 import type { AuroraDSQLClient, AuroraDSQLPool, OCCRetryConfig } from '@aws/aurora-dsql-node-postgres-connector';
-import type { CustomTypesConfig, PoolClient, QueryResult, QueryResultRow } from 'pg';
-import pg from 'pg';
+import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -21,29 +20,7 @@ import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
-const { types } = pg;
 export type NodePgDsqlClient = AuroraDSQLPool | AuroraDSQLClient;
-
-const noop = (val: any) => val;
-
-const typeConfig: CustomTypesConfig = {
-	getTypeParser: <CustomTypesConfig['getTypeParser']> ((typeId, format) => {
-		switch (typeId as number) {
-			case types.builtins.TIMESTAMPTZ:
-			case types.builtins.TIMESTAMP:
-			case types.builtins.DATE:
-			case types.builtins.INTERVAL:
-			case 1231: // numeric[]
-			case 1115: // timestamp[]
-			case 1185: // timestamp with timezone[]
-			case 1187: // interval[]
-			case 1182: // date[]
-				return noop;
-			default:
-				return types.getTypeParser(typeId, format);
-		}
-	}),
-};
 
 /**
  * Retries of a whole transaction on optimistic concurrency conflicts (`OC000`, `OC001`, `40001`)
@@ -119,7 +96,6 @@ export class NodePgDsqlSession<
 				name: queryName,
 				rowMode: mode === 'arrays' ? 'array' : undefined as any,
 				text: query.sql,
-				types: typeConfig,
 			}, params).then((r) => mode === 'raw' ? r : r.rows);
 		};
 

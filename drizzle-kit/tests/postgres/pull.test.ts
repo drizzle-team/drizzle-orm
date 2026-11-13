@@ -1,3 +1,5 @@
+import { postponed } from '@drizzle/test-utils';
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { SQL, sql } from 'drizzle-orm';
 import {
@@ -46,6 +48,7 @@ import {
 import fs from 'fs';
 import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import { fetchPartitions, fromDatabase as studioFromDatabase } from 'src/ext/studio-postgres';
 import { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -166,7 +169,7 @@ test('basic identity by default test', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3240
 test('basic index test', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 
 	const schema = {
 		users: pgTable(
@@ -926,7 +929,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect view #4', async () => {
+test.skipIf(postponed)('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -951,7 +954,7 @@ test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect view #5', async () => {
+test.skipIf(postponed)('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1659,6 +1662,8 @@ test('introspect partitioned tables with indexes', async () => {
 			schema: 'public',
 			entityType: 'tables',
 			isRlsEnabled: false,
+			partitionBy: 'RANGE (logdate)',
+			partitionsCount: 0,
 		} satisfies (typeof tables)[number],
 	]);
 	expect(indexes).toStrictEqual([
@@ -1686,6 +1691,256 @@ test('introspect partitioned tables with indexes', async () => {
 			with: '',
 		} satisfies (typeof indexes)[number],
 	]);
+});
+
+// A range partitioned parent with a list partitioned partition, a default partition in another schema and a plain
+// partition, a table with a foreign key to the parent, and a table with a sequence that is attached as a partition.
+const createPartitionedTables = async () => {
+	await db.query(`CREATE SCHEMA "archive";`);
+	await db.query(`
+		CREATE TABLE measurement (
+			id int not null,
+			logdate date not null,
+			peaktemp int,
+			PRIMARY KEY (id, logdate),
+			CONSTRAINT measurement_peaktemp_check CHECK (peaktemp > 0)
+		) PARTITION BY RANGE (logdate);
+	`);
+	await db.query(`CREATE INDEX measurement_peaktemp_idx ON measurement (peaktemp);`);
+	await db.query(`
+		CREATE TABLE measurement_2024 PARTITION OF measurement
+			FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
+	`);
+	await db.query(`CREATE TABLE "archive"."measurement_rest" PARTITION OF measurement DEFAULT;`);
+	await db.query(`
+		CREATE TABLE measurement_2025 PARTITION OF measurement
+			FOR VALUES FROM ('2025-01-01') TO ('2026-01-01')
+			PARTITION BY LIST (id);
+	`);
+	await db.query(`CREATE TABLE measurement_2025_1 PARTITION OF measurement_2025 FOR VALUES IN (1);`);
+	await db.query(`
+		CREATE TABLE measurement_2023 (
+			id serial,
+			logdate date not null,
+			peaktemp int,
+			CONSTRAINT measurement_peaktemp_check CHECK (peaktemp > 0)
+		);
+	`);
+	await db.query(`
+		ALTER TABLE measurement ATTACH PARTITION measurement_2023
+			FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
+	`);
+	await db.query(`
+		CREATE TABLE readings (
+			measurement_id int,
+			measurement_logdate date,
+			CONSTRAINT readings_measurement_fk FOREIGN KEY (measurement_id, measurement_logdate) REFERENCES measurement (id, logdate)
+		);
+	`);
+};
+
+test('fromDatabase returns partitioned tables with a count of partitions and no partitions', async () => {
+	await createPartitionedTables();
+
+	const res = await fromDatabase(db);
+
+	expect(res.tables).toStrictEqual([
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'measurement',
+			isRlsEnabled: false,
+			partitionBy: 'RANGE (logdate)',
+			partitionsCount: 4,
+		},
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'readings',
+			isRlsEnabled: false,
+			partitionBy: null,
+			partitionsCount: 0,
+		},
+	]);
+	expect([...new Set(res.columns.map((it) => it.table))].sort()).toStrictEqual(['measurement', 'readings']);
+	expect(res.pks.map((it) => it.table)).toStrictEqual(['measurement']);
+	expect(res.checks.map((it) => it.table)).toStrictEqual(['measurement']);
+	expect(res.indexes.map((it) => it.name).filter((it) => it.startsWith('measurement_')).sort()).toStrictEqual([
+		'measurement_peaktemp_idx',
+		'measurement_pkey',
+	]);
+	expect(res.fks.map((it) => [it.table, it.name, it.tableTo])).toStrictEqual([
+		['readings', 'readings_measurement_fk', 'measurement'],
+	]);
+	expect(res.sequences).toStrictEqual([]);
+	expect(new Set(res.privileges.map((it) => it.table))).toStrictEqual(new Set(['measurement', 'readings']));
+});
+
+test('fromDatabaseForDrizzle returns the parent of partitioned tables without its partitions', async () => {
+	await createPartitionedTables();
+
+	const res = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		schema: 'drizzle',
+		table: '__drizzle_migrations',
+	});
+
+	expect(res.tables.map((it) => it.name)).toStrictEqual(['measurement', 'readings']);
+	expect(res.indexes.map((it) => it.name)).toStrictEqual(['measurement_peaktemp_idx']);
+	expect(res.fks.map((it) => it.name)).toStrictEqual(['readings_measurement_fk']);
+});
+
+test('fetchPartitions returns the direct partitions of a table', async () => {
+	await createPartitionedTables();
+
+	expect(await fetchPartitions(db, 'public', 'measurement')).toStrictEqual([
+		{
+			schema: 'archive',
+			name: 'measurement_rest',
+			bound: 'DEFAULT',
+			partitionBy: null,
+			partitionsCount: 0,
+		},
+		{
+			schema: 'public',
+			name: 'measurement_2023',
+			bound: "FOR VALUES FROM ('2023-01-01') TO ('2024-01-01')",
+			partitionBy: null,
+			partitionsCount: 0,
+		},
+		{
+			schema: 'public',
+			name: 'measurement_2024',
+			bound: "FOR VALUES FROM ('2024-01-01') TO ('2025-01-01')",
+			partitionBy: null,
+			partitionsCount: 0,
+		},
+		{
+			schema: 'public',
+			name: 'measurement_2025',
+			bound: "FOR VALUES FROM ('2025-01-01') TO ('2026-01-01')",
+			partitionBy: 'LIST (id)',
+			partitionsCount: 1,
+		},
+	]);
+	expect(await fetchPartitions(db, 'public', 'measurement_2025')).toStrictEqual([
+		{
+			schema: 'public',
+			name: 'measurement_2025_1',
+			bound: 'FOR VALUES IN (1)',
+			partitionBy: null,
+			partitionsCount: 0,
+		},
+	]);
+});
+
+test('fetchPartitions returns nothing for a table without partitions, or of another schema', async () => {
+	await createPartitionedTables();
+
+	expect(await fetchPartitions(db, 'public', 'readings')).toStrictEqual([]);
+	expect(await fetchPartitions(db, 'archive', 'measurement')).toStrictEqual([]);
+});
+
+test('fetchPartitions finds a table with a quote in its name', async () => {
+	await db.query(`CREATE TABLE "it's" (id int) PARTITION BY LIST (id);`);
+	await db.query(`CREATE TABLE "it's_1" PARTITION OF "it's" FOR VALUES IN (1);`);
+
+	expect((await fetchPartitions(db, 'public', "it's")).map((it) => it.name)).toStrictEqual(["it's_1"]);
+});
+
+test('studio fromDatabase does not introspect procedures', async () => {
+	await db.query(`CREATE TABLE users (id int);`);
+	await db.query(`CREATE PROCEDURE noop() LANGUAGE sql AS $$ SELECT 1 $$;`);
+
+	expect((await fromDatabase(db)).procedures.map((it) => it.name)).toStrictEqual(['noop']);
+
+	const queries: string[] = [];
+	const result = await studioFromDatabase({
+		query: (sql, params) => {
+			queries.push(sql);
+			return db.query(sql, params);
+		},
+	});
+	expect(result.procedures).toStrictEqual([]);
+	expect(result.tables.map((it) => it.name)).toStrictEqual(['users']);
+	expect(queries.some((it) => it.includes('pg_catalog.pg_proc'))).toBe(false);
+});
+
+test('fromDatabase returns privileges of tables only, in a schema with uppercase letters too', async () => {
+	await db.query(`CREATE SCHEMA "mySchema";`);
+	await db.query(`CREATE TABLE "mySchema"."Users" (id int);`);
+	await db.query(`CREATE TABLE "with.dot" (id int);`);
+	await db.query(`CREATE VIEW users_view AS SELECT 1 AS id;`);
+	await db.query(`CREATE TABLE measurement (id int, d date) PARTITION BY RANGE (d);`);
+	await db.query(`CREATE TABLE measurement_rest PARTITION OF measurement DEFAULT;`);
+
+	const { privileges } = await fromDatabase(db);
+
+	expect([...new Set(privileges.map((it) => `${it.schema}/${it.table}`))].sort()).toStrictEqual([
+		'mySchema/Users',
+		'public/measurement',
+		'public/with.dot',
+	]);
+});
+
+test('fromDatabase returns the columns of a composite foreign key in the order of the constraint', async () => {
+	await db.query(`CREATE SCHEMA "mySchema";`);
+	await db.query(`
+		CREATE TABLE "mySchema"."Parent" (
+			a int,
+			b int,
+			c int,
+			PRIMARY KEY (a, b, c)
+		);
+	`);
+	await db.query(`
+		CREATE TABLE child (
+			x int,
+			y int,
+			z int,
+			CONSTRAINT child_fk FOREIGN KEY (z, x, y) REFERENCES "mySchema"."Parent" (c, a, b)
+		);
+	`);
+
+	const { fks } = await fromDatabase(db);
+
+	expect(fks).toStrictEqual([
+		{
+			entityType: 'fks',
+			schema: 'public',
+			table: 'child',
+			name: 'child_fk',
+			nameExplicit: true,
+			columns: ['z', 'x', 'y'],
+			schemaTo: 'mySchema',
+			tableTo: 'Parent',
+			columnsTo: ['c', 'a', 'b'],
+			onUpdate: 'NO ACTION',
+			onDelete: 'NO ACTION',
+		} satisfies (typeof fks)[number],
+	]);
+});
+
+test('fromDatabase returns standalone sequences only', async () => {
+	await db.query(`CREATE SEQUENCE standalone_seq;`);
+	// created before the table so it has a lower oid than the identity sequence
+	await db.query(`CREATE SEQUENCE ident_owned_seq;`);
+	await db.query(`CREATE TABLE users (id serial, ident int generated always as identity);`);
+	await db.query(`CREATE TABLE measurement (id serial, d date) PARTITION BY RANGE (d);`);
+	await db.query(`CREATE TABLE measurement_2023 (id serial, d date);`);
+	await db.query(`
+		ALTER TABLE measurement ATTACH PARTITION measurement_2023
+			FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
+	`);
+	await db.query(`CREATE SEQUENCE owned_seq OWNED BY users.id;`);
+	// the identity column also owns another sequence, its identity sequence must still be picked
+	await db.query(`ALTER SEQUENCE ident_owned_seq OWNED BY users.ident;`);
+
+	const { sequences, columns } = await fromDatabase(db);
+
+	expect(sequences.map((it) => it.name)).toStrictEqual(['standalone_seq']);
+	const column = (name: string) => columns.find((it) => it.table === 'users' && it.name === name)!;
+	expect(column('id').type).toBe('serial');
+	expect(column('ident').identity?.name).toBe('users_ident_seq');
 });
 
 test('default sequence nextval', async () => {
@@ -1798,6 +2053,8 @@ test('introspect view with table filter', async () => {
 		schema: 'public',
 		name: 'table1',
 		isRlsEnabled: false,
+		partitionBy: null,
+		partitionsCount: 0,
 	}];
 	expect(res.tables).toStrictEqual(expectedTables);
 	expect(res.views).toStrictEqual([]);
@@ -1832,7 +2089,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect sequences with table filter', async () => {
+test.skipIf(postponed)('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -1864,6 +2121,8 @@ test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect sequences with tab
 		schema: 'public',
 		name: 'table1',
 		isRlsEnabled: false,
+		partitionBy: null,
+		partitionsCount: 0,
 	}]);
 
 	expect(sequences).toBe([{
@@ -2053,6 +2312,8 @@ test('introspect enum within schema', async () => {
 			schema: 'public',
 			name: 'table1',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionsCount: 0,
 		},
 	]);
 	expect(enums).toStrictEqual([]);
@@ -2280,6 +2541,8 @@ test('pull after migrate with custom migrations table #1', async () => {
 		{
 			entityType: 'tables',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionsCount: 0,
 			name: 'users',
 			schema: 'drizzle',
 		},
@@ -2335,6 +2598,8 @@ test('pull after migrate with custom migrations table #2', async () => {
 		{
 			entityType: 'tables',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionsCount: 0,
 			name: 'users',
 			schema: 'public',
 		},
@@ -2400,12 +2665,16 @@ test('pull after migrate with custom migrations table #3', async () => {
 		{
 			entityType: 'tables',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionsCount: 0,
 			name: 'users',
 			schema: 'custom',
 		},
 		{
 			entityType: 'tables',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionsCount: 0,
 			name: 'users',
 			schema: 'public',
 		},
@@ -2899,12 +3168,16 @@ test('non-admin', async () => {
 			schema: 'public',
 			name: 'users',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionsCount: 0,
 		},
 		{
 			entityType: 'tables',
 			schema: 'schema_not_for_non_admin',
 			name: 'table_not_for_non_admin',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionsCount: 0,
 		},
 	]);
 	expect(fks.length).toBe(1);
@@ -3842,7 +4115,7 @@ test('Issue No3446', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6214
 // TODO revise this when "NOT VALID" feature is supported
-test.skipIf(Date.now() < +new Date('2026-11-24'))('Issue No6214', async () => {
+test.skipIf(postponed)('Issue No6214', async () => {
 	await db.query(`CREATE TABLE documents (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   version integer NOT NULL
@@ -4248,4 +4521,78 @@ test('introspect json array defaults with a backslash, a backtick and "${"', asy
 	expect(generateSqlStatements).toStrictEqual([]);
 	expect(defaultsInDatabase[0]).toStrictEqual(['column1', `'${arrayLiteral}'`]);
 	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6495
+test('Issue 6495. Numeric defaults', async () => {
+	await db.query(`CREATE TABLE "t" (
+"price" numeric DEFAULT (random() * 10),
+	"amount" bigint DEFAULT (random() * 10)
+);`);
+
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'issue-6495-numeric-default',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+test('Issue 6493', async () => {
+	await db.query(`CREATE TABLE "t" (
+		"r" real DEFAULT random(),
+		"dp" double precision DEFAULT random(),
+  		"b" boolean DEFAULT (random() > 0.5),
+  		"uuid" uuid DEFAULT md5(random()::text)::uuid,
+  		"interval" interval DEFAULT age(now()),
+  		"inet" inet DEFAULT inet_client_addr(),
+  		"cidr" cidr DEFAULT network(inet_client_addr()),
+  		"macaddr" macaddr DEFAULT trunc('08:00:2b:01:02:03'::macaddr)
+	);`);
+
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'issue-6493-expressions',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6590
+test.skipIf(postponed)('Issue No6590 #1', async () => {
+	await db.query(`create table t (a int, name text);`);
+	await db.query(`create index t_lower_desc_idx on t (lower(name) desc nulls last);`);
+	await db.query(`create index t_lower_pattern_idx on t (lower(name) text_pattern_ops);`);
+	await db.query(`create index t_lower_trgm_idx on t using gin (lower(name) gin_trgm_ops);`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'issue-6590-indexes-expressions',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	// expect(ddlAfterPull.indexes.list().map((it) => [it.name, it.columns, it.method])).toStrictEqual();
+	// expect(schema2.indexes.map((it) => [it.name, it.columns])).toStrictEqual();
+});
+// https://github.com/drizzle-team/drizzle-orm/issues/6590
+test.skipIf(postponed)('Issue No6590 #2', async () => {
+	await db.query(`create table t (tags varchar[] default ARRAY[]::varchar[]);`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'issue-6590-array-default',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	// expect(ddlAfterPull.columns.list().map((it) => [it.name, it.default])).toStrictEqual();
+	// expect(schema2.indexes.map((it) => [it.name, it.columns])).toStrictEqual();
 });

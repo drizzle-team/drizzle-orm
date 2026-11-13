@@ -1,6 +1,6 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
 import { entityKind } from '~/entity.ts';
-import type { NonArray, Writable } from '~/utils.ts';
+import type { EnumObjectValues, NonArray, Writable } from '~/utils.ts';
 import {
 	CockroachColumn,
 	type CockroachColumnBaseConfig,
@@ -13,7 +13,7 @@ export interface CockroachEnumObject<TValues extends object> {
 	(name?: string): CockroachEnumObjectColumnBuilder<TValues>;
 
 	readonly enumName: string;
-	readonly enumValues: string[];
+	readonly enumValues: [string, ...string[]];
 	readonly schema: string | undefined;
 	/** @internal */
 	[isCockroachEnumSym]: true;
@@ -23,7 +23,7 @@ export class CockroachEnumObjectColumnBuilder<TValues extends object> extends Co
 	{
 		dataType: 'string enum';
 		data: TValues[keyof TValues];
-		enumValues: string[];
+		enumValues: EnumObjectValues<TValues>;
 		driverParam: string;
 	},
 	{ enum: CockroachEnumObject<any> }
@@ -87,7 +87,7 @@ export function isCockroachEnum(obj: unknown): obj is CockroachEnum<[string, ...
 }
 
 export class CockroachEnumColumnBuilder<TValues extends [string, ...string[]]> extends CockroachColumnBuilder<{
-	dataType: 'string';
+	dataType: 'string enum';
 	data: TValues[number];
 	enumValues: TValues;
 	driverParam: string;
@@ -184,7 +184,7 @@ export function cockroachEnumObjectWithSchema<T extends object>(
 			new CockroachEnumObjectColumnBuilder(name ?? '', enumInstance),
 		{
 			enumName,
-			enumValues: Object.values(values),
+			enumValues: Object.values(values) as [string, ...string[]],
 			schema,
 			[isCockroachEnumSym]: true,
 		} as const,

@@ -1,13 +1,5 @@
 import type { Connection as CallbackConnection } from 'mysql2';
-import type {
-	Connection,
-	FieldPacket,
-	Pool,
-	PoolConnection,
-	ResultSetHeader,
-	RowDataPacket,
-	TypeCast,
-} from 'mysql2/promise';
+import type { Connection, FieldPacket, Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -44,13 +36,6 @@ export interface SingleStoreDriverSessionOptions {
 	paramsInErrors?: boolean;
 }
 
-const typeCast: TypeCast = function(field, next) {
-	if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-		return field.string();
-	}
-	return next();
-};
-
 export class SingleStoreDriverSession<
 	TRelations extends AnyRelations,
 > extends SingleStoreSession<
@@ -86,7 +71,6 @@ export class SingleStoreDriverSession<
 		const executor = async (params: unknown[] = []) => {
 			const raw = client.query<any[]>({
 				sql: query.sql,
-				typeCast,
 				rowsAsArray: mode === 'arrays',
 			}, params);
 			if (mode !== 'raw') return raw.then((data) => data[0]);
@@ -104,7 +88,6 @@ export class SingleStoreDriverSession<
 			}).connection;
 			const driverQuery = conn.query({
 				sql: query.sql,
-				typeCast,
 				rowsAsArray: mode === 'arrays',
 			}, params);
 			const stream = driverQuery.stream();

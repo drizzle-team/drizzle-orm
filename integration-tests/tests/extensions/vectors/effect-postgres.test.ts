@@ -69,7 +69,7 @@ it.effect('insert + partial select', () =>
 			const insertedValues = yield* db.insert(items).values([seed]).returning();
 
 			const query = db.select({ distance: l2Distance(items.vector, [3, 1, 2]) }).from(items);
-			expect(query.toSQL()).toStrictEqual({ sql: 'select "vector" <-> $1 from "items"', params: ['[3,1,2]'] });
+			expect(query.toSQL(false)).toStrictEqual({ sql: 'select "vector" <-> $1 from "items"', params: ['[3,1,2]'] });
 
 			const response = yield* query;
 

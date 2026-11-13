@@ -1354,3 +1354,33 @@ test('introspect array default expressions with a backslash, a backtick and "${"
 	for (const [, def] of defaultsInDatabase) expect(def).toContain(templateUnsafeTextInDatabase);
 	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6492
+test('Issue #6492. Policies introspect', async ({ db }) => {
+	await db.query(`CREATE TABLE "users" ("id" int4 PRIMARY KEY);`);
+	await db.query(`ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;`);
+	await db.query(`CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO public;`);
+
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'issue-6492-policies-introspect',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+test('Issue 6493', async ({ db }) => {
+	await db.query(`CREATE TABLE "t" ("c" uuid DEFAULT uuid_generate_v4());`);
+
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'issue-6493-expressions',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});

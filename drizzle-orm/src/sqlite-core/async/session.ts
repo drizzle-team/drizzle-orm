@@ -96,7 +96,9 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 			? await strategyFor(queryString, params, this.queryMetadata, this.cacheConfig)
 			: { type: 'skip' as const };
 
-		if (cacheStrat.type === 'skip') {
+		// `run` returns driver's run result instead of rows: it's never read from or written to cache,
+		// but mutations executed through it still invalidate
+		if (cacheStrat.type === 'skip' || (cacheStrat.type === 'try' && executeMethod === 'run')) {
 			return query().catch((e) => {
 				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
 			});

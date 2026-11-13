@@ -1,0 +1,3 @@
+input.ts:8:3 error TSPG014: valued returns cannot mix with bare `return`
+    return { total: qty }
+    ^^^^^^^^^^^^^^^^^^^^^

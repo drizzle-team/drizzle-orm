@@ -6,6 +6,34 @@ import type { Import } from './typescript';
 
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(WITH.+|SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6408
+// https://www.sqlite.org/lang_altertable.html:
+// "The column may not have a default value of CURRENT_TIME, CURRENT_DATE,
+// CURRENT_TIMESTAMP, or an expression in parentheses."
+// But adding this column to existing table with data is not allowed. Table needs to be recreated
+// For generate there is no way to know if there is a data inside the table
+// possible enhancement will be to ask user if they want to recreate table or just add this column
+// A literal in parentheses is still constant for sqlite: (1), (-1.5), ('abc'), (x'ab'), (null), (true), ((1))
+// Everything else (functions, operators, CURRENT_*, CAST, COLLATE, ...) is treated as non-constant
+export const isNonConstantDefault = (def: string | null | undefined): boolean => {
+	if (!def) return false;
+
+	let it = def.trim();
+	// strip all '()' in the default
+	while (it.startsWith('(') && it.endsWith(')')) it = it.slice(1, -1).trim();
+
+	// matches the whole default (case-insensitive) against one of the sqlite literals:
+	// - decimal number with optional sign, fraction and exponent: 1, -1, +1, 1.5, 1., .5, 1e5, -1.5E-3
+	// - hex integer with optional sign: 0x1A, -0x1A
+	// - string, '' is an escaped quote: 'abc', 'it''s', '', '{"a":1}', 'a (b)'
+	// - blob: X'AB', x''
+	// - NULL, TRUE, FALSE
+	// Bare identifiers (DEFAULT abc is stored as string 'abc') are constant for sqlite, but not matched here,
+	// so they are treated as non-constant, which only costs an unneeded table recreate
+	return !/^(?:[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?|[+-]?0x[0-9a-f]+|'(?:[^']|'')*'|x'[0-9a-f]*'|null|true|false)$/i
+		.test(it);
+};
+
 /**
  * Removes SQL comments (line comments and block comments) from a DDL string so
  * parsers don't pick up commented-out constraints.
@@ -160,7 +188,12 @@ export const Real: SqlType = {
 		return value;
 	},
 	toTs: function(value: Column['default']): string {
-		return value ?? '';
+		if (!value) return '';
+
+		const check = Number(value);
+
+		if (Number.isNaN(check)) return `sql\`${value}\``; // unknown
+		return value;
 	},
 };
 
@@ -210,7 +243,7 @@ export const Numeric: SqlType = {
 		if (!value) return '';
 		const check = Number(value);
 
-		if (Number.isNaN(check)) return value; // unknown
+		if (Number.isNaN(check)) return { def: `sql\`${value}\`` }; // unknown
 		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) {
 			return { def: value, options: { mode: 'number' } };
 		}

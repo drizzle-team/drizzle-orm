@@ -1,3 +1,4 @@
+import { createProvider, requireEnv } from '@drizzle/test-utils';
 import { type Client as LibSQLClient, createClient, type InArgs, type InStatement } from '@libsql/client';
 import {
 	createClient as createHttpClient,
@@ -23,7 +24,11 @@ import {
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
 import { Database as SqliteCloudDatabase, SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { Database as TursoDatabase } from '@tursodatabase/database';
-import { connect } from '@tursodatabase/serverless';
+import {
+	connect,
+	type Connection as TursoServerlessConnection,
+	DatabaseError as TursoServerlessDatabaseError,
+} from '@tursodatabase/serverless';
 import { Database as TursoDatabaseSync } from '@tursodatabase/sync';
 import type BetterSqlite3 from 'better-sqlite3';
 import Client from 'better-sqlite3';
@@ -64,7 +69,6 @@ import { test as base } from 'vitest';
 import relations from './relations';
 import sqliteRelations from './sqlite.relations';
 
-// oxlint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
 	private globalTtl: number = 1000;
 	private usedTablesPerKey: Record<string, string[]> = {};
@@ -128,7 +132,6 @@ export class TestCache extends Cache {
 	}
 }
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
 
@@ -296,20 +299,35 @@ export const prepareTursoDatabaseServerlessClient = (url: string, authToken: str
 		authToken,
 	});
 
-	const all = async (sql: string, params: any[] = []) => {
-		const stmt = await client.prepare(sql);
-		return stmt.all(params) as any;
+	// The connection's requests share one stream on the server, named by a token that each response replaces. The
+	// server answers HTTP 400 to a token it no longer knows (a stream it dropped, or one a concurrent request moved
+	// on), and the driver then starts a new stream: the request is retried once on it.
+	const onStream = async <T>(request: () => Promise<T>): Promise<T> => {
+		try {
+			return await request();
+		} catch (error) {
+			if (!(error instanceof TursoServerlessDatabaseError && error.message.includes('status: 400'))) throw error;
+			return request();
+		}
 	};
 
-	const run = async (sql: string, params: any[] = []) => {
-		const stmt = await client.prepare(sql);
-		return stmt.run(params) as any;
-	};
+	const all = (sql: string, params: any[] = []) =>
+		onStream(async () => {
+			const stmt = await client.prepare(sql);
+			return stmt.all(params) as any;
+		});
 
+	const run = (sql: string, params: any[] = []) =>
+		onStream(async () => {
+			const stmt = await client.prepare(sql);
+			return stmt.run(params) as any;
+		});
+
+	// In order, not at once: concurrent requests on one stream reuse its token.
 	const batch = async (statements: string[]) => {
-		return Promise.all(
-			statements.map((x) => run(x)),
-		).then((results) => [results] as any);
+		const results = [];
+		for (const statement of statements) results.push(await run(statement));
+		return [results] as any;
 	};
 
 	return { client, all, run, batch };
@@ -533,63 +551,38 @@ export const prepareNodeSQLite = async () => {
 	return { client, all, run, batch };
 };
 
-const providerClosure = async <T>(items: T[]) => {
-	return async () => {
-		while (true) {
-			const c = items.shift();
-			if (!c) {
-				await new Promise((resolve) => setTimeout(resolve, 50));
-				continue;
-			}
-			return {
-				...c,
-				release: () => {
-					items.push(c);
-				},
-			};
-		}
-	};
-};
-
 // No token needed for a local url; simple ':memory:' fails on transaction tests
 const LOCAL_LIBSQL_URL = 'file::memory:?cache=shared';
 
 export const providerForSQLiteCloud = async () => {
-	const url = process.env['SQLITE_MANY_CLOUD_CONNECTION_STRING'];
-	if (url === undefined) throw new Error('SQLITE_MANY_CLOUD_CONNECTION_STRING is not set.');
+	const url = requireEnv('SQLITE_MANY_CLOUD_CONNECTION_STRING');
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareSQLiteCloudClient(urlI)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForTursoDatabase = async () => {
 	const clients = [prepareTursoDatabaseClient()];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForTursoDatabaseSync = async () => {
 	const clients = [prepareTursoDatabaseSyncClient()];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForTursoDatabaseServerless = async () => {
-	const url = process.env['TURSODATABASE_REMOTE_URL'];
-	const authToken = process.env['TURSODATABASE_REMOTE_TOKEN'];
-	if (!url) {
-		throw new Error('TURSODATABASE_REMOTE_URL is not set.');
-	}
-	if (!authToken) {
-		throw new Error('TURSODATABASE_REMOTE_TOKEN is not set.');
-	}
+	const url = requireEnv('TURSODATABASE_REMOTE_URL');
+	const authToken = requireEnv('TURSODATABASE_REMOTE_TOKEN');
 	const uris = url.split(';').filter((val) => val !== '');
 	const tokens = authToken.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(
 		uris.map(async (urlI, i) => await prepareTursoDatabaseServerlessClient(urlI, tokens[i])),
 	);
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForLibSQL = async () => {
@@ -598,23 +591,20 @@ export const providerForLibSQL = async () => {
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareLibSQLClient(urlI, authToken)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 export const providerForLibSQLWs = async () => {
-	const url = process.env['LIBSQL_REMOTE_MANY_URL'];
+	const url = requireEnv('LIBSQL_REMOTE_MANY_URL');
 	const authToken = process.env['LIBSQL_REMOTE_TOKEN'];
-	if (url === undefined) {
-		throw new Error('LIBSQL_REMOTE_MANY_URL is not set.');
-	}
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareLibSQLWsClient(urlI, authToken)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 export const providerForLibSQLSqlite3 = async () => {
 	const clients = [prepareLibSQLSqlite3Client(LOCAL_LIBSQL_URL)];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForLibSQLNode = async () => {
@@ -623,39 +613,36 @@ export const providerForLibSQLNode = async () => {
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareLibSQLNodeClient(urlI, authToken)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 export const providerForLibSQLHttp = async () => {
-	const url = process.env['LIBSQL_REMOTE_MANY_URL'];
+	const url = requireEnv('LIBSQL_REMOTE_MANY_URL');
 	const authToken = process.env['LIBSQL_REMOTE_TOKEN'];
-	if (url === undefined) {
-		throw new Error('LIBSQL_REMOTE_MANY_URL is not set.');
-	}
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareLibSQLHttpClient(urlI, authToken)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForBetterSqlite3 = async () => {
 	const clients = [prepareBetterSqlite3Client()];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 export const providerForD1 = async () => {
 	const clients = [await prepareD1Client()];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 export const providerForSqlJs = async () => {
 	const clients = [await prepareSqlJs()];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 export const providerForNodeSQLite = async () => {
 	const clients = [await prepareNodeSQLite()];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 type ProviderForSQLiteCloud = Awaited<ReturnType<typeof providerForSQLiteCloud>>;
@@ -765,6 +752,7 @@ const testFor = (
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				jit?: boolean,
 				paramsInErrors?: boolean,
+				cache?: Cache,
 			): SQLiteAsyncDatabase<
 				'async' | 'sync',
 				any,
@@ -815,6 +803,10 @@ const testFor = (
 			async ({ provider }, use) => {
 				const { client, batch, all, run, release } = await provider();
 				await use({ client: client, all, run, batch });
+				// The serverless driver keeps a stream open on the server between requests, and the server drops streams
+				// left idle: a client starts the next test on a fresh session, or that test's first request can fail with
+				// HTTP 400 on a busy machine.
+				if (vendor === 'tursodatabase-serverless') await (client as TursoServerlessConnection).reconnect();
 				release();
 			},
 			{ scope: 'test' },
@@ -884,41 +876,44 @@ const testFor = (
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					jit?: boolean,
 					paramsInErrors?: boolean,
+					cache?: Cache,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'sqlite-cloud') {
-						return drizzleSqliteCloud({ client: kit.client, relations, jit, paramsInErrors });
+						return drizzleSqliteCloud({ client: kit.client, relations, jit, paramsInErrors, cache });
 					}
 					if (vendor === 'tursodatabase') {
-						return drizzleTursoDatabase({ client: kit.client, relations, jit, paramsInErrors });
+						return drizzleTursoDatabase({ client: kit.client, relations, jit, paramsInErrors, cache });
 					}
 					if (vendor === 'tursodatabase-sync') {
-						return drizzleTursoDatabaseSync({ client: kit.client, relations, jit, paramsInErrors });
+						return drizzleTursoDatabaseSync({ client: kit.client, relations, jit, paramsInErrors, cache });
 					}
 					if (vendor === 'tursodatabase-serverless') {
-						return drizzleTursoDatabaseSls({ client: kit.client, relations, jit, paramsInErrors });
+						return drizzleTursoDatabaseSls({ client: kit.client, relations, jit, paramsInErrors, cache });
 					}
 					if (vendor === 'libsql' || vendor === 'libsql-turso' || vendor === 'libsql-turso-v1') {
-						return drizzleLibSQL({ client: kit.client, relations, jit, paramsInErrors });
+						return drizzleLibSQL({ client: kit.client, relations, jit, paramsInErrors, cache });
 					}
-					if (vendor === 'libsql-ws') return drizzleLibSQLWs({ client: kit.client, relations, jit, paramsInErrors });
+					if (vendor === 'libsql-ws') {
+						return drizzleLibSQLWs({ client: kit.client, relations, jit, paramsInErrors, cache });
+					}
 					if (vendor === 'libsql-sqlite3') {
-						return drizzleLibSQLSqlite3({ client: kit.client, relations, jit, paramsInErrors });
+						return drizzleLibSQLSqlite3({ client: kit.client, relations, jit, paramsInErrors, cache });
 					}
 					if (vendor === 'libsql-node') {
-						return drizzleLibSQLNode({ client: kit.client, relations, jit, paramsInErrors });
+						return drizzleLibSQLNode({ client: kit.client, relations, jit, paramsInErrors, cache });
 					}
 					if (vendor === 'libsql-http') {
-						return drizzleLibSQLHttp({ client: kit.client, relations, jit, paramsInErrors });
+						return drizzleLibSQLHttp({ client: kit.client, relations, jit, paramsInErrors, cache });
 					}
 					if (vendor === 'better-sqlite3') {
-						return drizzleBetterSqlite3({ client: kit.client, relations, jit, paramsInErrors });
+						return drizzleBetterSqlite3({ client: kit.client, relations, jit, paramsInErrors, cache });
 					}
-					if (vendor === 'd1') return drizzleD1(kit.client, { relations, paramsInErrors });
-					if (vendor === 'sql-js') return drizzleSqlJs(kit.client, { relations, jit, paramsInErrors });
+					if (vendor === 'd1') return drizzleD1(kit.client, { relations, paramsInErrors, cache });
+					if (vendor === 'sql-js') return drizzleSqlJs(kit.client, { relations, jit, paramsInErrors, cache });
 					if (vendor === 'node-sqlite') {
-						return drizzleNodeSQLite({ client: kit.client, relations, jit, paramsInErrors });
+						return drizzleNodeSQLite({ client: kit.client, relations, jit, paramsInErrors, cache });
 					}
 
 					if (vendor === 'proxy') {
@@ -928,6 +923,7 @@ const testFor = (
 							jit,
 							paramsInErrors,
 							codecs: betterSQLite3Codecs,
+							cache,
 						});
 					}
 					throw new Error();

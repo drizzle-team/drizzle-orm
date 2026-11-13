@@ -8,6 +8,7 @@ import {
 	char,
 	cockroachEnum,
 	cockroachTable,
+	customType,
 	date,
 	doublePrecision,
 	float,
@@ -242,6 +243,28 @@ export type RunQuery = (query: any) => Promise<any>;
 const awaitQuery: RunQuery = (query) => query;
 
 const defaultAllTypesTable = allTypesTable;
+
+export const allTypesEmptyArraysData: AllTypes = Object.fromEntries(
+	Object.entries(allTypesData).map(([key, value]) => [key, key.startsWith('arr') ? [] : value]),
+) as AllTypes;
+
+export async function assertAllTypesEmptyArrays(
+	db: CockroachDatabase<any, any>,
+	allTypesTable: AllTypesTable = defaultAllTypesTable,
+	{ rqb = false }: { rqb?: boolean } = {},
+) {
+	await db.delete(allTypesTable);
+	await db.insert(allTypesTable).values(allTypesEmptyArraysData);
+
+	expect(await db.select().from(allTypesTable)).toStrictEqual([allTypesEmptyArraysData]);
+	if (rqb) {
+		expect(await (<any> db).query.allTypesTable.findFirst({ with: { self: true } })).toStrictEqual({
+			...allTypesEmptyArraysData,
+			self: [allTypesEmptyArraysData],
+		});
+	}
+}
+
 export async function assertAllTypesUnions(
 	db: CockroachDatabase<any, any>,
 	allTypesTable: AllTypesTable = defaultAllTypesTable,
@@ -687,7 +710,7 @@ export const boundsData: BoundsRow[] = [
 
 export async function assertAllTypesBounds(
 	db: CockroachDatabase<any, any>,
-	run: RunQuery = awaitQuery,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
 ) {
 	await run(db.execute(sql.raw(dropBounds())));
 	await run(db.execute(sql.raw(createBounds())));
@@ -699,7 +722,658 @@ export async function assertAllTypesBounds(
 		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<BoundsRow[]>();
 
 		expect(await run(query)).toStrictEqual(boundsData);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.boundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(boundsData.map((row) => ({ ...row, self: [row] })));
+		}
 	} finally {
 		await run(db.execute(sql.raw(dropBounds())));
 	}
 }
+
+const TEMPORAL_TABLE = 'all_types_temporal_bounds';
+
+export const temporalBoundsTable = cockroachTable(TEMPORAL_TABLE, {
+	id: int4('id').primaryKey(),
+	date: date('date', { mode: 'date' }),
+	dateStr: date('date_str', { mode: 'string' }),
+	timestamp: timestamp('timestamp', { mode: 'date', precision: 3 }),
+	timestampTz: timestamp('timestamp_tz', { mode: 'date', precision: 6, withTimezone: true }),
+	timestampStr: timestamp('timestamp_str', { mode: 'string', precision: 6 }),
+	timestampTzStr: timestamp('timestamp_tz_str', { mode: 'string', precision: 6, withTimezone: true }),
+	time: time('time', { precision: 6 }),
+	arrTimestampTz: timestamp('arr_timestamp_tz', { mode: 'date', precision: 3, withTimezone: true }).array(),
+});
+
+export type TemporalBoundsRow = {
+	id: number;
+	date: Date | null;
+	dateStr: string | null;
+	timestamp: Date | null;
+	timestampTz: Date | null;
+	timestampStr: string | null;
+	timestampTzStr: string | null;
+	time: string | null;
+	arrTimestampTz: Date[] | null;
+};
+
+export const createTemporalBounds = (tableName: string = TEMPORAL_TABLE) =>
+	`create table "${tableName}" (
+		"id" integer primary key,
+		"date" date,
+		"date_str" date,
+		"timestamp" timestamp(3),
+		"timestamp_tz" timestamp(6) with time zone,
+		"timestamp_str" timestamp(6),
+		"timestamp_tz_str" timestamp(6) with time zone,
+		"time" time(6),
+		"arr_timestamp_tz" timestamp(3) with time zone[]
+	)`;
+
+export const dropTemporalBounds = (tableName: string = TEMPORAL_TABLE) => `drop table if exists "${tableName}"`;
+
+export const temporalBoundsData: TemporalBoundsRow[] = [
+	{
+		id: 1,
+		date: new Date('1970-01-01T00:00:00.000Z'),
+		dateStr: '1970-01-01',
+		timestamp: new Date('1970-01-01T00:00:00.000Z'),
+		timestampTz: new Date('1970-01-01T00:00:00.000Z'),
+		timestampStr: '1970-01-01 00:00:00',
+		timestampTzStr: '1970-01-01 00:00:00+00',
+		time: '00:00:00',
+		arrTimestampTz: [new Date('1970-01-01T00:00:00.000Z')],
+	},
+	{
+		id: 2,
+		date: new Date('1969-12-31T00:00:00.000Z'),
+		dateStr: '1969-12-31',
+		timestamp: new Date('1969-12-31T23:59:59.999Z'),
+		timestampTz: new Date('1969-12-31T23:59:59.999Z'),
+		timestampStr: '1969-12-31 23:59:59.999999',
+		timestampTzStr: '1969-12-31 23:59:59.999999+00',
+		time: '23:59:59.999999',
+		arrTimestampTz: [new Date('1969-12-31T23:59:59.999Z')],
+	},
+	{
+		id: 3,
+		date: new Date('2024-02-29T00:00:00.000Z'),
+		dateStr: '2024-02-29',
+		timestamp: new Date('2024-02-29T12:34:56.500Z'),
+		timestampTz: new Date('2024-02-29T12:34:56.789Z'),
+		timestampStr: '2024-02-29 12:34:56.789',
+		timestampTzStr: '2024-02-29 12:34:56.789+00',
+		time: '24:00:00',
+		arrTimestampTz: [new Date('2024-02-29T12:34:56.789Z'), new Date('1970-01-01T00:00:00.000Z')],
+	},
+	{
+		id: 4,
+		date: new Date('0001-01-01T00:00:00.000Z'),
+		dateStr: '0001-01-01',
+		timestamp: new Date('0001-01-01T00:00:00.500Z'),
+		timestampTz: new Date('0001-01-01T00:00:00.000Z'),
+		timestampStr: '0001-01-01 00:00:00',
+		timestampTzStr: '0001-01-01 00:00:00+00',
+		time: null,
+		arrTimestampTz: [new Date('0001-01-01T00:00:00.000Z')],
+	},
+	{
+		id: 5,
+		date: new Date('0099-12-31T00:00:00.000Z'),
+		dateStr: '0099-12-31',
+		timestamp: new Date('0099-12-31T23:59:59.999Z'),
+		timestampTz: new Date('0099-12-31T23:59:59.999Z'),
+		timestampStr: '0099-12-31 23:59:59.999999',
+		timestampTzStr: '0099-12-31 23:59:59.999999+00',
+		time: null,
+		arrTimestampTz: [new Date('0099-12-31T23:59:59.999Z')],
+	},
+	{
+		id: 6,
+		date: new Date('9999-12-31T00:00:00.000Z'),
+		dateStr: '9999-12-31',
+		timestamp: new Date('9999-12-31T23:59:59.999Z'),
+		timestampTz: new Date('9999-12-31T23:59:59.999Z'),
+		timestampStr: '9999-12-31 23:59:59.999999',
+		timestampTzStr: '9999-12-31 23:59:59.999999+00',
+		time: null,
+		arrTimestampTz: [new Date('9999-12-31T23:59:59.999Z')],
+	},
+	{
+		id: 7,
+		date: new Date('+010000-01-01T00:00:00.000Z'),
+		dateStr: '10000-01-01',
+		timestamp: new Date('+010000-01-01T00:00:00.000Z'),
+		timestampTz: new Date('+010000-01-01T00:00:00.000Z'),
+		timestampStr: '10000-01-01 00:00:00',
+		timestampTzStr: '10000-01-01 00:00:00+00',
+		time: null,
+		arrTimestampTz: [new Date('+010000-01-01T00:00:00.000Z'), new Date('+059009-01-01T00:00:00.000Z')],
+	},
+	{
+		id: 8,
+		date: new Date('+275760-09-13T00:00:00.000Z'),
+		dateStr: '275760-09-13',
+		timestamp: new Date('+275760-09-13T00:00:00.000Z'),
+		timestampTz: new Date('+275760-09-13T00:00:00.000Z'),
+		timestampStr: '275760-09-13 00:00:00',
+		timestampTzStr: '275760-09-13 00:00:00+00',
+		time: null,
+		arrTimestampTz: [new Date('+275760-09-13T00:00:00.000Z')],
+	},
+	{
+		id: 9,
+		date: new Date('0000-01-01T00:00:00.000Z'),
+		dateStr: '0001-01-01 BC',
+		timestamp: new Date('0000-01-01T00:00:00.000Z'),
+		timestampTz: new Date('0000-01-01T00:00:00.000Z'),
+		timestampStr: '0001-01-01 00:00:00 BC',
+		timestampTzStr: '0001-01-01 00:00:00+00 BC',
+		time: null,
+		arrTimestampTz: [new Date('0000-01-01T00:00:00.000Z')],
+	},
+	{
+		id: 10,
+		date: null,
+		dateStr: 'infinity',
+		timestamp: null,
+		timestampTz: null,
+		timestampStr: '-infinity',
+		// cockroach stores `±infinity` in timestamptz but fails to print it back (22009 "exceeds supported timestamp bounds")
+		timestampTzStr: null,
+		time: null,
+		arrTimestampTz: [],
+	},
+	{
+		id: 11,
+		date: null,
+		dateStr: null,
+		timestamp: null,
+		timestampTz: null,
+		timestampStr: null,
+		timestampTzStr: null,
+		time: null,
+		arrTimestampTz: null,
+	},
+	{
+		id: 12,
+		date: new Date('-000001-12-31T00:00:00.000Z'),
+		dateStr: '0002-12-31 BC',
+		timestamp: new Date('-000001-12-31T23:59:59.999Z'),
+		timestampTz: new Date('-000001-12-31T23:59:59.999Z'),
+		timestampStr: '0002-12-31 23:59:59.999 BC',
+		timestampTzStr: '0002-12-31 23:59:59.999+00 BC',
+		time: null,
+		arrTimestampTz: [new Date('-000001-12-31T23:59:59.999Z')],
+	},
+	{
+		id: 13,
+		date: new Date('-004713-11-24T00:00:00.000Z'),
+		dateStr: '4714-11-24 BC',
+		timestamp: new Date('-004713-11-24T00:00:00.000Z'),
+		// cockroach prints values from before ~2000 BC with offsets that don't match their time in non-UTC sessions
+		timestampTz: null,
+		timestampStr: '4714-11-24 00:00:00 BC',
+		timestampTzStr: null,
+		time: null,
+		arrTimestampTz: null,
+	},
+	{
+		id: 15,
+		date: new Date('1880-01-01T00:00:00.000Z'),
+		dateStr: '1880-01-01',
+		timestamp: new Date('1880-01-01T00:00:00.000Z'),
+		timestampTz: new Date('1880-01-01T00:00:00.000Z'),
+		timestampStr: '1880-01-01 00:00:00',
+		timestampTzStr: '1880-01-01 00:00:00+00',
+		time: null,
+		arrTimestampTz: [new Date('1880-01-01T00:00:00.000Z')],
+	},
+];
+
+/**
+ * Fills the temporal bounds table; `timestamp_tz` values then get 567 microseconds added, so they're printed with
+ * 6 fractional digits that have to be truncated, not rounded, to milliseconds on decoding
+ */
+async function fillTemporalBounds(db: CockroachDatabase<any, any>, run: RunQuery) {
+	await run(db.insert(temporalBoundsTable).values(temporalBoundsData));
+	await run(
+		db.execute(
+			sql.raw(
+				`update "${TEMPORAL_TABLE}" set "timestamp_tz" = "timestamp_tz" + interval '567 microseconds' where "timestamp_tz" is not null`,
+			),
+		),
+	);
+}
+
+export async function assertAllTypesTemporalBounds(
+	db: CockroachDatabase<any, any>,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+) {
+	await run(db.execute(sql.raw(dropTemporalBounds())));
+	await run(db.execute(sql.raw(createTemporalBounds())));
+
+	try {
+		await fillTemporalBounds(db, run);
+
+		const query = db.select().from(temporalBoundsTable).orderBy(temporalBoundsTable.id);
+		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<TemporalBoundsRow[]>();
+
+		expect(await run(query)).toStrictEqual(temporalBoundsData);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.temporalBoundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(temporalBoundsData.map((row) => ({ ...row, self: [row] })));
+		}
+	} finally {
+		await run(db.execute(sql.raw(dropTemporalBounds())));
+	}
+}
+
+export type TemporalSession = { timeZone: string; dateStyle?: string };
+
+export const sessionTimeZones: TemporalSession[] = [
+	{ timeZone: 'Europe/Kyiv' },
+	{ timeZone: 'Asia/Kathmandu' },
+	{ timeZone: 'America/St_Johns' },
+];
+
+/** https://github.com/drizzle-team/drizzle-orm/issues/6496 */
+export const sessionDateStyles: TemporalSession[] = [
+	{ timeZone: 'Asia/Tokyo', dateStyle: 'ISO, DMY' },
+	{ timeZone: 'America/St_Johns', dateStyle: 'ISO, MDY' },
+];
+
+export async function assertAllTypesTemporalBoundsInSessions(
+	db: CockroachDatabase<any, any>,
+	{ rqb = false, sessions = sessionTimeZones }: { rqb?: boolean; sessions?: TemporalSession[] } = {},
+) {
+	const table = temporalBoundsTable;
+	const columns = { id: true, date: true, timestamp: true, timestampTz: true, arrTimestampTz: true } as const;
+	const expected = temporalBoundsData.map(({ id, date, timestamp, timestampTz, arrTimestampTz }) => ({
+		id,
+		date,
+		timestamp,
+		timestampTz,
+		arrTimestampTz,
+	}));
+
+	await db.execute(sql.raw(dropTemporalBounds()));
+	await db.execute(sql.raw(createTemporalBounds()));
+
+	try {
+		for (const { timeZone, dateStyle } of sessions) {
+			const label = dateStyle === undefined ? timeZone : `${timeZone}, ${dateStyle}`;
+			// `set local` keeps the setting within transaction, which also holds the session for pooled drivers
+			await db.transaction(async (tx) => {
+				await tx.execute(sql.raw(`set local time zone '${timeZone}'`));
+				if (dateStyle !== undefined) await tx.execute(sql.raw(`set local datestyle = '${dateStyle}'`));
+
+				await tx.delete(table);
+				await fillTemporalBounds(<any> tx, awaitQuery);
+
+				expect(
+					await tx.select({
+						id: table.id,
+						date: table.date,
+						timestamp: table.timestamp,
+						timestampTz: table.timestampTz,
+						arrTimestampTz: table.arrTimestampTz,
+					}).from(table).orderBy(table.id),
+					label,
+				).toStrictEqual(expected);
+				if (rqb) {
+					expect(
+						await (<any> tx).query.temporalBoundsTable.findMany({
+							columns,
+							orderBy: { id: 'asc' },
+							with: { self: { columns } },
+						}),
+						label,
+					).toStrictEqual(expected.map((row) => ({ ...row, self: [row] })));
+				}
+			});
+		}
+	} finally {
+		await db.execute(sql.raw(dropTemporalBounds()));
+	}
+}
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6460
+const NULL_ELEMENTS_TABLE = 'all_types_null_elements';
+const NULL_ELEMENTS_ENUM = 'en_null_elements';
+
+const nullElementsEnum = cockroachEnum(NULL_ELEMENTS_ENUM, ['enVal1', 'enVal2']);
+
+export const nullElementsTable = cockroachTable(NULL_ELEMENTS_TABLE, {
+	id: int4('id').primaryKey(),
+	arrint: int4('arrint').array().notNull().$type<number | null>(),
+	arrbigint53: bigint('arrbigint53', { mode: 'number' }).array().notNull().$type<number | null>(),
+	arrbigint64: bigint('arrbigint64', { mode: 'bigint' }).array().notNull().$type<bigint | null>(),
+	arrbit: bit('arrbit').array().notNull().$type<string | null>(),
+	arrbool: bool('arrbool').array().notNull().$type<boolean | null>(),
+	arrchar: char('arrchar').array().notNull().$type<string | null>(),
+	arrdate: date('arrdate', { mode: 'date' }).array().notNull().$type<Date | null>(),
+	arrdateStr: date('arrdateStr', { mode: 'string' }).array().notNull().$type<string | null>(),
+	arrdouble: doublePrecision('arrdouble').array().notNull().$type<number | null>(),
+	arrenum: nullElementsEnum('arrenum').array().notNull().$type<'enVal1' | 'enVal2' | null>(),
+	arrfloat: float('arrfloat').array().notNull().$type<number | null>(),
+	arrinet: inet('arrinet').array().notNull().$type<string | null>(),
+	arrinterval: interval('arrinterval').array().notNull().$type<string | null>(),
+	arrnumeric: numeric('arrnumeric').array().notNull().$type<string | null>(),
+	arrnumericNum: numeric('arrnumericNum', { mode: 'number' }).array().notNull().$type<number | null>(),
+	arrnumericBig: numeric('arrnumericBig', { mode: 'bigint' }).array().notNull().$type<bigint | null>(),
+	arrreal: real('arrreal').array().notNull().$type<number | null>(),
+	arrsmallint: smallint('arrsmallint').array().notNull().$type<number | null>(),
+	arrstring: string('arrstring').array().notNull().$type<string | null>(),
+	arrtext: text('arrtext').array().notNull().$type<string | null>(),
+	arrtime: time('arrtime').array().notNull().$type<string | null>(),
+	arrtimestamp: timestamp('arrtimestamp', { mode: 'date' }).array().notNull().$type<Date | null>(),
+	arrtimestampTz: timestamp('arrtimestampTz', { mode: 'date', withTimezone: true }).array().notNull().$type<
+		Date | null
+	>(),
+	arrtimestampStr: timestamp('arrtimestampStr', { mode: 'string' }).array().notNull().$type<string | null>(),
+	arrtimestampTzStr: timestamp('arrtimestampTzStr', { mode: 'string', withTimezone: true }).array().notNull().$type<
+		string | null
+	>(),
+	arruuid: uuid('arruuid').array().notNull().$type<string | null>(),
+	arrvarbit: varbit('arrvarbit').array().notNull().$type<string | null>(),
+	arrvarchar: varchar('arrvarchar').array().notNull().$type<string | null>(),
+});
+
+export type NullElementsRow = {
+	id: number;
+	arrint: (number | null)[];
+	arrbigint53: (number | null)[];
+	arrbigint64: (bigint | null)[];
+	arrbit: (string | null)[];
+	arrbool: (boolean | null)[];
+	arrchar: (string | null)[];
+	arrdate: (Date | null)[];
+	arrdateStr: (string | null)[];
+	arrdouble: (number | null)[];
+	arrenum: ('enVal1' | 'enVal2' | null)[];
+	arrfloat: (number | null)[];
+	arrinet: (string | null)[];
+	arrinterval: (string | null)[];
+	arrnumeric: (string | null)[];
+	arrnumericNum: (number | null)[];
+	arrnumericBig: (bigint | null)[];
+	arrreal: (number | null)[];
+	arrsmallint: (number | null)[];
+	arrstring: (string | null)[];
+	arrtext: (string | null)[];
+	arrtime: (string | null)[];
+	arrtimestamp: (Date | null)[];
+	arrtimestampTz: (Date | null)[];
+	arrtimestampStr: (string | null)[];
+	arrtimestampTzStr: (string | null)[];
+	arruuid: (string | null)[];
+	arrvarbit: (string | null)[];
+	arrvarchar: (string | null)[];
+};
+
+export const createNullElements = (tableName: string = NULL_ELEMENTS_TABLE) => [
+	`create type "${NULL_ELEMENTS_ENUM}" as enum ('enVal1', 'enVal2')`,
+	`create table "${tableName}" (
+		"id" int4 primary key,
+		"arrint" int4[] not null,
+		"arrbigint53" int8[] not null,
+		"arrbigint64" int8[] not null,
+		"arrbit" bit[] not null,
+		"arrbool" bool[] not null,
+		"arrchar" char[] not null,
+		"arrdate" date[] not null,
+		"arrdateStr" date[] not null,
+		"arrdouble" float8[] not null,
+		"arrenum" "${NULL_ELEMENTS_ENUM}"[] not null,
+		"arrfloat" float8[] not null,
+		"arrinet" inet[] not null,
+		"arrinterval" interval[] not null,
+		"arrnumeric" numeric[] not null,
+		"arrnumericNum" numeric[] not null,
+		"arrnumericBig" numeric[] not null,
+		"arrreal" float4[] not null,
+		"arrsmallint" int2[] not null,
+		"arrstring" string[] not null,
+		"arrtext" text[] not null,
+		"arrtime" time[] not null,
+		"arrtimestamp" timestamp[] not null,
+		"arrtimestampTz" timestamptz[] not null,
+		"arrtimestampStr" timestamp[] not null,
+		"arrtimestampTzStr" timestamptz[] not null,
+		"arruuid" uuid[] not null,
+		"arrvarbit" varbit[] not null,
+		"arrvarchar" varchar[] not null
+	)`,
+];
+
+export const dropNullElements = (tableName: string = NULL_ELEMENTS_TABLE) => [
+	`drop table if exists "${tableName}"`,
+	`drop type if exists "${NULL_ELEMENTS_ENUM}"`,
+];
+
+export const nullElementsData: NullElementsRow[] = [
+	{
+		id: 1,
+		arrint: [621, null, -5],
+		arrbigint53: [9007199254740991, null, -42],
+		arrbigint64: [5044565289845416380n, null, -9223372036854775808n],
+		arrbit: ['1', null, '0'],
+		arrbool: [true, null, false],
+		arrchar: ['c', null, 'd'],
+		arrdate: [new Date('2025-03-12T00:00:00.000Z'), null, new Date('1990-01-01T00:00:00.000Z')],
+		arrdateStr: ['2025-03-12', null, '1990-01-01'],
+		arrdouble: [15.35325689124218, null, -0.5],
+		arrenum: ['enVal1', null, 'enVal2'],
+		arrfloat: [1.12, null, 1.13],
+		arrinet: ['192.168.0.1/24', null, '10.0.0.1/8'],
+		arrinterval: ['-2 mons', null, '1 year 2 mons'],
+		arrnumeric: ['475452353476', null, '-0.0001'],
+		arrnumericNum: [9007199254740991, null, -1.5],
+		arrnumericBig: [5044565289845416380n, null, -170141183460469231731687303715884105728n],
+		arrreal: [1.048596, null, -2.5],
+		arrsmallint: [10, null, -20],
+		arrstring: ['TEXT STRING', null, 'NULL'],
+		arrtext: ['TEXT STRING', null, 'NULL'],
+		arrtime: ['13:59:28', null, '00:00:00'],
+		arrtimestamp: [new Date('2025-03-12T01:32:41.623Z'), null, new Date('1990-01-01T00:00:00.000Z')],
+		arrtimestampTz: [new Date('2025-03-12T01:32:41.623Z'), null, new Date('1990-01-01T00:00:00.000Z')],
+		arrtimestampStr: ['2025-03-12 01:32:41.623', null, '1990-01-01 00:00:00'],
+		arrtimestampTzStr: ['2025-03-12 01:32:41.623+00', null, '1990-01-01 00:00:00+00'],
+		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c', null, '00000000-0000-0000-0000-000000000000'],
+		arrvarbit: ['1', null, '0101'],
+		arrvarchar: ['C4-', null, 'second'],
+	},
+	{
+		id: 2,
+		arrint: [null],
+		arrbigint53: [null],
+		arrbigint64: [null],
+		arrbit: [null],
+		arrbool: [null],
+		arrchar: [null],
+		arrdate: [null],
+		arrdateStr: [null],
+		arrdouble: [null],
+		arrenum: [null],
+		arrfloat: [null],
+		arrinet: [null],
+		arrinterval: [null],
+		arrnumeric: [null],
+		arrnumericNum: [null],
+		arrnumericBig: [null],
+		arrreal: [null],
+		arrsmallint: [null],
+		arrstring: [null],
+		arrtext: [null],
+		arrtime: [null],
+		arrtimestamp: [null],
+		arrtimestampTz: [null],
+		arrtimestampStr: [null],
+		arrtimestampTzStr: [null],
+		arruuid: [null],
+		arrvarbit: [null],
+		arrvarchar: [null],
+	},
+];
+
+export async function assertAllTypesNullArrayElements(
+	db: CockroachDatabase<any, any>,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+) {
+	const drop = async () => {
+		for (const statement of dropNullElements()) await run(db.execute(sql.raw(statement)));
+	};
+
+	await drop();
+	for (const statement of createNullElements()) await run(db.execute(sql.raw(statement)));
+
+	try {
+		await run(db.insert(nullElementsTable).values(nullElementsData));
+
+		expect(
+			await run(
+				db.select({ id: nullElementsTable.id }).from(nullElementsTable).where(
+					sql`array_position(${nullElementsTable.arrtext}, null) is not null`,
+				).orderBy(nullElementsTable.id),
+			),
+		).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+		const query = db.select().from(nullElementsTable).orderBy(nullElementsTable.id);
+		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<NullElementsRow[]>();
+
+		expect(await run(query)).toStrictEqual(nullElementsData);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.nullElementsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(nullElementsData.map((row) => ({ ...row, self: [row] })));
+		}
+	} finally {
+		await drop();
+	}
+}
+
+type Tagged = { v: string };
+type Counter = { n: bigint };
+
+const taggedType = customType<{ data: Tagged; driverData: string }>({
+	dataType: () => 'string',
+	toDriver: (value) => value.v,
+	fromDriver: (value) => ({ v: value }),
+});
+
+const counterType = customType<{ data: Counter; driverData: string }>({
+	codec: 'bigint',
+	dataType: () => 'bigint',
+	toDriver: (value) => value.n.toString(),
+	fromDriver: (value) => ({ n: value as unknown as bigint }),
+});
+
+let taggedFromJsonCalls = 0;
+const taggedJsonType = customType<{ data: Tagged; driverData: string; jsonData: string }>({
+	dataType: () => 'string',
+	toDriver: (value) => value.v,
+	fromDriver: (value) => ({ v: value }),
+	fromJson: (value) => {
+		taggedFromJsonCalls++;
+		return { v: value };
+	},
+});
+
+const CUSTOM_NULL_ELEMENTS_TABLE = 'custom_null_elements';
+
+export const customNullElementsTable = cockroachTable(CUSTOM_NULL_ELEMENTS_TABLE, {
+	id: int4('id').primaryKey(),
+	tagged: taggedType('tagged').array().notNull().$type<Tagged | null>(),
+	counter: counterType('counter').array().notNull().$type<Counter | null>(),
+	taggedJson: taggedJsonType('tagged_json').array().notNull().$type<Tagged | null>(),
+});
+
+export type CustomNullElementsRow = {
+	id: number;
+	tagged: (Tagged | null)[];
+	counter: (Counter | null)[];
+	taggedJson: (Tagged | null)[];
+};
+
+export const createCustomNullElements = (tableName: string = CUSTOM_NULL_ELEMENTS_TABLE) =>
+	`create table "${tableName}" (
+		"id" int4 primary key,
+		"tagged" string[] not null,
+		"counter" int8[] not null,
+		"tagged_json" string[] not null
+	)`;
+
+export const dropCustomNullElements = (tableName: string = CUSTOM_NULL_ELEMENTS_TABLE) =>
+	`drop table if exists "${tableName}"`;
+
+export const customNullElementsData: CustomNullElementsRow[] = [
+	{
+		id: 1,
+		tagged: [{ v: 'a' }, null, { v: 'NULL' }],
+		counter: [{ n: 5044565289845416380n }, null, { n: -1n }],
+		taggedJson: [{ v: 'a' }, null, { v: 'b' }],
+	},
+	{
+		id: 2,
+		tagged: [null],
+		counter: [null],
+		taggedJson: [null],
+	},
+];
+
+export async function assertCustomTypeNullArrayElements(
+	db: CockroachDatabase<any, any>,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+) {
+	await run(db.execute(sql.raw(dropCustomNullElements())));
+	await run(db.execute(sql.raw(createCustomNullElements())));
+
+	try {
+		await run(db.insert(customNullElementsTable).values(customNullElementsData));
+
+		expect(
+			await run(
+				db.select({ id: customNullElementsTable.id }).from(customNullElementsTable).where(sql`\
+array_position(${customNullElementsTable.tagged}, null) is not null \
+and array_position(${customNullElementsTable.counter}, null) is not null \
+and array_position(${customNullElementsTable.taggedJson}, null) is not null`).orderBy(customNullElementsTable.id),
+			),
+		).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+		const query = db.select().from(customNullElementsTable).orderBy(customNullElementsTable.id);
+		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<CustomNullElementsRow[]>();
+
+		expect(await run(query)).toStrictEqual(customNullElementsData);
+		if (rqb) {
+			taggedFromJsonCalls = 0;
+			expect(
+				await run(
+					(<any> db).query.customNullElementsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } }),
+				),
+			).toStrictEqual(customNullElementsData.map((row) => ({ ...row, self: [row] })));
+			expect(taggedFromJsonCalls).toStrictEqual(2);
+		}
+	} finally {
+		await run(db.execute(sql.raw(dropCustomNullElements())));
+	}
+}
+
+export const boundsSchema = { boundsTable, temporalBoundsTable, nullElementsTable, customNullElementsTable };
+
+export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({
+	boundsTable: {
+		self: r.many.boundsTable({ from: r.boundsTable.id, to: r.boundsTable.id }),
+	},
+	temporalBoundsTable: {
+		self: r.many.temporalBoundsTable({ from: r.temporalBoundsTable.id, to: r.temporalBoundsTable.id }),
+	},
+	nullElementsTable: {
+		self: r.many.nullElementsTable({ from: r.nullElementsTable.id, to: r.nullElementsTable.id }),
+	},
+	customNullElementsTable: {
+		self: r.many.customNullElementsTable({ from: r.customNullElementsTable.id, to: r.customNullElementsTable.id }),
+	},
+});

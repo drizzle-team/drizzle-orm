@@ -1,8 +1,6 @@
-import chalk from 'chalk';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
-import { getTsconfig } from 'get-tsconfig';
-import { sync as globSync } from 'glob';
-import { dirname, join, resolve } from 'path';
+import glob from 'glob';
+import { dirname, extname, isAbsolute, join, resolve } from 'path';
 import { parse, pathToFileURL } from 'url';
 import {
 	CheckCliError,
@@ -30,7 +28,7 @@ export const prepareFilenames = (path: string | string[]) => {
 	const skippedFiles: string[] = [];
 
 	const result = path.reduce((result, cur) => {
-		const globbed = globSync(`${prefix}${cur}`);
+		const globbed = glob.sync(`${prefix}${cur}`);
 
 		for (const it of globbed) {
 			const stats = lstatSync(it);
@@ -121,62 +119,6 @@ export const prepareOutFolder = (out: string) => {
 	snapshots.sort();
 
 	return { snapshots };
-};
-
-const tsconfigAliasCache = new Map<string, Record<string, string> | undefined>();
-
-const getAliasesForTsconfig = (baseDir: string): Record<string, string> | undefined => {
-	const cached = tsconfigAliasCache.get(baseDir);
-	if (cached !== undefined || tsconfigAliasCache.has(baseDir)) {
-		return cached;
-	}
-
-	const tsconfig = getTsconfig(baseDir);
-	const tsconfigPaths = tsconfig?.config?.compilerOptions?.paths as Record<string, string[]> | undefined;
-	if (!tsconfigPaths || !tsconfig?.path) {
-		tsconfigAliasCache.set(baseDir, undefined);
-		return undefined;
-	}
-
-	const tsconfigBaseUrl = tsconfig.config.compilerOptions?.baseUrl ?? '.';
-	const tsconfigDir = dirname(tsconfig.path);
-
-	const aliases = Object.fromEntries(
-		Object.entries(tsconfigPaths).flatMap(([key, values]) => {
-			const targets = (values ?? []).filter((value): value is string => Boolean(value));
-			if (targets.length === 0) return [];
-
-			const hasWildcard = key.includes('*') || targets.some((target) => target.includes('*'));
-			const supportsTrailingWildcard = key.endsWith('/*') && targets.every((target) => target.endsWith('/*'));
-			if (hasWildcard && !supportsTrailingWildcard) {
-				console.warn(
-					chalk.yellow(
-						`[drizzle-kit] Unsupported tsconfig "paths" mapping "${key}": [${
-							targets
-								.map((target) => `"${target}"`)
-								.join(', ')
-						}]. Only trailing "/*" patterns are supported; this mapping will be ignored.`,
-					),
-				);
-				return [];
-			}
-
-			const aliasKey = key.endsWith('/*') ? key.slice(0, -1) : key;
-			const resolvedTargets = targets.map((target) => {
-				if (supportsTrailingWildcard) {
-					const targetPrefix = target.slice(0, -1);
-					return resolve(tsconfigDir, tsconfigBaseUrl, targetPrefix);
-				}
-				return resolve(tsconfigDir, tsconfigBaseUrl, target);
-			});
-
-			const selectedTarget = resolvedTargets.find((candidate) => existsSync(candidate)) ?? resolvedTargets[0]!;
-			return [[aliasKey, selectedTarget]];
-		}),
-	);
-
-	tsconfigAliasCache.set(baseDir, aliases);
-	return aliases;
 };
 
 /**
@@ -449,40 +391,33 @@ export const loadModule = async <T = unknown>(
 		return defaultExport ? (mod?.default ?? mod) : mod;
 	}
 
-	const [major, minor] = process.versions.node.split('.').map(Number);
-	const supportsModuleRegister = (major === 18 && minor >= 19)
-		|| (major === 20 && minor >= 6)
-		|| major >= 21;
-
-	if (!supportsModuleRegister) {
-		console.error(
-			`Node.js ${process.version} does not support the required module.register() API.`,
-		);
-		console.error(`Please upgrade to Node.js v18.19+, v20.6+, or v21+.`);
-		process.exit(1);
-	}
-
-	const path = require('path');
-	const absoluteModulePath = path.isAbsolute(modulePath)
-		? modulePath
-		: path.resolve(modulePath);
-	const ext = path.extname(modulePath);
+	const absoluteModulePath = isAbsolute(modulePath) ? modulePath : resolve(modulePath);
+	const ext = extname(modulePath);
 	const isTS = ext === '.ts' || ext === '.mts' || ext === '.cts';
 
-	if (isTS) {
-		const baseDir = path.dirname(absoluteModulePath);
-		const aliases = getAliasesForTsconfig(baseDir);
-		// oxlint-disable-next-line consistent-type-imports
-		const { createJiti } = require('jiti') as typeof import('jiti');
-		const jiti = createJiti(baseDir, {
-			interopDefault: true,
-			alias: aliases,
-			requireCache: false,
-		});
-		const mod = await jiti.import<any>(absoluteModulePath);
+	try {
+		if (isTS) {
+			const baseDir = dirname(absoluteModulePath);
+			const { createJiti } = await import('jiti');
+			const jiti = createJiti(baseDir, {
+				interopDefault: true,
+				tsconfigPaths: true,
+				requireCache: false,
+			});
+			const mod = await jiti.import<any>(absoluteModulePath);
+			return defaultExport ? (mod?.default ?? mod) : mod;
+		}
+		const mod = await import(pathToFileURL(absoluteModulePath).href);
 		return defaultExport ? (mod?.default ?? mod) : mod;
+	} catch (error) {
+		// Node throws `ERR_REQUIRE_ESM` only when require(esm) is off, and its own message does not say which
+		// Node version to use.
+		if (!(error instanceof Error && 'code' in error && error.code === 'ERR_REQUIRE_ESM')) throw error;
+		throw new Error(
+			`Loading ${modulePath} failed because this Node version cannot require() an ESM module. `
+				+ `drizzle-kit requires Node.js ${process.env.DRIZZLE_KIT_NODE_RANGE}, and this Node version is `
+				+ `${process.version}. Upgrade Node.js to a version in that range.`,
+			{ cause: error },
+		);
 	}
-	const fileUrl = pathToFileURL(absoluteModulePath).href;
-	const mod = await import(fileUrl);
-	return defaultExport ? (mod?.default ?? mod) : mod;
 };

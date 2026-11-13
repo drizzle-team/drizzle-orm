@@ -1,4 +1,3 @@
-/* eslint-disable drizzle-internal/require-entity-kind */
 import { integer, text, uuid } from 'drizzle-orm/pg-core';
 import type { BuildColumns, Column } from '../../lib/optimized-columns';
 

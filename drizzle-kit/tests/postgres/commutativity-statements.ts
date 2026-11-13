@@ -16,7 +16,7 @@ import type { JsonRenameConstraint, JsonStatement } from 'src/dialects/postgres/
 // and one for each variant that has another footprint, with the objects that its SQL needs in the database.
 // `build` returns the statement of one row, and helpers such as `col` and `idx` build the entities inside a
 // statement. These files use it: `commutativity.footprint.test.ts`, `commutativity.footprint-invariants.test.ts`,
-// `commutativity.matrix-gen.test.ts` and `commutativity-groundtruth.pglite.test.ts`.
+// `commutativity.matrix-gen.test.ts` and `commutativity-groundtruth.test.ts`.
 
 // These functions build the entities inside a statement, for `rows` and for the footprint tests. Each entity has
 // the fields that a snapshot stores for it, so it has no `entityType`.

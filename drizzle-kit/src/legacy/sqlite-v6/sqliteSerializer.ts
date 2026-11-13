@@ -203,7 +203,6 @@ export const generateSqliteSnapshot = (
 				}
 			});
 
-			// oxlint-disable-next-line no-useless-undefined
 			let where: string | undefined = undefined;
 			if (value.config.where !== undefined) {
 				if (is(value.config.where, SQL)) {

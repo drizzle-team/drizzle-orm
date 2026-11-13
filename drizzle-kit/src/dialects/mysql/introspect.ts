@@ -1,5 +1,5 @@
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
-import type { DB } from '../../utils';
+import { type DB, groupBy } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
 import { batchQuery, filterMigrationsSchema } from '../utils';
 import type { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
@@ -24,10 +24,15 @@ export const fromDatabaseForDrizzle = async (
 	},
 ): Promise<InterimSchema> => {
 	const res = await fromDatabase(db, schema, filter, progressCallback);
+	// JSON keeps table and name apart, so no pair of names can collide
+	const serialColumns = new Set(
+		res.columns.filter((c) => c.type === 'serial').map((c) => JSON.stringify([c.table, c.name])),
+	);
+	const fkNames = new Set(res.fks.map((fk) => JSON.stringify([fk.table, fk.name])));
 	res.indexes = res.indexes.filter((x) => {
 		let skip = x.isUnique === true && x.columns.length === 1 && x.columns[0].isExpression === false;
-		skip &&= res.columns.some((c) => c.type === 'serial' && c.table === x.table && c.name === x.columns[0].value);
-		skip ||= res.fks.some((fk) => x.table === fk.table && x.name === fk.name);
+		skip &&= serialColumns.has(JSON.stringify([x.table, x.columns[0].value]));
+		skip ||= fkNames.has(JSON.stringify([x.table, x.name]));
 		return !skip;
 	});
 
@@ -136,6 +141,11 @@ export const fromDatabase = async (
 		queryCallback('indexes', [], err);
 		throw err;
 	});
+
+	const uniqueIndexRowsByColumn = groupBy(
+		idxs.filter((it) => it.NON_UNIQUE === 0),
+		(it) => JSON.stringify([it.TABLE_NAME, it.COLUMN_NAME]),
+	);
 
 	const groupedIndexes = idxs.reduce<Record<string, Index>>((acc, it) => {
 		const name = it.INDEX_NAME;
@@ -272,12 +282,7 @@ export const fromDatabase = async (
 		let changedType = columnType.replace('decimal(10,0)', 'decimal');
 
 		if (columnType === 'bigint unsigned' && !isNullable && isAutoincrement) {
-			const uniqueIdx = idxs.filter(
-				(it) =>
-					it.COLUMN_NAME === name
-					&& it.TABLE_NAME === table
-					&& it.NON_UNIQUE === 0,
-			);
+			const uniqueIdx = uniqueIndexRowsByColumn.get(JSON.stringify([table, name]));
 			if (uniqueIdx && uniqueIdx.length === 1) {
 				changedType = columnType.replace('bigint unsigned', 'serial');
 			}
@@ -464,7 +469,9 @@ export const fromDatabase = async (
 			tc.CONSTRAINT_NAME, 
 			cc.CHECK_CLAUSE
 		FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
-		JOIN INFORMATION_SCHEMA.CHECK_CONSTRAINTS cc ON tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+		JOIN INFORMATION_SCHEMA.CHECK_CONSTRAINTS cc
+			ON tc.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA
+			AND tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
 		WHERE tc.CONSTRAINT_SCHEMA = '${schema}'
 			AND tc.CONSTRAINT_TYPE = 'CHECK';
 	`).then((rows) => {
@@ -523,6 +530,8 @@ export const fromDatabase = async (
 		throw err;
 	});
 
+	const columnsByTable = groupBy(columns, (it) => it.TABLE_NAME);
+
 	for await (const view of views) {
 		const name = view.TABLE_NAME;
 		const definition = view.VIEW_DEFINITION;
@@ -534,11 +543,11 @@ export const fromDatabase = async (
 
 		const sqlSecurity = view.SECURITY_TYPE.toLowerCase() as 'definer' | 'invoker';
 
-		const [createSqlStatement] = await db.query(`SHOW CREATE VIEW \`${name}\`;`);
+		const [createSqlStatement] = await db.query(`SHOW CREATE VIEW  \`${schema}\`.\`${name}\`;`);
 		const algorithmMatch = createSqlStatement['Create View'].match(/ALGORITHM=([^ ]+)/);
 		const algorithm = algorithmMatch ? algorithmMatch[1].toLowerCase() : null;
 
-		const viewColumns = columns.filter((it) => it.TABLE_NAME === name);
+		const viewColumns = columnsByTable.get(name) ?? [];
 
 		for (const column of viewColumns) {
 			const columnType = column['COLUMN_TYPE'].replace('decimal(10,0)', 'decimal');

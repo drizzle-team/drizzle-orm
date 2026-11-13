@@ -1,4 +1,4 @@
-import { PGlite } from '@electric-sql/pglite';
+import { borrowPGlite, returnPGlite } from '@drizzle/test-utils/pglite';
 import type { Database } from 'better-sqlite3';
 import BetterSqlite3 from 'better-sqlite3';
 import { integer, pgTable } from 'drizzle-orm/pg-core';
@@ -101,7 +101,7 @@ test('sqlite push with a table rename hint asks to confirm a dropped column of t
 });
 
 test('postgres push of a renamed table asks for a hint and keeps the rows with a rename hint', async () => {
-	const client = new PGlite();
+	const client = await borrowPGlite();
 	await client.exec('CREATE TABLE "a" ("id" integer PRIMARY KEY); INSERT INTO "a" VALUES (1);');
 	const db = drizzle({ client });
 	const schema = { b: pgTable('b', { id: integer('id').primaryKey() }) };
@@ -117,11 +117,11 @@ test('postgres push of a renamed table asks for a hint and keeps the rows with a
 	await apply();
 
 	expect((await client.query('SELECT "id" FROM "b"')).rows).toEqual([{ id: 1 }]);
-	await client.close();
+	await returnPGlite(client);
 });
 
 test('postgres push that drops a non-empty table asks for a data loss confirmation', async () => {
-	const client = new PGlite();
+	const client = await borrowPGlite();
 	await client.exec('CREATE TABLE "a" ("id" integer PRIMARY KEY); INSERT INTO "a" VALUES (1);');
 	const db = drizzle({ client });
 
@@ -136,5 +136,5 @@ test('postgres push that drops a non-empty table asks for a data loss confirmati
 	await apply();
 
 	expect((await client.query(`SELECT tablename FROM pg_tables WHERE schemaname = 'public'`)).rows).toEqual([]);
-	await client.close();
+	await returnPGlite(client);
 });

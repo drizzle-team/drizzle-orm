@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable drizzle-internal/require-entity-kind */
 // import type { BuildExtraConfigColumns, Simplify, SQLWrapper } from 'drizzle-orm';
 // import type { PgColumnBuilderBase } from 'drizzle-orm/pg-core';
 // import type { PgColumnsBuilders } from 'drizzle-orm/pg-core/columns/all';

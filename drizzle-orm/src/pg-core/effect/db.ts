@@ -21,6 +21,7 @@ import { WithSubquery } from '~/subquery.ts';
 import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
 import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
+import type { PgProcedure, PgProcedureCallParams } from '../procedure.ts';
 import { QueryBuilder } from '../query-builders/query-builder.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import { PgUpdateBuilder } from '../query-builders/update.ts';
@@ -780,6 +781,34 @@ export class PgEffectDatabase<
 			builtQuery,
 			mode ?? 'raw',
 			false,
+		);
+		return new PgEffectRaw(prepared, sequel, builtQuery);
+	}
+
+	/**
+	 * Calls a procedure declared with {@link procedure}: `CALL "name"(p_a => $1, ...)`.
+	 *
+	 * Succeeds with the record the procedure body returns (one row of its INOUT parameters), or
+	 * `undefined` for procedures that return nothing. Values are returned as the driver produces
+	 * them: no codecs run on `CALL` results, so `numeric`/`bigint` fields typically arrive as strings.
+	 *
+	 * @example
+	 * ```ts
+	 * const { newBalance } = yield* db.call(transfer, { from: 1, to: 2, amount: 30 });
+	 * ```
+	 */
+	call<TProcedure extends PgProcedure<any, any>>(
+		procedure: TProcedure,
+		...args: PgProcedureCallParams<TProcedure>
+	): PgEffectRaw<TProcedure['_']['result'], TEffectHKT> {
+		const sequel = procedure.getCallSQL((args[0] ?? {}) as Record<string, unknown>);
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		// CALL yields one row of the INOUT result parameters, or none for a procedure that returns nothing.
+		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: TProcedure['_']['result'] }>(
+			builtQuery,
+			'objects',
+			false,
+			(rows) => rows[0],
 		);
 		return new PgEffectRaw(prepared, sequel, builtQuery);
 	}

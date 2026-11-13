@@ -1,4 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { postponed } from '@drizzle/test-utils';
 import { and, defineRelations, eq, inArray, not, sql } from 'drizzle-orm';
 import type { AnyCockroachColumn, CockroachColumnBuilder } from 'drizzle-orm/cockroach-core';
 import {
@@ -1040,7 +1041,7 @@ export function tests() {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
 		// postgresjs returns strings for itemCount but other drivers return numbers
-		test.skipIf(Date.now() < +new Date('2026-11-24')).concurrent(
+		test.skipIf(postponed).concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = cockroachTable('rqb_order_item_19', {
@@ -1388,6 +1389,8 @@ export function tests() {
 		}));
 
 		const recordsQuery = db.query.candidates.findMany({
+			// `created_on` would be selected through the driver's own cast codec - not what's tested here
+			columns: { createdOn: false },
 			extras: {
 				activeJobs: db
 					.$count(
@@ -1412,7 +1415,7 @@ export function tests() {
 				'CLOSED',
 			],
 			sql:
-				'select "d0"."id" as "id", "d0"."created_on" as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in ($1, $2)))))) as "activeJobs" from "candidates" as "d0"',
+				'select "d0"."id" as "id", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in ($1, $2)))))) as "activeJobs" from "candidates" as "d0"',
 		});
 	});
 }

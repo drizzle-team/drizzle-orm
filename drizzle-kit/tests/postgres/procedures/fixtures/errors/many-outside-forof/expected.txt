@@ -1,0 +1,3 @@
+input.ts:6:3 error TSPG004: .many() is only legal as a for..of target
+    sql`SELECT id FROM entries WHERE account_id = ${account}`.many<{ id: bigint_ }>()
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

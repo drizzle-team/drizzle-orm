@@ -1,9 +1,11 @@
-import { defineRelations, eq, sql } from 'drizzle-orm';
+import type { BatchMetrics } from '@drizzle-team/postgres';
+import { defineRelations, DrizzleQueryError, eq, inArray, sql } from 'drizzle-orm';
 import { relations as oldRels } from 'drizzle-orm/_relations';
 import { type AnyPgColumn, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresDatabase, type PostgresQueryResult } from 'drizzle-orm/postgres';
+import { Client as ClientNodePostgres } from 'pg';
 import { describe, expect, expectTypeOf, test as base } from 'vitest';
-import { _push, preparePostgres } from './instrumentation';
+import { _push, preparePostgres, recreateDatabases, testDatabase } from './instrumentation';
 
 export const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -116,11 +118,21 @@ export const schema = {
 
 export const relations = defineRelations(schema);
 
+const DATABASE = testDatabase('db2');
+
+/** A connection string to the suite's database */
+const databaseUrl = (database: string) => {
+	const url = new URL(process.env['PG_CONNECTION_STRING']!);
+	url.pathname = `/${database}`;
+	return url.toString();
+};
+
 const test = base.extend<{ db: PostgresDatabase<typeof relations> }>({
 	db: [
 		// oxlint-disable-next-line no-empty-pattern
 		async ({}, use) => {
-			const { client, query } = await preparePostgres('db2');
+			await recreateDatabases([DATABASE]);
+			const { client, query } = await preparePostgres(DATABASE);
 			await _push(query, schema);
 
 			const db = drizzle({ client, relations });
@@ -129,6 +141,16 @@ const test = base.extend<{ db: PostgresDatabase<typeof relations> }>({
 		{ scope: 'file' },
 	],
 });
+
+const expectQueryError = (error: unknown, query: string, code: string) => {
+	expect(error).toBeInstanceOf(DrizzleQueryError);
+	expect((error as DrizzleQueryError).query).toBe(query);
+	expect((error as DrizzleQueryError).cause).toMatchObject({ code });
+};
+
+type Settled<T> = PromiseFulfilledResult<T> | { status: 'rejected'; reason: DrizzleQueryError };
+
+const orphanPost = { id: 1, content: 'orphan', ownerId: 9999 };
 
 describe('batch', () => {
 	test.beforeEach(async ({ db }) => {
@@ -482,10 +504,14 @@ describe('batch', () => {
 	test('rolls the whole set back on error', async ({ db }) => {
 		await db.insert(usersTable).values({ id: 1, name: 'Survivor' });
 
-		await expect(db.batch([
+		const failing = db.insert(postsTable).values(orphanPost);
+		const error = await db.batch([
 			db.insert(usersTable).values({ id: 2, name: 'Doomed' }),
-			db.insert(postsTable).values({ id: 1, content: 'orphan', ownerId: 9999 }),
-		])).rejects.toThrow(/foreign key|violates/i);
+			failing,
+			// runs in the already-aborted transaction and fails too - must not be the one reported
+			db.select().from(usersTable),
+		]).catch((e) => e);
+		expectQueryError(error, failing.toSQL().sql, '23503');
 
 		expect(await db.select({ name: usersTable.name }).from(usersTable)).toEqual([{ name: 'Survivor' }]);
 	});
@@ -493,15 +519,434 @@ describe('batch', () => {
 	test('rollback covers DDL', async ({ db }) => {
 		await db.execute(sql`drop table if exists pg_batch_ddl`);
 
-		await expect(db.batch([
+		const error = await db.batch([
 			db.execute(sql`create table pg_batch_ddl (id integer primary key)`),
 			db.execute(sql`insert into pg_batch_ddl values (1)`),
-			db.execute(sql`insert into pg_batch_ddl values (1)`),
-		])).rejects.toThrow(/duplicate key|unique/i);
+			db.execute(sql`insert into pg_batch_ddl values (1) -- dup`),
+		]).catch((e) => e);
+		expectQueryError(error, 'insert into pg_batch_ddl values (1) -- dup', '23505');
 
 		const present = await db.execute<{ present: boolean }>(
 			sql`select to_regclass('public.pg_batch_ddl') is not null as present`,
 		);
 		expect(present.rows[0]!.present).toBe(false);
+	});
+
+	test('honours transaction options', async ({ db }) => {
+		await db.insert(usersTable).values({ id: 1, name: 'ReadMe' });
+
+		const res = await db.batch(
+			[
+				db.select({ name: usersTable.name }).from(usersTable),
+				db.execute<{ iso: string; ro: string; def: string }>(
+					sql`select current_setting('transaction_isolation') as iso, current_setting('transaction_read_only') as ro, current_setting('transaction_deferrable') as def`,
+				),
+			],
+			{ isolation: 'serializable', readOnly: true, deferrable: true },
+		);
+		expect(res[0]).toEqual([{ name: 'ReadMe' }]);
+		expect(res[1].rows).toEqual([{ iso: 'serializable', ro: 'on', def: 'on' }]);
+
+		const failing = db.insert(usersTable).values({ id: 2, name: 'Nope' });
+		const error = await db.batch([failing], { readOnly: true }).catch((e) => e);
+		expectQueryError(error, failing.toSQL().sql, '25006');
+	});
+
+	test('runs on an exported snapshot', async ({ db }) => {
+		await db.insert(usersTable).values({ id: 1, name: 'Before' });
+
+		const exporter = new ClientNodePostgres({ connectionString: databaseUrl(DATABASE) });
+		await exporter.connect();
+		try {
+			await exporter.query('begin isolation level repeatable read');
+			const snapshot = (await exporter.query<{ s: string }>('select pg_export_snapshot() as s')).rows[0]!.s;
+			// committed after the export: invisible to the snapshot
+			await db.insert(usersTable).values({ id: 2, name: 'After' });
+
+			const res = await db.batch([
+				db.select({ name: usersTable.name }).from(usersTable).orderBy(usersTable.id),
+				db.execute<{ iso: string }>(sql`select current_setting('transaction_isolation') as iso`),
+			], { snapshot, isolation: 'repeatable read' });
+			expect(res[0]).toEqual([{ name: 'Before' }]);
+			expect(res[1].rows).toEqual([{ iso: 'repeatable read' }]);
+
+			// read committed can't import a snapshot - an error that belongs to no query
+			const error = await db.batch(
+				[db.select().from(usersTable)],
+				// @ts-expect-error - `snapshot` needs `isolation: 'repeatable read' | 'serializable'`
+				{ snapshot, isolation: 'read committed' },
+			).catch((e) => e);
+			expect(error).not.toBeInstanceOf(DrizzleQueryError);
+			expect(error).toMatchObject({ code: '0A000' });
+
+			await exporter.query('commit');
+		} finally {
+			await exporter.end();
+		}
+
+		expect(await db.select({ name: usersTable.name }).from(usersTable).orderBy(usersTable.id)).toEqual([
+			{ name: 'Before' },
+			{ name: 'After' },
+		]);
+	});
+
+	test('an error that belongs to no query (COMMIT) is not remapped', async ({ db }) => {
+		await db.execute(sql`drop table if exists pg_batch_deferred`);
+		await db.execute(sql`create table pg_batch_deferred (
+			id integer primary key,
+			ref integer references pg_batch_deferred (id) deferrable initially deferred
+		)`);
+		try {
+			// every statement succeeds; the deferred FK is only checked, and fails, at COMMIT
+			const error = await db.batch([
+				db.execute(sql`insert into pg_batch_deferred values (1, 9999)`),
+				db.execute(sql`select 1`),
+			]).catch((e) => e);
+			expect(error).not.toBeInstanceOf(DrizzleQueryError);
+			expect(error).toMatchObject({ code: '23503' });
+		} finally {
+			await db.execute(sql`drop table if exists pg_batch_deferred`);
+		}
+	});
+});
+
+describe('pipeline', () => {
+	test.beforeEach(async ({ db }) => {
+		await db.execute(
+			`truncate table users, groups, users_to_groups, posts, comments, comment_likes RESTART IDENTITY CASCADE;`,
+		);
+	});
+
+	test('api example', async ({ db }) => {
+		await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
+
+		const response = await db.pipeline([
+			db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).orderBy(usersTable.id),
+			db.insert(usersTable).values({ id: 3, name: 'Jane' }).returning({ id: usersTable.id }),
+			db.update(usersTable).set({ verified: 1 }).where(eq(usersTable.id, 1)),
+			db.query.usersTable.findFirst({ columns: { id: true, name: true }, where: { id: 2 } }),
+			db.execute<{ one: number }>(sql`select 1 as one`),
+		]);
+
+		expectTypeOf(response).toEqualTypeOf<[
+			Settled<{ id: number; name: string }[]>,
+			Settled<{ id: number }[]>,
+			Settled<PostgresQueryResult<never>>,
+			Settled<{ id: number; name: string } | undefined>,
+			Settled<PostgresQueryResult<{ one: number }>>,
+		]>();
+
+		expect(response.length).eq(5);
+		expect(response[0]).toEqual({
+			status: 'fulfilled',
+			value: [{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }],
+		});
+		expect(response[1]).toEqual({ status: 'fulfilled', value: [{ id: 3 }] });
+		expect(response[2]).toMatchObject({ status: 'fulfilled', value: { rows: [], rowCount: 1 } });
+		expect(response[3]).toEqual({ status: 'fulfilled', value: { id: 2, name: 'Dan' } });
+		expect(response[4]).toMatchObject({ status: 'fulfilled', value: { rows: [{ one: 1 }] } });
+
+		expect(
+			await db.select({ id: usersTable.id, verified: usersTable.verified }).from(usersTable).orderBy(usersTable.id),
+		).toEqual([
+			{ id: 1, verified: 1 },
+			{ id: 2, verified: 0 },
+			{ id: 3, verified: 0 },
+		]);
+	});
+
+	test('never rejects: every query runs, failures come back as rejected entries', async ({ db }) => {
+		const failing = db.insert(postsTable).values(orphanPost);
+		const response = await db.pipeline([
+			db.insert(usersTable).values({ id: 1, name: 'Survivor' }),
+			failing,
+			db.insert(usersTable).values({ id: 2, name: 'After' }).returning({ id: usersTable.id }),
+			db.execute(sql`select 1/0`),
+		]);
+
+		expect(response.map((r) => r.status)).toEqual(['fulfilled', 'rejected', 'fulfilled', 'rejected']);
+		if (response[1].status === 'rejected') expectTypeOf(response[1].reason).toEqualTypeOf<DrizzleQueryError>();
+		expectQueryError(response[1].status === 'rejected' && response[1].reason, failing.toSQL().sql, '23503');
+		expect(response[2]).toEqual({ status: 'fulfilled', value: [{ id: 2 }] });
+		expectQueryError(response[3].status === 'rejected' && response[3].reason, 'select 1/0', '22012');
+
+		// no transaction: nothing is rolled back
+		expect(await db.select({ name: usersTable.name }).from(usersTable).orderBy(usersTable.id)).toEqual([
+			{ name: 'Survivor' },
+			{ name: 'After' },
+		]);
+	});
+
+	test('settles exactly like parallel', async ({ db }) => {
+		const set = () =>
+			[
+				db.select({ id: usersTable.id }).from(usersTable).orderBy(usersTable.id),
+				db.insert(postsTable).values(orphanPost),
+				db.execute<{ one: number }>(sql`select 1 as one`),
+				db.execute(sql`select 1/0`),
+			] as const;
+		await db.insert(usersTable).values({ id: 1, name: 'John' });
+
+		const piped = await db.pipeline(set());
+		const fanned = await db.parallel(set());
+		expectTypeOf(piped).toEqualTypeOf(fanned);
+
+		// same statuses and values; errors compared by what they name
+		const strip = (response: typeof piped) =>
+			response.map((r) =>
+				r.status === 'fulfilled'
+					? r
+					: { status: r.status, query: r.reason.query, code: (r.reason.cause as { code?: string }).code }
+			);
+		expect(strip(piped)).toMatchObject(strip(fanned) as any);
+		expect(strip(fanned)).toMatchObject(strip(piped) as any);
+		expect(piped.map((r) => r.status)).toEqual(['fulfilled', 'rejected', 'fulfilled', 'rejected']);
+		for (const r of [...piped, ...fanned]) {
+			if (r.status === 'rejected') expect(r.reason).toBeInstanceOf(DrizzleQueryError);
+		}
+	});
+});
+
+describe('parallel', () => {
+	test.beforeEach(async ({ db }) => {
+		await db.execute(
+			`truncate table users, groups, users_to_groups, posts, comments, comment_likes RESTART IDENTITY CASCADE;`,
+		);
+	});
+
+	test('api example', async ({ db }) => {
+		await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
+
+		const response = await db.parallel([
+			db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(inArray(usersTable.id, [1, 2]))
+				.orderBy(usersTable.id),
+			db.insert(usersTable).values({ id: 3, name: 'Jane' }).returning({ id: usersTable.id }),
+			db.update(usersTable).set({ verified: 1 }).where(eq(usersTable.id, 1)),
+			db.query.usersTable.findFirst({ columns: { id: true, name: true }, where: { id: 2 } }),
+			db.execute<{ one: number }>(sql`select 1 as one`),
+		]);
+
+		expectTypeOf(response).toEqualTypeOf<[
+			Settled<{ id: number; name: string }[]>,
+			Settled<{ id: number }[]>,
+			Settled<PostgresQueryResult<never>>,
+			Settled<{ id: number; name: string } | undefined>,
+			Settled<PostgresQueryResult<{ one: number }>>,
+		]>();
+
+		expect(response.length).eq(5);
+		expect(response[0]).toEqual({
+			status: 'fulfilled',
+			value: [{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }],
+		});
+		expect(response[1]).toEqual({ status: 'fulfilled', value: [{ id: 3 }] });
+		expect(response[2]).toMatchObject({ status: 'fulfilled', value: { rows: [], rowCount: 1 } });
+		expect(response[3]).toEqual({ status: 'fulfilled', value: { id: 2, name: 'Dan' } });
+		expect(response[4]).toMatchObject({ status: 'fulfilled', value: { rows: [{ one: 1 }] } });
+
+		expect(
+			await db.select({ id: usersTable.id, verified: usersTable.verified }).from(usersTable).orderBy(usersTable.id),
+		).toEqual([
+			{ id: 1, verified: 1 },
+			{ id: 2, verified: 0 },
+			{ id: 3, verified: 0 },
+		]);
+	});
+
+	test('never rejects: failures come back as rejected entries, the rest still commit', async ({ db }) => {
+		const failing = db.insert(postsTable).values(orphanPost);
+		const response = await db.parallel([
+			failing,
+			db.execute(sql`select pg_sleep(0.2)`),
+			db.insert(usersTable).values({ id: 1, name: 'Survivor' }).returning({ id: usersTable.id }),
+			db.execute(sql`select 1/0`),
+		]);
+
+		expect(response.map((r) => r.status)).toEqual(['rejected', 'fulfilled', 'fulfilled', 'rejected']);
+		if (response[0].status === 'rejected') expectTypeOf(response[0].reason).toEqualTypeOf<DrizzleQueryError>();
+		expectQueryError(response[0].status === 'rejected' && response[0].reason, failing.toSQL().sql, '23503');
+		expect(response[2]).toEqual({ status: 'fulfilled', value: [{ id: 1 }] });
+		expectQueryError(response[3].status === 'rejected' && response[3].reason, 'select 1/0', '22012');
+
+		expect(await db.select({ name: usersTable.name }).from(usersTable)).toEqual([{ name: 'Survivor' }]);
+	});
+});
+
+describe('prepared statements', () => {
+	test.beforeEach(async ({ db }) => {
+		await db.execute(
+			`truncate table users, groups, users_to_groups, posts, comments, comment_likes RESTART IDENTITY CASCADE;`,
+		);
+	});
+
+	/** The named statements the batch's own connection holds, read inside the same batch */
+	const preparedNames = (db: PostgresDatabase<typeof relations>, prefix: string) =>
+		db.execute<{ name: string }>(
+			sql`select name from pg_prepared_statements where name like ${prefix + '%'} order by name`,
+		);
+
+	test('batch takes bound and unbound prepared queries next to builders, and runs them by name', async ({ db }) => {
+		const insertUser = db.insert(usersTable)
+			.values({ id: sql.placeholder('id'), name: sql.placeholder('name') })
+			.returning({ id: usersTable.id, name: usersTable.name })
+			.prepare('pbt_insert_user');
+		const getUser = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
+			.where(eq(usersTable.id, sql.placeholder('id')))
+			.prepare('pbt_get_user');
+		const countUsers = db.select({ n: sql<number>`count(*)::int` }).from(usersTable).prepare('pbt_count_users');
+
+		const response = await db.batch([
+			insertUser.bind({ id: 1, name: 'John' }),
+			insertUser.bind({ id: 2, name: 'Dan' }),
+			db.update(usersTable).set({ verified: 1 }).where(eq(usersTable.id, 2)),
+			getUser.bind({ id: 2 }),
+			countUsers,
+			preparedNames(db, 'pbt_'),
+		]);
+
+		expectTypeOf(response).toEqualTypeOf<[
+			{ id: number; name: string }[],
+			{ id: number; name: string }[],
+			PostgresQueryResult<never>,
+			{ id: number; name: string }[],
+			{ n: number }[],
+			PostgresQueryResult<{ name: string }>,
+		]>();
+
+		expect(response[0]).toEqual([{ id: 1, name: 'John' }]);
+		expect(response[1]).toEqual([{ id: 2, name: 'Dan' }]);
+		expect(response[2]).toMatchObject({ rowCount: 1 });
+		expect(response[3]).toEqual([{ id: 2, name: 'Dan' }]);
+		expect(response[4]).toEqual([{ n: 2 }]);
+		// the prepared items went out under their names; the builders and db.execute stayed unnamed
+		expect(response[5].rows).toEqual([
+			{ name: 'pbt_count_users' },
+			{ name: 'pbt_get_user' },
+			{ name: 'pbt_insert_user' },
+		]);
+	});
+
+	test('batch metrics: a repeated batch reuses its prepared statements, all in one round trip', async ({ db }) => {
+		const insertUser = db.insert(usersTable)
+			.values({ id: sql.placeholder('id'), name: sql.placeholder('name') })
+			.prepare('pbt_reuse_insert');
+		const getUser = db.select({ name: usersTable.name }).from(usersTable)
+			.where(eq(usersTable.id, sql.placeholder('id')))
+			.prepare('pbt_reuse_get');
+		const run = (id: number) =>
+			db.batch([insertUser.bind({ id, name: `user ${id}` }), getUser.bind({ id })], { metrics: true });
+
+		const first = await run(1);
+		expectTypeOf(first.metrics).toEqualTypeOf<BatchMetrics>();
+		expect([...first]).toMatchObject([{ rowCount: 1 }, [{ name: 'user 1' }]]);
+		expect(first.metrics).toMatchObject({ statements: 4, roundTrips: 1, parsed: 2, reused: 0, unnamed: 0 });
+		expect(first.metrics.queries.map((m) => m.statementName)).toEqual(['pbt_reuse_insert', 'pbt_reuse_get']);
+
+		// the same connection already holds both statements: no Parse, just Bind and Execute
+		const again = await run(2);
+		expect([...again]).toMatchObject([{ rowCount: 1 }, [{ name: 'user 2' }]]);
+		expect(again.metrics).toMatchObject({ statements: 4, roundTrips: 1, parsed: 0, reused: 2, unnamed: 0 });
+
+		// builders stay unnamed, and the batch is still one round trip
+		const builders = await db.batch([db.select().from(usersTable), db.select().from(usersTable)], { metrics: true });
+		expect(builders.metrics).toMatchObject({ statements: 4, roundTrips: 1, parsed: 0, reused: 0, unnamed: 2 });
+
+		// without metrics the response is the plain tuple
+		const plain = await db.batch([db.select().from(usersTable)]);
+		expect('metrics' in plain).toBe(false);
+	});
+
+	test('a prepared query without a name runs under its generated one', async ({ db }) => {
+		await db.insert(usersTable).values({ id: 1, name: 'John' });
+		const getUser = db.select({ name: usersTable.name }).from(usersTable)
+			.where(eq(usersTable.id, sql.placeholder('id')))
+			.prepare();
+		const generated = db.execute<{ n: number }>(
+			// other tests prepare the same text under explicit `pbt_` names; the generated name is the other one
+			sql`select count(*)::int as n from pg_prepared_statements where statement = ${getUser.getQuery().sql} and name not like 'pbt\_%'`,
+		);
+
+		const [user, statements] = await db.batch([getUser.bind({ id: 1 }), generated]);
+		expect(user).toEqual([{ name: 'John' }]);
+		expect(statements.rows).toEqual([{ n: 1 }]);
+	});
+
+	test('relational queries can be prepared and bound too', async ({ db }) => {
+		await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
+		const findUser = db.query.usersTable.findFirst({
+			columns: { id: true, name: true },
+			where: { id: sql.placeholder('id') },
+		}).prepare('pbt_find_user');
+
+		const response = await db.batch([findUser.bind({ id: 2 }), findUser.bind({ id: 3 })]);
+		expectTypeOf(response).toEqualTypeOf<[
+			{ id: number; name: string } | undefined,
+			{ id: number; name: string } | undefined,
+		]>();
+		expect(response).toEqual([{ id: 2, name: 'Dan' }, undefined]);
+	});
+
+	test('a missing placeholder value rejects the batch before anything runs', async ({ db }) => {
+		const insertUser = db.insert(usersTable)
+			.values({ id: sql.placeholder('id'), name: sql.placeholder('name') })
+			.prepare('pbt_insert_missing');
+
+		const unbound = await db.batch([
+			db.insert(usersTable).values({ id: 1, name: 'Doomed' }),
+			insertUser,
+		]).catch((e) => e);
+		expect(unbound).toBeInstanceOf(Error);
+		expect((unbound as Error).message).toBe('No value for placeholder "id" was provided');
+
+		const partial = await db.batch([
+			db.insert(usersTable).values({ id: 1, name: 'Doomed' }),
+			insertUser.bind({ id: 2 }),
+		]).catch((e) => e);
+		expect((partial as Error).message).toBe('No value for placeholder "name" was provided');
+
+		// a builder with a placeholder has no values to fill it from either
+		const builder = await db.batch([
+			db.select().from(usersTable).where(eq(usersTable.id, sql.placeholder('id'))),
+		]).catch((e) => e);
+		expect((builder as Error).message).toBe('No value for placeholder "id" was provided');
+
+		expect(await db.select().from(usersTable)).toEqual([]);
+	});
+
+	test('a failing bound item is reported with its own query and rolls the batch back', async ({ db }) => {
+		const insertPost = db.insert(postsTable)
+			.values({ id: sql.placeholder('id'), content: sql.placeholder('content'), ownerId: sql.placeholder('owner') })
+			.prepare('pbt_insert_post');
+
+		const error = await db.batch([
+			db.insert(usersTable).values({ id: 1, name: 'Doomed' }),
+			insertPost.bind({ id: 1, content: 'orphan', owner: 9999 }),
+		]).catch((e) => e);
+		expectQueryError(error, insertPost.getQuery().sql, '23503');
+
+		expect(await db.select().from(usersTable)).toEqual([]);
+	});
+
+	test('pipeline and parallel take bound prepared queries', async ({ db }) => {
+		await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
+		const getUser = db.select({ name: usersTable.name }).from(usersTable)
+			.where(eq(usersTable.id, sql.placeholder('id')))
+			.prepare('pbt_get_user_settled');
+
+		const piped = await db.pipeline([getUser.bind({ id: 1 }), getUser.bind({ id: 2 }), preparedNames(db, 'pbt_')]);
+		expectTypeOf(piped).toEqualTypeOf<[
+			Settled<{ name: string }[]>,
+			Settled<{ name: string }[]>,
+			Settled<PostgresQueryResult<{ name: string }>>,
+		]>();
+		expect(piped[0]).toEqual({ status: 'fulfilled', value: [{ name: 'John' }] });
+		expect(piped[1]).toEqual({ status: 'fulfilled', value: [{ name: 'Dan' }] });
+		expect(piped[2].status === 'fulfilled' && piped[2].value.rows).toContainEqual({ name: 'pbt_get_user_settled' });
+
+		const fanned = await db.parallel([getUser.bind({ id: 2 }), getUser.bind({ id: 1 })]);
+		expect(fanned).toEqual([
+			{ status: 'fulfilled', value: [{ name: 'Dan' }] },
+			{ status: 'fulfilled', value: [{ name: 'John' }] },
+		]);
 	});
 });

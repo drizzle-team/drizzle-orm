@@ -1,5 +1,20 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, asc, eq, exists, getColumns, getViewSelectedFields, gt, inArray, lt, notInArray, sql } from 'drizzle-orm';
+import { postponed } from '@drizzle/test-utils';
+import {
+	and,
+	asc,
+	eq,
+	exists,
+	getColumns,
+	getTableName,
+	getViewSelectedFields,
+	gt,
+	inArray,
+	isNull,
+	lt,
+	notInArray,
+	sql,
+} from 'drizzle-orm';
 import {
 	alias,
 	boolean,
@@ -25,7 +40,9 @@ import {
 	uuid,
 } from 'drizzle-orm/pg-core';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
+import { concat, substring } from 'drizzle-orm/pg-core/expressions';
 import { describe, expect } from 'vitest';
+import { expectRecentTime } from '~/recent-time';
 import type { Test } from './instrumentation';
 
 const dnStaff = pgTable('dn_staff', {
@@ -142,7 +159,7 @@ export function tests(test: Test) {
 			const result = await db.select().from(users);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(5000);
+			expectRecentTime(result[0]!.createdAt, now, 5000);
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
@@ -377,7 +394,7 @@ export function tests(test: Test) {
 				.returning();
 
 			expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(usersResult[0]!.createdAt, now);
 			expect(usersResult).toEqual([
 				{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 			]);
@@ -404,7 +421,7 @@ export function tests(test: Test) {
 				.returning().execute({ name: 'Jane' });
 
 			expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(usersResult[0]!.createdAt, now);
 			expect(usersResult).toEqual([
 				{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 			]);
@@ -448,7 +465,7 @@ export function tests(test: Test) {
 			const usersResult = await db.delete(users).where(eq(users.name, 'John')).returning();
 
 			expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(usersResult[0]!.createdAt, now);
 			expect(usersResult).toEqual([
 				{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 			]);
@@ -1235,7 +1252,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
-		test.skipIf(Date.now() < +new Date('2026-11-24')).concurrent(
+		test.skipIf(postponed).concurrent(
 			'prepared statement with placeholder in .inArray',
 			async ({ db, push }) => {
 				const usersTable = pgTable('users_392', {
@@ -1377,6 +1394,232 @@ export function tests(test: Test) {
 				.where(eq(usersTable.id, 1));
 
 			expect(res).toEqual([{ id: 1, name: 'John' }]);
+		});
+
+		test.concurrent('insert with onConflict do nothing + composite target', async ({ db }) => {
+			const table = pgTable('on_conflict_nothing_composite', {
+				a: integer('a').notNull(),
+				b: integer('b').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (a integer not null, b integer not null, name text not null, primary key (a, b))`,
+			);
+
+			await db.insert(table).values({ a: 1, b: 1, name: 'John' });
+
+			await db.insert(table).values([{ a: 1, b: 1, name: 'Jane' }, { a: 1, b: 2, name: 'Jane' }]).onConflictDoNothing({
+				target: [table.a, table.b],
+			});
+
+			expect(await db.select().from(table).orderBy(table.b)).toEqual([
+				{ a: 1, b: 1, name: 'John' },
+				{ a: 1, b: 2, name: 'Jane' },
+			]);
+		});
+
+		test.concurrent('insert with onConflict do nothing + target + where', async ({ db }) => {
+			const table = pgTable('on_conflict_nothing_where', {
+				id: integer('id').primaryKey(),
+				email: text('email').notNull(),
+				note: text('note'),
+				deletedAt: integer('deleted_at'),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, email text not null, note text, deleted_at integer)`,
+			);
+			await db.execute(
+				sql`create unique index ${
+					sql.identifier(`${getTableName(table)}_email_idx`)
+				} on ${table} (email) where deleted_at is null`,
+			);
+
+			await db.insert(table).values({ id: 1, email: 'john@example.com', deletedAt: 1 });
+			await db.insert(table).values({ id: 2, email: 'john@example.com' });
+
+			await db.insert(table).values({ id: 3, email: 'john@example.com' }).onConflictDoNothing({
+				target: table.email,
+				where: isNull(table.deletedAt),
+			});
+
+			expect(await db.select({ id: table.id }).from(table).orderBy(table.id)).toEqual([{ id: 1 }, { id: 2 }]);
+		});
+
+		test.concurrent('insert with onConflict do update + composite target', async ({ db }) => {
+			const table = pgTable('on_conflict_update_composite', {
+				a: integer('a').notNull(),
+				b: integer('b').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (a integer not null, b integer not null, name text not null, primary key (a, b))`,
+			);
+
+			await db.insert(table).values({ a: 1, b: 1, name: 'John' });
+
+			await db.insert(table).values({ a: 1, b: 1, name: 'Jane' }).onConflictDoUpdate({
+				target: [table.a, table.b],
+				set: { name: 'Updated' },
+			});
+
+			expect(await db.select().from(table)).toEqual([{ a: 1, b: 1, name: 'Updated' }]);
+		});
+
+		test.concurrent('insert with onConflict do update + targetWhere', async ({ db }) => {
+			const table = pgTable('on_conflict_target_where', {
+				id: integer('id').primaryKey(),
+				email: text('email').notNull(),
+				note: text('note'),
+				deletedAt: integer('deleted_at'),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, email text not null, note text, deleted_at integer)`,
+			);
+			await db.execute(
+				sql`create unique index ${
+					sql.identifier(`${getTableName(table)}_email_idx`)
+				} on ${table} (email) where deleted_at is null`,
+			);
+
+			await db.insert(table).values({ id: 1, email: 'john@example.com', deletedAt: 1 });
+			await db.insert(table).values({ id: 2, email: 'john@example.com' });
+
+			await db.insert(table).values({ id: 3, email: 'john@example.com' }).onConflictDoUpdate({
+				target: table.email,
+				targetWhere: isNull(table.deletedAt),
+				set: { note: 'Updated' },
+			});
+
+			expect(await db.select({ id: table.id, note: table.note }).from(table).orderBy(table.id)).toEqual([
+				{ id: 1, note: null },
+				{ id: 2, note: 'Updated' },
+			]);
+		});
+
+		test.concurrent('insert with onConflict do update + setWhere', async ({ db }) => {
+			const table = pgTable('on_conflict_set_where', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, name text not null, version integer not null)`,
+			);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]);
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 2, name: 'Jane1', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' }, setWhere: eq(table.version, 1) });
+
+			expect(await db.select().from(table).orderBy(table.id)).toEqual([
+				{ id: 1, name: 'Updated', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+			]);
+		});
+
+		test.concurrent('insert with onConflict do update + where', async ({ db }) => {
+			const table = pgTable('on_conflict_where', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, name text not null, version integer not null)`,
+			);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]);
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 2, name: 'Jane1', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' }, where: eq(table.version, 1) });
+
+			expect(await db.select().from(table).orderBy(table.id)).toEqual([
+				{ id: 1, name: 'Updated', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+			]);
+		});
+
+		test.concurrent('insert with onConflict do update + where and targetWhere/setWhere throws', async ({ db }) => {
+			const table = pgTable('on_conflict_throws', { id: integer('id').primaryKey(), name: text('name').notNull() });
+			const message = 'You cannot use both "where" and "targetWhere"/"setWhere" at the same time';
+			const insert = () => db.insert(table).values({ id: 1, name: 'John' });
+			const where = eq(table.id, 1);
+
+			expect(() => insert().onConflictDoUpdate({ target: table.id, set: { name: 'Jane' }, where, targetWhere: where }))
+				.toThrowError(message);
+			expect(() => insert().onConflictDoUpdate({ target: table.id, set: { name: 'Jane' }, where, setWhere: where }))
+				.toThrowError(message);
+		});
+
+		test.concurrent('insert with onConflict returning', async ({ db }) => {
+			const table = pgTable('on_conflict_returning', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, name text not null, version integer not null)`,
+			);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]);
+
+			expect(await db.insert(table).values({ id: 1, name: 'Skipped', version: 3 }).onConflictDoNothing().returning())
+				.toEqual([]);
+			expect(
+				await db.insert(table).values({ id: 1, name: 'Updated', version: 3 }).onConflictDoUpdate({
+					target: table.id,
+					set: { name: 'Updated' },
+				}).returning({ id: table.id, name: table.name }),
+			).toEqual([{ id: 1, name: 'Updated' }]);
+			expect(
+				await db.insert(table).values({ id: 2, name: 'Filtered', version: 3 }).onConflictDoUpdate({
+					target: table.id,
+					set: { name: 'Filtered' },
+					setWhere: eq(table.version, 1),
+				}).returning(),
+			).toEqual([]);
+			expect(
+				await db.insert(table).values({ id: 3, name: 'Inserted', version: 3 }).onConflictDoNothing().returning({
+					id: table.id,
+				}),
+			).toEqual([{ id: 3 }]);
+		});
+
+		test.concurrent('insert with onConflict do update + excluded', async ({ db }) => {
+			const table = pgTable('on_conflict_excluded', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, name text not null, version integer not null)`,
+			);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]);
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 3, name: 'Bruce', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: sql`excluded.${sql.identifier(table.name.name)}` } });
+
+			expect(await db.select().from(table).orderBy(table.id)).toEqual([
+				{ id: 1, name: 'John1', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+				{ id: 3, name: 'Bruce', version: 3 },
+			]);
 		});
 
 		test.concurrent('left join (flat object fields)', async ({ db, push }) => {
@@ -2706,6 +2949,104 @@ export function tests(test: Test) {
 				jsonData: { some: 'data' },
 			}, {
 				jsonData: JSON.stringify({ some: 'data' }),
+			}]);
+		});
+
+		test.concurrent('concat, substring expressions', async ({ db, push }) => {
+			const users = pgTable('expr_concat_substring', {
+				id: integer('id').primaryKey(),
+				first: text('first').notNull(),
+				last: text('last').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, {
+				id: 2,
+				first: 'Jane',
+				last: 'Roe',
+			}]);
+
+			const res = await db.select({
+				withString: concat(users.first, '!'),
+				withColumn: concat(users.first, users.last),
+				withSql: concat(users.first, sql`'.'`),
+				from: substring(users.first, { from: 3 }),
+				for: substring(users.first, { for: 2 }),
+				fromFor: substring(users.first, { from: 2, for: 3 }),
+				fromSql: substring(users.first, { from: sql`${users.id} * 1.5` }),
+				forSql: substring(users.first, { for: users.id }),
+				fromForSql: substring(users.first, { from: sql`${users.id} * 1.5`, for: users.id }),
+				regexp: substring(users.first, { fromPattern: 'a(.)' }),
+				similar: substring(users.first, { similar: '%#"J_#"%', escape: '#' }),
+				regexpSql: substring(users.first, { fromPattern: sql`'a' || '(.)'` }),
+				similarSql: substring(users.first, { similar: sql`'%#"J' || '_#"%'`, escape: sql`'#'` }),
+			}).from(users).orderBy(users.id);
+
+			expect(res).toStrictEqual([
+				{
+					withString: 'Johnathan!',
+					withColumn: 'JohnathanDoe',
+					withSql: 'Johnathan.',
+					from: 'hnathan',
+					for: 'Jo',
+					fromFor: 'ohn',
+					fromSql: 'ohnathan',
+					forSql: 'J',
+					fromForSql: 'o',
+					regexp: 't',
+					similar: 'Jo',
+					regexpSql: 't',
+					similarSql: 'Jo',
+				},
+				{
+					withString: 'Jane!',
+					withColumn: 'JaneRoe',
+					withSql: 'Jane.',
+					from: 'ne',
+					for: 'Ja',
+					fromFor: 'ane',
+					fromSql: 'ne',
+					forSql: 'Ja',
+					fromForSql: 'ne',
+					regexp: 'n',
+					similar: 'Ja',
+					regexpSql: 'n',
+					similarSql: 'Ja',
+				},
+			]);
+
+			const filtered = await db.select({ id: users.id }).from(users).where(
+				and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, { from: 1, for: 4 }), 'John')),
+			);
+
+			expect(filtered).toStrictEqual([{ id: 1 }]);
+
+			const prepared = db.select({
+				withString: concat(users.first, sql.placeholder('suffix')),
+				from: substring(users.first, { from: sql.placeholder('from') }),
+				for: substring(users.first, { for: sql.placeholder('for') }),
+				fromFor: substring(users.first, { from: sql.placeholder('from'), for: sql.placeholder('for') }),
+				regexp: substring(users.first, { fromPattern: sql.placeholder('pattern') }),
+				similar: substring(users.first, { similar: sql.placeholder('similar'), escape: sql.placeholder('escape') }),
+			}).from(users).where(eq(users.id, 1)).prepare('expr_concat_substring_prepared');
+
+			expect(
+				await prepared.execute({
+					suffix: '!',
+					from: 2,
+					for: 3,
+					pattern: 'a(.)',
+					similar: '%#"J_#"%',
+					escape: '#',
+				}),
+			).toStrictEqual([{
+				withString: 'Johnathan!',
+				from: 'ohnathan',
+				for: 'Joh',
+				fromFor: 'ohn',
+				regexp: 't',
+				similar: 'Jo',
 			}]);
 		});
 	});

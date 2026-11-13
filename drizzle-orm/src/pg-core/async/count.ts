@@ -27,6 +27,12 @@ export class PgAsyncCountBuilder extends PgCountBuilder {
 		this.session = session;
 	}
 
+	/**
+	 * Runs the query and returns a Promise of the result, with values for any `sql.placeholder()` it contains.
+	 *
+	 * Eager: the query is sent as soon as `execute` is called, whether or not the Promise is awaited. The builder
+	 * itself is lazy: awaiting it runs it the same way, and passing it to a batch runs it there instead.
+	 */
 	execute(placeholderValues?: Record<string, unknown>): Promise<number> {
 		return this.session.prepareQuery<{
 			execute: number;

@@ -148,6 +148,39 @@ export const suggestions = async (
 		(it) => quote(it.name),
 	);
 
+	// a NOT NULL column without default can't be added to a table with data
+	// (ADD COLUMN fails, INSERT into a recreated table fails), so the table has to be emptied first
+	const addNotNullColumnHint = async (table: string, column: string) => {
+		const entity = ['public', table, column] as const;
+		const id = identifier({ name: table }, 'kept');
+		const res = await connection.query(`select 1 from ${id} limit 1`);
+		const tableNonEmpty = res.length > 0;
+		const loss = {
+			hint: addNotNullColumnWarning(quote(column), label({ name: table })),
+			statement: `DELETE FROM ${id} where true;`,
+		};
+
+		if (hints.matchConfirm('add_not_null', entity)) {
+			if (tableNonEmpty) {
+				grouped.push(loss);
+			}
+			return;
+		}
+
+		if (tableNonEmpty) {
+			if (useHints) {
+				hints.pushMissingHint({
+					type: 'confirm_data_loss',
+					kind: 'add_not_null',
+					entity,
+					reason: 'table_recreate',
+				});
+			} else {
+				grouped.push(loss);
+			}
+		}
+	};
+
 	// TODO: generate truncations/recreates ??
 	for (const statement of jsonStatements) {
 		if (statement.type === 'drop_table') {
@@ -186,46 +219,25 @@ export const suggestions = async (
 		}
 
 		if (statement.type === 'add_column' && (statement.column.notNull && !statement.column.default)) {
-			const { table, name } = statement.column;
-			const entity = ['public', table, name] as const;
-			const id = identifier({ name: table }, 'kept');
-			const res = await connection.query(`select 1 from ${id} limit 1`);
-			const tableNonEmpty = res.length > 0;
-			const loss = {
-				hint: addNotNullColumnWarning(quote(name), label({ name: table })),
-				statement: `DELETE FROM ${id} where true;`,
-			};
-
-			if (hints.matchConfirm('add_not_null', entity)) {
-				if (tableNonEmpty) {
-					grouped.push(loss);
-				}
-				continue;
-			}
-
-			if (tableNonEmpty) {
-				if (useHints) {
-					hints.pushMissingHint({
-						type: 'confirm_data_loss',
-						kind: 'add_not_null',
-						entity,
-						reason: 'table_recreate',
-					});
-				} else {
-					grouped.push(loss);
-				}
-			}
-
+			await addNotNullColumnHint(statement.column.table, statement.column.name);
 			continue;
 		}
 
 		if (statement.type === 'recreate_table') {
+			const table = { name: statement.from.name };
+
+			// added NOT NULL columns without default: ADD COLUMN is skipped for recreated tables,
+			// so this is the only place to ask about the data, INSERT into the new table fails otherwise
+			const addedNotNullColumns = statement.to.columns.filter((col) =>
+				!statement.from.columns.some((c) => c.name === col.name) && col.notNull && !col.default && !col.generated
+			);
+			for (const addedColumn of addedNotNullColumns) {
+				await addNotNullColumnHint(table.name, addedColumn.name);
+			}
+
 			const droppedColumns = statement.from.columns.filter((col) =>
 				!statement.to.columns.some((c) => c.name === col.name)
 			);
-			if (droppedColumns.length === 0) continue;
-
-			const table = { name: statement.from.name };
 			for (const droppedColumn of droppedColumns) {
 				const entity = ['public', table.name, droppedColumn.name] as const;
 				if (hints.matchConfirm('column', entity)) continue;

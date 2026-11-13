@@ -5,10 +5,15 @@ import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
 import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
-import type { Column, SQLiteDDL, SqliteEntities } from './ddl';
+import type { Column, ForeignKey, SQLiteDDL, SqliteEntities } from './ddl';
 import { tableFromDDL } from './ddl';
-import { defaultsCommutative } from './grammar';
-import type { JsonCreateViewStatement, JsonDropViewStatement, JsonStatement } from './statements';
+import { defaultsCommutative, isNonConstantDefault } from './grammar';
+import type {
+	JsonCreateViewStatement,
+	JsonDropTableStatement,
+	JsonDropViewStatement,
+	JsonStatement,
+} from './statements';
 import { prepareAddColumns, prepareRecreateColumn, prepareStatement } from './statements';
 
 export const ddlDiffDry = async (
@@ -80,7 +85,9 @@ export const ddlDiff = async (
 		});
 	}
 
-	const createdFilteredColumns = columnsToCreate.filter((it) => !it.generated || it.generated.type === 'virtual');
+	const createdFilteredColumns = columnsToCreate.filter((it) =>
+		(!it.generated || it.generated.type === 'virtual') && !isNonConstantDefault(it.default)
+	);
 
 	preserveEntityNames(ddl1.uniques, ddl2.uniques, mode);
 	preserveEntityNames(ddl1.pks, ddl2.pks, mode);
@@ -145,6 +152,9 @@ export const ddlDiff = async (
 
 	const checksAlters = updates.filter((it) => it.entityType === 'checks');
 
+	// changing from uniqueIndex to index and vice versa
+	const indexesAlters = updates.filter((it) => it.entityType === 'indexes');
+
 	const alteredColumns = updates.filter((it) => it.entityType === 'columns').filter((it) => {
 		if (it.notNull && ddl2.pks.one({ table: it.table, columns: [it.name] })) {
 			delete it.notNull;
@@ -158,6 +168,7 @@ export const ddlDiff = async (
 	});
 	const alteredColumnsBecameGenerated = alteredColumns.filter((it) => it.generated?.to?.type === 'stored');
 	const newStoredColumns = columnsToCreate.filter((it) => it.generated && it.generated.type === 'stored');
+	const newColumnsWithNonConstantDef = columnsToCreate.filter((it) => isNonConstantDefault(it.default));
 
 	const setOfTablesToRecereate = new Set(
 		[
@@ -168,6 +179,7 @@ export const ddlDiff = async (
 			...indexesDiff.filter((it) => it.isUnique && it.origin === 'auto'), // we can't drop/create auto generated unique indexes;,
 			...alteredColumnsBecameGenerated, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
 			...newStoredColumns, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
+			...newColumnsWithNonConstantDef,
 		].map((it) => it.table),
 	);
 
@@ -231,13 +243,24 @@ export const ddlDiff = async (
 	const jsonCreateIndexes = [...jsonRecreateTables]
 		.map((it) => it.to.indexes)
 		.concat(indexesByTable.filter((it) => !setOfTablesToRecereate.has(it.table)).map((it) => it.inserted))
-		.map((it) => it.map((index) => prepareStatement('create_index', { index })))
+		.concat([indexesAlters.filter((it) => !setOfTablesToRecereate.has(it.table)).map((it) => it.$right)])
+		.map((it) => {
+			return it.map((index) => prepareStatement('create_index', { index }));
+		})
 		.flat();
 
 	const jsonDropIndexes = indexesByTable.map((it) =>
 		it.deleted.map((index) => prepareStatement('drop_index', { index }))
 	).flat();
-	const jsonDropTables = deletedTables.map((it) => prepareStatement('drop_table', { tableName: it.name }));
+	for (const it of indexesAlters) {
+		if (setOfTablesToRecereate.has(it.table)) continue;
+		else jsonDropIndexes.push(prepareStatement('drop_index', { index: it.$left }));
+	}
+
+	const jsonDropTables = sortDropTables(
+		deletedTables.map((it) => prepareStatement('drop_table', { tableName: it.name })),
+		ddl1.fks.list(),
+	);
 	const jsonRenameTables = renamedTables.map((it) =>
 		prepareStatement('rename_table', { from: it.from.name, to: it.to.name })
 	);
@@ -260,12 +283,20 @@ export const ddlDiff = async (
 		);
 	}
 
-	const groupedNewColumns = Object.values(createdFilteredColumns.reduce((acc, prev) => {
-		const entry = prev.table in acc ? acc[prev.table] : { table: prev.table, columns: [] };
-		acc[prev.table] = entry;
-		entry.columns.push(prev);
-		return acc;
-	}, {} as Record<string, { table: string; columns: Column[] }>));
+	for (const column of newColumnsWithNonConstantDef) {
+		warnings.push(
+			`As SQLite docs mention: "The column may not have a default value of CURRENT_TIME, CURRENT_DATE, CURRENT_TIMESTAMP, or an expression in parentheses", so table "${column.table}" will be recreated to add column "${column.name}", source: "https://www.sqlite.org/lang_altertable.html#:~:text=The%20column%20may%20not%20have%20a%20default%20value%20of%20CURRENT_TIME%2C%20CURRENT_DATE%2C%20CURRENT_TIMESTAMP%2C%20or%20an%20expression%20in%20parentheses."`,
+		);
+	}
+
+	const groupedNewColumns = Object.values(
+		createdFilteredColumns.filter((it) => !setOfTablesToRecereate.has(it.table)).reduce((acc, prev) => {
+			const entry = prev.table in acc ? acc[prev.table] : { table: prev.table, columns: [] };
+			acc[prev.table] = entry;
+			entry.columns.push(prev);
+			return acc;
+		}, {} as Record<string, { table: string; columns: Column[] }>),
+	);
 
 	const jsonAddColumnsStatemets = groupedNewColumns
 		.map((it) => prepareAddColumns(it.columns, ddl2.fks.list({ table: it.table })))
@@ -328,4 +359,44 @@ export const ddlDiff = async (
 		renames,
 		warnings,
 	};
+};
+
+/*
+	DFS (Depth-First Search) topological sort of drop_table statements
+	Every table is dropped after the tables that reference it (foreign keys of the previous snapshot),
+	otherwise the implicit DELETE FROM of DROP TABLE fails with "FOREIGN KEY constraint failed"
+
+	other dialects drop foreign keys between dropped tables before DROP TABLE, so the order doesn't matter there
+
+	fixes https://github.com/drizzle-team/drizzle-orm/issues/6251
+*/
+const sortDropTables = (statements: JsonDropTableStatement[], fks: ForeignKey[]): JsonDropTableStatement[] => {
+	const byName = new Map<string, JsonDropTableStatement>(statements.map((it) => [it.tableName, it]));
+
+	const referencing = new Map<string, string[]>();
+	// self ref is skipped since dropping 1 table will delete these fks
+	// check only those fks where "table" and "tableTo" are dropped. If dropped one of them - no need to order
+	for (const fk of fks) {
+		if (fk.table === fk.tableTo || !byName.has(fk.table) || !byName.has(fk.tableTo)) continue;
+		const list = referencing.get(fk.tableTo);
+		if (list) list.push(fk.table);
+		else referencing.set(fk.tableTo, [fk.table]);
+	}
+
+	const visited = new Set<string>();
+	const sorted: JsonDropTableStatement[] = [];
+
+	const visit = (name: string) => {
+		if (visited.has(name)) return; // marked on enter, so a reference cycle can't loop forever
+		visited.add(name);
+
+		// tables referencing this one are dropped first
+		for (const table of referencing.get(name) ?? []) visit(table);
+
+		sorted.push(byName.get(name)!);
+	};
+
+	for (const name of byName.keys()) visit(name);
+
+	return sorted;
 };

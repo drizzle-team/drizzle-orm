@@ -1,3 +1,4 @@
+import { requireEnv, workerDatabaseName } from '@drizzle/test-utils';
 import { drizzle } from 'drizzle-orm/cockroach';
 import type { CockroachDatabase } from 'drizzle-orm/cockroach-core';
 import { Client } from 'pg';
@@ -34,8 +35,7 @@ const prepareTest = () => {
 		client: [
 			// oxlint-disable-next-line
 			async ({}, use) => {
-				const envurl = process.env['COCKROACH_CONNECTION_STRING'];
-				if (!envurl) throw new Error('No cockroach url provided');
+				const envurl = requireEnv('COCKROACH_CONNECTION_STRING');
 
 				const client = new Client(envurl);
 				await client.connect();
@@ -48,9 +48,16 @@ const prepareTest = () => {
 					return client.query(statements.map((x) => x.endsWith(';') ? x : `${x};`).join('\n')).then(() => '' as any);
 				};
 
-				await batch(['drop database if exists drizzle;', 'create database drizzle;', 'use drizzle;']);
+				// A database for this worker alone: test files run side by side.
+				const database = workerDatabaseName();
+				await batch([
+					`drop database if exists "${database}" cascade;`,
+					`create database "${database}";`,
+					`use "${database}";`,
+				]);
 
 				await use({ client, query, batch });
+				await batch(['use defaultdb;', `drop database if exists "${database}" cascade;`]);
 				await client.end();
 			},
 			{ scope: 'worker' },

@@ -10,7 +10,7 @@
 		"b": "pnpm build",
 		"pack": "turbo run pack --color --log-order=stream",
 		"pack:artifact": "turbo run pack:artifact --color --log-order=stream",
-		"test": "turbo run test --color --log-order=stream",
+		"test": "turbo run test --filter=!@drizzle-team/postgres --color --log-order=stream",
 		"t": "pnpm test",
 		"test:types": "turbo run test:types --color --log-order=stream",
 		"test:types-lint": "turbo run test:types //#lint --color --log-order=stream",
@@ -21,7 +21,8 @@
 		"fmt": "pnpm format"
 	},
 	"devDependencies": {
-		"bun-types": "^1.4.0",
+		"@drizzle/tsc7": "workspace:*",
+		"bun-types": "^1.4.4",
 		"concurrently": "^8.2.1",
 		"dprint": "^0.50.2",
 		"drizzle-kit": "workspace:./drizzle-kit/dist",
@@ -43,7 +44,7 @@
 		"vite-tsconfig-paths": "^4.3.2",
 		"vitest": "5.0.0"
 	},
-	"packageManager": "pnpm@10.15.0",
+	"packageManager": "pnpm@12.18.0",
 	"engines": {
 		"node": ">=24"
 	},

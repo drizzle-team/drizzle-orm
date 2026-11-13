@@ -1,3 +1,5 @@
+import type { Cache } from 'drizzle-orm/cache/core';
+import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
 import './wasm-fetch-patch';
 import { SqliteClient } from '@effect/sql-sqlite-wasm';
 import { assert, expect } from '@effect/vitest';
@@ -50,8 +52,10 @@ const createDB = <
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 	useJitMappers?: boolean,
+	cache?: Cache,
 ) =>
 	SQLiteDrizzle.make({ relations: defineRelations(schema, relations), jit: useJitMappers }).pipe(
+		Effect.provide(cache ? EffectCache.layerFromDrizzle(cache) : Layer.empty),
 		Effect.provide(SQLiteDrizzle.DefaultServices),
 	);
 
@@ -62,6 +66,26 @@ runCommonEffectSQLiteTests({
 	SQLiteDrizzle: SQLiteDrizzle,
 	createDB,
 	addTests: (it) => {
+		it.effect('run result', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+
+				yield* db.run(sql`drop table if exists run_result`);
+				yield* db.run(sql`create table run_result (id integer primary key, name text)`);
+
+				const plain: readonly Record<string, unknown>[] = yield* db.run(
+					sql`insert into run_result (name) values ('a')`,
+				);
+				const returning: readonly Record<string, unknown>[] = yield* db.run(
+					sql`insert into run_result (name) values ('b'), ('c') returning id`,
+				);
+
+				expect(plain).toEqual([]);
+				expect(returning).toEqual([{ id: 2 }, { id: 3 }]);
+
+				yield* db.run(sql`drop table run_result`);
+			}));
+
 		it.effect('migrator', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;

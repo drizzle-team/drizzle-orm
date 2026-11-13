@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
+import { postponed } from '@drizzle/test-utils';
 import {
 	and,
 	asc,
 	DrizzleQueryError,
 	eq,
+	type ExtractTablesFromSchema,
 	getColumns,
 	getTableColumns,
 	gt,
@@ -18,6 +20,7 @@ import {
 	makeJitRqbMapper,
 	max,
 	Name,
+	type RelationsBuilder,
 	sql,
 } from 'drizzle-orm';
 import {
@@ -27,6 +30,7 @@ import {
 	customType,
 	index,
 	int,
+	json,
 	MySqlAsyncSession,
 	MySqlDialect,
 	mysqlEnum,
@@ -41,7 +45,19 @@ import {
 } from 'drizzle-orm/mysql-core';
 import { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
 import { expect, expectTypeOf } from 'vitest';
-import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
+import { jsonRows, parseStoredJson } from '~/json-values';
+import { UpstashTestCache } from '~/upstash-cache';
+import {
+	type AllTypes,
+	allTypesData,
+	allTypesTable,
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
+	makeAllTypes,
+} from './all-types';
 import type { Test } from './instrumentation';
 import { createUsersOnUpdateTable, createUserTable } from './schema2';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -460,6 +476,94 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		},
 	);
 
+	test.concurrent('insert with onDuplicate on unique key', async ({ db, push }) => {
+		const table = mysqlTable('on_duplicate_unique', {
+			id: serial('id').primaryKey(),
+			email: varchar('email', { length: 255 }).notNull().unique(),
+			name: text('name').notNull(),
+		});
+		await push({ table });
+
+		await db.insert(table).values({ email: 'john@example.com', name: 'John' });
+		await db
+			.insert(table)
+			.values({ email: 'john@example.com', name: 'Jane' })
+			.onDuplicateKeyUpdate({ set: { name: 'Updated' } });
+
+		expect(await db.select().from(table)).toStrictEqual([{ id: 1, email: 'john@example.com', name: 'Updated' }]);
+	});
+
+	test.concurrent('insert with onDuplicate multiple rows', async ({ db, push }) => {
+		const users = createUserTable('on_duplicate_many');
+		await push({ users });
+
+		await db.insert(users).values({ id: 1, name: 'John' });
+		await db
+			.insert(users)
+			.values([{ id: 1, name: 'John1' }, { id: 2, name: 'Jane' }])
+			.onDuplicateKeyUpdate({ set: { name: sql`values(${sql.identifier(users.name.name)})` } });
+
+		const res = await db.select({ id: users.id, name: users.name }).from(users).orderBy(users.id);
+
+		expect(res).toStrictEqual([{ id: 1, name: 'John1' }, { id: 2, name: 'Jane' }]);
+	});
+
+	test.concurrent('insert with onDuplicate sql expression', async ({ db, push }) => {
+		const table = mysqlTable('on_duplicate_expression', {
+			id: int('id').primaryKey(),
+			count: int('count').notNull(),
+		});
+		await push({ table });
+
+		await db.insert(table).values({ id: 1, count: 1 });
+		await db
+			.insert(table)
+			.values({ id: 1, count: 1 })
+			.onDuplicateKeyUpdate({ set: { count: sql`${table.count} + 1` } });
+
+		expect(await db.select().from(table)).toStrictEqual([{ id: 1, count: 2 }]);
+	});
+
+	test.concurrent('insert with onDuplicate no-op', async ({ db, push }) => {
+		const users = createUserTable('on_duplicate_noop');
+		await push({ users });
+
+		await db.insert(users).values({ id: 1, name: 'John' });
+		await db
+			.insert(users)
+			.values({ id: 1, name: 'Jane' })
+			.onDuplicateKeyUpdate({ set: { id: sql`id` } });
+
+		const res = await db.select({ id: users.id, name: users.name }).from(users);
+
+		expect(res).toStrictEqual([{ id: 1, name: 'John' }]);
+	});
+
+	test.concurrent('insert with onDuplicate and ignore', async ({ db, push }) => {
+		const users = createUserTable('on_duplicate_ignore');
+		await push({ users });
+
+		await db.insert(users).values({ id: 1, name: 'John' });
+		await db
+			.insert(users)
+			.ignore()
+			.values({ id: 1, name: 'Jane' })
+			.onDuplicateKeyUpdate({ set: { name: 'Updated' } });
+
+		const res = await db.select({ id: users.id, name: users.name }).from(users);
+
+		expect(res).toStrictEqual([{ id: 1, name: 'Updated' }]);
+	});
+
+	test.concurrent('insert with onDuplicate and $returningId throws in dynamic query', async ({ db }) => {
+		const table = mysqlTable('on_duplicate_returning_id', { id: int('id').primaryKey() });
+		const message = '`$returningId` cannot be used with `onDuplicateKeyUpdate`';
+		const insert = () => db.insert(table).values({ id: 1 }).$dynamic();
+
+		expect(() => insert().onDuplicateKeyUpdate({ set: { id: 2 } }).$returningId()).toThrowError(message);
+		expect(() => insert().$returningId().onDuplicateKeyUpdate({ set: { id: 2 } })).toThrowError(message);
+	});
+
 	test.concurrent('insert conflict', async ({ db, push }) => {
 		const users = createUserTable('users_99');
 		await push({ users });
@@ -652,7 +756,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
-	test.skipIf(Date.now() < +new Date('2026-11-24')).concurrent(
+	test.skipIf(postponed).concurrent(
 		'prepared statement sql.placeholder in .inArray',
 		async ({ db, push }) => {
 			const users = createUserTable('users_116');
@@ -671,7 +775,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
 	test
-		.skipIf(Date.now() < +new Date('2026-11-24'))
+		.skipIf(postponed)
 		.concurrent(
 			'prepared statement sql.placeholder in .inArray #2',
 			async ({ db, push, seed }) => {
@@ -1427,18 +1531,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
 
 		const query = db.select().from(sub);
-		expect(query.toSQL().sql).toStrictEqual(
-			(<{ dialect: MySqlDialect }> (<any> db)).dialect.sqlToQuery(
-				sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
-					sql.identifier(
-						'tag_id',
-					)
-				}, ${sql.identifier('tag_created_at')} from ${sql.identifier('production_job_with_location')} ${
-					sql.identifier(
-						'p',
-					)
-				}`,
-			).sql,
+		expect(query.toSQL(false).sql).toStrictEqual(
+			'select `id`, `name`, `location_id`, `tag_id`, `tag_created_at` from `production_job_with_location` `p`',
 		);
 	});
 
@@ -1615,7 +1709,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
 		const db = createDB({
-			schema: { allTypesTable: allTypesCodecsTable },
+			schema: { allTypesTable, ...boundsSchema },
 			cb: (r) => ({
 				allTypesTable: {
 					self: r.many.allTypesTable({
@@ -1623,123 +1717,30 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 						to: r.allTypesTable.serial,
 					}),
 				},
+				...boundsRelations(r),
 			}),
 		});
-		await push({ allTypesCodecsTable });
-		type ExpectedType = {
-			serial: number;
-			bigint53: number;
-			bigint64: bigint;
-			bigintstr: string;
-			binary: string;
-			boolean: boolean;
-			char: string;
-			date: Date;
-			datestr: string;
-			datetime: Date;
-			datetimestr: string;
-			decimal: string;
-			decimalnum: number;
-			decimalbig: bigint;
-			double: number;
-			float: number;
-			int: number;
-			json1: unknown;
-			json2: unknown;
-			json3: unknown;
-			json4: unknown;
-			medint: number;
-			smallint: number;
-			real: number;
-			text: string;
-			tinytext: string;
-			mediumtext: string;
-			longtext: string;
-			time: string;
-			timestamp: Date;
-			timestampstr: string;
-			tinyint: number;
-			varbin: string;
-			varchar: string;
-			year: number;
-			enum: 'enV1' | 'enV2';
-			blob: Buffer;
-			tinyblob: Buffer;
-			mediumblob: Buffer;
-			longblob: Buffer;
-			stringblob: string;
-			stringtinyblob: string;
-			stringmediumblob: string;
-			stringlongblob: string;
-		};
-
-		const testData: ExpectedType = {
-			serial: 1,
-			bigint53: 9007199254740991,
-			bigint64: 5044565289845416380n,
-			bigintstr: '5044565289845416380',
-			binary: '1',
-			boolean: true,
-			char: 'c',
-			date: new Date('2025-03-12'),
-			datestr: '2025-03-12',
-			datetime: new Date(1741743161623),
-			datetimestr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
-			decimal: '47521',
-			decimalnum: 9007199254740991,
-			decimalbig: 5044565289845416380n,
-			double: 15.35325689124218,
-			enum: 'enV1',
-			float: 1.048596,
-			real: 1.048596,
-			text: 'C4-',
-			tinytext: 'tiny text',
-			mediumtext: 'medium text',
-			longtext: 'long text',
-			int: 621,
-			json1: { str: 'strval', arr: ['str', 10] },
-			json2: [{ key: 'value', num: 7 }, 'v', '11', 5],
-			json3: 5,
-			json4: '5',
-			medint: 560,
-			smallint: 14,
-			time: '04:13:22.120',
-			timestamp: new Date(1741743161623),
-			timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
-			tinyint: 7,
-			varbin: '1010110101001101',
-			varchar: 'VCHAR',
-			year: 2025,
-			blob: Buffer.from('string'),
-			longblob: Buffer.from('string'),
-			mediumblob: Buffer.from('string'),
-			tinyblob: Buffer.from('string'),
-			stringblob: 'string',
-			stringlongblob: 'string',
-			stringmediumblob: 'string',
-			stringtinyblob: 'string',
-		};
-
-		await db.insert(allTypesCodecsTable).values(testData);
+		await push({ allTypesTable });
+		await db.insert(allTypesTable).values(allTypesData);
 
 		const session = (<any> db).session as MySqlAsyncSession;
 
-		const queryRes = await session.objects<ExpectedType>(
+		const queryRes = await session.objects<AllTypes>(
 			db.select(
-				Object.fromEntries(Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)])),
-			).from(allTypesCodecsTable).getSQL(true),
+				Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
+			).from(allTypesTable).getSQL(true),
 		).then((e) =>
 			normalizeDataWithDbCodecs({
 				db,
-				columns: getColumns(allTypesCodecsTable),
+				columns: getColumns(allTypesTable),
 				data: e,
 				mode: 'query',
 			})[0]
 		);
 
-		expect(queryRes).toStrictEqual(testData);
+		expect(queryRes).toStrictEqual(allTypesData);
 
-		await assertAllTypesUnions(db, allTypesCodecsTable);
+		await assertAllTypesUnions(db, allTypesTable);
 
 		// TiDB's engine does not support `LATERAL` derived tables, which the RQB relation query
 		// (`with: { self }`) relies on — skip the relation-based assertions there.
@@ -1748,31 +1749,125 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				self: true,
 			},
 		}).getSQL();
-		if (!is(db, TiDBServerlessDatabase)) {
+		const rqb = !is(db, TiDBServerlessDatabase);
+		if (rqb) {
 			const { relationRes, rootRes } = await session.objects(relationSQL).then((e) => {
 				const [{ self: relationRaw, ...rootRaw }] = e as [Record<string, any>];
 
 				return {
 					relationRes: normalizeDataWithDbCodecs({
 						db,
-						columns: getColumns(allTypesCodecsTable),
+						columns: getColumns(allTypesTable),
 						data: relationRaw,
 						mode: 'json',
 					})[0]!,
 					rootRes: normalizeDataWithDbCodecs({
 						db,
-						columns: getColumns(allTypesCodecsTable),
+						columns: getColumns(allTypesTable),
 						data: [rootRaw],
 						mode: 'query',
 					})[0]!,
 				};
 			});
 
-			expect(relationRes).toStrictEqual(testData);
-			expect(rootRes).toStrictEqual(testData);
+			expect(relationRes).toStrictEqual(allTypesData);
+			expect(rootRes).toStrictEqual(allTypesData);
 		}
 
-		await assertAllTypesBounds(db);
+		await assertAllTypesBounds(db, { rqb });
+		await assertAllTypesTemporalBounds(db, { rqb });
+	});
+
+	test.concurrent('all types ~json~', async ({ db, push }) => {
+		const table = mysqlTable('all_types_json', {
+			id: int('id').primaryKey(),
+			json: json('json'),
+		});
+		await push({ table });
+
+		const { input, output } = jsonRows(['json']);
+
+		await db.insert(table).values(input);
+
+		// json text as the database stores it, read without decoding
+		const stored = await db.select({
+			id: table.id,
+			json: sql<string>`cast(${table.json} as char)`,
+		}).from(table).orderBy(table.id);
+
+		expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+		expect(parseStoredJson(stored)).toStrictEqual(output);
+	});
+
+	const upstashTable = makeAllTypes('all_types_cdcs_upstash');
+	const upstashSchema = { allTypesTable: upstashTable, ...boundsSchema };
+	const upstashConfig = (cache: UpstashTestCache) => ({
+		schema: upstashSchema,
+		cb: (r: RelationsBuilder<ExtractTablesFromSchema<typeof upstashSchema>>) => ({
+			allTypesTable: {
+				self: r.many.allTypesTable({
+					from: r.allTypesTable.serial,
+					to: r.allTypesTable.serial,
+				}),
+			},
+			...boundsRelations(r),
+		}),
+		cache,
+	});
+
+	test('all types - upstash', async ({ createDB, push }) => {
+		await using cache = new UpstashTestCache();
+		const { run } = cache;
+		const db = createDB(upstashConfig(cache));
+		const table = makeAllTypes('all_types_upstash');
+		await push({ table });
+
+		await cache.expectHits('all types', async () => {
+			await run(db.insert(table).values(allTypesData));
+			expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
+		});
+	});
+
+	test('all types ~codecs~ - upstash', async ({ createDB, push }) => {
+		await using cache = new UpstashTestCache();
+		const { run } = cache;
+		const db = createDB(upstashConfig(cache));
+		await push({ upstashTable });
+
+		// TiDB's engine does not support `LATERAL` derived tables, which the RQB relation query relies on
+		const rqb = !is(db as unknown, TiDBServerlessDatabase);
+
+		await cache.expectHits('all types', async () => {
+			await run(db.insert(upstashTable).values(allTypesData));
+			expect(await run(db.select().from(upstashTable))).toStrictEqual([allTypesData]);
+			if (rqb) {
+				expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+					...allTypesData,
+					self: [allTypesData],
+				});
+			}
+		});
+		await cache.expectHits('unions', () => assertAllTypesUnions(db, upstashTable, run));
+		await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run, rqb }));
+		await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db, { run, rqb }));
+	});
+
+	test('all types ~json~ - upstash', async ({ createDB, push }) => {
+		await using cache = new UpstashTestCache();
+		const { run } = cache;
+		const db = createDB(upstashConfig(cache));
+		const table = mysqlTable('all_types_json_upstash', {
+			id: int('id').primaryKey(),
+			json: json('json'),
+		});
+		await push({ table });
+
+		const { input, output } = jsonRows(['json']);
+
+		await cache.expectHits('json', async () => {
+			await run(db.insert(table).values(input));
+			expect(await run(db.select().from(table).orderBy(table.id))).toStrictEqual(output);
+		});
 	});
 
 	test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {

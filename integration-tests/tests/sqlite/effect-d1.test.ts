@@ -9,6 +9,7 @@ import {
 	RelationsBuilderConfig,
 	Schema,
 } from 'drizzle-orm';
+import type { Cache } from 'drizzle-orm/cache/core';
 import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
 import * as SQLiteDrizzle from 'drizzle-orm/effect-d1';
 import { alias, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
@@ -40,8 +41,11 @@ const createDB = <
 >(
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
+	_useJitMappers?: boolean,
+	cache?: Cache,
 ) =>
 	SQLiteDrizzle.make({ relations: defineRelations(schema, relations) }).pipe(
+		Effect.provide(cache ? EffectCache.layerFromDrizzle(cache) : Layer.empty),
 		Effect.provide(SQLiteDrizzle.DefaultServices),
 	);
 
@@ -153,8 +157,9 @@ runCommonEffectSQLiteTests({
 				});
 				expect(values).toStrictEqual(_values);
 
-				expect(spyPut).toHaveBeenCalledTimes(4);
-				expect(spyGet).toHaveBeenCalledTimes(4);
+				// `run` returns driver's run result, which is never cached
+				expect(spyPut).toHaveBeenCalledTimes(3);
+				expect(spyGet).toHaveBeenCalledTimes(3);
 				expect(spyInvalidate).toHaveBeenCalledTimes(0);
 
 				spyPut.mockClear();

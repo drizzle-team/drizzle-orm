@@ -343,7 +343,6 @@ const setupAggregateFunctionsTest = (db: Db) =>
 		]);
 	});
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 export class MyDurableObject extends DurableObject {
 	private db!: Db;
 	private runtime!: ManagedRuntime.ManagedRuntime<
@@ -3211,6 +3210,25 @@ export class MyDurableObject extends DurableObject {
 		}));
 	}
 
+	runResult(): Promise<void> {
+		return this.exec(Effect.gen(function*() {
+			const db = yield* SQLiteDrizzle.make({});
+
+			yield* db.run(sql`drop table if exists run_result`);
+			yield* db.run(sql`create table run_result (id integer primary key, name text)`);
+
+			const plain: readonly Record<string, unknown>[] = yield* db.run(
+				sql`insert into run_result (name) values ('a')`,
+			);
+			const returning: readonly Record<string, unknown>[] = yield* db.run(
+				sql`insert into run_result (name) values ('b'), ('c') returning id`,
+			);
+
+			expect(plain).deep.equal([]);
+			expect(returning).deep.equal([{ id: 2 }, { id: 3 }]);
+		}));
+	}
+
 	queryErrorParams(): Promise<void> {
 		return this.exec(Effect.gen(function*() {
 			const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;
@@ -4039,6 +4057,7 @@ const TESTS = [
 	'deleteWithLimitAndOrderBy',
 	'allTypes',
 	'allTypesCodecs',
+	'runResult',
 	'queryErrorParams',
 	'testRqbV2SimpleFindFirstNoRows',
 	'testRqbV2SimpleFindFirstMultipleRows',

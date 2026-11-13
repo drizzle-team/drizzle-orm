@@ -639,7 +639,7 @@ export class MsSqlDialect {
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
-		const topSql = top ? sql` top(${top})` : undefined;
+		const topSql = top === undefined ? undefined : sql` top(${top})`;
 
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,

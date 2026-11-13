@@ -1,4 +1,4 @@
-import { PGlite } from '@electric-sql/pglite';
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import type { SQL } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { integer, pgSchema, pgTable, pgView, text } from 'drizzle-orm/pg-core';
@@ -49,7 +49,7 @@ test('a relation whose target is a view is dropped, the rest of the schema still
 	const { relations: mapped } = getSchemaInfo(viewTables, viewTables, mapPgColumns, relations);
 	expect(linksOf(mapped)).toEqual([['posts', ['authorId'], 'users', ['id']]]);
 
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = drizzle({ client });
 	await applyDdl(db, viewDdl);
 
@@ -73,7 +73,7 @@ test('relations declared under a view key are dropped', async () => {
 	const { relations: mapped } = getSchemaInfo(viewTables, viewTables, mapPgColumns, relations);
 	expect(mapped).toEqual([]);
 
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = drizzle({ client });
 	await applyDdl(db, viewDdl);
 
@@ -98,7 +98,7 @@ test('a relation to a table that is not being seeded is dropped and its column i
 		},
 	}));
 
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = drizzle({ client });
 	await applyDdl(db, [
 		sql`create table users (id integer primary key, name text)`,
@@ -132,7 +132,7 @@ test('relation names come from the seed schema keys, not from the relations conf
 	const { relations: mapped } = getSchemaInfo(schema, schema, mapPgColumns, relations);
 	expect(linksOf(mapped)).toEqual([['posts', ['authorId'], 'users', ['id']]]);
 
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = drizzle({ client });
 	await applyDdl(db, [
 		sql`create table users (id integer primary key, name text)`,
@@ -172,7 +172,7 @@ test('two tables sharing a database name in different database schemas keep thei
 		['posts', ['bUserId'], 'usersB', ['id']],
 	]);
 
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = drizzle({ client });
 	await applyDdl(db, [
 		sql`create schema a`,
@@ -218,7 +218,7 @@ test('an empty relations config adds nothing and leaves foreign key derived seed
 	expect(linksOf(withEmptyObject.relations)).toEqual(foreignKeyLink);
 	expect(linksOf(withUndefinedEntry.relations)).toEqual(foreignKeyLink);
 
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = drizzle({ client });
 	await applyDdl(db, [
 		sql`create table users (id integer primary key, name text)`,
@@ -259,7 +259,7 @@ test('defineRelationsPart contributes relations only for the tables it covers', 
 	const { relations: mapped } = getSchemaInfo(partSchema, partSchema, mapPgColumns, relations);
 	expect(linksOf(mapped)).toEqual([['posts', ['authorId'], 'users', ['id']]]);
 
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = drizzle({ client });
 	await applyDdl(db, [
 		sql`create table users (id integer primary key, name text)`,
@@ -302,11 +302,11 @@ const byEditor = defineRelations(optionSchema, (r) => ({
 }));
 
 test('relations taken off the db produce the same rows as relations passed as an option', async () => {
-	const fromDbClient = new PGlite();
+	const fromDbClient = await freshPGlite();
 	const fromDb = drizzle({ client: fromDbClient, relations: byAuthor });
 	await applyDdl(fromDb, optionDdl);
 
-	const fromOptionClient = new PGlite();
+	const fromOptionClient = await freshPGlite();
 	const fromOption = drizzle({ client: fromOptionClient });
 	await applyDdl(fromOption, optionDdl);
 
@@ -325,7 +325,7 @@ test('relations taken off the db produce the same rows as relations passed as an
 });
 
 test('the relations option overrides the relations the db was built with', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const authorDb = drizzle({ client, relations: byAuthor });
 	const editorDb = drizzle({ client, relations: byEditor });
 	await applyDdl(authorDb, optionDdl);

@@ -17,8 +17,8 @@ import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
 import { usedTablesOf } from '~/used-tables.ts';
-import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
-import type { AnySingleStoreColumn, SingleStoreColumn } from '../columns/common.ts';
+import { type DrizzleTypeError, mapUpdateSet } from '~/utils.ts';
+import type { AnySingleStoreColumn } from '../columns/common.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 import type { SingleStoreUpdateSetSource } from './update.ts';
 
@@ -270,7 +270,13 @@ export class SingleStoreInsertBase<
 	 */
 	onDuplicateKeyUpdate(
 		config: SingleStoreInsertOnDuplicateKeyUpdateConfig<this>,
-	): SingleStoreInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate'> {
+	): SingleStoreInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate' | '$returningId'> {
+		if (this.config.returning) {
+			throw new Error(
+				"`$returningId` cannot be used with `onDuplicateKeyUpdate`: updated rows' ids are not reported by the database.",
+			);
+		}
+
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		this.config.onConflict = sql`update ${setSql}`;
 		return this as any;
@@ -279,19 +285,21 @@ export class SingleStoreInsertBase<
 	$returningId(): SingleStoreInsertWithout<
 		SingleStoreInsertReturning<this, TDynamic>,
 		TDynamic,
-		'$returningId'
+		'$returningId' | 'onDuplicateKeyUpdate'
 	> {
+		if (this.config.onConflict) {
+			throw new Error(
+				"`$returningId` cannot be used with `onDuplicateKeyUpdate`: updated rows' ids are not reported by the database.",
+			);
+		}
+
 		const returning: SelectedFieldsOrdered = [];
 		for (const [key, value] of Object.entries(this.config.table[Table.Symbol.Columns])) {
 			if (value.primary) {
 				returning.push({ field: value, fieldType: 'Column', path: [key] });
 			}
 		}
-		this.config.returning = orderSelectedFields<SingleStoreColumn>(
-			this.config.table[Table.Symbol.Columns],
-			undefined,
-			this.dialect.codecs,
-		);
+		this.config.returning = returning;
 		return this as any;
 	}
 

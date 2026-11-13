@@ -2,8 +2,11 @@ import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
+	castToEpochMs,
+	castToJsonText,
 	castToText,
 	castToTextArr,
+	epochMsToDate,
 	makeGeometryArray,
 	parseGeometryArrayAndNormalize,
 	parseGeometryTuple,
@@ -15,24 +18,32 @@ import {
 	parsePointTuple,
 	parsePointXY,
 	refineGenericPgCodecs,
-	textToDate,
-	textToDateWithTz,
+	textToDateArray,
+	textToDateWithTzArray,
 } from '~/pg-core/codecs.ts';
 
 export const netlifyDbCodecs = refineGenericPgCodecs({
 	bigint: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	'bigint:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	bigserial: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	'bigserial:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
@@ -40,14 +51,17 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 		normalizeArray: (v) => parsePgArray(v),
 	},
 	numeric: {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	'numeric:number': {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	'numeric:bigint': {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
@@ -56,27 +70,33 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 		normalizeParam: String,
 	},
 	date: {
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 	},
 	'date:string': {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	timestamp: {
-		castArray: castToTextArr,
-		normalize: textToDateWithTz,
-		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateWithTzArray,
 	},
 	timestamptz: {
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 	},
 	'timestamp:string': {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	'timestamptz:string': {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	'geometry(point)': {
@@ -90,14 +110,23 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makeGeometryArray,
 	},
 	interval: {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	// driver handles objects, other types need to be stringified
 	json: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
@@ -144,22 +173,42 @@ export const netlifyDbCodecs = refineGenericPgCodecs({
 		normalize: parsePgVector,
 		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
 	},
+	'bigint:string': {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	time: {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	timetz: {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
 });
 
 export const netlifyDbTransactionCodecs = refineGenericPgCodecs({
 	bigint: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	'bigint:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	bigserial: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	'bigserial:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
@@ -167,40 +216,49 @@ export const netlifyDbTransactionCodecs = refineGenericPgCodecs({
 		normalizeArray: (v) => parsePgArray(v),
 	},
 	numeric: {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	'numeric:number': {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	'numeric:bigint': {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	date: {
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 	},
 	'date:string': {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	timestamp: {
-		castArray: castToTextArr,
-		normalize: textToDateWithTz,
-		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateWithTzArray,
 	},
 	timestamptz: {
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 	},
 	'timestamp:string': {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	'timestamptz:string': {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	'geometry(point)': {
@@ -214,15 +272,23 @@ export const netlifyDbTransactionCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makeGeometryArray,
 	},
 	interval: {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
-	// driver handles objects, other types need to be stringified
 	json: {
-		normalizeParam: (v) => typeof v === 'object' && !Array.isArray(v) ? v : JSON.stringify(v),
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
+		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
-		normalizeParam: (v) => typeof v === 'object' && !Array.isArray(v) ? v : JSON.stringify(v),
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
+		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	enum: {
@@ -267,5 +333,17 @@ export const netlifyDbTransactionCodecs = refineGenericPgCodecs({
 	vector: {
 		normalize: parsePgVector,
 		normalizeArray: parsePgArrayAndNormalize(parsePgVector),
+	},
+	'bigint:string': {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	time: {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	timetz: {
+		cast: castToText,
+		castArray: castToTextArr,
 	},
 });
