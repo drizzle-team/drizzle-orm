@@ -175,6 +175,15 @@ export interface ConnectConfig {
 	 *  infinity, none of which a JS Date can hold). Per-column `:string`/`:date`/`:ms` targets in a
 	 *  shape/queryTyped always override this. Note: Date is millisecond-precision. */
 	temporal?: 'date' | 'string';
+	/** How int8 (bigint) columns and int8[] elements decode by default: 'bigint' (default) = a JS BigInt,
+	 *  exact; 'string' = the exact digits, JSON-serialisable (what pg and postgres.js return); 'number' =
+	 *  a JS number, lossy above 2^53. Per-column targets in a shape/queryTyped always override this. */
+	int8?: 'bigint' | 'string' | 'number';
+	/** Decode every column to the exact text Postgres sent (a string, or null for NULL): no number,
+	 *  Date, JSON or array parsing, and no binary formats on prepared re-executions. For layers that run
+	 *  their own decoding on server text, such as `@drizzle-team/postgres/compat-prisma8`. A column with a
+	 *  target from a shape keeps it. */
+	textValues?: boolean;
 	/** Per-OID decoder overrides for the parsed ('array'/'object') modes. */
 	types?: Record<number, Decoder>;
 	/** How to decode integers inside ANY json/jsonb value that exceed 2^53 (which plain
@@ -186,12 +195,15 @@ export interface ConnectConfig {
 	/** Use server-side NAMED prepared statements for `{ name }` queries and the reused-chunks builder.
 	 *  Set `false` behind a transaction-mode pooler (PgBouncer/Supavisor) where a named statement prepared
 	 *  on one backend may not exist on the next — every query then goes unnamed (Parse+Bind+Execute).
-	 *  Default: auto — off when a pooler is detected (Neon `-pooler` host, Supabase `pooler.supabase.com`
-	 *  / port 6543, or the Vercel serverless runtime), on otherwise. Explicit value always wins. */
+	 *  Default: auto — off when a pooler is detected (Neon `-pooler` host, port 6543 for Supabase Supavisor
+	 *  in transaction mode, or the Vercel serverless runtime) or declared (`pooler`), on otherwise. Neon's
+	 *  pooled endpoints are the exception: their PgBouncer keeps named statements across backends, so it
+	 *  stays on there. Explicit value always wins; a connection string can carry it as `?prepare=false`. */
 	prepare?: boolean;
 	/** Declares whether the connection goes through a transaction-mode pooler, such as PgBouncer. It
 	 *  replaces the detection from the host and port that `prepare` describes. Behind a pooler, `prepare`
-	 *  and `pipeline` default to off, and a connection whose query was canceled is closed. */
+	 *  and `pipeline` default to off, and a connection whose query was canceled is closed. A connection
+	 *  string can carry it as `?pooler=true`, or as `?pgbouncer=true`, the flag Prisma and Supabase use. */
 	pooler?: boolean;
 	/** Encode params in BINARY wire format for the fast types (int2/int4/int8, float8, bool,
 	 *  timestamp/timestamptz) when a named prepared statement is REUSED — the param OIDs are then
@@ -199,14 +211,23 @@ export interface ConnectConfig {
 	 *  match its column falls back to text for that one value, so server semantics (including
 	 *  out-of-range errors) are unchanged. First executions always go out text. Default: on. */
 	binaryParams?: boolean;
-	/** Pipeline independent queries on a SINGLE connection: keep several in flight at once instead of
-	 *  waiting a full round trip between each (collapses N round trips into ~1 for concurrently-issued
-	 *  queries, e.g. `Promise.all`). Results still return in request order; the server executes them
-	 *  serially (pipelining hides network latency, not server CPU). Default: on (depth 100), auto-off
-	 *  behind a transaction-mode pooler. `false` = one query at a time (gated); `{ depth }` caps in-flight.
-	 *  `flush` controls socket-write batching: `'microtask'` (default) coalesces queries issued in the same
-	 *  tick into ONE write (fewer syscalls); `'sync'` writes each as it's dispatched (lowest latency). */
-	pipeline?: boolean | { depth?: number; flush?: 'sync' | 'microtask' };
+	/** Pipeline independent queries on one connection: keep several in flight instead of waiting a round
+	 *  trip between each (N concurrently issued queries, e.g. `Promise.all`, take ~1 round trip). Results
+	 *  return in request order; the server runs them one at a time (pipelining hides network latency, not
+	 *  server CPU).
+	 *  - omitted / `true`: on with `depth: 'auto'`; omitted is off behind a transaction pooler (`pooler`).
+	 *  - `false`: one query at a time (depth 1). Explicit pipelines still pipeline: `pool.batch()` always,
+	 *    `pool.pipeline()` unless behind a transaction pooler.
+	 *  - `{ depth: 'auto' }`: the in-flight limit follows the connection's lowest measured round trip,
+	 *    100 per ms, between 100 and 4096 (about 100 on a local network, 1000 at 10 ms).
+	 *    `stats.pipelineDepth` shows the value in effect, `rtt.min` the round trip.
+	 *  - `{ depth: n }`: a fixed limit of n.
+	 *  - `flush`: `'microtask'` (default) sends queries issued in the same tick in one socket write;
+	 *    `'sync'` writes each query at once.
+	 *  An explicit value wins over pooler detection. In a pool, pipelining also lets standalone queries
+	 *  (`pool.query`, `pool.execute`) share connections instead of checking one out each; `false` turns
+	 *  that off too. */
+	pipeline?: boolean | { depth?: number | 'auto'; flush?: 'sync' | 'microtask' };
 	/** Auto-reconnect this connection after an unexpected drop (default off). Object
 	 *  tunes backoff (baseMs/maxMs) and maxRetries (null/omitted = retry forever). */
 	reconnect?: boolean | { baseMs?: number; maxMs?: number; maxRetries?: number };
@@ -254,6 +275,46 @@ export type BatchOptions =
 		 *  sends `set transaction snapshot …` before anything else. The exporting transaction must still be open. */
 		snapshot: string;
 	};
+
+/** Options for `pool.batch(queries, options)`: the transaction settings plus `metrics`. */
+export type BatchRunOptions = BatchOptions & {
+	/** Return telemetry for the batch as `results.metrics` (see BatchMetrics), and each query's own metrics
+	 *  as its result's `metrics`. Units as for a query's `metrics`: `true` is milliseconds as floats, `'ms'`
+	 *  whole milliseconds, `'us'` whole microseconds. A query that set its own unit keeps it. A batch that
+	 *  rejects has no results, so it reports no telemetry. Off by default, because collecting it allocates. */
+	metrics?: boolean | 'ms' | 'us';
+};
+
+/** The results of `pool.batch`, in input order. With `metrics` on, `metrics` holds the batch's telemetry. */
+export type BatchResult = QueryResult<never>[] & { metrics?: BatchMetrics };
+
+/** Telemetry of one `pool.batch` call. It covers that call alone: the batch holds its connection the
+ *  whole time, so nothing else's traffic is counted. */
+export interface BatchMetrics {
+	/** The unit of every duration below. */
+	unit: 'ms' | 'us';
+	/** Waiting for a pool connection. */
+	acquire: number;
+	/** From the call until the batch settled, `acquire` included. */
+	total: number;
+	/** Statements sent: the queries plus BEGIN, COMMIT and a snapshot import when there is one. */
+	statements: number;
+	/** Socket writes. Statements issued together share one. */
+	writes: number;
+	/** Network round trips: writes sent while nothing earlier was still waiting for its response. */
+	roundTrips: number;
+	/** Queries with a statement name that the server parsed in this batch. */
+	parsed: number;
+	/** Queries with a statement name that ran without a Parse, because the connection already held the
+	 *  statement or the same Parse was already queued ahead of it. */
+	reused: number;
+	/** Queries without a statement name, which the server parses on every run. */
+	unnamed: number;
+	/** The server process that ran the batch. */
+	backendPid: number | undefined;
+	/** Each query's own metrics, in input order: the same objects as each result's `metrics`. */
+	queries: QueryMetrics[];
+}
 
 /** What kind of connection a `Connection` is. `pooled: true` comes from a pool and can cancel its
  *  queries; `pooled: false` comes from `connect()` and cannot. A field added later must be optional,

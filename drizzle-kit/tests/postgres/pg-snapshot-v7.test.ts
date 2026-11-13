@@ -1,8 +1,8 @@
+import { postponed } from '@drizzle/test-utils';
 import { readFileSync } from 'fs';
 import { fromEntities } from 'src/dialects/postgres/ddl';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { serializePg } from 'src/legacy/postgres-v7/serializer';
-import { needToPostpone } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, diffSnapshotV7, drizzleToDDL, prepareTestDatabase, push, TestDatabase } from './mocks';
 import * as s01 from './snapshots/schema01';
@@ -146,7 +146,7 @@ test('s06. the first diff after the upgrade keeps a column of a built-in type th
 // https://github.com/drizzle-team/drizzle-orm/pull/6443
 // v7 stored checks and index `where` with table-qualified columns ("docs"."rank") and index `with` joined by ',',
 // generate renders bare columns and ', ', so the first generate after `drizzle-kit up` recreated those indexes and checks
-test.skipIf(needToPostpone)(
+test.skipIf(postponed)(
 	's07. index with options, partial indexes and checks referencing columns',
 	async () => {
 		const res = await diffSnapshotV7(db, s07new, s07);

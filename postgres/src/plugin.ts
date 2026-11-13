@@ -32,6 +32,7 @@ export interface QueryMetrics {
 	rowCount: number | null;
 	columnCount: number;
 	command: string | null;
+	statementName?: string | undefined; // the server-side statement name it ran under (undefined = unnamed)
 	prepared: boolean; // true if this reused a cached prepared statement (Parse skipped)
 	error?: Error;
 }

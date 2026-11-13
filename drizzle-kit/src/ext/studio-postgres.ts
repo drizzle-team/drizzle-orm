@@ -204,7 +204,12 @@ export const diffPostgresql = async (ddl1: PostgresDDL, ddl2: PostgresDDL, renam
 	return { sqlStatements, groupedStatements, statements };
 };
 
-export const fromDatabase = fd;
+export const fromDatabase = (
+	db: Parameters<typeof fd>[0],
+	filter?: Parameters<typeof fd>[1],
+	progressCallback?: Parameters<typeof fd>[2],
+	queryCallback?: Parameters<typeof fd>[3],
+) => fd(db, filter, progressCallback, queryCallback, { procedures: false });
 export const fromDuckDbDatabase = dfd;
 export const fetchPartitions = fp;
 

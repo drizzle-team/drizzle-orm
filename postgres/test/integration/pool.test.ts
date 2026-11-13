@@ -493,14 +493,15 @@ describe('graceful shutdown (pool.end)', () => {
 		const pool = testPool({ max: 2, applicationName: appName() });
 		// Warm up two READY conns first; ending a still-connecting conn is a separate
 		// (known) edge. Here we exercise the queued/in-flight path against live conns.
-		await Promise.all([pool.query('select 1'), pool.query('select 2')]);
+		const warm = [await pool.connect(), await pool.connect()];
+		for (const h of warm) h.release();
 		expect(pool.idleCount).toBe(2);
 		// fire more queries than capacity; some will be in-flight / queued at end()
 		const inflight = Array.from(
 			{ length: 6 },
 			(_, i) => caught(() => pool.query('select pg_sleep(0.3), $1::int', [i])),
 		);
-		await waitFor(() => pool.waiting > 0);
+		// the queries pipeline onto the two connections synchronously, so they are in flight already
 		await pool.end(); // must resolve, not hang
 		expect(pool.size).toBe(0);
 		// cut-off queries settle (resolve or reject) — never hang
@@ -795,4 +796,146 @@ describe('roadmap (unimplemented)', () => {
 	test.todo('per-new-connection setup/onconnect hook runs once per new backend', () => {});
 	test.todo('search_path leak guard: DISCARD ALL / reset-on-release between checkouts', () => {});
 	test.todo('pool emits idle/release event when a client becomes available', () => {});
+});
+
+describe('row mapper cache scope', () => {
+	const mappersOf = (c: object) => (c as { rowMappers: unknown }).rowMappers;
+	const shapeOf = (c: object, cols: { name: string; oid: number }[]) =>
+		(c as { rowMappers: { forCols: (cols: unknown, mode: string) => unknown } }).rowMappers.forCols(cols, 'object');
+
+	test("a pool's connections share one cache; another pool and a standalone connection do not", async () => {
+		const a = testPool({ max: 2, applicationName: appName() });
+		const b = testPool({ max: 1, applicationName: appName() });
+		const solo = await testConnect();
+		try {
+			const [a1, a2] = await Promise.all([a.acquire(), a.acquire()]);
+			expect(a1).not.toBe(a2);
+			expect(mappersOf(a1)).toBe(mappersOf(a2));
+			await a1.query('select 1::int as id, $1::text as name', ['x']);
+			const cols = [{ name: 'id', oid: 23 }, { name: 'name', oid: 25 }];
+			expect(shapeOf(a2, cols)).toBe(shapeOf(a1, cols));
+			expect((await a2.query('select 2::int as id, $1::text as name', ['y'])).rows).toEqual([[2, 'y']]);
+
+			const b1 = await b.acquire();
+			expect(mappersOf(b1)).not.toBe(mappersOf(a1));
+			expect(shapeOf(b1, cols)).not.toBe(shapeOf(a1, cols));
+			expect(mappersOf(solo)).not.toBe(mappersOf(a1));
+			a.release(a1);
+			a.release(a2);
+			b.release(b1);
+		} finally {
+			await Promise.all([a.end(), b.end(), solo.end()]);
+		}
+	});
+});
+
+describe('pipelined pool', () => {
+	test('concurrent queries pipeline over the connections once the pool is full', async () => {
+		const app = appName();
+		const pool = testPool({ max: 2, applicationName: app });
+		try {
+			const rs = await Promise.all(Array.from({ length: 200 }, (_, i) => pool.query('select $1::int', [i])));
+			expect(rs.map((r) => (r.rows[0] as unknown as unknown[])[0])).toEqual(Array.from({ length: 200 }, (_, i) => i));
+			expect(pool.size).toBe(2);
+			expect(await backendCount(app)).toBe(2);
+			const held = [await pool.connect(), await pool.connect()];
+			expect(Math.max(...held.map((h) => h.client.stats.maxInflight))).toBeGreaterThan(1);
+			for (const h of held) h.release();
+		} finally {
+			await pool.end();
+		}
+	});
+
+	test('below max a query opens its own backend instead of queueing behind a slow one', async () => {
+		const pool = testPool({ max: 2, applicationName: appName() });
+		try {
+			await pool.query('select 1'); // one warm connection
+			const start = Date.now();
+			const [slow, fast] = [pool.query('select pg_sleep(0.5)'), pool.query('select 1')];
+			await fast;
+			expect(Date.now() - start).toBeLessThan(400);
+			await slow;
+		} finally {
+			await pool.end();
+		}
+	});
+
+	test('a checked-out connection gets no shared queries', async () => {
+		const pool = testPool({ max: 1, applicationName: appName() });
+		try {
+			const h = await pool.connect();
+			let done = false;
+			const q = pool.query('select 1').then(() => (done = true));
+			await new Promise((r) => setTimeout(r, 50));
+			expect(done).toBe(false);
+			expect(pool.waiting).toBe(1);
+			expect(h.client.stats.inflight + h.client.stats.queued).toBe(0);
+			h.release();
+			await q;
+			expect(done).toBe(true);
+		} finally {
+			await pool.end();
+		}
+	});
+
+	test('a BEGIN sent through pool.query never leaves a shared connection in a transaction', async () => {
+		const pool = testPool({ max: 1, applicationName: appName() });
+		try {
+			// inside one transaction both would report the same xid; in autocommit each gets its own
+			const [, , a, b] = await Promise.all([
+				pool.query('select 1'),
+				pool.query('begin'),
+				pool.query('select pg_current_xact_id()::text'),
+				pool.query('select pg_current_xact_id()::text'),
+			]);
+			expect(a.rows[0]).not.toEqual(b.rows[0]);
+			const h = await pool.connect();
+			expect(h.client.inTransaction).toBe(false);
+			h.release();
+		} finally {
+			await pool.end();
+		}
+	});
+
+	test('pipeline: false still pipelines pool.pipeline()', async () => {
+		const pool = testPool({ max: 1, applicationName: appName(), pipeline: false });
+		try {
+			const settled = await pool.pipeline(Array.from({ length: 10 }, (_, i) => pool.query('select $1::int', [i])));
+			expect(settled.every((x) => x.status === 'fulfilled')).toBe(true);
+			const h = await pool.connect();
+			expect(h.client.stats.maxInflight).toBe(10);
+			h.release();
+		} finally {
+			await pool.end();
+		}
+	});
+
+	test('behind a transaction pooler a batch pipelines and pool.pipeline() does not', async () => {
+		const pool = testPool({ max: 1, applicationName: appName(), pooler: true });
+		try {
+			await pool.pipeline(Array.from({ length: 5 }, (_, i) => pool.query('select $1::int', [i])));
+			const h = await pool.connect();
+			expect(h.client.stats.pipelineDepth).toBe(1);
+			expect(h.client.stats.maxInflight).toBe(1); // each is its own transaction: one per round trip
+			h.release();
+			const r = await pool.batch(Array.from({ length: 5 }, (_, i) => pool.query('select $1::int', [i])), {
+				metrics: true,
+			});
+			expect(r.metrics.roundTrips).toBe(1);
+		} finally {
+			await pool.end();
+		}
+	});
+
+	test('pipeline: false keeps one query per connection', async () => {
+		const pool = testPool({ max: 1, applicationName: appName(), pipeline: false });
+		try {
+			await Promise.all(Array.from({ length: 20 }, (_, i) => pool.query('select $1::int', [i])));
+			const h = await pool.connect();
+			expect(h.client.stats.maxInflight).toBe(1);
+			h.release();
+		} finally {
+			await pool.end();
+		}
+	});
 });

@@ -22,6 +22,8 @@ import {
 	instantFromBytes,
 	instantFromString,
 	instantSnippet,
+	nonIsoTemporal,
+	nonIsoTemporalThrow,
 	PG_EPOCH_MS,
 } from './temporal.ts';
 import type { Decoder } from './types.ts';
@@ -180,8 +182,12 @@ const byteaLeaf: Leaf = (
 ) => (s.charCodeAt(0) === 92 && s.charCodeAt(1) === 120 ? Buffer.from(s.slice(2), 'hex') : Buffer.from(s, 'utf8')); // '\x' hex
 
 /** ms-since-epoch from a PG temporal text element (src/temporal.ts) so array Date values are bit-identical
- *  to the scalar timestamp path. ±infinity and non-ISO text -> NaN (Invalid Date). */
-const parseInstantMs = (s: string): number => instantFromString(s) ?? NaN;
+ *  to the scalar timestamp path. ±infinity -> NaN (Invalid Date); non-ISO text throws (nonIsoTemporal). */
+const parseInstantMs = (s: string): number => {
+	const ms = instantFromString(s);
+	if (ms === undefined) throw nonIsoTemporal(s);
+	return ms;
+};
 
 /** Element OID (+ optional element :target) -> leaf decoder, mirroring the scalar pickText/defaultJs defaults. */
 function elemLeafFor(elemOid: number, js?: string): Leaf {
@@ -385,6 +391,37 @@ const ASCII_EXTRA = [
 	4536, // multiranges: int4, num, ts, tstz, date, int8
 ];
 export const ASCII_SAFE = new Set([...ASCII_COMMON, ...ASCII_EXTRA]);
+// Types whose text output is always ASCII, for decoding a column as its server text (textValues): the
+// ASCII_SAFE strings plus the types that otherwise decode to numbers/booleans/bytes, and arrays of all of them
+// (an array literal of ASCII elements is ASCII). Not money (lc_monetary decides its currency text).
+export const ASCII_TEXT = new Set([
+	...ASCII_SAFE,
+	16, // bool
+	17, // bytea: hex or escape output, both ASCII
+	21,
+	23,
+	26, // int2, int4, oid
+	700,
+	701, // float4, float8
+	1000, // bool[]
+	1001, // bytea[]
+	1005,
+	1007,
+	1016,
+	1028, // int2[], int4[], int8[], oid[]
+	1021,
+	1022,
+	1231, // float4[], float8[], numeric[]
+	1182,
+	1183,
+	1115,
+	1185,
+	1187,
+	1270, // date[], time[], timestamp[], timestamptz[], interval[], timetz[]
+	2951, // uuid[]
+	1041,
+	651, // inet[], cidr[]
+]);
 
 // OIDs whose BINARY result-format decode is materially faster than text (bench/per-type-decode.bench.ts):
 // int2/int4/oid 1.6-1.8x, int8 4x, float8 4.6x, date/timestamp(tz) 6-10x, bytea 3.7x. A declared shape
@@ -469,9 +506,9 @@ const f64FromBytes = (v: string) =>
 // ms = first 3 fractional digits (micros truncated; Date is ms-only). Parser: src/temporal.ts.
 export const INSTANT_OIDS = new Set([1082, 1114, 1184]); // date, timestamp, timestamptz
 const tsFromBytes = (v: string, kind: 'date' | 'ms') =>
-	`{ let ems, ok; ${instantSnippet('b', 'o', 'o + l', 'ems', 'ok')} if (!ok) ems = NaN; ${
-		kind === 'date' ? `${v} = new Date(ems)` : `${v} = ems`
-	} }`;
+	`{ let ems, ok; ${instantSnippet('b', 'o', 'o + l', 'ems', 'ok')} if (!ok) ${
+		nonIsoTemporalThrow("b.toString('latin1', o, o + l)")
+	}; ${kind === 'date' ? `${v} = new Date(ems)` : `${v} = ems`} }`;
 
 // The natural JS target for a wire OID (before any per-column override).
 export function defaultJs(oid: number): 'number' | 'string' | 'bool' | 'json' | 'bytea' | 'helper' {
@@ -986,8 +1023,12 @@ const txtF64: CellDecoder = (b, o, l) => {
 const txtF4Precise: CellDecoder = (b, o, l) => Math.fround(txtF64(b, o, l) as number); // float4:precise -> exact stored f32
 
 // temporal :date/:ms (direct field parse -> Date.UTC; naive = UTC, tz applies offset; micros -> ms).
-// Same parser as the JIT snippet and parseInstantMs (src/temporal.ts): ±infinity / non-ISO -> NaN.
-const tsParse = (b: Buffer, o: number, l: number): number => instantFromBytes(b, o, l) ?? NaN;
+// Same parser as the JIT snippet and parseInstantMs (src/temporal.ts): ±infinity -> NaN, non-ISO throws.
+const tsParse = (b: Buffer, o: number, l: number): number => {
+	const ms = instantFromBytes(b, o, l);
+	if (ms === undefined) throw nonIsoTemporal(b.toString('latin1', o, o + l));
+	return ms;
+};
 const tsDate: CellDecoder = (b, o, l) => new Date(tsParse(b, o, l));
 const tsEpoch: CellDecoder = (b, o, l) => tsParse(b, o, l);
 

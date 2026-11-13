@@ -18,6 +18,7 @@ export type {
 	SpecEntries,
 	TransformMarker,
 } from './json.ts';
+export type { QueryMetrics } from './plugin.ts';
 export { Pool } from './pool.ts';
 export { PoolQuery } from './pool.ts';
 export {
@@ -57,7 +58,10 @@ export { Shape } from './shape.ts';
 export type { ShapeMapper } from './shape.ts';
 export type { PgType, ShapeEntries, ShapeSpec, ShapeValue, TypeSpec } from './spec.ts';
 export type {
+	BatchMetrics,
 	BatchOptions,
+	BatchResult,
+	BatchRunOptions,
 	ConnectConfig,
 	ConnectionTypeConfig,
 	Decoder,

@@ -40,6 +40,29 @@ import { canonicalParams, type UnsupportedProcedure } from './procedures/model';
 
 // * convert oid into number in comparisons to prevent issues with different types (string vs number) (pg converts oid to number automatically - pgsql cli returns as string)
 
+// * operators are written as OPERATOR(pg_catalog.=) instead of =, and functions as pg_catalog.lower() instead of lower().
+// Postgres looks up an unqualified operator or function by name through the search_path. Anyone who can create objects
+// in a schema on that path can add their own `=` or `lower`. It is picked instead of the built-in one when it matches the
+// argument types better (the built-in would need an implicit cast, e.g. varchar -> text or an untyped literal), or when
+// the search_path lists that schema before pg_catalog. Introspection would then silently return wrong results or run
+// someone else's code with our connection's privileges. Qualifying with pg_catalog always picks the built-in, the same
+// way Postgres hardened pg_dump (CVE-2018-1058).
+//
+// OPERATOR() only accepts an operator symbol, so syntax that the parser turns into an operator has to be written as
+// that operator:
+//   a LIKE b      -> a OPERATOR(pg_catalog.~~) b
+//   a NOT LIKE b  -> a OPERATOR(pg_catalog.!~~) b
+//   a ILIKE b     -> a OPERATOR(pg_catalog.~~*) b
+//   a NOT ILIKE b -> a OPERATOR(pg_catalog.!~~*) b
+//   a = ANY (arr) -> a OPERATOR(pg_catalog.=) ANY (arr)
+// `OPERATOR(pg_catalog.LIKE)` is a syntax error, LIKE is a keyword and not an operator name.
+//
+// Has no operator form and needs nothing: IS NULL, IS TRUE/FALSE, AND/OR/NOT and CASE WHEN <condition>.
+// Has no operator form but still looks up an operator through the search_path: IN (...) and NOT IN use = / <>,
+// BETWEEN uses >= and <=, IS [NOT] DISTINCT FROM and CASE x WHEN y use =. They are safe only when both sides are
+// built-in types that a user operator cannot match better (oids, "char", int literals). Otherwise write them out,
+// e.g. a OPERATOR(pg_catalog.=) ANY (ARRAY[...]) instead of a IN (...).
+
 export const fromDatabase = async (
 	db: DB,
 	filter: EntityFilter = () => true,
@@ -53,6 +76,8 @@ export const fromDatabase = async (
 		rows: Record<string, unknown>[],
 		error: Error | null,
 	) => void = () => {},
+	// studio does not show procedures, so it skips their query
+	options: { procedures?: boolean } = {},
 ): Promise<InterimSchema & { tables: TableWithPartition[] }> => {
 	const schemas: Schema[] = [];
 	const enums: Enum[] = [];
@@ -537,6 +562,14 @@ export const fromDatabase = async (
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
 	progressCallback('columns', 0, 'fetching');
 
+	// Sequence join (`seq`): the sequence backing each column, at most one row per column.
+	// - A join instead of a per-column subquery: the subquery ran once per column and was slow.
+	// - pg_sequence is joined as a filter only: it keeps dependencies whose dependent object is a sequence.
+	// - classid/refclassid are pinned to pg_class because OIDs are unique only per catalog.
+	//   refclassid is also the leading column of the pg_depend index; without it every lookup is a scan.
+	// - deptype 'a' is a serial's owned sequence, 'i' is an identity's internal sequence.
+	//   When a column has both, the identity sequence wins (see ORDER BY).
+	// - The filter falls back to 'false' when there are no tables: the outer query returns no rows then either.
 	const columnsQuery = db.query<{
 		tableId: number | string;
 		kind: 'r' | 'p' | 'v' | 'm';
@@ -561,29 +594,36 @@ export const fromDatabase = async (
 			attnum AS "ordinality",
 			attnotnull AS "notNull",
 			CASE 
-        		WHEN attndims > 0 THEN attndims
+        		WHEN attndims OPERATOR(pg_catalog.>) 0 THEN attndims
         		-- An array type defaults to 1 dimension. A domain over an array and the vector types of the catalog are in this category too, and their type text has no brackets.
-        		WHEN t.typcategory = 'A' AND pg_catalog.format_type(atttypid, atttypmod) LIKE '%[]' THEN 1
+        		WHEN t.typcategory OPERATOR(pg_catalog.=) 'A' AND pg_catalog.format_type(atttypid, atttypmod) OPERATOR(pg_catalog.~~) '%[]' THEN 1
         		ELSE 0
     		END as "dimensions",
 			atttypid as "typeId",
 			attgenerated::text as "generatedType", 
 			attidentity::text as "identityType",
 			pg_catalog.format_type(atttypid, atttypmod) as "type",
-			(
-				SELECT d.objid FROM pg_catalog.pg_depend d
-				WHERE d.refobjid OPERATOR(pg_catalog.=) attr.attrelid
-					AND d.refobjsubid OPERATOR(pg_catalog.=) attr.attnum
-					AND d.objid IN (SELECT seqrelid FROM pg_catalog.pg_sequence)
-				LIMIT 1
-			) AS "seqId"
+			seq.objid as "seqId"
 		FROM
 			pg_catalog.pg_attribute attr
 			JOIN pg_catalog.pg_class cls ON cls.oid OPERATOR(pg_catalog.=) attr.attrelid
-			JOIN pg_catalog.pg_namespace nsp ON nsp.oid OPERATOR(pg_catalog.=) cls.relnamespace
 			JOIN pg_catalog.pg_type t ON t.oid OPERATOR(pg_catalog.=) attr.atttypid
+			LEFT JOIN (
+				SELECT DISTINCT ON (d.refobjid, d.refobjsubid) d.refobjid, d.refobjsubid, d.objid
+				FROM
+					pg_catalog.pg_depend d
+					JOIN pg_catalog.pg_sequence s ON s.seqrelid OPERATOR(pg_catalog.=) d.objid
+				WHERE
+					d.classid OPERATOR(pg_catalog.=) 'pg_catalog.pg_class'::pg_catalog.regclass
+					AND d.refclassid OPERATOR(pg_catalog.=) 'pg_catalog.pg_class'::pg_catalog.regclass
+					AND d.deptype IN ('a', 'i')
+					AND ${filterByTableIds ? `d.refobjid IN ${filterByTableIds}` : 'false'}
+				ORDER BY d.refobjid, d.refobjsubid, (d.deptype OPERATOR(pg_catalog.=) 'i') DESC, d.objid
+			) seq
+			ON seq.refobjid OPERATOR(pg_catalog.=) attr.attrelid
+				AND seq.refobjsubid OPERATOR(pg_catalog.=) attr.attnum
 		WHERE
-		${filterByTableAndViewIds ? ` attrelid IN ${filterByTableAndViewIds}` : 'false'}
+			${filterByTableAndViewIds ? ` attrelid IN ${filterByTableAndViewIds}` : 'false'}
 			AND attnum OPERATOR(pg_catalog.>) 0
 			AND attisdropped OPERATOR(pg_catalog.=) FALSE
 		ORDER BY attnum;
@@ -1167,9 +1207,10 @@ export const fromDatabase = async (
 	}
 	progressCallback('views', views.length, 'done');
 
-	const { procedures, unsupportedProcedures, definitions: procedureDefinitions } = filteredNamespacesStringForSQL
-		? await introspectProcedures(db, filteredNamespacesStringForSQL)
-		: { procedures: [], unsupportedProcedures: [], definitions: {} };
+	const { procedures, unsupportedProcedures, definitions: procedureDefinitions } =
+		options.procedures !== false && filteredNamespacesStringForSQL
+			? await introspectProcedures(db, filteredNamespacesStringForSQL)
+			: { procedures: [], unsupportedProcedures: [], definitions: {} };
 
 	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
 	const resultTables = tables.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));

@@ -4,7 +4,7 @@
 // per statement, DB credentials held server-side in Secrets Manager. This driver signs requests with a
 // zero-dep WebCrypto SigV4 (src/sigv4.ts; override via config.sign) and reuses Drizzle Postgres's REAL compiled row
 // mapper for decode — it converts each typed `Field` back to its PG text and feeds a synthetic wire
-// DataRow to `buildMapperFactory`, so results decode identically to the socket driver (int8→BigInt,
+// DataRow to the shared row mappers (mapper.ts), so results decode identically to the socket driver (int8→BigInt,
 // numeric→string, temporal→Date, bytea→Buffer, …). We force resultSetOptions longReturnType/decimalReturnType
 // = STRING so int8/numeric arrive as exact text; emulators (local-data-api) ignore that and send a bare JSON
 // number, so a body carrying one is parsed with integers past 2^53 kept as their exact digits.
@@ -26,11 +26,11 @@ import { type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
 import { arrayLiteral, setTransactionSnapshotSql } from './encode.ts';
 import { PgError } from './errors.ts';
 import { parseJsonBuffer } from './jsonparse.ts';
-import { buildMapperFactory, type RowMapperFactory } from './mapper.ts';
+import { RowArena, RowMappers } from './mapper.ts';
 import { parseDataRow } from './protocol.ts';
 import type { ShapeMapper } from './shape.ts';
 import { type AwsCredentials, signRequest } from './sigv4.ts';
-import { ARRAY_OID, mergeUnknownCols, shapeCols, type ShapeSpec } from './spec.ts';
+import { ARRAY_OID, mergeUnknownCols, type ShapeSpec, shapeTextCols } from './spec.ts';
 import type { Decoder, QueryResult, ResultMode, TxOptions } from './types.ts';
 
 const SERVICE = 'rds-data';
@@ -275,15 +275,15 @@ function arrayToLiteral(a: ArrayValue, utc: boolean, delim: ',' | ';'): string {
 	return '{' + els.join(delim) + '}';
 }
 
-// A Field -> its PG text bytes (so the SAME compiled mapper the wire driver uses can decode it).
-function fieldToText(f: Field, utc: boolean, delim: ',' | ';'): Buffer | null {
+// A Field -> its PG text (so the SAME compiled mapper the wire driver uses can decode it); null = SQL NULL.
+function fieldToText(f: Field, utc: boolean, delim: ',' | ';'): string | null {
 	if (f.isNull) return null;
-	if (f.stringValue !== undefined) return Buffer.from(utc ? withUtc(f.stringValue) : f.stringValue, 'utf8');
-	if (f.longValue !== undefined) return Buffer.from(String(f.longValue), 'utf8');
-	if (f.doubleValue !== undefined) return Buffer.from(String(f.doubleValue), 'utf8');
-	if (f.booleanValue !== undefined) return Buffer.from(f.booleanValue ? 't' : 'f', 'utf8');
-	if (f.blobValue !== undefined) return Buffer.from('\\x' + Buffer.from(f.blobValue, 'base64').toString('hex'), 'utf8');
-	if (f.arrayValue !== undefined) return Buffer.from(arrayToLiteral(f.arrayValue, utc, delim), 'utf8');
+	if (f.stringValue !== undefined) return utc ? withUtc(f.stringValue) : f.stringValue;
+	if (f.longValue !== undefined) return String(f.longValue);
+	if (f.doubleValue !== undefined) return String(f.doubleValue);
+	if (f.booleanValue !== undefined) return f.booleanValue ? 't' : 'f';
+	if (f.blobValue !== undefined) return '\\x' + Buffer.from(f.blobValue, 'base64').toString('hex');
+	if (f.arrayValue !== undefined) return arrayToLiteral(f.arrayValue, utc, delim);
 	return null;
 }
 
@@ -365,7 +365,7 @@ export class AuroraClient {
 	private readonly maxRetries: number;
 	private readonly temporal: 'date' | 'string';
 	private readonly decoders: Map<number, Decoder>;
-	private readonly mapperFactory: RowMapperFactory;
+	private readonly rowMappers: RowMappers; // per-shape mapper cache, owned by this client
 	private txId?: string; // set on a transaction-scoped clone
 	private spCounter = 0;
 
@@ -398,7 +398,7 @@ export class AuroraClient {
 		this.maxRetries = config.maxRetries ?? 5;
 		this.temporal = config.temporal ?? 'date';
 		this.decoders = buildDecoders(config.types, config.jsonBigints);
-		this.mapperFactory = buildMapperFactory(config.decode);
+		this.rowMappers = new RowMappers(config.decode, this.decoders);
 	}
 
 	// ---- transport: sign + POST one Data API operation, with resume/throttle retry ----
@@ -487,13 +487,7 @@ export class AuroraClient {
 	 *  TEXT-shaped values, so a shape's binary format request is downgraded. */
 	private planCols(meta: ColumnMetadata[], shape: ShapeSpec | ShapeMapper | undefined): CodegenCol[] {
 		const cols = shape
-			? mergeUnknownCols(
-				(typeof shape === 'function' ? (shape.$cols as CodegenCol[]) : shapeCols(shape)).map((
-					c,
-				) => (c.format === 'binary' ? { ...c, format: 'text' as const } : c)),
-				meta,
-				(m) => oidForTypeName(m.typeName),
-			)
+			? mergeUnknownCols(shapeTextCols(shape), meta, (m) => oidForTypeName(m.typeName))
 			: meta.map((c) => ({ name: c.label ?? c.name ?? '?', oid: oidForTypeName(c.typeName) }));
 		return this.resolveCols(cols.map(tagArrayCol));
 	}
@@ -508,7 +502,21 @@ export class AuroraClient {
 		if (!meta || !r.records) { // DML with no result set
 			return { rows: [], columns: [], rowCount: r.numberOfRecordsUpdated ?? null, command: firstKeyword(sql) };
 		}
-		const cols = this.planCols(meta, shape);
+		// A static shape: resolved + mapped once per shape object. Otherwise (no shape, or one with
+		// 'unknown' columns) the per-result plan, cached by its columns. No RowDescription-style key: the
+		// Data API response arrives parsed.
+		let cols: CodegenCol[];
+		let mapper: ((b: Buffer) => unknown) | null = null;
+		const plan = shape
+			? this.rowMappers.plan(shape, () => this.resolveCols(shapeTextCols(shape).map(tagArrayCol)))
+			: null;
+		if (plan && !plan.deferred) {
+			cols = plan.cols;
+			if (mode === 'array' || mode === 'object') mapper = this.rowMappers.planMapper(plan, mode);
+		} else {
+			cols = this.planCols(meta, shape);
+			if (mode === 'array' || mode === 'object') mapper = this.rowMappers.forCols(cols, mode);
+		}
 		if (shape && cols.length !== meta.length) {
 			throw new Error(
 				`@drizzle-team/postgres/aurora: shape declares ${cols.length} column(s) but the statement returned ${meta.length} (${
@@ -519,25 +527,11 @@ export class AuroraClient {
 		const ncols = cols.length;
 		const utc = meta.map((m) => UTC_TYPENAMES.has(m.typeName));
 		const delim = meta.map((m) => (m.typeName === '_box' ? ';' as const : ',' as const));
-		const mapper = mode === 'array' || mode === 'object' ? this.mapperFactory(cols, mode, this.decoders) : null;
+		const arena = new RowArena();
 		const rows = r.records.map((rec) => {
-			const cells = rec.map((f, i) => fieldToText(f, utc[i]!, delim[i]!));
-			let size = 2;
-			for (const c of cells) size += 4 + (c ? c.length : 0);
-			const b = Buffer.allocUnsafe(size);
-			b.writeInt16BE(ncols, 0);
-			let pos = 2;
-			for (const c of cells) {
-				if (c == null) {
-					b.writeInt32BE(-1, pos);
-					pos += 4;
-				} else {
-					b.writeInt32BE(c.length, pos);
-					pos += 4;
-					c.copy(b, pos);
-					pos += c.length;
-				}
-			}
+			arena.begin();
+			for (let i = 0; i < rec.length; i++) arena.push(fieldToText(rec[i]!, utc[i]!, delim[i]!));
+			const b = arena.end(ncols);
 			if (mapper) return mapper(b);
 			if (mode === 'buffer') return parseDataRow(b).map((cell) => (cell == null ? null : Buffer.from(cell)));
 			return Buffer.from(b);

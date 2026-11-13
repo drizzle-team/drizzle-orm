@@ -4,12 +4,14 @@
 //
 // Needs a live Neon endpoint. Set NEON_HTTP_URL to a `postgresql://…neon.tech/db?sslmode=require` string:
 //   NEON_HTTP_URL='postgresql://user:pass@ep-xxx.region.aws.neon.tech/db?sslmode=require' bun run test:neon-http
+// or the local proxy from compose/neon.yml (test/helpers/neon.ts).
 // Skips entirely when unset. Uses uniquely-named real tables (HTTP has no cross-request session, so temp
 // tables don't persist) and drops them in afterAll.
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { connect, createPool as neonClient, PgError } from '../../src/neon-http.ts';
 import type { NeonHttpConfig } from '../../src/neon-http.ts';
 import type { NeonHttpClient } from '../../src/neon-http.ts';
+import { neonHttpConfig } from '../helpers/neon.ts';
 
 const URL = process.env.NEON_HTTP_URL;
 const d = describe.skipIf(!URL);
@@ -18,7 +20,7 @@ const TBL = 'postgres_http_test';
 d('@drizzle-team/postgres/neon-http over the Neon SQL-over-HTTP endpoint', () => {
 	let db: NeonHttpClient;
 	beforeAll(async () => {
-		db = await connect(URL!);
+		db = await connect(neonHttpConfig(URL!));
 	});
 	afterAll(async () => {
 		await db?.query(`drop table if exists ${TBL}`).catch(() => {});
@@ -102,6 +104,23 @@ d('@drizzle-team/postgres/neon-http over the Neon SQL-over-HTTP endpoint', () =>
 	test('interactive transaction(fn) is rejected with a clear message', async () => {
 		// @ts-expect-error — fn form is intentionally unsupported over stateless HTTP
 		await expect(db.transaction(async () => {})).rejects.toThrow(/not available over stateless HTTP/);
+	});
+
+	// HTTP has no startup message to pin DateStyle, so a session that changes it gets the decoders' error.
+	test('a non-ISO DateStyle fails date columns with a clear error; temporal string returns the text', async () => {
+		const sql = "select '2024-02-03 12:34:56.789+00'::timestamptz as v";
+		const german = [{ sql: "set local time zone 'UTC'" }, { sql: "set local datestyle = 'German'" }];
+		await expect(db.transaction([...german, { sql }])).rejects.toThrow(
+			'cannot decode "03.02.2024 12:34:56.789 UTC" as a date or timestamp',
+		);
+		const text = await connect(neonHttpConfig(URL!, { temporal: 'string' as const }));
+		try {
+			const r = await text.transaction([...german, { sql }]);
+			expect(r[2]!.rows).toEqual([['03.02.2024 12:34:56.789 UTC']]);
+		} finally {
+			await text.end();
+		}
+		expect(((await db.query(sql)).rows[0] as Date[])[0]!.toISOString()).toBe('2024-02-03T12:34:56.789Z');
 	});
 
 	test('buffer mode returns raw text cells as Buffers', async () => {
