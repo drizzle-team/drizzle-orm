@@ -3,7 +3,7 @@ import { beforeEach, describe, it } from 'vitest';
 import { alias, boolean, integer, pgSchema, pgTable, serial, text, union } from '~/pg-core';
 import { drizzle } from '~/postgres-js';
 import { relations } from '~/relations';
-import { asc, eq, sql } from '~/sql';
+import { asc, desc, eq, sql } from '~/sql';
 
 const testSchema = pgSchema('test');
 const users = pgTable('users', {
@@ -127,6 +127,21 @@ describe('postgres to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql: '(select "first_name" from "users") union (select "first_name" from "users")',
+			params: [],
+		});
+		expect(db.dialect.casing.cache).toEqual(usersCache);
+	});
+
+	it('set operator orderBy respects casing', ({ expect }) => {
+		const query = db
+			.select({ firstName: users.firstName })
+			.from(users)
+			.union(db.select({ firstName: users.firstName }).from(users))
+			.orderBy(asc(users.firstName), desc(users.lastName));
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'(select "first_name" from "users") union (select "first_name" from "users") order by "first_name" asc, "last_name" desc ',
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
