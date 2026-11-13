@@ -201,6 +201,19 @@ describe('sqlite to camel case', () => {
 		expect(db.dialect.casing.cache).toEqual(usersCache);
 	});
 
+	it('insert (on conflict do nothing with where)', ({ expect }) => {
+		const query = db
+			.insert(users)
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 })
+			.onConflictDoNothing({ target: users.firstName, where: eq(users.age, 30) });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into "users" ("id", "first_name", "last_name", "AGE") values (null, ?, ?, ?) on conflict ("users"."first_name") where "users"."AGE" = ? do nothing',
+			params: ['John', 'Doe', 30, 30],
+		});
+	});
+
 	it('insert (on conflict do update)', ({ expect }) => {
 		const query = db
 			.insert(users)
