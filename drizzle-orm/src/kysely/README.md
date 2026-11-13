@@ -9,7 +9,7 @@ You can define you DB schema using Drizzle and use Kysely as the query builder. 
 ```ts
 import { Kysely, PostgresDialect } from 'kysely';
 import { Pool } from 'pg';
-import { Kyselify } from 'drizzle-orm/kysely';
+import { Kyselify, KyselifySchema } from 'drizzle-orm/kysely';
 import { pgTable, serial, text } from 'drizzle-orm/pg-core';
 
 const test = pgTable('test', {
@@ -20,6 +20,10 @@ const test = pgTable('test', {
 interface Database {
   test: Kyselify<typeof test>;
 }
+
+// OR
+import { schema } from './schema';
+type KyselyDatabase = KyselifySchema<typeof schema>;
 
 const db = new Kysely<Database>({
   dialect: new PostgresDialect({
