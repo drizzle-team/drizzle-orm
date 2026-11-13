@@ -1,3 +1,4 @@
+import type { TSESTree } from '@typescript-eslint/utils';
 import { ESLintUtils } from '@typescript-eslint/utils';
 import { resolveMemberExpressionPath } from './utils/ast';
 import { isDrizzleObj, type Options } from './utils/options';
@@ -6,7 +7,26 @@ const createRule = ESLintUtils.RuleCreator(() => 'https://github.com/drizzle-tea
 
 type MessageIds = 'enforceDeleteWithWhere';
 
-let lastNodeName: string = '';
+function chainHasMethod(node: TSESTree.MemberExpression, name: string): boolean {
+	let current: TSESTree.Node | undefined = node.parent;
+	while (current) {
+		if (
+			current.type === 'MemberExpression'
+			&& current.property.type === 'Identifier'
+			&& current.property.name === name
+		) {
+			return true;
+		}
+		if (current.type === 'CallExpression') {
+			current = current.parent;
+		} else if (current.type === 'MemberExpression') {
+			current = current.parent;
+		} else {
+			break;
+		}
+	}
+	return false;
+}
 
 const deleteRule = createRule<Options, MessageIds>({
 	defaultOptions: [{ drizzleObjectName: [] }],
@@ -35,7 +55,7 @@ const deleteRule = createRule<Options, MessageIds>({
 		return {
 			MemberExpression: (node) => {
 				if (node.property.type === 'Identifier') {
-					if (node.property.name === 'delete' && lastNodeName !== 'where' && isDrizzleObj(node, options)) {
+					if (node.property.name === 'delete' && isDrizzleObj(node, options) && !chainHasMethod(node, 'where')) {
 						context.report({
 							node,
 							messageId: 'enforceDeleteWithWhere',
@@ -44,7 +64,6 @@ const deleteRule = createRule<Options, MessageIds>({
 							},
 						});
 					}
-					lastNodeName = node.property.name;
 				}
 				return;
 			},
