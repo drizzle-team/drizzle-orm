@@ -11,15 +11,24 @@ import {
 
 import type { JsonStatement } from '../../jsonStatements';
 import { findAddedAndRemoved, type SQLiteDB } from '../../utils';
+import { collectCascadeDependents } from '../../utils/cascade';
 
 export const _moveDataStatements = (
 	tableName: string,
 	json: SQLiteSchemaSquashed,
 	dataLoss: boolean = false,
+	cascadeDependents: string[] = [],
 ) => {
 	const statements: string[] = [];
 
 	const newTableName = `__new_${tableName}`;
+
+	// backup dependent tables to prevent ON DELETE CASCADE data loss when dropping parent
+	for (const dep of cascadeDependents) {
+		statements.push(
+			`CREATE TEMP TABLE \`__bak_${dep}\` AS SELECT * FROM \`${dep}\`;`,
+		);
+	}
 
 	// create table statement from a new json2 with proper name
 	const tableColumns = Object.values(json.tables[tableName].columns);
@@ -93,6 +102,14 @@ export const _moveDataStatements = (
 				data: idx,
 			}),
 		);
+	}
+
+	// restore dependents data after parent recreation (works when PRAGMA foreign_keys cannot be disabled, e.g. D1)
+	for (const dep of cascadeDependents) {
+		statements.push(
+			`INSERT OR REPLACE INTO \`${dep}\` SELECT * FROM \`__bak_${dep}\`;`,
+		);
+		statements.push(`DROP TABLE \`__bak_${dep}\`;`);
 	}
 
 	return statements;
@@ -286,8 +303,12 @@ export const logSuggestionsAndReturn = async (
 				tablesReferencingCurrent.push(...tablesRefs);
 			}
 
+			const cascadeDependents = collectCascadeDependents(tableName, json2);
+
 			if (!tablesReferencingCurrent.length) {
-				statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
+				statementsToExecute.push(
+					..._moveDataStatements(tableName, json2, dataLoss, cascadeDependents),
+				);
 				continue;
 			}
 
@@ -295,13 +316,13 @@ export const logSuggestionsAndReturn = async (
 				foreign_keys: number;
 			}>(`PRAGMA foreign_keys;`);
 
-			if (pragmaState) {
-				statementsToExecute.push(`PRAGMA foreign_keys=OFF;`);
-			}
-			statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
-			if (pragmaState) {
-				statementsToExecute.push(`PRAGMA foreign_keys=ON;`);
-			}
+			// In environments like Cloudflare D1, PRAGMA foreign_keys cannot be disabled, so we
+			// both toggle when possible and also use backups to prevent cascade data loss.
+			if (pragmaState) statementsToExecute.push(`PRAGMA foreign_keys=OFF;`);
+			statementsToExecute.push(
+				..._moveDataStatements(tableName, json2, dataLoss, cascadeDependents),
+			);
+			if (pragmaState) statementsToExecute.push(`PRAGMA foreign_keys=ON;`);
 		} else {
 			const fromJsonStatement = fromJson([statement], 'sqlite', 'push');
 			statementsToExecute.push(

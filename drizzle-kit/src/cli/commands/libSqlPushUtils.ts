@@ -11,6 +11,7 @@ import {
 	SQLiteDropTableConvertor,
 	SqliteRenameTableConvertor,
 } from '../../sqlgenerator';
+import { collectCascadeDependents } from '../../utils/cascade';
 
 export const getOldTableName = (
 	tableName: string,
@@ -29,10 +30,17 @@ export const _moveDataStatements = (
 	tableName: string,
 	json: SQLiteSchemaSquashed,
 	dataLoss: boolean = false,
+	cascadeDependents: string[] = [],
 ) => {
 	const statements: string[] = [];
 
 	const newTableName = `__new_${tableName}`;
+
+	for (const dep of cascadeDependents) {
+		statements.push(
+			`CREATE TEMP TABLE \`__bak_${dep}\` AS SELECT * FROM \`${dep}\`;`,
+		);
+	}
 
 	// create table statement from a new json2 with proper name
 	const tableColumns = Object.values(json.tables[tableName].columns);
@@ -107,6 +115,14 @@ export const _moveDataStatements = (
 			}),
 		);
 	}
+
+	for (const dep of cascadeDependents) {
+		statements.push(
+			`INSERT OR REPLACE INTO \`${dep}\` SELECT * FROM \`__bak_${dep}\`;`,
+		);
+		statements.push(`DROP TABLE \`__bak_${dep}\`;`);
+	}
+
 	return statements;
 };
 
@@ -302,14 +318,17 @@ export const libSqlLogSuggestionsAndReturn = async (
 				tablesReferencingCurrent.push(...tablesRefs);
 			}
 
-			if (!tablesReferencingCurrent.length) {
-				statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
+			const cascadeDependents = collectCascadeDependents(tableName, json2);
+
+			if (tablesReferencingCurrent.length === 0) {
+				statementsToExecute.push(
+					..._moveDataStatements(tableName, json2, dataLoss, cascadeDependents),
+				);
 				continue;
 			}
 
-			// recreate table
 			statementsToExecute.push(
-				..._moveDataStatements(tableName, json2, dataLoss),
+				..._moveDataStatements(tableName, json2, dataLoss, cascadeDependents),
 			);
 		} else if (
 			statement.type === 'alter_table_alter_column_set_generated'
