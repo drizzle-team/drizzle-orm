@@ -47,7 +47,7 @@ import {
 	UnsupportedCommandDialectCliError,
 } from './errors';
 import { formatMissingHintsText } from './missing-hints-report';
-import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
+import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt, QueryError } from './utils';
 import { assertCollisions, drivers } from './validations/common';
 import type { LibSQLCredentials } from './validations/libsql';
 import { withStyle } from './validations/outputs';
@@ -831,7 +831,9 @@ export const runPull = async (
 			);
 			manifest = await introspectPostgres(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
-			if (isTypedCliError(e)) throw e;
+			// Only QueryError needs the redacted re-throw (it carries sql/params/credentials);
+			// any other failure is re-thrown so its real message survives.
+			if (isTypedCliError(e) || !(e instanceof QueryError)) throw e;
 			throw new DatabaseDriverCliError(
 				'postgresql',
 				['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', '@drizzle-team/minipg'],
@@ -852,7 +854,9 @@ export const runPull = async (
 			const { handle: introspectMysql } = await import('./commands/pull-mysql');
 			manifest = await introspectMysql(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
-			if (isTypedCliError(e)) throw e;
+			// Only QueryError needs the redacted re-throw (it carries sql/params/credentials);
+			// any other failure is re-thrown so its real message survives.
+			if (isTypedCliError(e) || !(e instanceof QueryError)) throw e;
 			throw new DatabaseDriverCliError(
 				'mysql',
 				['mysql2', 'bun', '@planetscale/database'],
@@ -873,7 +877,9 @@ export const runPull = async (
 			const { handle } = await import('./commands/pull-sqlite');
 			manifest = await handle(casing, out, breakpoints, credentials, filters, 'sqlite', migrations, init, db);
 		} catch (e) {
-			if (isTypedCliError(e)) throw e;
+			// Only QueryError needs the redacted re-throw (it carries sql/params/credentials);
+			// any other failure is re-thrown so its real message survives.
+			if (isTypedCliError(e) || !(e instanceof QueryError)) throw e;
 			throw new DatabaseDriverCliError(
 				'sqlite',
 				['better-sqlite3', 'bun', '@libsql/client', '@tursodatabase/database', 'node:sqlite'],
@@ -894,7 +900,9 @@ export const runPull = async (
 			const { handle } = await import('./commands/pull-libsql');
 			manifest = await handle(casing, out, breakpoints, credentials, filters, 'libsql', migrations, init, db);
 		} catch (e) {
-			if (isTypedCliError(e)) throw e;
+			// Only QueryError needs the redacted re-throw (it carries sql/params/credentials);
+			// any other failure is re-thrown so its real message survives.
+			if (isTypedCliError(e) || !(e instanceof QueryError)) throw e;
 			throw new DatabaseDriverCliError(
 				'turso',
 				['@libsql/client', '@tursodatabase/database', '@tursodatabase/serverless'],
@@ -915,7 +923,9 @@ export const runPull = async (
 			const { handle } = await import('./commands/pull-singlestore');
 			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
-			if (isTypedCliError(e)) throw e;
+			// Only QueryError needs the redacted re-throw (it carries sql/params/credentials);
+			// any other failure is re-thrown so its real message survives.
+			if (isTypedCliError(e) || !(e instanceof QueryError)) throw e;
 			throw new DatabaseDriverCliError(
 				'singlestore',
 				['mysql2'],
@@ -936,7 +946,9 @@ export const runPull = async (
 			const { handle } = await import('./commands/pull-mssql');
 			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
-			if (isTypedCliError(e)) throw e;
+			// Only QueryError needs the redacted re-throw (it carries sql/params/credentials);
+			// any other failure is re-thrown so its real message survives.
+			if (isTypedCliError(e) || !(e instanceof QueryError)) throw e;
 			throw new DatabaseDriverCliError(
 				'mssql',
 				['mssql'],
@@ -957,7 +969,9 @@ export const runPull = async (
 			const { handle } = await import('./commands/pull-cockroach');
 			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
-			if (isTypedCliError(e)) throw e;
+			// Only QueryError needs the redacted re-throw (it carries sql/params/credentials);
+			// any other failure is re-thrown so its real message survives.
+			if (isTypedCliError(e) || !(e instanceof QueryError)) throw e;
 			throw new DatabaseDriverCliError(
 				'cockroach',
 				['pg'],
@@ -989,7 +1003,9 @@ export const runPull = async (
 		try {
 			error = await migrate!(migrateInput);
 		} catch (e) {
-			if (isTypedCliError(e)) throw e;
+			// Only QueryError needs the redacted re-throw (it carries sql/params/credentials);
+			// any other failure is re-thrown so its real message survives.
+			if (isTypedCliError(e) || !(e instanceof QueryError)) throw e;
 			throw new DatabaseDriverCliError(driverError!.database, driverError!.packages, driverError!.message);
 		}
 
