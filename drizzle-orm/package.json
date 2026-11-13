@@ -308,7 +308,7 @@
 		"better-sqlite3": "^13.0.3",
 		"bun-types": "^1.4.4",
 		"cpy": "^10.1.0",
-		"effect": "4.0.0",
+		"effect": "4.0.6",
 		"expo-sqlite": "^14.0.0",
 		"glob": "^11.0.1",
 		"mssql": "^11.0.1",

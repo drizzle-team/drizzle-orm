@@ -161,6 +161,7 @@ export abstract class PgEffectSession<
 		mapper?: (rows: any[]) => any,
 		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
+		shape?: unknown,
 	): PgEffectPreparedQuery<T, TEffectHKT>;
 
 	override execute<T>(query: SQL) {

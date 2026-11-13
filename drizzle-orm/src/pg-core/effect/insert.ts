@@ -92,17 +92,23 @@ export class PgEffectInsertBase<
 		const { session, config, dialect } = this;
 		const { returning: fields } = config;
 
-		const query = dialect.sqlToQuery(this.getSQL(true));
-		const mapper = fields
-			? this.dialect.mapperGenerators.rows(fields, undefined)
+		const shape = fields
+			? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, undefined)
 			: undefined;
+
+		const query = dialect.sqlToQuery(this.getSQL(true));
+		const mapper = shape || !fields
+			? undefined
+			: dialect.mapperGenerators.rows(fields, undefined);
 
 		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 			query,
-			fields ? 'arrays' : 'raw',
+			shape ? 'objects' : fields ? 'arrays' : 'raw',
 			name ?? generateName,
 			mapper,
 			{ type: 'insert', tables: () => usedTablesOf(this.config.table) },
+			undefined,
+			shape,
 		);
 
 		return preparedQuery;

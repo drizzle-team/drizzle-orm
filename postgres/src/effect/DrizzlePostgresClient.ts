@@ -107,6 +107,11 @@ export interface PostgresQuery {
 		params?: Params,
 		options?: QueryOptions & { mode?: 'array' },
 	): Effect.Effect<QueryResult<unknown[]>, SqlError>;
+	(
+		sql: string,
+		params: Params,
+		options: QueryOptions & { mode: 'array' | 'object' },
+	): Effect.Effect<QueryResult<unknown[] | Record<string, unknown>>, SqlError>;
 }
 
 export interface TransactionOptions {
