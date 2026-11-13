@@ -8,54 +8,6 @@ export const selectGeneratorForCockroachColumn = (
 	col: Column,
 ) => {
 	const pickGenerator = (table: Table, col: Column) => {
-		// ARRAY
-		if (col.columnType.match(/\[\w*]/g) !== null && col.baseColumn !== undefined) {
-			const baseColumnGen = selectGeneratorForCockroachColumn(
-				table,
-				col.baseColumn!,
-			) as AbstractGenerator;
-			if (baseColumnGen === undefined) {
-				throw new Error(`column with type ${col.baseColumn!.columnType} is not supported for now.`);
-			}
-
-			// const getBaseColumnDataType = (baseColumn: Column) => {
-			// 	if (baseColumn.baseColumn !== undefined) {
-			// 		return getBaseColumnDataType(baseColumn.baseColumn);
-			// 	}
-
-			// 	return baseColumn.dataType;
-			// };
-			// const baseColumnDataType = getBaseColumnDataType(col.baseColumn);
-
-			const generator = new generatorsMap.GenerateArray[0]({ baseColumnGen, size: col.size });
-			// generator.baseColumnDataType = baseColumnDataType;
-
-			return generator;
-		}
-
-		// ARRAY for studio
-		if (col.columnType.match(/\[\w*]/g) !== null) {
-			// remove dimensions from type
-			const baseColumnType = col.columnType.replace(/\[\w*]/g, '');
-			const baseColumn: Column = {
-				...col,
-			};
-			baseColumn.columnType = baseColumnType;
-
-			const baseColumnGen = selectGeneratorForCockroachColumn(table, baseColumn) as AbstractGenerator;
-			if (baseColumnGen === undefined) {
-				throw new Error(`column with type ${col.baseColumn!.columnType} is not supported for now.`);
-			}
-
-			let generator = new generatorsMap.GenerateArray[0]({ baseColumnGen });
-
-			for (let i = 0; i < col.typeParams.dimensions! - 1; i++) {
-				generator = new generatorsMap.GenerateArray[0]({ baseColumnGen: generator });
-			}
-
-			return generator;
-		}
-
 		// INT ------------------------------------------------------------------------------------------------------------
 		if (
 			(
@@ -281,14 +233,25 @@ export const selectGeneratorForCockroachColumn = (
 		return;
 	};
 
-	const generator = pickGenerator(table, col);
-	// set params for base column
+	const dimensions = col.typeParams.dimensions ?? 0;
+	const generator = pickGenerator(table, col) as AbstractGenerator;
+
+	// Assign dataType to inner generator before wrapping
 	if (generator !== undefined) {
-		generator.isUnique = col.isUnique;
 		generator.dataType = col.dataType;
-		// generator.stringLength = col.typeParams.length;
-		generator.typeParams = col.typeParams;
 	}
 
-	return generator;
+	const result = dimensions
+		? new generatorsMap.GenerateArray[0]({ baseColumnGen: generator, size: col.size })
+		: generator;
+
+	// set params for base column
+	if (result !== undefined) {
+		result.isUnique = col.isUnique;
+		result.dataType = col.dataType;
+		// generator.stringLength = col.typeParams.length;
+		result.typeParams = col.typeParams;
+	}
+
+	return result;
 };

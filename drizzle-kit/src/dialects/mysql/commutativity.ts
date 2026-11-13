@@ -1,7 +1,7 @@
 import {
-	AbstractCommutativity,
 	type CommutativityStatementDefinitions,
 	type CommutativityStatementInfo,
+	ConflictListCommutativity,
 } from '../../commutativity/engine';
 import type { ConflictTarget } from '../../commutativity/types';
 import { createDDL, type MysqlDDL } from './ddl';
@@ -57,7 +57,7 @@ function makeTarget(objectName: string, columnName = ''): FootprintTarget {
  * - If the problem is "this statement is matched at the wrong scope",
  *   edit `primary` or `ancestors`.
  */
-class MysqlCommutativity extends AbstractCommutativity<
+class MysqlCommutativity extends ConflictListCommutativity<
 	JsonStatement,
 	MysqlSnapshot,
 	FootprintTarget

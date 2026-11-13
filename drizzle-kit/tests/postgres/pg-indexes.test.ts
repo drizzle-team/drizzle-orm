@@ -620,6 +620,7 @@ test('index #5', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2427
 test('index #6', async (t) => {
 	const enum_ = pgEnum('enum', ['text', 'not_text', 'something_else']);
 	const schema1 = {
@@ -812,4 +813,66 @@ test('issue #5792', async () => {
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6079
+test('Issue No6079', async () => {
+	await db.query(`CREATE EXTENSION IF NOT EXISTS vector;`);
+
+	const schema = {
+		table: pgTable('readings', {
+			id: text('id').primaryKey(),
+			embedding: vector('embedding', { dimensions: 1536 }),
+		}, (t) => [
+			index('chunk_embedding_hnsw_idx')
+				.using('hnsw', t.embedding.op('vector_cosine_ops'))
+				.with({ m: 24, ef_construction: 128 }),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+
+	const expectedSt1 = [
+		'CREATE TABLE "readings" (\n\t"id" text PRIMARY KEY,\n\t"embedding" vector(1536)\n);\n',
+		'CREATE INDEX "chunk_embedding_hnsw_idx" ON "readings" USING hnsw ("embedding" vector_cosine_ops) WITH (m=24, ef_construction=128);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+test('an index that keeps its name is created again when another table replaces its table', async () => {
+	const schema1 = {
+		users: pgTable('users', { id: integer(), email: text() }, (t) => [index('email_idx').on(t.email)]),
+	};
+	const schema2 = {
+		accounts: pgTable('accounts', { id: integer(), contact: text() }, (t) => [index('email_idx').on(t.contact)]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0 = [
+		'CREATE TABLE "accounts" (\n\t"id" integer,\n\t"contact" text\n);\n',
+		'DROP TABLE "users";',
+		'CREATE INDEX "email_idx" ON "accounts" ("contact");',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('an index that keeps its name and moves to another table is dropped and created', async () => {
+	const tables = (indexed: 'a' | 'b') => ({
+		a: pgTable('a', { x: integer() }, (t) => (indexed === 'a' ? [index('x_idx').on(t.x)] : [])),
+		b: pgTable('b', { x: integer() }, (t) => (indexed === 'b' ? [index('x_idx').on(t.x)] : [])),
+	});
+
+	const { sqlStatements: st } = await diff(tables('a'), tables('b'), []);
+	await push({ db, to: tables('a') });
+	const { sqlStatements: pst } = await push({ db, to: tables('b') });
+
+	const st0 = ['DROP INDEX "x_idx";', 'CREATE INDEX "x_idx" ON "b" ("x");'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });

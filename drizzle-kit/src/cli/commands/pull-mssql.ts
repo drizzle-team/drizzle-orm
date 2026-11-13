@@ -44,6 +44,7 @@ export const handle = async (
 		schema: string;
 		table: string;
 	},
+	init: boolean,
 	db?: Awaited<ReturnType<typeof connectToMsSQL>>,
 ) => {
 	if (!db) {
@@ -112,6 +113,7 @@ export const handle = async (
 			sqlStatements,
 			renames,
 			outFolder: out,
+			init,
 			breakpoints,
 			type: 'introspect',
 			snapshots,

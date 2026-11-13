@@ -1,0 +1,30 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "79b4512a-b6f9-4b27-a797-91caa25a064f",
+  "prevIds": [
+    "906a92cd-54bf-4fbb-9fca-ef38d95da19c"
+  ],
+  "ddl": [
+    {
+      "isRlsEnabled": false,
+      "name": "users",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "email",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "users"
+    }
+  ],
+  "renames": []
+}

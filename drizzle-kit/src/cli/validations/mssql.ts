@@ -2,9 +2,13 @@ import type { TypeOf } from 'zod';
 import { boolean, coerce, object, string, union } from 'zod';
 import { ConfigConnectionCliError } from '../errors';
 import { error } from '../views';
-import { wrapParam } from './common';
+import { warnOnUrlConflict, wrapParam } from './common';
 
 export const mssqlCredentials = union([
+	// "url" goes first: when it's provided along with individual params, it wins
+	object({
+		url: string().min(1),
+	}),
 	object({
 		port: coerce.number().min(1).optional(),
 		user: string().min(1),
@@ -16,12 +20,12 @@ export const mssqlCredentials = union([
 			trustServerCertificate: boolean().optional(),
 		}).optional(),
 	}),
-	object({
-		url: string().min(1),
-	}),
 ]);
 
 export type MssqlCredentials = TypeOf<typeof mssqlCredentials>;
+
+export const warnOnConflictingCredentials = (options: Record<string, unknown>) =>
+	warnOnUrlConflict(options, ['server', 'port', 'user', 'password', 'database', 'options']);
 
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,

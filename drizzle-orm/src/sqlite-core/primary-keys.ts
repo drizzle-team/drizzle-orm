@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from './columns/index.ts';
 import { SQLiteTable } from './table.ts';
 
@@ -23,6 +23,9 @@ export function primaryKey(...config: any) {
 }
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'SQLitePrimaryKeyBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: {
 		brand: 'SQLitePrimaryKeyBuilder';
@@ -50,6 +53,9 @@ export class PrimaryKeyBuilder {
 
 export class PrimaryKey {
 	static readonly [entityKind]: string = 'SQLitePrimaryKey';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly columns: SQLiteColumn[];
 	readonly name?: string;

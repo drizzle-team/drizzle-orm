@@ -3,6 +3,7 @@ dist
 dist.new
 *.tsbuildinfo
 *.tgz
+!/vendor/*.tgz
 /*.sql
 .cache
 .turbo

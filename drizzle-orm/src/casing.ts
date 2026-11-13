@@ -3,7 +3,7 @@ export type Casing = 'snake_case' | 'camelCase';
 export function toSnakeCase(input: string) {
 	const words = input
 		.replace(/['\u2019]/g, '')
-		.match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? [];
+		.match(/[\d\p{Ll}\p{Lo}]+|[\p{Lu}]+(?![\p{Ll}\p{Lo}])|[\p{Lu}][\d\p{Ll}\p{Lo}]+/gu) ?? [];
 
 	return words.map((word) => word.toLowerCase()).join('_');
 }
@@ -11,7 +11,7 @@ export function toSnakeCase(input: string) {
 export function toCamelCase(input: string) {
 	const words = input
 		.replace(/['\u2019]/g, '')
-		.match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? [];
+		.match(/[\d\p{Ll}\p{Lo}]+|[\p{Lu}]+(?![\p{Ll}\p{Lo}])|[\p{Lu}][\d\p{Ll}\p{Lo}]+/gu) ?? [];
 
 	return words.reduce((acc, word, i) => {
 		const formattedWord = i === 0 ? word.toLowerCase() : `${word[0]!.toUpperCase()}${word.slice(1)}`;

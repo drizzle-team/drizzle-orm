@@ -1,4 +1,4 @@
-import type { QueryResult } from 'pg';
+import type { NodeCockroachRawExecuteResult } from '~/cockroach/index.ts';
 import { eq, inArray } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 
@@ -13,4 +13,4 @@ const rawQuery = await db.execute(
 	}`,
 );
 
-Expect<Equal<QueryResult<Record<string, unknown>>, typeof rawQuery>>;
+Expect<Equal<NodeCockroachRawExecuteResult, typeof rawQuery>>;

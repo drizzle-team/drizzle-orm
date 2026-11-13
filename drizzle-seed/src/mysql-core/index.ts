@@ -3,9 +3,9 @@ import { Relations } from 'drizzle-orm/_relations';
 import type { MySqlAsyncDatabase, MySqlSchema } from 'drizzle-orm/mysql-core';
 import { MySqlTable } from 'drizzle-orm/mysql-core';
 import { getSchemaInfo } from '../common.ts';
-import { SeedService } from '../SeedService.ts';
+import { seedDialect } from '../seedPlan.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column } from '../types/tables.ts';
+import type { Column, SeedRelations } from '../types/tables.ts';
 
 // MySql-----------------------------------------------------------------------------------------------------
 export const resetMySql = async (
@@ -59,44 +59,21 @@ export const seedMySql = async (
 			| Relations
 			| any;
 	},
-	options: { count?: number; seed?: number; version?: number } = {},
+	options: { count?: number; seed?: number; version?: number; relations?: SeedRelations; dryRun?: boolean } = {},
 	refinements?: RefinementsType,
 ) => {
 	const { mysqlSchema, mysqlTables } = filterMysqlTables(schema);
-	const { tables, relations } = getSchemaInfo(mysqlSchema, mysqlTables, mapMySqlColumns);
+	const { tables, relations } = getSchemaInfo(mysqlSchema, mysqlTables, mapMySqlColumns, options.relations);
 
-	const seedService = new SeedService();
-
-	const generatedTablesGenerators = seedService.generatePossibleGenerators(
-		'mysql',
+	return await seedDialect({
+		connectionType: 'mysql',
+		db,
+		drizzleTables: mysqlTables,
 		tables,
 		relations,
-		refinements,
 		options,
-	);
-
-	const preserveCyclicTablesData = relations.some((rel) => rel.isCyclic === true);
-
-	const tablesValues = await seedService.generateTablesValues(
-		relations,
-		generatedTablesGenerators,
-		db,
-		mysqlTables,
-		{ ...options, preserveCyclicTablesData },
-	);
-
-	const { filteredTablesGenerators, tablesUniqueNotNullColumn } = seedService.filterCyclicTables(
-		generatedTablesGenerators,
-	);
-	const updateDataInDb = filteredTablesGenerators.length === 0 ? false : true;
-
-	await seedService.generateTablesValues(
-		relations,
-		filteredTablesGenerators,
-		db,
-		mysqlTables,
-		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
-	);
+		refinements,
+	});
 };
 const getTypeParams = (sqlType: string) => {
 	// get type params and set only type

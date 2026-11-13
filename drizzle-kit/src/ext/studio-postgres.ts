@@ -8,6 +8,7 @@ import type {
 	InterimIndex,
 	InterimSchema,
 	Policy,
+	PostgresDDL,
 	PostgresEntities,
 	PrimaryKey,
 	Privilege,
@@ -22,6 +23,7 @@ import { interimToDDL } from '../dialects/postgres/ddl';
 import { ddlDiff } from '../dialects/postgres/diff';
 import { fromDatabase as dfd } from '../dialects/postgres/duckdb-introspect';
 import { fromDatabase as fd } from '../dialects/postgres/introspect';
+// import { ddlToTypeScript as dtt } from '../dialects/postgres/typescript';
 import { mockResolver } from '../utils/mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;
@@ -165,29 +167,36 @@ const fromInterims = ({
 	};
 };
 
-export const diffPostgresql = async (from: InterimStudioSchema, to: InterimStudioSchema, renamesArr: string[]) => {
-	const { ddl: ddl1 } = interimToDDL(fromInterims(from));
-	const { ddl: ddl2 } = interimToDDL(fromInterims(to));
+export const studioSchemaToDDL = (schema: InterimStudioSchema) => {
+	const interimSchema = fromInterims(schema);
+	const { ddl, errors } = interimToDDL(interimSchema);
 
+	if (errors.length > 0) {
+		throw new Error(errors.map((it) => JSON.stringify(it)).join('\n'));
+	}
+
+	return ddl;
+};
+
+export const diffPostgresql = async (ddl1: PostgresDDL, ddl2: PostgresDDL, renamesArr: string[]) => {
 	const renames = new Set(renamesArr);
 
 	const { sqlStatements, groupedStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
+		mockResolver(renames), // schemas
+		mockResolver(renames), // enums
+		mockResolver(renames), // sequences
+		mockResolver(renames), // policies
+		mockResolver(renames), // roles
+		mockResolver(renames), // tables
+		mockResolver(renames), // columns
 		mockResolver(renames), // views
 		mockResolver(renames), // uniques
 		mockResolver(renames), // indexes
 		mockResolver(renames), // checks
 		mockResolver(renames), // pks
+		mockResolver(renames), // fks
 		'default',
 	);
 
@@ -197,3 +206,9 @@ export const diffPostgresql = async (from: InterimStudioSchema, to: InterimStudi
 export const fromDatabase = fd;
 export const fromAwsDatabase = afd;
 export const fromDuckDbDatabase = dfd;
+
+// export const ddlToTypeScript = (schema: InterimStudioSchema) => {
+// 	const interimSchema = fromInterims(schema);
+// 	const { ddl } = interimToDDL(interimSchema);
+// 	return dtt(ddl, interimSchema.viewColumns, 'camel');
+// };

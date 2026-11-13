@@ -290,7 +290,7 @@ function arrayColumnToSchema(
 			const length = column.length;
 			const schema = S.Array(S.Number);
 			return length
-				? schema.check(S.isLengthBetween(length, length))
+				? schema.check(S.isBetweenLength(length, length))
 				: schema;
 		}
 		case 'int64vector': {
@@ -302,23 +302,8 @@ function arrayColumnToSchema(
 				),
 			);
 			return length
-				? schema.check(S.isLengthBetween(length, length))
+				? schema.check(S.isBetweenLength(length, length))
 				: schema;
-		}
-		case 'basecolumn': {
-			// CockroachDB/GEL style: has a separate baseColumn
-			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
-			if (baseColumn) {
-				const baseSchema = columnToSchema(baseColumn);
-				// For CockroachDB style, column.length is the array size
-				const length = column.length;
-				const schema = S.Array(baseSchema);
-				if (length) {
-					return schema.check(S.isLengthBetween(length, length));
-				}
-				return schema;
-			}
-			return S.Array(S.Any);
 		}
 		default: {
 			return S.Array(S.Any);
@@ -390,7 +375,7 @@ function stringColumnToSchema(
 	let schema = S.String;
 	schema = regex ? schema.check(S.isPattern(regex)) : schema;
 	return length && isLengthExact
-		? schema.check(S.isLengthBetween(length, length))
+		? schema.check(S.isBetweenLength(length, length))
 		: length
 		? schema.check(S.isMaxLength(length))
 		: schema;

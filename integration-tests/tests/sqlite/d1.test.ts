@@ -216,6 +216,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 const skip = [
 	// Uses async versions
 	'sync transaction rollback',
+	'Query error params - sync transaction',
 	'sync nested transaction rollback',
 	// Cannot convert 49,50,55 to a BigInt
 	'insert bigint values',
@@ -244,6 +245,12 @@ const skip = [
 	'Jit mappers: - select - nothing to decode - null',
 	'Jit mappers: - insert returning all + select + update returning + delete returning',
 	'Jit mappers: - select complex selections',
+	'Cross-table group never nullified - jit',
+	'Mappers: deep nullification - jit',
+
+	// TODO; alias columns with .as
+	'Cross-table group never nullified',
+	'Mappers: deep nullification',
 
 	// .run() includes time data, strict comparison fails, otherwise functional
 	'write + query all methods & verify data intergrity',

@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnyCockroachColumn, CockroachColumn } from './columns/index.ts';
 import type { CockroachTable } from './table.ts';
 
@@ -13,6 +13,9 @@ export type Reference = () => {
 
 export class ForeignKeyBuilder {
 	static readonly [entityKind]: string = 'CockroachForeignKeyBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	reference: Reference;
@@ -64,6 +67,9 @@ export type AnyForeignKeyBuilder = ForeignKeyBuilder;
 
 export class ForeignKey {
 	static readonly [entityKind]: string = 'CockroachForeignKey';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;

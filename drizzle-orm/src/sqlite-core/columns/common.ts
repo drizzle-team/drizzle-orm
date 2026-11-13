@@ -10,6 +10,7 @@ import { Column } from '~/column.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
+import type { SQLiteType } from '~/sqlite-core/codecs.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/sqlite-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/sqlite-core/foreign-keys.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
@@ -94,6 +95,9 @@ export abstract class SQLiteColumn<
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'SQLiteColumn';
+
+	/** @internal */
+	abstract override readonly codec?: SQLiteType;
 
 	/** @internal */
 	override readonly table: SQLiteTable;

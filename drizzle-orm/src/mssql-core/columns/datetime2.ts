@@ -1,3 +1,4 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
@@ -32,11 +33,14 @@ export class MsSqlDateTime2Builder extends MsSqlDateColumnBaseBuilder<{
 export class MsSqlDateTime2<T extends ColumnBaseConfig<'object date'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlDateTime2';
 
+	/** @internal */
+	override readonly codec = 'datetime2';
+
 	readonly precision: number | undefined;
 
 	constructor(
 		table: MsSqlTable<any>,
-		config: MsSqlDateTime2Builder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & MsSqlDatetimeConfig,
 	) {
 		super(table, config);
 		this.precision = config.precision;
@@ -74,11 +78,14 @@ export class MsSqlDateTime2StringBuilder extends MsSqlDateColumnBaseBuilder<{
 export class MsSqlDateTime2String<T extends ColumnBaseConfig<'string datetime'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlDateTime2String';
 
+	/** @internal */
+	override readonly codec = 'datetime2:string';
+
 	readonly precision: number | undefined;
 
 	constructor(
 		table: MsSqlTable<any>,
-		config: MsSqlDateTime2StringBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & MsSqlDatetimeConfig,
 	) {
 		super(table, config);
 		this.precision = config.precision;

@@ -1,10 +1,9 @@
 {
 	"extends": "../tsconfig.json",
 	"compilerOptions": {
-		"baseUrl": ".",
 		"allowImportingTsExtensions": true,
 		"paths": {
-			"~/*": ["src/*"]
+			"~/*": ["./src/*"]
 		},
 		"lib": ["WebWorker", "ESNext"],
 		"declaration": true,

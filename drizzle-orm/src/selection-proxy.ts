@@ -1,14 +1,17 @@
+import type { View } from '~/view.ts';
 import { ColumnTableAliasProxyHandler, TableAliasProxyHandler } from './alias.ts';
-import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
-import { SQL, View } from './sql/sql.ts';
-import { Subquery } from './subquery.ts';
+import { chunkKindOf, chunkKinds, isChunk } from './sql/sql.ts';
+import type { Subquery } from './subquery.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
 export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> | View>
 	implements ProxyHandler<Subquery | Record<string, unknown> | View>
 {
 	static readonly [entityKind]: string = 'SelectionProxyHandler';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private config: {
 		/**
@@ -44,7 +47,7 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 		this.config = { ...config };
 	}
 
-	get(subquery: T, prop: string | symbol): any {
+	get(subquery: T, prop: string | symbol, receiver: any): any {
 		if (prop === '_') {
 			return {
 				...subquery['_' as keyof typeof subquery],
@@ -69,14 +72,24 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 			return subquery[prop as keyof typeof subquery];
 		}
 
-		const columns = is(subquery, Subquery)
+		const sourceKind = chunkKindOf(subquery);
+		const columns = isChunk(subquery, sourceKind, chunkKinds.subquery)
 			? subquery._.selectedFields
-			: is(subquery, View)
+			: isChunk(subquery, sourceKind, chunkKinds.view)
 			? subquery[ViewBaseConfig].selectedFields
 			: subquery;
 		const value: unknown = columns[prop as keyof typeof columns];
 
-		if (is(value, SQL.Aliased)) {
+		// value === undefined check must stay for actual selection fields named `getSQL`
+		if (value === undefined && prop === 'getSQL') {
+			const target = subquery[prop as keyof T];
+			if (typeof target !== 'function') return target;
+
+			return target.bind(receiver ?? subquery);
+		}
+
+		const valueKind = chunkKindOf(value);
+		if (isChunk(value, valueKind, chunkKinds.aliased)) {
 			// Never return the underlying SQL expression for a field previously selected in a subquery
 			if (this.config.sqlAliasedBehavior === 'sql' && !value.isSelectionField) {
 				return value.sql;
@@ -88,7 +101,7 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 			return newValue;
 		}
 
-		if (is(value, SQL)) {
+		if (isChunk(value, valueKind, chunkKinds.sql)) {
 			if (this.config.sqlBehavior === 'sql') {
 				return value;
 			}
@@ -98,7 +111,7 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 			);
 		}
 
-		if (is(value, Column)) {
+		if (isChunk(value, valueKind, chunkKinds.column)) {
 			if (this.config.alias) {
 				return new Proxy(
 					value,

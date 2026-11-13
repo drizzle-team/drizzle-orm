@@ -1,5 +1,6 @@
 import { cockroachSchemaError, cockroachSchemaWarning, humanLog } from '../../cli/views';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
+import type { SchemaMetadata } from '../utils';
 import type { CockroachDDL } from './ddl';
 import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
@@ -12,6 +13,7 @@ export const prepareSnapshot = async (
 ): Promise<{
 	ddlPrev: CockroachDDL;
 	ddlCur: CockroachDDL;
+	metadata: SchemaMetadata;
 	snapshot: CockroachSnapshot;
 	snapshotPrev: CockroachSnapshot;
 	custom: CockroachSnapshot;
@@ -32,7 +34,7 @@ export const prepareSnapshot = async (
 	const res = await prepareFromSchemaFiles(filenames);
 
 	// TODO: do we want to export everything or ignore .existing and respect entity filters in config
-	const { schema, errors, warnings } = fromDrizzleSchema(
+	const { schema, metadata, errors, warnings } = fromDrizzleSchema(
 		res,
 		() => true,
 	);
@@ -78,5 +80,5 @@ export const prepareSnapshot = async (
 		...prevRest,
 	};
 
-	return { ddlPrev, ddlCur, snapshot, snapshotPrev: prevSnapshot, custom };
+	return { ddlPrev, ddlCur, metadata, snapshot, snapshotPrev: prevSnapshot, custom };
 };

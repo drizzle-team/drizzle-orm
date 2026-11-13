@@ -58,7 +58,8 @@ export const fromEntities = (entities: MysqlEntity[]) => {
 export const drizzleToDDL = (sch: MysqlSchema) => {
 	const tables = Object.values(sch).filter((it) => is(it, MySqlTable)) as MySqlTable[];
 	const views = Object.values(sch).filter((it) => is(it, MySqlView)) as MySqlView[];
-	return interimToDDL(fromDrizzleSchema(tables, views));
+	const { schema, metadata } = fromDrizzleSchema(tables, views);
+	return { ...interimToDDL(schema), metadata };
 };
 
 export const diff = async (
@@ -69,8 +70,8 @@ export const diff = async (
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as MysqlDDL, errors: [] }
 		: drizzleToDDL(left);
-	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
-		? { ddl: right as MysqlDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in right && '_' in right
+		? { ddl: right as MysqlDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(right);
 
 	const renames = new Set(renamesArr);
@@ -85,6 +86,7 @@ export const diff = async (
 		mockResolver(renames),
 		mockResolver(renames),
 		'default',
+		metadata,
 	);
 
 	const { errors } = diffSuggestions(statements, ddl2);
@@ -134,7 +136,7 @@ export const diffIntrospect = async (
 		filePath,
 	]);
 
-	const interim = fromDrizzleSchema(
+	const { schema: interim } = fromDrizzleSchema(
 		response.tables,
 		response.views,
 	);
@@ -190,8 +192,8 @@ export const push = async (config: {
 		migrations,
 	});
 	const { ddl: ddl1, errors: err1 } = interimToDDL(schema);
-	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
-		? { ddl: to as MysqlDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in to && '_' in to
+		? { ddl: to as MysqlDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(to);
 
 	if (err2.length > 0) {
@@ -216,6 +218,7 @@ export const push = async (config: {
 		mockResolver(renames),
 		mockResolver(renames),
 		'push',
+		metadata,
 	);
 
 	const res = await runWithCliContext(
@@ -315,7 +318,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const sch = fromDrizzleSchema(response.tables, response.views);
+	const { schema: sch } = fromDrizzleSchema(response.tables, response.views);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');

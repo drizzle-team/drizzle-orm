@@ -10,6 +10,9 @@ import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'MsSqlQueryBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private dialect: MsSqlDialect | undefined;
 	private dialectConfig: MsSqlDialectConfig | undefined;
@@ -31,7 +34,12 @@ export class QueryBuilder {
 				}
 
 				return new Proxy(
-					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
+					new WithSubquery(
+						qb.getSQL(),
+						qb.getSelectedFields() as SelectedFields,
+						alias,
+						true,
+					),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},

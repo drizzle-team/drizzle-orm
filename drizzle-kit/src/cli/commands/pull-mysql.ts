@@ -35,6 +35,7 @@ export const handle = async (
 		schema: string;
 		table: string;
 	},
+	init: boolean,
 	db?: Awaited<ReturnType<typeof connectToMySQL>>,
 ) => {
 	if (!db) {
@@ -60,7 +61,7 @@ export const handle = async (
 	} else {
 		schema = await fromDatabaseForDrizzle(db.db, db.database, filter, () => {}, migrations);
 	}
-	const { ddl, errors } = interimToDDL(schema);
+	const { ddl, errors } = interimToDDL(schema, 'pull');
 
 	if (errors.length > 0) {
 		throw new CommandOutputCliError('pull', 'Failed to map the introspected schema', {
@@ -96,6 +97,7 @@ export const handle = async (
 			snapshot: toJsonSnapshot(ddl, [], []),
 			sqlStatements,
 			renames: [],
+			init,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',

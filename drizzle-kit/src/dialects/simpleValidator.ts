@@ -1,11 +1,19 @@
 import type { Simplify } from '../utils';
 
-export const array = <T>(validate: (it: unknown) => boolean) => {
+export function array<T>(validate: (it: unknown) => it is T): {
+	type: T;
+	validate: typeof validate;
+};
+export function array<T>(validate: (it: unknown) => boolean): {
+	type: T;
+	validate: typeof validate;
+};
+export function array(validate: (it: unknown) => boolean) {
 	return {
-		type: {} as T,
+		type: {},
 		validate,
 	};
-};
+}
 
 type StringLiteral<T> = T extends string[] ? (string extends T[number] ? never : T[number]) : never;
 

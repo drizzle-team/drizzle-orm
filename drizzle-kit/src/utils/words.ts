@@ -1,9 +1,14 @@
-import { prepareSnapshotFolderName } from '../cli/commands/generate-common';
+import { prepareSnapshotFolderName, snapshotFolderTime } from '../cli/commands/generate-common';
 
 export const prepareMigrationMetadata = (
 	name?: string,
+	parentFolders: string[] = [],
 ) => {
-	const prefix = prepareSnapshotFolderName();
+	// The new folder must sort after each of `parentFolders`. When the clock is behind the newest parent, the
+	// prefix takes the time of that parent plus one second.
+	const prefix = prepareSnapshotFolderName(
+		Math.max(Date.now(), ...parentFolders.map((it) => snapshotFolderTime(it) + 1000)),
+	);
 	const suffix = name || `${adjectives.random()}_${heroes.random()}`;
 	const tag = `${prefix}_${suffix}`;
 	return { prefix, suffix, tag };

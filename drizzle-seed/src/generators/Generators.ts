@@ -2394,14 +2394,14 @@ export class GeneratePhoneNumber extends AbstractGenerator<GeneratePhoneNumberT>
 			});
 		} else {
 			if (typeof generatedDigitsNumbers === 'number') {
-				generatedDigitsNumbers = Array.from<number>({ length: prefixes.length }).fill(
+				generatedDigitsNumbers = new Array<number>(prefixes.length).fill(
 					generatedDigitsNumbers,
 				);
 			} else if (
 				generatedDigitsNumbers === undefined
 				|| generatedDigitsNumbers.length === 0
 			) {
-				generatedDigitsNumbers = Array.from<number>({ length: prefixes.length }).fill(7);
+				generatedDigitsNumbers = new Array<number>(prefixes.length).fill(7);
 			}
 		}
 
@@ -2770,7 +2770,8 @@ export class GenerateUniqueStreetAddress extends AbstractGenerator<{ isUnique?: 
 	}
 
 	override init({ count, seed }: { count: number; seed: number }) {
-		const streetNumberStrs = Array.from({ length: this.streetNumbersCount }, (_, i) => String(i + 1));
+		const streetNumberStrs: string[] = new Array(this.streetNumbersCount);
+		for (let i = 0; i < streetNumberStrs.length; i++) streetNumberStrs[i] = String(i + 1);
 		const maxUniqueStreetnamesNumber = streetNumberStrs.length * (firstNames.length + lastNames.length)
 			* streetSuffix.length;
 
@@ -3985,10 +3986,14 @@ export class GenerateUniqueInet extends AbstractGenerator<GenerateUniqueInetT> {
 		const indexGen = new GenerateUniqueInt({ minValue, maxValue });
 		indexGen.init({ count, seed });
 
-		const octetSet = Array.from({ length: 256 }, (_, i) => i.toString());
-		const ipv4PrefixSet = Array.from({ length: 33 }, (_, i) => i.toString());
-		const hextetSet = Array.from({ length: 65536 }, (_, i) => i.toString(16));
-		const ipv6PrefixSet = Array.from({ length: 129 }, (_, i) => i.toString());
+		const octetSet: string[] = new Array(256);
+		for (let i = 0; i < octetSet.length; i++) octetSet[i] = i.toString();
+		const ipv4PrefixSet: string[] = new Array(33);
+		for (let i = 0; i < ipv4PrefixSet.length; i++) ipv4PrefixSet[i] = i.toString();
+		const hextetSet: string[] = new Array(65536);
+		for (let i = 0; i < hextetSet.length; i++) hextetSet[i] = i.toString(16);
+		const ipv6PrefixSet: string[] = new Array(129);
+		for (let i = 0; i < ipv6PrefixSet.length; i++) ipv6PrefixSet[i] = i.toString();
 
 		this.state = { indexGen, octetSet, ipv4PrefixSet, hextetSet, ipv6PrefixSet };
 	}
@@ -4000,14 +4005,14 @@ export class GenerateUniqueInet extends AbstractGenerator<GenerateUniqueInetT> {
 		let tokens: string[] = [];
 
 		if (this.ipAddress === 'ipv4') {
-			const sets = Array.from({ length: 4 }).fill(this.state.octetSet) as string[][];
+			const sets = new Array(4).fill(this.state.octetSet) as string[][];
 			if (this.includeCidr) sets.push(this.state.ipv4PrefixSet);
 
 			const index = this.state.indexGen.generate() as number;
 			tokens = fastCartesianProduct(sets, index) as string[];
 		} else {
 			// this.ipAddress === 'ipv6'
-			const sets = Array.from({ length: 8 }).fill(this.state.hextetSet) as string[][];
+			const sets = new Array(8).fill(this.state.hextetSet) as string[][];
 			if (this.includeCidr) sets.push(this.state.ipv6PrefixSet);
 
 			const idx = this.state.indexGen.generate() as bigint;
@@ -4365,7 +4370,7 @@ export class GenerateUniqueVector extends AbstractGenerator<GenerateUniqueVector
 		}
 
 		const dimensionRange = new OrderedNumberRange(this.minValue * denominator, this.maxValue * denominator, 1);
-		const vectorSets = Array.from({ length: this.dimensions }).fill(dimensionRange) as OrderedNumberRange[];
+		const vectorSets = new Array(this.dimensions).fill(dimensionRange) as OrderedNumberRange[];
 
 		const maxCombIdx = vectorSets.reduce((acc, curr) => acc * BigInt(curr.length), BigInt(1)) - BigInt(1);
 		const indexGen = maxCombIdx <= Number.MAX_SAFE_INTEGER

@@ -1,7 +1,9 @@
 import { randomUUID } from 'crypto';
 import type { TypeOf } from 'zod';
 import { any, array as zodArray, boolean, enum as enumType, literal, number, object, record, string } from 'zod';
-import { originUUID } from '../../utils';
+import type { Footprint } from '../../commutativity/engine';
+import { normalizeDDL } from '../ddl-canonical';
+import { type Delta, parseEntityKey } from '../dialect';
 import { array, validator } from '../simpleValidator';
 import type { PostgresDDL, PostgresEntity } from './ddl';
 import { createDDL } from './ddl';
@@ -529,35 +531,117 @@ export type Index = TypeOf<typeof index>;
 export type TableV5 = TypeOf<typeof tableV5>;
 export type Column = TypeOf<typeof column>;
 
-export const toJsonSnapshot = (ddl: PostgresDDL, prevIds: string[], renames: string[]): PostgresSnapshot => {
-	return { dialect: 'postgres', id: randomUUID(), prevIds, version: '8', ddl: ddl.entities.list(), renames };
+export type PostgresSnapshotV8 = {
+	version: '8';
+	dialect: 'postgres';
+	id: string;
+	prevIds: string[];
+	ddl: PostgresEntity[];
+	renames: string[];
 };
 
 const ddl = createDDL();
-export const snapshotValidator = validator({
-	version: ['8'],
+const definitions = ddl._.defs;
+
+const isDelta = (it: any): it is Delta => {
+	if (it?.op === 'create') return Object.hasOwn(definitions, it.row?.entityType) && ddl.entities.validate(it.row);
+	if (!['drop', 'alter', 'rename'].includes(it?.op)) return false;
+	if (typeof it.key !== 'string' || !it.key.includes('\0')) return false;
+	const [type] = parseEntityKey(it.key);
+	if (!Object.hasOwn(definitions, type)) return false;
+	if (it.op === 'drop') return true;
+	return typeof it.set === 'object' && it.set !== null
+		&& Object.keys(it.set).every((field) => Object.hasOwn(definitions[type], field));
+};
+
+const isStringList = (it: unknown): it is string[] =>
+	Array.isArray(it) && it.every((value) => typeof value === 'string');
+const footprintFields = new Set(['statementType', 'statementTarget', 'writes', 'reads', 'sharedWrites', 'sqlHash']);
+
+export const isFootprint = (it: any): it is Footprint =>
+	typeof it === 'object' && it !== null && !Array.isArray(it)
+	&& Object.keys(it).every((field) => footprintFields.has(field))
+	&& typeof it.statementType === 'string'
+	&& isStringList(it.statementTarget) && it.statementTarget.length >= 2
+	&& isStringList(it.writes)
+	&& (it.reads === undefined || isStringList(it.reads))
+	&& (it.sharedWrites === undefined || isStringList(it.sharedWrites))
+	&& (it.sqlHash === undefined || typeof it.sqlHash === 'string');
+
+// Checks the `footprints` field of both snapshot types: one footprint for each statement of the migration.
+const footprints = array(isFootprint);
+
+const baseValidator = validator({
+	type: ['base'],
+	version: ['9'],
 	dialect: ['postgres'],
 	id: 'string',
-	prevIds: array<string>((_) => true),
-	ddl: array<PostgresEntity>((it) => {
+	prevIds: array((it) => typeof it === 'string'),
+	ddl: array((it) => {
 		const res = ddl.entities.validate(it);
 		if (!res) {
 			console.error(JSON.stringify(it));
 		}
 		return res;
 	}),
-	renames: array<string>((_) => true),
+	footprints,
 });
 
-export type PostgresSnapshot = typeof snapshotValidator.shape;
+const diffValidator = validator({
+	type: ['diff'],
+	version: ['9'],
+	dialect: ['postgres'],
+	id: 'string',
+	prevIds: array((it) => typeof it === 'string'),
+	deltas: array(isDelta),
+	footprints,
+});
 
-export const drySnapshot = snapshotValidator.strict(
-	{
-		version: '8',
+export type PostgresBaseSnapshot = typeof baseValidator.shape;
+export type PostgresDiffSnapshot = typeof diffValidator.shape;
+export type PostgresSnapshot = PostgresBaseSnapshot | PostgresDiffSnapshot;
+
+// The full state that the programmatic API returns and takes. It has the id and the parents of a snapshot,
+// and a migrations folder never holds it.
+export type PostgresSchemaState = {
+	version: '9';
+	dialect: 'postgres';
+	id: string;
+	prevIds: string[];
+	ddl: PostgresEntity[];
+};
+
+export const snapshotValidator = {
+	parse: (it: unknown) =>
+		(it as { type?: unknown } | null)?.type === 'diff' ? diffValidator.parse(it) : baseValidator.parse(it),
+};
+
+const entityName = (json: string) => {
+	const row = JSON.parse(json);
+	return `${row.entityType} ${[row.schema, row.table, row.name].filter(Boolean).join('.')}`;
+};
+
+// Gives the name of the first entity that differs between two states, or undefined when they are equal. `up`
+// uses it to check each converted snapshot against its format 8 state.
+export const stateDifference = (expected: PostgresDDL, reconstructed: PostgresDDL): string | undefined => {
+	const [a, b] = [normalizeDDL(expected.entities.list()), normalizeDDL(reconstructed.entities.list())];
+	const [inA, inB] = [new Set(a), new Set(b)];
+	const differing = a.find((it) => !inB.has(it)) ?? b.find((it) => !inA.has(it));
+	return differing === undefined ? undefined : entityName(differing);
+};
+
+export const toJsonBaseSnapshot = (
+	ddl: PostgresDDL,
+	prevIds: string[],
+	footprints: Footprint[],
+): PostgresBaseSnapshot => {
+	return {
+		type: 'base',
+		version: '9',
 		dialect: 'postgres',
-		id: originUUID,
-		prevIds: [],
-		ddl: [],
-		renames: [],
-	} satisfies PostgresSnapshot,
-);
+		id: randomUUID(),
+		prevIds,
+		footprints,
+		ddl: ddl.entities.list(),
+	};
+};

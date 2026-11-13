@@ -14,13 +14,13 @@ export { ORIGIN, stageConflict, stageOut, stageValid } from './check-fixtures';
  * `{ type:'rename_or_create', kind:'table', entity:['public','accounts'] }` with no
  * hints provided — purely filesystem-based, no Docker required.
  */
-export const stageGenerateMissingHints = (): { out: string; schemaPath: string } => {
+export const stageGenerateMissingHints = async (): Promise<{ out: string; schemaPath: string }> => {
 	const out = stageOut();
 
 	writeSnapshot(
 		out,
 		'0000_init',
-		makePgSnapshot('p1', [ORIGIN], { users: pgTable('users', { id: integer('id') }) }),
+		await makePgSnapshot('p1', [ORIGIN], { users: pgTable('users', { id: integer('id') }) }),
 	);
 
 	const schemaPath = resolve(join(out, 'schema.ts'));

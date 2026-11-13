@@ -28,7 +28,7 @@ export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, filenames } = config;
 	const json = outputFormat() === 'json';
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames);
+	const { ddlCur, ddlPrev, metadata, snapshot, custom } = await prepareSnapshot(snapshots, filenames);
 
 	if (config.custom) {
 		return writeResult({
@@ -58,6 +58,7 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<ForeignKey>('foreign key', config.hints, 'dbo'),
 		resolver<DefaultConstraint>('default', config.hints, 'dbo'),
 		'default',
+		metadata,
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -117,7 +118,7 @@ export const handleExport = async (config: ExportConfig) => {
 
 	// TODO: do we want to respect config filter here?
 	// cc: @AleksandrSherman
-	const { schema, errors } = fromDrizzleSchema(res, () => true);
+	const { schema, metadata, errors } = fromDrizzleSchema(res, () => true);
 
 	if (errors.length > 0) {
 		throw new CommandOutputCliError('export', errors.map((it) => mssqlSchemaError(it)).join('\n'), {
@@ -134,6 +135,6 @@ export const handleExport = async (config: ExportConfig) => {
 		});
 	}
 
-	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default', metadata);
 	return { statements: sqlStatements, warnings: [] };
 };

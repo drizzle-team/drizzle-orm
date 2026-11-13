@@ -200,6 +200,7 @@ test.concurrent('migrator: local migration is unapplied. Migrations timestamp is
 const skip = [
 	// Uses async versions
 	'sync transaction rollback',
+	'Query error params - sync transaction',
 	'sync nested transaction rollback',
 	// Currently not supported by provider
 	'update with limit and order by',

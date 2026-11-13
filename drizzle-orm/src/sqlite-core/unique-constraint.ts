@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { TableName } from '~/table.utils.ts';
 import type { SQLiteColumn } from './columns/common.ts';
 import type { SQLiteTable } from './table.ts';
@@ -13,6 +13,9 @@ export function unique(name?: string): UniqueOnConstraintBuilder {
 
 export class UniqueConstraintBuilder {
 	static readonly [entityKind]: string = 'SQLiteUniqueConstraintBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	columns: SQLiteColumn[];
@@ -32,6 +35,9 @@ export class UniqueConstraintBuilder {
 
 export class UniqueOnConstraintBuilder {
 	static readonly [entityKind]: string = 'SQLiteUniqueOnConstraintBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	name?: string;
@@ -49,6 +55,9 @@ export class UniqueOnConstraintBuilder {
 
 export class UniqueConstraint {
 	static readonly [entityKind]: string = 'SQLiteUniqueConstraint';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly columns: SQLiteColumn[];
 	readonly name: string;

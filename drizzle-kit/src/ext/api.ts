@@ -10,7 +10,7 @@
 // import type { CasingType } from '../cli/validations/common';
 // import { ProgressView, schemaError, schemaWarning } from '../cli/views';
 // import { fromDrizzleSchema, fromExports } from '../dialects/postgres/drizzle';
-// import { PostgresSnapshot, toJsonSnapshot } from '../dialects/postgres/snapshot';
+// import { PostgresSnapshot, toJsonBaseSnapshot } from '../dialects/postgres/snapshot';
 // import type { Config } from '../index';
 // import { originUUID } from '../utils';
 // import type { DB, SQLiteDB } from '../utils';

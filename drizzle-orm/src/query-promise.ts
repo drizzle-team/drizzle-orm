@@ -1,7 +1,10 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 
 export abstract class QueryPromise<T> implements Promise<T> {
 	static readonly [entityKind]: string = 'QueryPromise';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	[Symbol.toStringTag] = 'QueryPromise';
 

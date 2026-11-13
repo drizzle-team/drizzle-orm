@@ -1,6 +1,7 @@
 import {
 	bigint,
 	boolean,
+	customType,
 	date,
 	integer,
 	json,
@@ -347,4 +348,155 @@ test('array #13: not null', async (t) => {
 	const st0 = ['CREATE TABLE "table1" (\n\t"values" varchar(20)[] NOT NULL\n);\n'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// The text `row` of each case is an array literal, because the plain cast `"values"::text[]` parses text as an
+// array literal. For another value the statement fails, and the user writes the conversion into the USING clause.
+test.each([
+	{
+		name: 'a text column that becomes an array',
+		from: text(),
+		to: text().array(),
+		row: `'{a}'`,
+		value: ['a'],
+		sql: ['ALTER TABLE "test" ALTER COLUMN "values" SET DATA TYPE text[] USING "values"::text[];'],
+	},
+	{
+		name: 'a text column with a default that becomes an array',
+		from: text().default('a'),
+		to: text().array().default(['a']),
+		row: `'{a}'`,
+		value: ['a'],
+		sql: [
+			'ALTER TABLE "test" ALTER COLUMN "values" DROP DEFAULT;',
+			'ALTER TABLE "test" ALTER COLUMN "values" SET DATA TYPE text[] USING "values"::text[];',
+			`ALTER TABLE "test" ALTER COLUMN "values" SET DEFAULT '{a}'::text[];`,
+		],
+	},
+	{
+		name: 'a text array column that becomes a scalar',
+		from: text().array(),
+		to: text(),
+		row: `'{a,b}'`,
+		value: '{a,b}',
+		sql: ['ALTER TABLE "test" ALTER COLUMN "values" SET DATA TYPE text USING "values"::text;'],
+	},
+])('$name gets a type change that runs', async ({ from, to, row, value, sql }) => {
+	const before = { test: pgTable('test', { values: from }) };
+	const after = { test: pgTable('test', { values: to }) };
+
+	const { sqlStatements: st } = await diff(before, after, []);
+	await push({ db, to: before });
+	await db.query(`INSERT INTO "test" VALUES (${row});`);
+	const { sqlStatements: pst } = await push({ db, to: after });
+
+	expect(st).toStrictEqual(sql);
+	expect(pst).toStrictEqual(sql);
+	expect(await db.query('SELECT "values" FROM "test";')).toStrictEqual([{ values: value }]);
+});
+
+// push writes nothing because Postgres treats `integer[]` and `integer[][]` as one type, and the count of
+// dimensions in its catalog is not reliable. generate reads both counts from the schemas, so it writes the change.
+test('a change between two array dimension counts gets a type change in generate and nothing in push', async () => {
+	const before = { test: pgTable('test', { values: integer().array() }) };
+	const after = { test: pgTable('test', { values: integer().array('[][]') }) };
+
+	const { sqlStatements: st } = await diff(before, after, []);
+	await push({ db, to: before });
+	const { sqlStatements: pst } = await push({ db, to: after });
+	for (const statement of st) await db.query(statement);
+
+	expect(st).toStrictEqual([
+		'ALTER TABLE "test" ALTER COLUMN "values" SET DATA TYPE integer[][] USING "values"::integer[][];',
+	]);
+	expect(pst).toStrictEqual([]);
+});
+
+// The catalog stores 0 dimensions for the inherited column of `child`, so the database reader reports one
+// dimension for it. push must still write no type change.
+test('a two-dimension array column of an inherited table gets no type change in push', async () => {
+	const columns = { values: integer().array('[][]') };
+	const to = { parent: pgTable('parent', columns), child: pgTable('child', columns) };
+
+	await db.query('CREATE TABLE "parent" ("values" integer[][]);');
+	await db.query('CREATE TABLE "child" () INHERITS ("parent");');
+	const { sqlStatements: pst } = await push({ db, to });
+
+	expect(pst).toStrictEqual([]);
+});
+
+const mood = pgEnum('mood', ['ok', 'sad']);
+// Each `sql` casts through text, because Postgres has no cast from an enum to an array of that enum.
+test.each([
+	{
+		name: 'an enum column',
+		from: () => mood(),
+		to: () => mood().array(),
+		sql: ['ALTER TABLE "test" ALTER COLUMN "values" SET DATA TYPE "mood"[] USING "values"::text::"mood"[];'],
+	},
+	{
+		name: 'an enum column with a default',
+		from: () => mood().default('ok'),
+		to: () => mood().array().default(['ok']),
+		sql: [
+			'ALTER TABLE "test" ALTER COLUMN "values" DROP DEFAULT;',
+			'ALTER TABLE "test" ALTER COLUMN "values" SET DATA TYPE "mood"[] USING "values"::text::"mood"[];',
+			`ALTER TABLE "test" ALTER COLUMN "values" SET DEFAULT '{ok}'::"mood"[];`,
+		],
+	},
+])('$name that becomes an array gets a type change that runs', async ({ from, to, sql }) => {
+	const before = { mood, test: pgTable('test', { values: from() }) };
+	const after = { mood, test: pgTable('test', { values: to() }) };
+
+	const { sqlStatements: st } = await diff(before, after, []);
+	await push({ db, to: before });
+	const { sqlStatements: pst } = await push({ db, to: after });
+
+	expect(st).toStrictEqual(sql);
+	expect(pst).toStrictEqual(sql);
+});
+
+// The diff keeps the plain cast although it fails here, because Postgres has no cast from integer to integer[].
+// The user writes the conversion into the USING clause of the migration.
+test('an integer column that becomes an array gets a type change with a plain cast', async () => {
+	const before = { test: pgTable('test', { values: integer() }) };
+	const after = { test: pgTable('test', { values: integer().array() }) };
+
+	const { sqlStatements: st } = await diff(before, after, []);
+	await push({ db, to: before });
+
+	expect(st).toStrictEqual([
+		'ALTER TABLE "test" ALTER COLUMN "values" SET DATA TYPE integer[] USING "values"::integer[];',
+	]);
+	await expect(db.query(st[0])).rejects.toThrow('cannot cast type integer to integer[]');
+});
+
+test.each([
+	{ dataType: 'text[]', defaultValue: ['a'], column: `"values" text[] DEFAULT '{a}'::text[]` },
+	{ dataType: 'text[3]', defaultValue: undefined, column: '"values" text[]' },
+])('a custom type with the type text $dataType is an array column', async ({ dataType, defaultValue, column }) => {
+	const list = customType<{ data: string[] }>({ dataType: () => dataType });
+	const to = { test: pgTable('test', { values: defaultValue ? list().default(defaultValue) : list() }) };
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	for (const statement of st) await db.query(statement);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	expect(st).toStrictEqual([`CREATE TABLE "test" (\n\t${column}\n);\n`]);
+	expect(pst).toStrictEqual([]);
+});
+
+// The catalog puts `int_list`, `int2vector` and `oidvector` in the array category. The columns of these types
+// have no array dimensions, so push must not read them as array columns.
+test('a column of a domain over an array type or of a vector type of the catalog gets no type change in push', async () => {
+	const column = (dataType: string) => customType<{ data: unknown }>({ dataType: () => dataType })();
+	const to = {
+		test: pgTable('test', { values: column('int_list'), numbers: column('int2vector'), ids: column('oidvector') }),
+	};
+
+	await db.query('CREATE DOMAIN int_list AS integer[];');
+	await db.query('CREATE TABLE "test" ("values" int_list, "numbers" int2vector, "ids" oidvector);');
+	const { sqlStatements: pst } = await push({ db, to });
+
+	expect(pst).toStrictEqual([]);
 });

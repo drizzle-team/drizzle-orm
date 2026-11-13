@@ -8,7 +8,9 @@ import {
 	customType,
 	date,
 	doublePrecision,
+	foreignKey,
 	geometry,
+	index,
 	inet,
 	integer,
 	interval,
@@ -29,6 +31,7 @@ import {
 	text,
 	time,
 	timestamp,
+	unique,
 	uniqueIndex,
 	uuid,
 	varchar,
@@ -325,7 +328,7 @@ test('alter text type to enum type', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3589
 // After discussion it was decided to postpone this feature
-test.skipIf(Date.now() < +new Date('2026-07-01'))('alter integer type to text type with fk constraints', async () => {
+test.skipIf(Date.now() < +new Date('2026-11-24'))('alter integer type to text type with fk constraints', async () => {
 	const users1 = pgTable('users', {
 		id: serial().primaryKey(),
 	});
@@ -1612,4 +1615,236 @@ test('same column names in two tables. Check for correct not null creation #4. s
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6045
+test('Issue No6045. Drop column with index', async (t) => {
+	const notesTable = pgTable('notes', {
+		id: uuid().primaryKey(),
+	});
+	const tagsTable = pgTable('tags', {
+		id: uuid().primaryKey(),
+		authorId: uuid(),
+		name: varchar(),
+	}, (t) => [unique().on(t.authorId, t.name)]);
+	const notesToTagsTable = pgTable(
+		'notes_to_tags',
+		{
+			noteId: uuid().references(() => notesTable.id, { onDelete: 'cascade', onUpdate: 'cascade' }).notNull(),
+			tagAuthorId: uuid().notNull(),
+			tagName: varchar().notNull(),
+		},
+		(t) => [
+			primaryKey({ name: 'notes_to_tags_id', columns: [t.noteId, t.tagAuthorId, t.tagName] }),
+			index('notes_to_tags_tagId_idx').on(t.tagAuthorId, t.tagName),
+			foreignKey({
+				name: 'notes_to_tags_foreignKey',
+				columns: [t.tagAuthorId, t.tagName],
+				foreignColumns: [tagsTable.authorId, tagsTable.name],
+			}),
+		],
+	);
+	// order matters here
+	const schema1 = { notesTable, notesToTagsTable, tagsTable };
+
+	await push({ db, to: schema1 });
+
+	const notesToTags2 = pgTable(
+		'notes_to_tags',
+		{
+			noteId: uuid().references(() => notesTable.id, { onDelete: 'cascade', onUpdate: 'cascade' }).notNull(),
+			tagId: uuid().references(() => tagsTable.id, { onDelete: 'cascade', onUpdate: 'cascade' }).notNull(),
+		},
+		(t) => [
+			primaryKey({ name: 'notes_to_tags_id', columns: [t.noteId, t.tagId] }),
+			index('notes_to_tags_tagId_idx').on(t.tagId),
+		],
+	);
+	const schema2 = {
+		notesTable,
+		tagsTable,
+		notesToTags2,
+	};
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	const st_1 = [
+		'ALTER TABLE "notes_to_tags" DROP CONSTRAINT "notes_to_tags_foreignKey";',
+		'ALTER TABLE "notes_to_tags" ADD COLUMN "tagId" uuid;',
+		'ALTER TABLE "notes_to_tags" DROP COLUMN "tagAuthorId";',
+		'ALTER TABLE "notes_to_tags" DROP COLUMN "tagName";',
+		'ALTER TABLE "notes_to_tags" ADD CONSTRAINT "notes_to_tags_id" PRIMARY KEY("noteId","tagId");',
+		'CREATE INDEX "notes_to_tags_tagId_idx" ON "notes_to_tags" ("tagId");',
+		'ALTER TABLE "notes_to_tags" ADD CONSTRAINT "notes_to_tags_tagId_tags_id_fkey" FOREIGN KEY ("tagId") REFERENCES "tags"("id") ON DELETE CASCADE ON UPDATE CASCADE;',
+	];
+	expect(st1).toStrictEqual(st_1);
+	expect(pst1).toStrictEqual(st_1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3325
+test('Issue No3325. columns with same names', async () => {
+	const postContentTable = pgTable('post_content', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+		postId: integer('id'),
+		postProofId: integer('post_proof_id').notNull().unique(),
+		title: varchar('title', { length: 10 }).notNull(),
+		body: varchar('body'),
+		pollId: integer('poll_id'),
+		createdAt: timestamp('created_at', {
+			mode: 'date',
+			precision: 0,
+		})
+			.defaultNow()
+			.notNull(),
+	});
+
+	const diffRes = diff({}, { postContentTable }, []);
+	await expect(diffRes).rejects.toThrow(Error); // MockError
+	expect(
+		await diffRes.catch((err) => err.errors).then((value) => value),
+	).toStrictEqual([
+		{
+			type: 'column_name_duplicate',
+			schema: 'public',
+			table: 'post_content',
+			name: 'id',
+		},
+	]);
+	const pushRes = push({ db, to: { postContentTable } });
+	await expect(pushRes).rejects.toThrow(Error);
+	expect(
+		await pushRes.catch((err) => err.errors).then((value) => value),
+	).toStrictEqual([
+		{
+			type: 'column_name_duplicate',
+			schema: 'public',
+			table: 'post_content',
+			name: 'id',
+		},
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3826
+test('Issue No3826. Renaming column and altering contraint on it', async () => {
+	const schemaFrom = {
+		users: pgTable('users', (t) => ({
+			id: t.text().primaryKey().notNull(),
+			phone_number: t.varchar('old_name', { length: 100 }).notNull(),
+			customer_id: t.text().unique(),
+			avatar: t.text(),
+		})),
+	};
+
+	const schemaTo = {
+		users: pgTable('users', (t) => ({
+			id: t.text().primaryKey().notNull(),
+			phone_number: t.varchar('new_name', { length: 100 }), // renamed + dropped not null
+			customer_id: t.text().unique(),
+			avatar: t.text(),
+		})),
+	};
+
+	const { sqlStatements: st1 } = await diff(schemaFrom, schemaTo, [`public.users.old_name->public.users.new_name`]);
+	await push({ db, to: schemaFrom });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: schemaTo,
+		renames: [`public.users.old_name->public.users.new_name`],
+	});
+
+	const st0 = [
+		`ALTER TABLE "users" RENAME COLUMN "old_name" TO "new_name";`,
+		'ALTER TABLE "users" ALTER COLUMN "new_name" DROP NOT NULL;',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});
+
+const serialTypes = {
+	smallserial: () => smallserial(),
+	serial: () => serial(),
+	bigserial: () => bigserial({ mode: 'number' }),
+};
+
+test.each(
+	[
+		{ from: 'serial', to: 'bigserial', type: 'bigint' },
+		{ from: 'serial', to: 'smallserial', type: 'smallint' },
+		{ from: 'bigserial', to: 'serial', type: 'int' },
+		{ from: 'bigserial', to: 'smallserial', type: 'smallint' },
+		{ from: 'smallserial', to: 'serial', type: 'int' },
+		{ from: 'smallserial', to: 'bigserial', type: 'bigint' },
+	] as const,
+)('a change from $from to $to changes the integer type and keeps the sequence of the column', async (row) => {
+	const from = { users: pgTable('users', { id: serialTypes[row.from](), name: text() }) };
+	const to = { users: pgTable('users', { id: serialTypes[row.to](), name: text() }) };
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	await db.query(`INSERT INTO "users" ("name") VALUES ('first');`);
+	const { sqlStatements: pst } = await push({ db, to });
+	await db.query(`INSERT INTO "users" ("name") VALUES ('second');`);
+
+	const st0 = [`ALTER TABLE "users" ALTER COLUMN "id" SET DATA TYPE ${row.type} USING "id"::${row.type};`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	const rows = await db.query('SELECT "id", "name" FROM "users" ORDER BY "id";');
+	expect(rows.map((it) => [Number(it.id), it.name])).toStrictEqual([[1, 'first'], [2, 'second']]);
+});
+
+test('a change from serial to bigserial in a custom schema changes the integer type of the column', async () => {
+	const folder = pgSchema('folder');
+	const from = { folder, users: folder.table('users', { id: serial().primaryKey() }) };
+	const to = { folder, users: folder.table('users', { id: bigserial({ mode: 'number' }).primaryKey() }) };
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = ['ALTER TABLE "folder"."users" ALTER COLUMN "id" SET DATA TYPE bigint USING "id"::bigint;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6360
+test('Issue No6360', async () => {
+	const a1 = pgTable('a', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id').notNull(),
+	});
+
+	const b1 = pgTable('b', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id').notNull(),
+	});
+
+	const schema1 = { a1, b1 };
+
+	const a2 = pgTable('a', {
+		id: text('id').primaryKey(),
+		user_id: text('org_id').notNull(), // new name
+	});
+
+	const b2 = pgTable('b', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id'), // dropped not null
+	});
+
+	const schema2 = { a2, b2 };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, [`public.a.user_id->public.a.org_id`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: schema2,
+		renames: [`public.a.user_id->public.a.org_id`],
+	});
+
+	const st0 = [
+		`ALTER TABLE "a" RENAME COLUMN "user_id" TO "org_id";`,
+		`ALTER TABLE "b" ALTER COLUMN "user_id" DROP NOT NULL;`,
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
 });

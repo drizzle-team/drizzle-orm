@@ -41,6 +41,9 @@ export type CockroachIndexMethod =
 
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'CockroachIndexBuilderOn';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(private unique: boolean, private name?: string) {}
 
@@ -174,6 +177,9 @@ export interface IndexBuilder extends AnyIndexBuilder {}
 
 export class IndexBuilder implements AnyIndexBuilder {
 	static readonly [entityKind]: string = 'CockroachIndexBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	config: IndexConfig;
@@ -207,6 +213,9 @@ export class IndexBuilder implements AnyIndexBuilder {
 
 export class Index {
 	static readonly [entityKind]: string = 'CockroachIndex';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly config: IndexConfig & { table: CockroachTable };
 	readonly isNameExplicit: boolean;

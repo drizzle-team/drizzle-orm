@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnyMySqlColumn, MySqlColumn } from './columns/index.ts';
 import type { MySqlTable } from './table.ts';
 
@@ -24,6 +24,13 @@ export function primaryKey(...config: any) {
 
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'MySqlPrimaryKeyBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	declare _: {
+		brand: 'MySqlPrimaryKeyBuilder';
+	};
 
 	/** @internal */
 	columns: MySqlColumn[];
@@ -42,6 +49,9 @@ export class PrimaryKeyBuilder {
 
 export class PrimaryKey {
 	static readonly [entityKind]: string = 'MySqlPrimaryKey';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly columns: MySqlColumn[];
 

@@ -5,7 +5,7 @@ import type {
 	GeneratedIdentityConfig,
 } from './column-builder.ts';
 import { OriginalColumn } from './column-common.ts';
-import { entityKind } from './entity.ts';
+import { entityKind, is } from './entity.ts';
 import type { DriverValueDecoderFn, DriverValueEncoderFn, DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
@@ -51,6 +51,9 @@ export abstract class Column<
 	out TRuntimeConfig extends object = object,
 > implements DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	static readonly [entityKind]: string = 'Column';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: T;
 

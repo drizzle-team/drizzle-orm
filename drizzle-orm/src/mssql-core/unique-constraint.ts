@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { MsSqlColumn } from './columns/index.ts';
 import type { MsSqlTable } from './table.ts';
 
@@ -8,6 +8,9 @@ export function unique(name?: string): UniqueOnConstraintBuilder {
 
 export class UniqueConstraintBuilder {
 	static readonly [entityKind]: string = 'MsSqlUniqueConstraintBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	columns: MsSqlColumn[];
@@ -27,6 +30,9 @@ export class UniqueConstraintBuilder {
 
 export class UniqueOnConstraintBuilder {
 	static readonly [entityKind]: string = 'MsSqlUniqueOnConstraintBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	name?: string;
@@ -44,6 +50,9 @@ export class UniqueOnConstraintBuilder {
 
 export class UniqueConstraint {
 	static readonly [entityKind]: string = 'MsSqlUniqueConstraint';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly columns: MsSqlColumn[];
 	readonly name?: string;

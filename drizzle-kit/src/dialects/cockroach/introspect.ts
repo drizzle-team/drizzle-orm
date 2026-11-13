@@ -698,8 +698,8 @@ export const fromDatabase = async (
 
 		columnTypeMapped = enumType
 			? enumType.name
-			: extraColumnConfig.data_type.replace('character', 'char').replace('float8', 'float').replace(
-				'float4',
+			: extraColumnConfig.data_type.replace(/\bcharacter\b/, 'char').replace(/\bfloat8\b/, 'float').replace(
+				/\bfloat4\b/,
 				'real',
 			).replaceAll('[]', '');
 		const columnDimensions = Number(column.dimensions);
@@ -1052,13 +1052,13 @@ export const fromDatabase = async (
 		}
 
 		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
+			.replace(/\bcharacter varying\b/, 'varchar')
+			.replace(/ without time zone\b/, '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char')
-			.replace('integer', 'int4')
-			.replace('bigint', 'int8')
-			.replace('smallint', 'int2');
+			.replace(/\bcharacter\b/, 'char')
+			.replace(/\binteger\b/, 'int4')
+			.replace(/\bbigint\b/, 'int8')
+			.replace(/\bsmallint\b/, 'int2');
 
 		viewColumns.push({
 			schema: view.schema,

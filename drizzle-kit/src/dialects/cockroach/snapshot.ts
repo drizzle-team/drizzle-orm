@@ -3,7 +3,7 @@ import type { TypeOf } from 'zod';
 import { any, boolean, enum as enumType, literal, number, object, record, string } from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
-import type { CockroachDDL, CockroachEntity } from './ddl';
+import type { CockroachDDL } from './ddl';
 import { createDDL } from './ddl';
 import { defaults } from './grammar';
 
@@ -219,7 +219,7 @@ export const snapshotValidator = validator({
 	dialect: ['cockroach'],
 	id: 'string',
 	prevIds: array<string>((_) => true),
-	ddl: array<CockroachEntity>((it) => {
+	ddl: array((it) => {
 		const res = ddl.entities.validate(it);
 		if (!res) {
 			console.error(JSON.stringify(it));

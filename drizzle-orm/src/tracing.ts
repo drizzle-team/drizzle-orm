@@ -43,7 +43,7 @@ export const tracer = {
 						} catch (e) {
 							span.setStatus({
 								code: otel.SpanStatusCode.ERROR,
-								message: e instanceof Error ? e.message : 'Unknown error', // oxlint-disable-line drizzle-internal/no-instanceof
+								message: e instanceof Error ? e.message : 'Unknown error',
 							});
 							throw e;
 						} finally {

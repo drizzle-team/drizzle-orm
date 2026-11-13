@@ -79,6 +79,7 @@ export interface MsSqlDeleteConfig {
 	where?: SQL | undefined;
 	table: MsSqlTable;
 	output?: SelectedFieldsOrdered;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type MsSqlDeletePrepare<T extends AnyMsSqlDeleteBase> = PreparedQueryKind<
@@ -201,23 +202,27 @@ export class MsSqlDeleteBase<
 	output(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): MsSqlDeleteWithout<AnyMsSqlDeleteBase, TDynamic, 'output'> {
-		this.config.output = orderSelectedFields<MsSqlColumn>(fields);
+		this.config.output = orderSelectedFields<MsSqlColumn>(fields, undefined, this.dialect.codecs);
 		return this as any;
 	}
 
-	/** @internal */
-	getSQL(): SQL {
-		return this.dialect.buildDeleteQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildDeleteQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	prepare(): MsSqlDeletePrepare<this> {
+		const fields = this.config.output;
+
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.output,
+			this.dialect.sqlToQuery(this.getSQL(true)),
+			fields ? 'arrays' : 'raw',
+			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 		) as MsSqlDeletePrepare<this>;
 	}
 

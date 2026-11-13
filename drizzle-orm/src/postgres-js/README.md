@@ -23,7 +23,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
 const client = postgres(connectionString);
-const db = drizzle(client);
+const db = drizzle({ client });
 ```
 
 See [main docs](/drizzle-orm/src/pg-core/README.md#sql-schema-declaration) for further usage.
@@ -39,7 +39,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 const migrationsClient = postgres(connectionString, {
   max: 1,
 });
-const db = drizzle(migrationsClient);
+const db = drizzle({ client: migrationsClient });
 await migrate(db, { migrationsFolder: '...' });
 ```
 

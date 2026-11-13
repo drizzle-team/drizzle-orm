@@ -1,7 +1,9 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
+import type { MySqlDateColumnBaseConfig } from './date.common.ts';
 import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.ts';
 
 export class MySqlDateTimeBuilder extends MySqlDateColumnBaseBuilder<{
@@ -35,7 +37,7 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'object date'>> extends My
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateTimeBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & MySqlDateColumnBaseConfig & MySqlDatetimeConfig,
 	) {
 		super(table, config);
 		this.fsp = config.fsp;
@@ -83,7 +85,7 @@ export class MySqlDateTimeString<T extends ColumnBaseConfig<'string datetime'>> 
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateTimeStringBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & MySqlDateColumnBaseConfig & MySqlDatetimeConfig,
 	) {
 		super(table, config);
 		this.fsp = config.fsp;

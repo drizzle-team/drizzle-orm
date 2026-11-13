@@ -51,6 +51,7 @@ function _pushNarrowing() {
 function _checkNarrowing() {
 	if (checkResponse.status === 'ok') {
 		expectTypeOf(checkResponse.dialect).toExtend<string | undefined>();
+		expectTypeOf(checkResponse.warnings).toExtend<{ kind: string; message: string }[] | undefined>();
 	} else if (checkResponse.status === 'error') {
 		expectTypeOf(checkResponse.error.code).toBeString();
 	}

@@ -1,7 +1,7 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
 import { push } from '../../src/cli/schema';
 import { wrapParam } from '../../src/cli/validations/common';
@@ -196,7 +196,7 @@ test('validate config #1', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: 'test_url' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 		driver: 'pglite',
@@ -257,7 +257,7 @@ test('validate config #2', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { database: 'db', host: 'host' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		// schemaFilter: ['public'],
 		// extensionsFilters: ["postgis"],
 		breakpoints: false,
@@ -318,7 +318,7 @@ test('validate config #3', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { accountId: '1', databaseId: '2', token: '3' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 		entities: {
@@ -447,4 +447,36 @@ test('validate config #6', async (t) => {
 	expect(res.type).toBe('error');
 	if (res.type !== 'error') return;
 	expect((res.error as Error).message).toContain('PostgreSQL');
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3626
+test('Issue No3626. Validate schemaFilter option', async () => {
+	const res = await brotest(
+		push,
+		`--dialect=postgresql --schema=schema.ts --schemaFilter=test --tablesFilter=testingTable --url=test`,
+	);
+
+	console.log('res', res);
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toStrictEqual({
+		credentials: {
+			url: 'test',
+		},
+		dialect: 'postgresql',
+		explain: false,
+		filenames: [filename],
+		filters: {
+			entities: undefined,
+			extensions: undefined,
+			schemas: 'test', // works
+			tables: 'testingTable', // works
+		},
+		force: false,
+		hints: expect.any(HintsHandler) as any,
+		migrations: {
+			schema: 'drizzle',
+			table: '__drizzle_migrations',
+		},
+		verbose: false,
+	});
 });

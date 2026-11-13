@@ -395,17 +395,17 @@
 // test.serial('[timestamp] type with default', async (t) => {
 // 	const { row } = t.context;
 
-// 	t.assert(row.timestamp instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
-// 	t.assert(row.timestamp2 instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
-// 	t.assert(row.timestamp3 instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
-// 	t.assert(row.timestamp4 instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
-// 	t.assert(row.timestampdef instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
+// 	t.assert(row.timestamp instanceof Date);
+// 	t.assert(row.timestamp2 instanceof Date);
+// 	t.assert(row.timestamp3 instanceof Date);
+// 	t.assert(row.timestamp4 instanceof Date);
+// 	t.assert(row.timestampdef instanceof Date);
 // });
 
 // test.serial('[date] type with default', async (t) => {
 // 	const { row } = t.context;
 
-// 	t.assert(row.date instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
+// 	t.assert(row.date instanceof Date);
 // 	t.assert(typeof row.datedef === 'string');
 // });
 

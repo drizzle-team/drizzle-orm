@@ -23,7 +23,7 @@ TanStack Intent users can still surface the same skills via `intent list` — `S
 
 ### MCP server
 
-`drizzle-kit mcp` starts a Model Context Protocol server over stdio, exposing drizzle-kit's migration lifecycle (`generate`, `push`, `check`) as MCP tools to any MCP-capable agent. Launch it from the project root so config resolution defaults to the right working directory:
+`drizzle-kit mcp` starts a Model Context Protocol server over stdio, exposing drizzle-kit's migration lifecycle (`generate`, `fix_conflicts`, `push`, `pull`, `check`, `export`, `up`) as MCP tools to any MCP-capable agent. Launch it from the project root so config resolution defaults to the right working directory:
 
 ```sh
 npx drizzle-kit mcp

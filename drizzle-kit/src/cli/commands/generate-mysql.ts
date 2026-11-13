@@ -12,6 +12,9 @@ import { explain, explainJsonOutput, humanLog, mysqlSchemaError } from '../views
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
+import { dropReferencedPrimaryKeyWarning } from './warnings';
+
+const quote = (name: string) => `\`${name}\``;
 
 export const suggestions = (
 	jsonStatements: JsonStatement[],
@@ -47,11 +50,11 @@ export const suggestions = (
 
 			let composite = columnsTo.length > 1 ? 'composite ' : '';
 			grouped.errors.push(
-				`You are trying to add reference from "${table}" ("${columns.join('", ')}") to "${tableTo}" ("${
-					columnsTo.join(
-						'", ',
-					)
-				}"). The referenced columns are not guaranteed to be unique together. A foreign key must point to a PRIMARY KEY or a set of columns with a UNIQUE constraint. You should add a ${composite}unique constraint to the referenced columns`,
+				`You are trying to add reference from ${quote(table)} (${columns.map(quote).join(', ')}) to ${
+					quote(tableTo)
+				} (${
+					columnsTo.map(quote).join(', ')
+				}). The referenced columns are not guaranteed to be unique together. A foreign key must point to a PRIMARY KEY or a set of columns with a UNIQUE constraint. You should add a ${composite}unique constraint to the referenced columns`,
 			);
 
 			continue;
@@ -81,17 +84,7 @@ export const suggestions = (
 
 			if (indexesFound) continue;
 
-			grouped.errors.push(
-				`You are trying to drop primary key from "${table}" ("${
-					columns.join(
-						'", ',
-					)
-				}"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("${
-					columns.join(
-						'", ',
-					)
-				}") or drop the foreign key constraint that references this column.`,
-			);
+			grouped.errors.push(dropReferencedPrimaryKeyWarning(quote(table), columns.map(quote)));
 
 			continue;
 		}
@@ -108,7 +101,7 @@ export const handle = async (
 	const json = outputFormat() === 'json';
 
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
+	const { ddlCur, ddlPrev, metadata, snapshot, custom } = await prepareSnapshot(
 		snapshots,
 		filenames,
 		checkResult,
@@ -135,6 +128,7 @@ export const handle = async (
 		resolver<Column>('column', config.hints),
 		resolver<View>('view', config.hints),
 		'default',
+		metadata,
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -177,7 +171,7 @@ export const handle = async (
 
 export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(config.filenames);
-	const schema = fromDrizzleSchema(res.tables, res.views);
+	const { schema, metadata } = fromDrizzleSchema(res.tables, res.views);
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
@@ -187,6 +181,6 @@ export const handleExport = async (config: ExportConfig) => {
 		});
 	}
 
-	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default', metadata);
 	return { statements: sqlStatements, warnings: [] };
 };

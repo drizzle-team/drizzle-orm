@@ -2,7 +2,7 @@ import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { type Cache as DrizzleCache, type MutationOption, NoopCache } from './cache.ts';
 import type { CacheConfig } from './types.ts';
 
@@ -50,6 +50,10 @@ export class EffectCache extends Context.Service<EffectCache, EffectCacheShape>(
 	make: Effect.sync((): EffectCacheShape => make(new NoopCache())),
 }) {
 	static readonly [entityKind]: string = 'drizzle-orm/EffectCache';
+
+	static override [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/**
 	 * The default layer providing a no-op cache.
@@ -128,8 +132,12 @@ function make(cache: DrizzleCache): EffectCacheShape {
  * This error is thrown when any cache operation (get, put, onMutate) fails.
  * The original error is available in the `cause` property.
  */
-export class EffectCacheError extends Schema.TaggedErrorClass<EffectCacheError>()('EffectCacheError', {
+export class EffectCacheError extends Schema.TaggedError<EffectCacheError>()('EffectCacheError', {
 	cause: Schema.Unknown,
 }) {
 	static readonly [entityKind]: string = 'EffectCacheError';
+
+	static override [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 }

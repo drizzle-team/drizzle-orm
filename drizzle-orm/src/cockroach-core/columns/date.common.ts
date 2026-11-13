@@ -1,12 +1,12 @@
-import type { ColumnBuilderBaseConfig, ColumnType } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import { sql } from '~/sql/sql.ts';
-import { CockroachColumnWithArrayBuilder } from './common.ts';
+import type { CockroachColumnBuilderConfig } from './common.ts';
+import { CockroachColumnBuilder } from './common.ts';
 
 export abstract class CockroachDateColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnType>,
-	TRuntimeConfig extends object = object,
-> extends CockroachColumnWithArrayBuilder<T, TRuntimeConfig> {
+	out T extends CockroachColumnBuilderConfig = CockroachColumnBuilderConfig,
+	out TRuntimeConfig extends object = object,
+> extends CockroachColumnBuilder<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'CockroachDateColumnBaseBuilder';
 
 	defaultNow() {

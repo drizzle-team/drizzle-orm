@@ -1,4 +1,6 @@
+import type { PGlite } from '@electric-sql/pglite';
 import { expectTypeOf, test } from 'vitest';
+import type { Config } from '../../src';
 import type {
 	CheckOptions,
 	ExportOptions,
@@ -44,4 +46,12 @@ test('PushOptions takes flat credentials, not a dbCredentials wrapper', () => {
 test('SDK hints is a raw Hint[], never a JSON string', () => {
 	expectTypeOf<GenerateOptions['hints']>().toEqualTypeOf<Hint[] | undefined>();
 	expectTypeOf<PushOptions['hints']>().toEqualTypeOf<Hint[] | undefined>();
+});
+
+test('Config accepts a pglite client instead of dbCredentials', () => {
+	expectTypeOf<{
+		dialect: 'postgresql';
+		driver: 'pglite';
+		client: PGlite;
+	}>().toMatchTypeOf<Config>();
 });

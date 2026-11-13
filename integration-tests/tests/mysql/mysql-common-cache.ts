@@ -1,7 +1,8 @@
-import { eq, sql } from 'drizzle-orm';
-import { alias, boolean, int, json, mysqlTable, serial, text, timestamp } from 'drizzle-orm/mysql-core';
-import { describe, expect } from 'vitest';
+import { eq, type SQL, sql } from 'drizzle-orm';
+import { alias, boolean, int, json, mysqlSchema, mysqlTable, serial, text, timestamp } from 'drizzle-orm/mysql-core';
+import { describe, expect, onTestFinished } from 'vitest';
 import type { Test } from './instrumentation';
+import { rqbPost, rqbUser } from './schema';
 
 const usersTable = mysqlTable('users_for_cache', {
 	id: serial('id').primaryKey(),
@@ -16,6 +17,11 @@ const postsTable = mysqlTable('posts_for_cache', {
 	description: text().notNull(),
 	userId: int('city_id').references(() => usersTable.id),
 });
+
+// Shared with the RQB tests in mysql-common-6, which seed these tables once - must not leak rows into them
+async function dropRqbTables(db: { execute: (query: SQL) => Promise<unknown> }) {
+	await db.execute(sql`drop table if exists ${rqbUser}, ${rqbPost}`);
+}
 
 export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 	describe('cache:', () => {
@@ -84,6 +90,32 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 			expect(put).toHaveBeenCalledTimes(0);
 			expect(get).toHaveBeenCalledTimes(0);
 			expect(invalidate).toHaveBeenCalledTimes(1);
+		});
+
+		test('write: onMutate runs after the write is committed', async ({ drizzle }) => {
+			const { db, onMutate } = drizzle.withCacheExplicit;
+
+			const seen: string[][] = [];
+			onMutate.mockImplementationOnce(async () => {
+				const rows = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, 1));
+				seen.push(rows.map((r) => r.name));
+			});
+
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
+
+			expect(onMutate).toHaveBeenCalledTimes(1);
+			expect(seen).toStrictEqual([['John']]);
+		});
+
+		test('failed write: no onMutate', async ({ drizzle }) => {
+			const { db, onMutate } = drizzle.withCacheExplicit;
+
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
+			onMutate.mockClear();
+
+			await expect(db.insert(usersTable).values({ id: 1, name: 'Jane' })).rejects.toThrow();
+
+			expect(onMutate).toHaveBeenCalledTimes(0);
 		});
 
 		test('default global config + enable cache on select + disable invalidate: get, put', async ({ drizzle }) => {
@@ -168,6 +200,139 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 			// TODO: check?
 		});
 
+		test('relational: default global config - no cache should be hit', async ({ drizzle, push }) => {
+			const { db, put, get, onMutate } = drizzle.withCacheExplicit;
+
+			await dropRqbTables(db);
+			onTestFinished(() => dropRqbTables(db));
+			await push({ rqbUser });
+			onMutate.mockClear();
+
+			await db.query.rqbUser.findMany();
+
+			expect(put).toHaveBeenCalledTimes(0);
+			expect(get).toHaveBeenCalledTimes(0);
+			expect(onMutate).toHaveBeenCalledTimes(0);
+		});
+
+		test('relational: default global config + withCache: get, put', async ({ drizzle, push }) => {
+			const { db, put, get, onMutate } = drizzle.withCacheExplicit;
+
+			await dropRqbTables(db);
+			onTestFinished(() => dropRqbTables(db));
+			await push({ rqbUser });
+			onMutate.mockClear();
+
+			await db.query.rqbUser.findMany({ withCache: true });
+
+			expect(put).toHaveBeenCalledTimes(1);
+			expect(get).toHaveBeenCalledTimes(1);
+			expect(onMutate).toHaveBeenCalledTimes(0);
+		});
+
+		test('relational: global: true - cache should be hit', async ({ drizzle, push }) => {
+			const { db, put, get, onMutate } = drizzle.withCacheAll;
+
+			await dropRqbTables(db);
+			onTestFinished(() => dropRqbTables(db));
+			await push({ rqbUser });
+			onMutate.mockClear();
+
+			await db.query.rqbUser.findFirst();
+
+			expect(put).toHaveBeenCalledTimes(1);
+			expect(get).toHaveBeenCalledTimes(1);
+			expect(onMutate).toHaveBeenCalledTimes(0);
+		});
+
+		test('relational: global: true - withCache: false - no cache hit', async ({ drizzle, push }) => {
+			const { db, put, get, onMutate } = drizzle.withCacheAll;
+
+			await dropRqbTables(db);
+			onTestFinished(() => dropRqbTables(db));
+			await push({ rqbUser });
+			onMutate.mockClear();
+
+			await db.query.rqbUser.findMany({ withCache: false });
+
+			expect(put).toHaveBeenCalledTimes(0);
+			expect(get).toHaveBeenCalledTimes(0);
+			expect(onMutate).toHaveBeenCalledTimes(0);
+		});
+
+		test('relational: relation tables - cache hit + invalidate', async ({ drizzle, push }) => {
+			const { db, put, get } = drizzle.withCacheExplicit;
+
+			await dropRqbTables(db);
+			onTestFinished(() => dropRqbTables(db));
+			await push({ rqbUser, rqbPost });
+			const createdAt = new Date('2024-01-01T00:00:00.000Z');
+			await db.insert(rqbUser).values({ id: 1, name: 'John', createdAt });
+			await db.insert(rqbPost).values({ id: 1, userId: 1, content: 'First', createdAt });
+
+			const query = () =>
+				db.query.rqbUser.findMany({
+					columns: { name: true },
+					with: { posts: { columns: { content: true }, orderBy: { id: 'asc' } } },
+					withCache: true,
+				});
+
+			expect(await query()).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
+			expect(put).toHaveBeenNthCalledWith(
+				1,
+				expect.any(String),
+				expect.anything(),
+				['user_rqb_test', 'post_rqb_test'],
+				false,
+				{},
+			);
+
+			// Bypasses cache invalidation, cached result is served
+			await db.execute(sql`insert into ${rqbPost} values (2, 1, 'Unseen', now())`);
+			expect(await query()).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
+			expect(get).toHaveBeenCalledTimes(2);
+			expect(put).toHaveBeenCalledTimes(1);
+
+			await db.insert(rqbPost).values({ id: 3, userId: 1, content: 'Third', createdAt });
+			expect(await query()).toStrictEqual([{
+				name: 'John',
+				posts: [{ content: 'First' }, { content: 'Unseen' }, { content: 'Third' }],
+			}]);
+			expect(put).toHaveBeenCalledTimes(2);
+		});
+
+		test('relational: raw sql tables - invalidate', async ({ drizzle, push }) => {
+			const { db, put } = drizzle.withCacheExplicit;
+
+			await dropRqbTables(db);
+			onTestFinished(() => dropRqbTables(db));
+			await push({ rqbUser });
+			await db.insert(rqbUser).values({ id: 1, name: 'John', createdAt: new Date('2024-01-01T00:00:00.000Z') });
+
+			const query = () =>
+				db.query.rqbUser.findMany({
+					columns: { name: true },
+					where: {
+						RAW: (t) => sql`exists (select 1 from ${usersTable} where ${usersTable.name} = ${t.name})`,
+					},
+					withCache: true,
+				});
+
+			expect(await query()).toStrictEqual([]);
+			expect(put).toHaveBeenNthCalledWith(
+				1,
+				expect.any(String),
+				expect.anything(),
+				['user_rqb_test', 'users_for_cache'],
+				false,
+				{},
+			);
+
+			await db.insert(usersTable).values({ name: 'John' });
+			expect(await query()).toStrictEqual([{ name: 'John' }]);
+			expect(put).toHaveBeenCalledTimes(2);
+		});
+
 		// check select used tables
 		test('check simple select used tables', ({ drizzle }) => {
 			const { db } = drizzle.withCacheExplicit;
@@ -224,6 +389,34 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 
 			// @ts-expect-error
 			expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users_for_cache']);
+		});
+
+		test('used tables: ctes & query builders embedded into raw SQL keep their tables', ({ drizzle }) => {
+			const { db } = drizzle.withCacheExplicit;
+			const usedTablesOf = (query: unknown): string[] => (query as any).getUsedTables();
+			const users = mysqlTable('cache_users', { id: int() });
+			const posts = mysqlTable('cache_posts', { id: int() });
+			const audit = mysqlTable('cache_audit', { id: int() });
+			const comments = mysqlSchema('s').table('cache_comments', { id: int() });
+
+			const cte = db.$with('cte').as(db.select().from(audit));
+			expect(usedTablesOf(db.with(cte).select().from(users))).toStrictEqual(['cache_audit', 'cache_users']);
+
+			// Index hints go between aliased table's name and alias
+			const author = alias(users, 'author');
+			const inner = db.select({ id: author.id }).from(author)
+				.leftJoin(posts, sql`true`, { useIndex: ['i1'] })
+				.innerJoin(alias(comments, 'c'), sql`true`, { forceIndex: ['i2'] });
+			expect(inner.toSQL().sql).toBe(
+				'select `author`.`id` from `cache_users` `author` left join `cache_posts` USE INDEX (`i1`) on true'
+					+ ' inner join `s`.`cache_comments` FORCE INDEX (`i2`) `c` on true',
+			);
+			expect(usedTablesOf(db.select().from(sql`${audit} where exists (${inner})`))).toStrictEqual([
+				'cache_audit',
+				'cache_users',
+				'cache_posts',
+				's.cache_comments',
+			]);
 		});
 	});
 }

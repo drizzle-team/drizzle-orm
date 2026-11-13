@@ -20,6 +20,8 @@ const options = {
 	target: ts.ScriptTarget.ES2020,
 	module: ts.ModuleKind.NodeNext,
 	moduleResolution: ts.ModuleResolutionKind.NodeNext,
+	// typescript@6 no longer auto-includes `@types/*`
+	types: ['node'],
 };
 
 type VFile = { text: string; version: number };

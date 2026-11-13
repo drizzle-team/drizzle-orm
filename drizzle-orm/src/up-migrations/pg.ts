@@ -6,130 +6,121 @@ import type { PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgQueryResultHKT } from '~/pg-core/session.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
 import { assertUnreachable } from '~/utils.ts';
-import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
+import { GET_VERSION_FOR, type UpgradeResult } from './utils.ts';
 
 /**
- * Map of upgrade functions. Each key is the version being upgraded FROM,
- * and the function upgrades the table to the next version.
+ * Upgrade from version 0 to version 1:
+ * 1. Read all existing DB migrations
+ * 2. Sort localMigrations ASC by millis and if the same - sort by name
+ * 3. Match each DB row to a local migration
+ * If multiple migrations share the same second, use hash matching as a tiebreaker
+ * Not implemented for now -> If hash matching fails, fall back to serial id ordering
+ * 5. Create extra column and backfill names for matched migrations
  */
-const upgradeFunctions: Record<
-	number,
-	(
-		migrationsSchema: string,
-		migrationsTable: string,
-		db: PgAsyncDatabase<PgQueryResultHKT, any>,
-		localMigrations: MigrationMeta[],
-		mode: 'transaction' | 'batch' | 'execute',
-	) => Promise<void>
-> = {
-	/**
-	 * Upgrade from version 0 to version 1:
-	 * 1. Read all existing DB migrations
-	 * 2. Sort localMigrations ASC by millis and if the same - sort by name
-	 * 3. Match each DB row to a local migration
-	 * If multiple migrations share the same second, use hash matching as a tiebreaker
-	 * Not implemented for now -> If hash matching fails, fall back to serial id ordering
-	 * 5. Create extra column and backfill names for matched migrations
-	 */
-	0: async (migrationsSchema, migrationsTable, db, localMigrations, mode) => {
-		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
+const upToV1 = async (
+	migrationsSchema: string,
+	migrationsTable: string,
+	db: PgAsyncDatabase<PgQueryResultHKT, any>,
+	localMigrations: MigrationMeta[],
+	mode: 'transaction' | 'batch' | 'execute',
+): Promise<void> => {
+	const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
-		// 1. Read all existing DB migrations
-		// Sort them by ids asc (order how they were applied)
-		const dbRows = await db.session.objects<{ id: number; hash: string; created_at: string }>(
-			sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
-		);
+	// 1. Read all existing DB migrations
+	// Sort them by ids asc (order how they were applied)
+	const dbRows = await db.session.objects<{ id: number; hash: string; created_at: string }>(
+		sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
+	);
 
-		// 2. Sort ASC by millis and if the same - sort by name
-		localMigrations.sort((a, b) =>
-			a.folderMillis !== b.folderMillis ? a.folderMillis - b.folderMillis : (a.name ?? '').localeCompare(b.name ?? '')
-		);
+	// 2. Sort ASC by millis and if the same - sort by name
+	localMigrations.sort((a, b) =>
+		a.folderMillis !== b.folderMillis ? a.folderMillis - b.folderMillis : (a.name ?? '').localeCompare(b.name ?? '')
+	);
 
-		const byMillis = new Map<number, MigrationMeta[]>();
-		const byHash = new Map<string, MigrationMeta>();
-		for (const lm of localMigrations) {
-			if (!byMillis.has(lm.folderMillis)) {
-				byMillis.set(lm.folderMillis, []);
-			}
-			byMillis.get(lm.folderMillis)!.push(lm);
-			byHash.set(lm.hash, lm);
+	const byMillis = new Map<number, MigrationMeta[]>();
+	const byHash = new Map<string, MigrationMeta>();
+	for (const lm of localMigrations) {
+		if (!byMillis.has(lm.folderMillis)) {
+			byMillis.set(lm.folderMillis, []);
 		}
+		byMillis.get(lm.folderMillis)!.push(lm);
+		byHash.set(lm.hash, lm);
+	}
 
-		// 	3. Match each DB row to a local migration
-		// 	Priority: millis -> hash
-		const toApply: { id: number; name: string }[] = [];
-		let unmatchedIds: number[] = [];
+	// 	3. Match each DB row to a local migration
+	// 	Priority: millis -> hash
+	const toApply: { id: number; name: string }[] = [];
+	let unmatchedIds: number[] = [];
 
-		for (const dbRow of dbRows) {
-			const stringified = String(dbRow.created_at);
-			const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
-			const candidates = byMillis.get(millis);
+	for (const dbRow of dbRows) {
+		const stringified = String(dbRow.created_at);
+		const millis = Number(stringified.substring(0, stringified.length - 3) + '000');
+		const candidates = byMillis.get(millis);
 
-			let matched: MigrationMeta | undefined;
+		let matched: MigrationMeta | undefined;
 
-			if (candidates && candidates.length === 1) {
-				matched = candidates[0];
-			} else if (candidates && candidates.length > 1) {
-				matched = candidates.find((c) => c.hash === dbRow.hash);
-			} else {
-				matched = byHash.get(dbRow.hash);
-			}
-
-			if (matched) toApply.push({ id: dbRow.id, name: matched.name });
-			else unmatchedIds.push(dbRow.id);
-		}
-
-		// 4. Check for unmatched
-		// Our assumption on this migration flow is that all DB entries should be matched to a local migration
-		// (if same seconds - fallback to hash, if hash fails - corner case)
-		// If there are unmatched entries, it means that the local environment is missing migrations that have been applied to the DB,
-		// which can lead to inconsistencies and potential issues when running future migrations
-		if (unmatchedIds.length > 0) {
-			throw Error(
-				`While upgrading your database migrations table we found ${unmatchedIds.length} migrations (ids: ${
-					unmatchedIds.join(', ')
-				}) in the database that do not match any local migration. This means that some migrations were applied to the database but are missing from the local environment`,
-			);
-		}
-
-		// 5. Create extra column and backfill names for matched migrations
-		const sqls: SQL[] = [
-			sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`,
-			sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
-				sql.identifier('applied_at')
-			} timestamp with time zone DEFAULT now()`,
-		];
-		for (const { id, name } of toApply) {
-			sqls.push(
-				sql`UPDATE ${table} SET ${sql.identifier('name')} = ${name}, ${sql.identifier('applied_at')} = NULL WHERE ${
-					sql.identifier('id')
-				} = ${id}`,
-			);
-		}
-
-		// batch - neon http
-		// execute - xata http
-		// transaction -> other
-		if (mode === 'transaction') {
-			await db.transaction(async (tx: PgAsyncTransaction<any, any>) => {
-				for (const sql of sqls) {
-					await tx.execute(sql);
-				}
-			});
-		} else if (mode === 'batch') {
-			const database = db as NeonHttpDatabase;
-
-			await database.batch(
-				sqls.map((s) => database.execute(s)) as unknown as [BatchItem<'pg'>, ...BatchItem<'pg'>[]],
-			);
-		} else if (mode === 'execute') {
-			for (const sql of sqls) {
-				await db.session.execute(sql);
-			}
+		if (candidates && candidates.length === 1) {
+			matched = candidates[0];
+		} else if (candidates && candidates.length > 1) {
+			matched = candidates.find((c) => c.hash === dbRow.hash);
 		} else {
-			assertUnreachable(mode);
+			matched = byHash.get(dbRow.hash);
 		}
-	},
+
+		if (matched) toApply.push({ id: dbRow.id, name: matched.name });
+		else unmatchedIds.push(dbRow.id);
+	}
+
+	// 4. Check for unmatched
+	// Our assumption on this migration flow is that all DB entries should be matched to a local migration
+	// (if same seconds - fallback to hash, if hash fails - corner case)
+	// If there are unmatched entries, it means that the local environment is missing migrations that have been applied to the DB,
+	// which can lead to inconsistencies and potential issues when running future migrations
+	if (unmatchedIds.length > 0) {
+		throw Error(
+			`While upgrading your database migrations table we found ${unmatchedIds.length} migrations (ids: ${
+				unmatchedIds.join(', ')
+			}) in the database that do not match any local migration. This means that some migrations were applied to the database but are missing from the local environment`,
+		);
+	}
+
+	// 5. Create extra column and backfill names for matched migrations
+	const sqls: SQL[] = [
+		sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${sql.identifier('name')} text`,
+		sql`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${
+			sql.identifier('applied_at')
+		} timestamp with time zone DEFAULT now()`,
+	];
+	for (const { id, name } of toApply) {
+		sqls.push(
+			sql`UPDATE ${table} SET ${sql.identifier('name')} = ${name}, ${sql.identifier('applied_at')} = NULL WHERE ${
+				sql.identifier('id')
+			} = ${id}`,
+		);
+	}
+
+	// batch - neon http
+	// execute - xata http
+	// transaction -> other
+	if (mode === 'transaction') {
+		await db.transaction(async (tx: PgAsyncTransaction<any, any>) => {
+			for (const sql of sqls) {
+				await tx.execute(sql);
+			}
+		});
+	} else if (mode === 'batch') {
+		const database = db as NeonHttpDatabase;
+
+		await database.batch(
+			sqls.map((s) => database.execute(s)) as unknown as [BatchItem<'pg'>, ...BatchItem<'pg'>[]],
+		);
+	} else if (mode === 'execute') {
+		for (const sql of sqls) {
+			await db.session.execute(sql);
+		}
+	} else {
+		assertUnreachable(mode);
+	}
 };
 
 /**
@@ -180,15 +171,9 @@ export async function upgradeIfNeeded(
 		ORDER BY a.attnum;`,
 	);
 
-	let version = GET_VERSION_FOR.pg(rows.map((r) => r.column_name));
+	const version = GET_VERSION_FOR.pg(rows.map((r) => r.column_name));
 
-	for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.pg; v++) {
-		const upgradeFn = upgradeFunctions[v];
-		if (!upgradeFn) {
-			throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
-		}
-		await upgradeFn(migrationsSchema, migrationsTable, db, localMigrations, mode);
-	}
+	if (version < 1) await upToV1(migrationsSchema, migrationsTable, db, localMigrations, mode);
 
 	return { newDb: false };
 }

@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { CockroachRole } from './roles.ts';
 import type { CockroachTable } from './table.ts';
@@ -21,6 +21,9 @@ export interface CockroachPolicyConfig {
 
 export class CockroachPolicy implements CockroachPolicyConfig {
 	static readonly [entityKind]: string = 'CockroachPolicy';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly as: CockroachPolicyConfig['as'];
 	readonly for: CockroachPolicyConfig['for'];

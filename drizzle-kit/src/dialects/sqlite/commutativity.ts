@@ -1,7 +1,7 @@
 import {
-	AbstractCommutativity,
 	type CommutativityStatementDefinitions,
 	type CommutativityStatementInfo,
+	ConflictListCommutativity,
 } from '../../commutativity/engine';
 import type { ConflictTarget } from '../../commutativity/types';
 import { createDDL, type SQLiteDDL } from './ddl';
@@ -53,7 +53,7 @@ function makeTarget(objectName: string, columnName = ''): FootprintTarget {
  * - Wrong human-readable message only: change `describeStatement()` or
  *   `schemaLevelActions`. Those affect reporting, not matching semantics.
  */
-class SqliteCommutativity extends AbstractCommutativity<
+class SqliteCommutativity extends ConflictListCommutativity<
 	JsonStatement,
 	SqliteSnapshot,
 	FootprintTarget

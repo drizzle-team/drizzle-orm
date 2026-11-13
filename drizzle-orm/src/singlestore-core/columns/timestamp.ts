@@ -34,13 +34,12 @@ export class SingleStoreTimestamp<T extends ColumnBaseConfig<'object date'>>
 {
 	static override readonly [entityKind]: string = 'SingleStoreTimestamp';
 
+	/** @internal */
+	override readonly codec = 'timestamp';
+
 	getSQLType(): string {
 		return `timestamp`;
 	}
-
-	override mapFromDriverValue = (value: string): Date => {
-		return new Date(value + '+0000');
-	};
 
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
@@ -76,6 +75,9 @@ export class SingleStoreTimestampString<T extends ColumnBaseConfig<'string times
 	extends SingleStoreDateBaseColumn<T, SingleStoreTimestampConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreTimestampString';
+
+	/** @internal */
+	override readonly codec = 'timestamp:string';
 
 	getSQLType(): string {
 		return `timestamp`;

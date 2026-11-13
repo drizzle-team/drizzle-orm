@@ -33,6 +33,9 @@ export class MsSqlNumeric<T extends ColumnBaseConfig<'string numeric'>>
 {
 	static override readonly [entityKind]: string = 'MsSqlNumeric';
 
+	/** @internal */
+	override readonly codec = 'numeric';
+
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
 
@@ -81,6 +84,9 @@ export class MsSqlNumericNumber<T extends ColumnBaseConfig<'number'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlNumericConfig>
 {
 	static override readonly [entityKind]: string = 'MsSqlNumericNumber';
+
+	/** @internal */
+	override readonly codec = 'numeric:number';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
@@ -132,6 +138,9 @@ export class MsSqlNumericBigInt<T extends ColumnBaseConfig<'bigint int64'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlNumericConfig>
 {
 	static override readonly [entityKind]: string = 'MsSqlNumericBigInt';
+
+	/** @internal */
+	override readonly codec = 'numeric:bigint';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;

@@ -1,6 +1,6 @@
-import type { Connection, Statement } from '@tursodatabase/serverless';
+import type { Connection, Statement, Transaction } from '@tursodatabase/serverless';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -20,6 +20,7 @@ import type { TursoDatabaseServerlessRunResult } from './driver.ts';
 export interface TursoDatabaseServerlessSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -33,7 +34,7 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 	private cache: Cache;
 
 	constructor(
-		private client: Connection,
+		private client: Connection | Transaction,
 		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: TursoDatabaseServerlessSessionOptions,
@@ -49,10 +50,7 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 		prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<T & { run: TursoDatabaseServerlessRunResult }> {
 		let stmt: Statement;
@@ -69,10 +67,6 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 				run: async (params) => {
 					stmt ??= await this.client.prepare(query.sql);
 					return stmt.run(params);
-				},
-				values: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(true).all(params);
 				},
 			}
 			: {
@@ -93,10 +87,6 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 					return this.client.get(query.sql, ...params);
 				},
 				run: (params) => stmt ? stmt.run(params) : this.client.run(query.sql, ...params),
-				values: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(true).all(params);
-				},
 			};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -110,30 +100,36 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
 	override async transaction<T>(
 		transaction: (db: TursoDatabaseServerlessTransaction<TRelations>) => Promise<T>,
-		_config?: SQLiteTransactionConfig,
+		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const session = new TursoDatabaseServerlessSession<TRelations>(
-			this.client,
-			this.dialect,
-			this.relations,
-			this.options,
-		);
-		const tx = new TursoDatabaseServerlessTransaction<TRelations>(
-			'async',
-			this.dialect,
-			session,
-			this.relations,
-		);
+		let clientTx = (this.client as Connection).transactionAsync(async (txClient) => {
+			const session = new TursoDatabaseServerlessSession<TRelations>(
+				txClient,
+				this.dialect,
+				this.relations,
+				this.options,
+			);
+			const tx = new TursoDatabaseServerlessTransaction<TRelations>(
+				'async',
+				this.dialect,
+				session,
+				this.relations,
+			);
 
-		const clientTx = this.client.transaction(async () => await transaction(tx));
+			return await transaction(tx);
+		});
 
-		const result = await clientTx();
-		return result;
+		if (config?.behavior) {
+			clientTx = clientTx[config.behavior];
+		}
+
+		return clientTx();
 	}
 }
 
@@ -161,7 +157,7 @@ export class TursoDatabaseServerlessTransaction<TRelations extends AnyRelations>
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

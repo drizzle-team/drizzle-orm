@@ -3,9 +3,9 @@ import { Relations } from 'drizzle-orm/_relations';
 import type { SingleStoreDatabase, SingleStoreSchema } from 'drizzle-orm/singlestore-core';
 import { SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { getSchemaInfo } from '../common.ts';
-import { SeedService } from '../SeedService.ts';
+import { seedDialect } from '../seedPlan.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column } from '../types/tables.ts';
+import type { Column, SeedRelations } from '../types/tables.ts';
 
 // SingleStore-----------------------------------------------------------------------------------------------------
 export const resetSingleStore = async (
@@ -59,44 +59,26 @@ export const seedSingleStore = async (
 			| Relations
 			| any;
 	},
-	options: { count?: number; seed?: number; version?: number } = {},
+	options: { count?: number; seed?: number; version?: number; relations?: SeedRelations; dryRun?: boolean } = {},
 	refinements?: RefinementsType,
 ) => {
 	const { singleStoreSchema, singleStoreTables } = filterSingleStoreTables(schema);
-	const { tables, relations } = getSchemaInfo(singleStoreSchema, singleStoreTables, mapSingleStoreColumns);
+	const { tables, relations } = getSchemaInfo(
+		singleStoreSchema,
+		singleStoreTables,
+		mapSingleStoreColumns,
+		options.relations,
+	);
 
-	const seedService = new SeedService();
-
-	const generatedTablesGenerators = seedService.generatePossibleGenerators(
-		'singlestore',
+	return await seedDialect({
+		connectionType: 'singlestore',
+		db,
+		drizzleTables: singleStoreTables,
 		tables,
 		relations,
-		refinements,
 		options,
-	);
-
-	const preserveCyclicTablesData = relations.some((rel) => rel.isCyclic === true);
-
-	const tablesValues = await seedService.generateTablesValues(
-		relations,
-		generatedTablesGenerators,
-		db,
-		singleStoreTables,
-		{ ...options, preserveCyclicTablesData },
-	);
-
-	const { filteredTablesGenerators, tablesUniqueNotNullColumn } = seedService.filterCyclicTables(
-		generatedTablesGenerators,
-	);
-	const updateDataInDb = filteredTablesGenerators.length === 0 ? false : true;
-
-	await seedService.generateTablesValues(
-		relations,
-		filteredTablesGenerators,
-		db,
-		singleStoreTables,
-		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
-	);
+		refinements,
+	});
 };
 const getTypeParams = (sqlType: string) => {
 	// get type params and set only type

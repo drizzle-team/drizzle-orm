@@ -1,11 +1,11 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
 import { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
-import type { EffectPgDatabase } from '~/effect-postgres/index.ts';
+import type { EffectPgDatabase, EffectPgQueryResult } from '~/effect-postgres/index.ts';
 import { make, makeWithDefaults } from '~/effect-postgres/index.ts';
 import { migrate } from '~/effect-postgres/migrator.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
@@ -100,7 +100,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	});
 	type InsertOneEffect = AsEffect<typeof insertOne>;
 
-	Expect<Equal<InsertOneEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<InsertOneEffect, Effect.Effect<EffectPgQueryResult<never>, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -140,7 +140,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	const updateAll = db.update(users).set({ text: 'updated' });
 	type UpdateAllEffect = AsEffect<typeof updateAll>;
 
-	Expect<Equal<UpdateAllEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<UpdateAllEffect, Effect.Effect<EffectPgQueryResult<never>, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -162,7 +162,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	const deleteAll = db.delete(users);
 	type DeleteAllEffect = AsEffect<typeof deleteAll>;
 
-	Expect<Equal<DeleteAllEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<DeleteAllEffect, Effect.Effect<EffectPgQueryResult<never>, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -305,4 +305,40 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	Expect<Equal<typeof d2, Expected>>;
 	Expect<Equal<typeof d3, Expected>>;
 	Expect<Equal<typeof d4, Expected>>;
+}
+
+{
+	interface UserInterface {
+		id: number;
+		name: string;
+	}
+
+	const objects = db.execute<UserInterface>(`select 1 as id, 'a' as name`, 'objects');
+	type ObjectsEffect = AsEffect<typeof objects>;
+
+	Expect<Equal<ObjectsEffect, Effect.Effect<UserInterface[], EffectDrizzleQueryError, never>>>;
+}
+
+{
+	interface UserInterface {
+		id: number;
+		name: string;
+	}
+
+	type Raw<T> = Effect.Effect<T, EffectDrizzleQueryError, never>;
+
+	// `never` - statement returns no rows
+	const none = db.execute<never>(`insert into t values (1)`);
+	Expect<Equal<AsEffect<typeof none>, Raw<EffectPgQueryResult<never>>>>;
+
+	// `'unknown'` - any response (default)
+	const unknownRows = db.execute<'unknown'>(`select 1 as id, 'a' as name`);
+	Expect<Equal<AsEffect<typeof unknownRows>, Raw<EffectPgQueryResult<Record<string, unknown>>>>>;
+
+	// @ts-expect-error - rows must be objects
+	db.execute<number>(`select 1 as id, 'a' as name`);
+
+	// concrete shape - rows of given shape
+	const typed = db.execute<UserInterface>(`select 1 as id, 'a' as name`);
+	Expect<Equal<AsEffect<typeof typed>, Raw<EffectPgQueryResult<UserInterface>>>>;
 }

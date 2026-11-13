@@ -133,7 +133,7 @@ export const getWeightedIndices = (weights: number[], accuracy = 100) => {
 	const weightedIndices: number[] = [];
 	for (const [index, weight] of weights.entries()) {
 		const ticketsNumb = Math.floor(weight * accuracy);
-		weightedIndices.push(...Array.from<number>({ length: ticketsNumb }).fill(index));
+		weightedIndices.push(...new Array<number>(ticketsNumb).fill(index));
 	}
 
 	return weightedIndices;
@@ -158,7 +158,7 @@ export const fillTemplate = ({ template, placeholdersCount, values, defaultValue
 
 	const diff = placeholdersCount - values.length;
 	if (diff > 0) {
-		values.unshift(...Array.from<string>({ length: diff }).fill(defaultValue));
+		values.unshift(...new Array<string>(diff).fill(defaultValue));
 	}
 
 	let resultStr = '', valueIdx = 0;
@@ -198,7 +198,8 @@ export const isValidDate = (date: Date) => {
 // 	}
 // 	console.timeEnd('range');
 
-// 	const list = Array.from({ length: 2e6 + 1 }, (_, idx) => idx);
+// 	const list: number[] = new Array(2e6 + 1);
+// 	for (let idx = 0; idx < list.length; idx++) list[idx] = idx;
 
 // 	console.time('list');
 // 	console.log(list.length);

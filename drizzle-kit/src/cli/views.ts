@@ -370,10 +370,9 @@ export const psqlExplain = (st: StatementPostgres) => {
 	}
 
 	if (st.type === 'regrant_privilege') {
-		const { privilege, diff } = st;
+		const { diff } = st;
 
-		const key = `${privilege.name}`;
-		title += `${key} privilege changed:`;
+		title += `privilege changed:`;
 		if (diff.grantee) cause += `│ grantee: [${diff.grantee.from}] -> [${diff.grantee.to}]\n`;
 		if (diff.grantor) cause += `│ grantor: [${diff.grantor.from}] -> [${diff.grantor.to}]\n`;
 		if (diff.isGrantable) cause += `│ isGrantable: [${diff.isGrantable.from}] -> [${diff.isGrantable.to}]\n`;
@@ -508,8 +507,8 @@ export const cockroachExplain = (st: StatementCockroach) => {
 		if (d.columns) cause += `│ columns: [${d.columns.from.join(',')}] -> [${d.columns.to.join(',')}]\n`;
 	}
 
-	if (st.type === 'recreate_view') {
-		const { from, to } = st;
+	if (st.type === 'drop_view' && st.cause) {
+		const { view: from, cause: to } = st;
 
 		const key = `${to.schema}.${to.name}`;
 		title += `${key} view changed:`;
@@ -1459,7 +1458,6 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 			| 'default'
 			| 'sequence'
 			| 'view'
-			| 'privilege'
 			| 'policy'
 			| 'role'
 			| 'check'

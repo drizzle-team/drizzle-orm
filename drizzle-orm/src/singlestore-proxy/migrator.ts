@@ -8,8 +8,8 @@ import type { SingleStoreRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: SingleStoreRemoteDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: SingleStoreRemoteDatabase<TRelations>,
 	callback: ProxyMigrator,
 	config: MigrationConfig,
 ): Promise<void | MigratorInitFailResponse> {

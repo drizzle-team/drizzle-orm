@@ -22,5 +22,6 @@
 		"**/.turbo/**": true,
 		"**/.rollup.cache/**": true,
 		"**/dist-dts/**": true
-	}
+	},
+	"js/ts.tsdk.path": "node_modules/typescript/lib"
 }

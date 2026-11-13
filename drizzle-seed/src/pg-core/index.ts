@@ -3,9 +3,9 @@ import { Relations } from 'drizzle-orm/_relations';
 import type { PgAsyncDatabase, PgColumn, PgSchema } from 'drizzle-orm/pg-core';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { getSchemaInfo } from '../common.ts';
-import { SeedService } from '../SeedService.ts';
+import { seedDialect } from '../seedPlan.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column } from '../types/tables.ts';
+import type { Column, SeedRelations } from '../types/tables.ts';
 
 // Postgres-----------------------------------------------------------------------------------------------------------
 export const resetPostgres = async (
@@ -51,45 +51,21 @@ export const seedPostgres = async (
 			| Relations
 			| any;
 	},
-	options: { count?: number; seed?: number; version?: number } = {},
+	options: { count?: number; seed?: number; version?: number; relations?: SeedRelations; dryRun?: boolean } = {},
 	refinements?: RefinementsType,
 ) => {
-	const seedService = new SeedService();
-
 	const { pgSchema, pgTables } = filterPgSchema(schema);
+	const { tables, relations } = getSchemaInfo(pgSchema, pgTables, mapPgColumns, options.relations);
 
-	const { tables, relations } = getSchemaInfo(pgSchema, pgTables, mapPgColumns);
-	// const { tables, relations } = getPostgresInfo(pgSchema, pgTables);
-	const generatedTablesGenerators = seedService.generatePossibleGenerators(
-		'postgresql',
+	return await seedDialect({
+		connectionType: 'postgresql',
+		db,
+		drizzleTables: pgTables,
 		tables,
 		relations,
-		refinements,
 		options,
-	);
-
-	const preserveCyclicTablesData = relations.some((rel) => rel.isCyclic === true);
-
-	const tablesValues = await seedService.generateTablesValues(
-		relations,
-		generatedTablesGenerators,
-		db,
-		pgTables,
-		{ ...options, preserveCyclicTablesData },
-	);
-
-	const { filteredTablesGenerators, tablesUniqueNotNullColumn } = seedService.filterCyclicTables(
-		generatedTablesGenerators,
-	);
-	const updateDataInDb = filteredTablesGenerators.length === 0 ? false : true;
-
-	await seedService.generateTablesValues(
-		relations,
-		filteredTablesGenerators,
-		db,
-		pgTables,
-		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
-	);
+		refinements,
+	});
 };
 
 const getTypeParams = (sqlType: string) => {

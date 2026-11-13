@@ -23,12 +23,13 @@ type WriteResultConfigBase = {
 	bundle?: boolean;
 	dialect?: string;
 	driver?: Driver;
-	renames: string[];
+	renames?: string[];
 	snapshots: string[];
+	parentFolders?: string[];
 };
 
 export function writeResult(
-	config: WriteResultConfigBase & { type: 'introspect' },
+	config: WriteResultConfigBase & { type: 'introspect'; init: boolean },
 ): { snapshotPath: string; migrationPath: string };
 export function writeResult(
 	config: WriteResultConfigBase & { type?: 'custom' | 'none' },
@@ -36,7 +37,12 @@ export function writeResult(
 	| { status: 'no_changes'; dialect: string | undefined }
 	| { status: 'ok'; dialect: string | undefined; migration_path: string };
 export function writeResult(
-	config: WriteResultConfigBase & { type?: 'introspect' | 'custom' | 'none' },
+	config:
+		& WriteResultConfigBase
+		& (
+			| { type: 'introspect'; init: boolean }
+			| { type?: 'custom' | 'none'; init?: never }
+		),
 ) {
 	const {
 		snapshot,
@@ -47,9 +53,11 @@ export function writeResult(
 		renames,
 		bundle = false,
 		type = 'none',
+		init,
 		dialect,
 		driver,
 		snapshots,
+		parentFolders,
 	} = config;
 	const json = outputFormat() === 'json';
 
@@ -60,9 +68,9 @@ export function writeResult(
 		}
 	}
 
-	const { tag } = prepareMigrationMetadata(name);
+	const { tag } = prepareMigrationMetadata(name, parentFolders);
 
-	snapshot.renames = renames;
+	if (renames && 'renames' in snapshot) snapshot.renames = renames;
 
 	fs.mkdirSync(join(outFolder, tag));
 	fs.writeFileSync(
@@ -73,7 +81,7 @@ export function writeResult(
 	const sqlDelimiter = breakpoints ? BREAKPOINT : '\n';
 	let sql = sqlStatements.join(sqlDelimiter);
 
-	if (type === 'introspect') {
+	if (type === 'introspect' && !init) {
 		sql =
 			`-- Current sql file was generated after introspecting the database\n-- If you want to run this migration please uncomment this code before executing migrations\n/*\n${sql}\n*/`;
 	}
@@ -139,9 +147,11 @@ export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {
 	return content;
 };
 
+// Builds the time prefix of a migration folder name. The prefix is in UTC, because the drizzle-orm migrator
+// reads it back as a UTC time.
 export const prepareSnapshotFolderName = (ms?: number) => {
 	const now = ms ? new Date(ms) : new Date();
-	return `${now.getFullYear()}${two(now.getUTCMonth() + 1)}${
+	return `${now.getUTCFullYear()}${two(now.getUTCMonth() + 1)}${
 		two(
 			now.getUTCDate(),
 		)
@@ -150,6 +160,11 @@ export const prepareSnapshotFolderName = (ms?: number) => {
 			now.getUTCSeconds(),
 		)
 	}`;
+};
+
+export const snapshotFolderTime = (folder: string) => {
+	const match = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(folder);
+	return match ? Date.UTC(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +match[6]) : 0;
 };
 
 const two = (input: number): string => {

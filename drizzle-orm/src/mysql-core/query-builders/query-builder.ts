@@ -11,6 +11,9 @@ import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'MySqlQueryBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private dialect: MySqlDialect | undefined;
 	private dialectConfig: MySqlDialectConfig | undefined;
@@ -34,7 +37,7 @@ export class QueryBuilder {
 
 			return new Proxy(
 				new WithSubquery(
-					('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL(),
+					qb.getSQL(),
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,

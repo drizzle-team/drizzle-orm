@@ -7,15 +7,15 @@ import {
 } from '@aws-sdk/client-rds-data';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
-import { getValueFromDataApi, toValueParam } from '../common/index.ts';
+import { getValueFromDataApi, toSqlParameter } from '../common/index.ts';
 
 export type AwsDataApiClient = RDSDataClient;
 
@@ -25,6 +25,7 @@ export interface AwsDataApiSessionOptions {
 	database: string;
 	resourceArn: string;
 	secretArn: string;
+	paramsInErrors?: boolean;
 }
 
 interface AwsDataApiQueryBase {
@@ -67,20 +68,14 @@ export class AwsDataApiSession<
 		mode: 'arrays' | 'objects' | 'raw',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const executor = async (params?: unknown[]) => {
 			const command = new ExecuteStatementCommand({
 				sql: query.sql,
 				parameters: params
-					? params.map((param, index) => ({
-						name: `${index + 1}`,
-						value: toValueParam(param),
-					}))
+					? params.map((param, index) => toSqlParameter(`${index + 1}`, param))
 					: [],
 				secretArn: this.options.secretArn,
 				resourceArn: this.options.resourceArn,
@@ -139,6 +134,7 @@ export class AwsDataApiSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -169,7 +165,7 @@ export class AwsDataApiSession<
 			await this.client.send(new CommitTransactionCommand({ ...this.rawQuery, transactionId }));
 			return result;
 		} catch (e) {
-			await this.client.send(new RollbackTransactionCommand({ ...this.rawQuery, transactionId }));
+			await this.client.send(new RollbackTransactionCommand({ ...this.rawQuery, transactionId })).catch(() => {});
 			throw e;
 		}
 	}
@@ -197,7 +193,7 @@ export class AwsDataApiTransaction<
 			await this.session.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (e) {
-			await this.session.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw e;
 		}
 	}
@@ -206,5 +202,5 @@ export class AwsDataApiTransaction<
 export type AwsDataApiPgQueryResult<T> = ExecuteStatementCommandOutput & { rows: T[] };
 
 export interface AwsDataApiPgQueryResultHKT extends PgQueryResultHKT {
-	type: AwsDataApiPgQueryResult<this['row']>;
+	type: AwsDataApiPgQueryResult<PgRawRow<this['row']>>;
 }

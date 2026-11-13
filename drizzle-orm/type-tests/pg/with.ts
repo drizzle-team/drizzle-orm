@@ -102,10 +102,28 @@ import { db } from './db.ts';
 		db.insert(products).values({ productName: sql`` }).returning({ productName: products.productName }),
 	);
 
+	Expect<Equal<{}, (typeof sq1)['_']['selectedFields']>>;
+
 	// @ts-expect-error
 	db.with(sq1).select().from(sq1);
 	// @ts-expect-error
 	db.with(sq1).select().from(providers).leftJoin(sq1, sql``);
+	// @ts-expect-error
+	db.with(sq1).select().from(providers).innerJoin(sq1, sql``);
+	// @ts-expect-error
+	db.with(sq1).select().from(providers).rightJoin(sq1, sql``);
+	// @ts-expect-error
+	db.with(sq1).select().from(providers).fullJoin(sq1, sql``);
+	// @ts-expect-error
+	db.with(sq1).select().from(providers).crossJoin(sq1);
+	// @ts-expect-error
+	db.with(sq1).select().from(providers).leftJoinLateral(sq1, sql``);
+	// @ts-expect-error
+	db.with(sq1).select().from(providers).crossJoinLateral(sq1);
+	// @ts-expect-error
+	db.with(sq1).update(products).set({ productName: sql`` }).from(sq1);
+	// @ts-expect-error
+	db.with(sq1).update(products).set({ productName: sql`` }).from(providers).leftJoin(sq1, sql``);
 
 	const q3 = await db.with(sq2).select().from(sq2);
 	Expect<
@@ -165,6 +183,8 @@ import { db } from './db.ts';
 	const sq4 = db.$with('updated_products').as(
 		db.update(products).set({ productName: sql`` }).from(otherProducts).returning(),
 	);
+
+	Expect<Equal<{}, (typeof sq1)['_']['selectedFields']>>;
 
 	// @ts-expect-error
 	db.with(sq1).select().from(sq1);
@@ -264,6 +284,8 @@ import { db } from './db.ts';
 	const sq3 = db.$with('inserted_products').as(
 		db.delete(products).returning({ productName: products.productName }),
 	);
+
+	Expect<Equal<{}, (typeof sq1)['_']['selectedFields']>>;
 
 	// @ts-expect-error
 	db.with(sq1).select().from(sq1);

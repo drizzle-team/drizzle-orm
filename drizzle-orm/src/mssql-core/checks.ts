@@ -1,9 +1,12 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { MsSqlTable } from './table.ts';
 
 export class CheckBuilder {
 	static readonly [entityKind]: string = 'MsSqlCheckBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected brand!: 'MsSqlConstraintBuilder';
 
@@ -17,6 +20,9 @@ export class CheckBuilder {
 
 export class Check {
 	static readonly [entityKind]: string = 'MsSqlCheck';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly name: string;
 	readonly value: SQL;

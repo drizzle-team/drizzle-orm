@@ -63,6 +63,7 @@ export const make = Effect.fn('MySqlDrizzle.make')(
 		const session = new EffectMysql2Session(client, dialect, relations, {
 			logger,
 			cache,
+			paramsInErrors: config.paramsInErrors,
 		});
 		const db = new EffectMysql2Database(dialect, session, relations) as EffectMysql2Database<TRelations>;
 		(<any> db).$client = client;

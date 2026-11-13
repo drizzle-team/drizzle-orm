@@ -1,11 +1,9 @@
 import type { CockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
-import { parseEWKB } from './utils.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig, CockroachColumnBuilder } from './common.ts';
 
-export class CockroachGeometryBuilder extends CockroachColumnWithArrayBuilder<{
+export class CockroachGeometryBuilder extends CockroachColumnBuilder<{
 	dataType: 'array geometry';
 	data: [number, number];
 	driverParam: string;
@@ -26,10 +24,13 @@ export class CockroachGeometryBuilder extends CockroachColumnWithArrayBuilder<{
 	}
 }
 
-export class CockroachGeometry<T extends ColumnBaseConfig<'array geometry'>>
-	extends CockroachColumn<T, { srid: number | undefined }>
+export class CockroachGeometry<T extends CockroachColumnBaseConfig<'array geometry'>>
+	extends CockroachColumn<'array geometry', T, { srid: number | undefined }>
 {
 	static override readonly [entityKind]: string = 'CockroachGeometry';
+
+	/** @internal */
+	override readonly codec = 'geometry';
 
 	readonly srid = this.config.srid;
 	readonly mode = 'tuple';
@@ -38,18 +39,12 @@ export class CockroachGeometry<T extends ColumnBaseConfig<'array geometry'>>
 		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
 	}
 
-	override mapFromDriverValue = (value: string | [number, number]): [number, number] => {
-		if (typeof value !== 'string') return value as [number, number];
-
-		return parseEWKB(value).point;
-	};
-
 	override mapToDriverValue = (value: [number, number]): string => {
 		return `point(${value[0]} ${value[1]})`;
 	};
 }
 
-export class CockroachGeometryObjectBuilder extends CockroachColumnWithArrayBuilder<{
+export class CockroachGeometryObjectBuilder extends CockroachColumnBuilder<{
 	dataType: 'object geometry';
 	data: { x: number; y: number };
 	driverParam: string;
@@ -70,10 +65,13 @@ export class CockroachGeometryObjectBuilder extends CockroachColumnWithArrayBuil
 	}
 }
 
-export class CockroachGeometryObject<T extends ColumnBaseConfig<'object geometry'>>
-	extends CockroachColumn<T, { srid: number | undefined }>
+export class CockroachGeometryObject<T extends CockroachColumnBaseConfig<'object geometry'>>
+	extends CockroachColumn<'object geometry', T, { srid: number | undefined }>
 {
 	static override readonly [entityKind]: string = 'CockroachGeometryObject';
+
+	/** @internal */
+	override readonly codec = 'geometry:xy';
 
 	readonly srid = this.config.srid;
 	readonly mode = 'object';
@@ -81,11 +79,6 @@ export class CockroachGeometryObject<T extends ColumnBaseConfig<'object geometry
 	getSQLType(): string {
 		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
 	}
-
-	override mapFromDriverValue = (value: string): { x: number; y: number } => {
-		const parsed = parseEWKB(value);
-		return { x: parsed.point[0], y: parsed.point[1] };
-	};
 
 	override mapToDriverValue = (value: { x: number; y: number }): string => {
 		return `point(${value.x} ${value.y})`;

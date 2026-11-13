@@ -15,8 +15,9 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
+import { type AllTypes, allTypesData, allTypesTable } from './all-types';
 import type { Test } from './instrumentation';
-import { allTypesTable, createCitiesTable, createUsers2Table } from './schema2';
+import { createCitiesTable, createUsers2Table } from './schema2';
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.beforeEach(async ({ task, skip }) => {
@@ -135,141 +136,97 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
 	});
 
+	test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
+		let counter = 0;
+		const table = mysqlTable('on_update_call_test', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+			inc: int('inc').$onUpdateFn(() => counter++),
+		});
+
+		await push({ table });
+
+		await db.insert(table).values({ id: 1, name: 'First', inc: 0 });
+		expect(counter).toStrictEqual(0);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'First', inc: 0 }]);
+
+		await db.update(table).set({ name: 'Second', inc: null });
+		expect(counter).toStrictEqual(0);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Second', inc: null }]);
+
+		await db.update(table).set({ name: 'Third', inc: 10 });
+		expect(counter).toStrictEqual(0);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Third', inc: 10 }]);
+
+		await db.update(table).set({ name: 'Fourth' });
+		expect(counter).toStrictEqual(1);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Fourth', inc: 0 }]);
+
+		await db.update(table).set({ name: 'Fifth' });
+		expect(counter).toStrictEqual(2);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([{ id: 1, name: 'Fifth', inc: 1 }]);
+
+		await db.insert(table).values({ id: 2, name: 'Second' });
+		expect(counter).toStrictEqual(3);
+		expect(await db.select().from(table).orderBy(asc(table.id))).toStrictEqual([
+			{ id: 1, name: 'Fifth', inc: 1 },
+			{ id: 2, name: 'Second', inc: 2 },
+		]);
+	});
+
+	test.concurrent('db.execute modes', async ({ db, push }) => {
+		const users = mysqlTable('users_execute_modes_1', (t) => ({
+			id: t.int().primaryKey(),
+			name: t.text().notNull(),
+		}));
+
+		await push({ users });
+
+		await db.insert(users).values([
+			{
+				id: 1,
+				name: 'First',
+			},
+			{
+				id: 2,
+				name: 'Second',
+			},
+		]);
+
+		const rObj = await db.execute<{ id: number; name: string }>(
+			sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+			'objects',
+		);
+		const rArr = await db.execute<[number, string]>(
+			sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+			'arrays',
+		);
+
+		expectTypeOf(rObj).toEqualTypeOf<{ id: number; name: string }[]>();
+		expectTypeOf(rArr).toEqualTypeOf<[number, string][]>();
+
+		expect(rObj).toStrictEqual([
+			{
+				id: 1,
+				name: 'First',
+			},
+			{
+				id: 2,
+				name: 'Second',
+			},
+		]);
+		expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
+	});
+
 	test.concurrent('all types', async ({ db, push }) => {
 		await push({ allTypesTable });
 
-		await db.insert(allTypesTable).values({
-			serial: 1,
-			bigint53: 9007199254740991,
-			bigint64: 5044565289845416380n,
-			bigintString: '5044565289845416380',
-			binary: '1',
-			boolean: true,
-			char: 'c',
-			date: new Date('2025-03-12T00:00:00.000Z'),
-			dateStr: '2025-03-12',
-			datetime: new Date('2025-03-12T01:32:42.000Z'),
-			datetimeStr: '2025-03-12 01:32:41',
-			decimal: '47521',
-			decimalNum: 9007199254740991,
-			decimalBig: 5044565289845416380n,
-			double: 15.35325689124218,
-			enum: 'enV1',
-			float: 1.048596,
-			real: 1.048596,
-			text: 'C4-',
-			int: 621,
-			json: {
-				str: 'strval',
-				arr: ['str', 10],
-			},
-			medInt: 560,
-			smallInt: 14,
-			time: '04:13:22',
-			timestamp: new Date('2025-03-12T01:32:42.000Z'),
-			timestampStr: '2025-03-12 01:32:41',
-			tinyInt: 7,
-			varbin: '1010110101001101',
-			varchar: 'VCHAR',
-			year: 2025,
-			blob: Buffer.from('string'),
-			longblob: Buffer.from('string'),
-			mediumblob: Buffer.from('string'),
-			tinyblob: Buffer.from('string'),
-			stringblob: 'string',
-			stringlongblob: 'string',
-			stringmediumblob: 'string',
-			stringtinyblob: 'string',
-		});
+		await db.insert(allTypesTable).values(allTypesData);
 
 		const rawRes = await db.select().from(allTypesTable);
 
-		type ExpectedType = {
-			serial: number;
-			bigint53: number | null;
-			bigint64: bigint | null;
-			bigintString: string | null;
-			binary: string | null;
-			boolean: boolean | null;
-			char: string | null;
-			date: Date | null;
-			dateStr: string | null;
-			datetime: Date | null;
-			datetimeStr: string | null;
-			decimal: string | null;
-			decimalNum: number | null;
-			decimalBig: bigint | null;
-			double: number | null;
-			float: number | null;
-			int: number | null;
-			json: unknown;
-			medInt: number | null;
-			smallInt: number | null;
-			real: number | null;
-			text: string | null;
-			time: string | null;
-			timestamp: Date | null;
-			timestampStr: string | null;
-			tinyInt: number | null;
-			varbin: string | null;
-			varchar: string | null;
-			year: number | null;
-			enum: 'enV1' | 'enV2' | null;
-			blob: Buffer | null;
-			tinyblob: Buffer | null;
-			mediumblob: Buffer | null;
-			longblob: Buffer | null;
-			stringblob: string | null;
-			stringtinyblob: string | null;
-			stringmediumblob: string | null;
-			stringlongblob: string | null;
-		}[];
-
-		const expectedRes: ExpectedType = [
-			{
-				serial: 1,
-				bigint53: 9007199254740991,
-				bigint64: 5044565289845416380n,
-				bigintString: '5044565289845416380',
-				binary: '1',
-				boolean: true,
-				char: 'c',
-				date: new Date('2025-03-12T00:00:00.000Z'),
-				dateStr: '2025-03-12',
-				datetime: new Date('2025-03-12T01:32:42.000Z'),
-				datetimeStr: '2025-03-12 01:32:41',
-				decimal: '47521',
-				decimalNum: 9007199254740991,
-				decimalBig: 5044565289845416380n,
-				double: 15.35325689124218,
-				float: 1.048596,
-				int: 621,
-				json: { arr: ['str', 10], str: 'strval' },
-				medInt: 560,
-				smallInt: 14,
-				real: 1.048596,
-				text: 'C4-',
-				time: '04:13:22',
-				timestamp: new Date('2025-03-12T01:32:42.000Z'),
-				timestampStr: '2025-03-12 01:32:41',
-				tinyInt: 7,
-				varbin: '1010110101001101',
-				varchar: 'VCHAR',
-				year: 2025,
-				enum: 'enV1',
-				blob: Buffer.from('string'),
-				longblob: Buffer.from('string'),
-				mediumblob: Buffer.from('string'),
-				tinyblob: Buffer.from('string'),
-				stringblob: 'string',
-				stringlongblob: 'string',
-				stringmediumblob: 'string',
-				stringtinyblob: 'string',
-			},
-		];
-
-		expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
-		expect(rawRes).toStrictEqual(expectedRes);
+		expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+		expect(rawRes).toStrictEqual([allTypesData]);
 	});
 
 	test.concurrent('insert into ... select', async ({ db, push }) => {
@@ -1021,5 +978,38 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expect(tableConf.columns.find((it) => it.name === 'id')!.uniqueName).toBe(undefined);
 		expect(tableConf.columns.find((it) => it.name === 'id1')!.uniqueName).toBe('custom_name');
+	});
+
+	test.concurrent('Default value priority', async ({ db, push }) => {
+		const exTbl = mysqlTable('no_default_override', {
+			id: int('id').primaryKey(),
+			defSql: int('def_sql').default(sql`1`),
+			defNum: int('def_num').default(1),
+			defFn: int('def_fn').$defaultFn(() => 1),
+			defUpdFn: int('def_upd_fn').$onUpdateFn(() => 1),
+			defMix1: int('def_mix1').default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+			defMix2: int('def_mix2').$defaultFn(() => 2).$onUpdateFn(() => 3),
+			defMix3: int('def_mix3').default(1).$defaultFn(() => 2),
+			defMix4: int('def_mix4').default(sql`1`).$onUpdateFn(() => 3),
+		});
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${exTbl};`);
+		await push({ exTbl });
+
+		await db.insert(exTbl).values({ id: 1 });
+
+		const res = await db.select().from(exTbl);
+
+		expect(res).toStrictEqual([{
+			id: 1,
+			defSql: 1,
+			defNum: 1,
+			defFn: 1,
+			defUpdFn: 1,
+			defMix1: 2,
+			defMix2: 2,
+			defMix3: 2,
+			defMix4: 1,
+		}]);
 	});
 }

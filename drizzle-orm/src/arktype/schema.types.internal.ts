@@ -1,9 +1,9 @@
 import type { Type, type } from 'arktype';
 import type { Column } from '~/column.ts';
 import type { SelectedFieldsFlat } from '~/operations.ts';
-import type { View } from '~/sql/sql.ts';
 import type { Table } from '~/table.ts';
 import type { DrizzleTypeError, Simplify } from '~/utils.ts';
+import type { View } from '~/view.ts';
 import type { ColumnIsGeneratedAlwaysAs, GetSelection } from '../utils.ts';
 import type { ArktypeNullable, ArktypeOptional, GetArktypeType, HandleColumn } from './column.types.ts';
 

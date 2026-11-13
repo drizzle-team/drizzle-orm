@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { CockroachColumn } from './columns/index.ts';
 import type { CockroachTable } from './table.ts';
 
@@ -8,6 +8,9 @@ export function unique(name?: string): UniqueOnConstraintBuilder {
 
 export class UniqueConstraintBuilder {
 	static readonly [entityKind]: string = 'CockroachUniqueConstraintBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	columns: CockroachColumn[];
@@ -27,6 +30,9 @@ export class UniqueConstraintBuilder {
 
 export class UniqueOnConstraintBuilder {
 	static readonly [entityKind]: string = 'CockroachUniqueOnConstraintBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	name?: string;
@@ -44,6 +50,9 @@ export class UniqueOnConstraintBuilder {
 
 export class UniqueConstraint {
 	static readonly [entityKind]: string = 'CockroachUniqueConstraint';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly columns: CockroachColumn[];
 	readonly name?: string;

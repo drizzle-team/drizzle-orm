@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { PgRole } from './roles.ts';
 import type { PgTable } from './table.ts';
@@ -22,6 +22,9 @@ export interface PgPolicyConfig {
 
 export class PgPolicy implements PgPolicyConfig {
 	static readonly [entityKind]: string = 'PgPolicy';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly as: PgPolicyConfig['as'];
 	readonly for: PgPolicyConfig['for'];

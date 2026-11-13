@@ -1,0 +1,430 @@
+import { sql } from 'drizzle-orm';
+import { integer, pgEnum, pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
+import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
+import { fromJson } from 'src/dialects/postgres/convertor';
+import { interimToDDL } from 'src/dialects/postgres/ddl';
+import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import type { DB } from 'src/utils';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { mutations, PAIRS, parent } from './commutativity-fixtures';
+import matrixData from './commutativity-matrix.json';
+import { build, type NeededObject, rows } from './commutativity-statements';
+import { diff, prepareTestDatabase } from './mocks';
+
+// Verifies the footprint rules of `postgresCommutativity` against a real database. A pair of branches commutes when
+// postgres runs their SQL in both orders and both orders end at the same schema. The tests run the fork scenarios
+// of `commutativity-fixtures.ts`, column changes from the real diff, and every cell of `commutativity-matrix.json`.
+// A matrix cell where the rules and postgres disagree must be in `knownExceptions`. The database is PGlite, or
+// the postgres server that `PG_VERSION` selects.
+
+type Outcome = { ok: true; hash: string } | { ok: false; error: string };
+
+let db: DB;
+let clear: () => Promise<void>;
+
+const introspectHash = async (): Promise<string> => {
+	const filter = prepareEntityFilter('postgresql', {
+		tables: [],
+		schemas: ['public', 'archive'],
+		entities: undefined,
+		extensions: [],
+	}, []);
+	const schema = await fromDatabaseForDrizzle(db, filter, () => true, {
+		schema: 'drizzle',
+		table: '__drizzle_migrations',
+	});
+	const { ddl } = interimToDDL(schema);
+	// Canonical text of the introspected entities: order- and key-order-independent.
+	return JSON.stringify(
+		ddl.entities.list().map((e: any) =>
+			JSON.stringify(Object.fromEntries(Object.entries(e).sort(([a], [b]) => a.localeCompare(b))))
+		).sort(),
+	);
+};
+
+/** Apply `first` then `second`, both authored against the fork, and report where we land. */
+const applyBoth = async (parentSql: string[], first: string[], second: string[]): Promise<Outcome> => {
+	await clear();
+	try {
+		for (const sql of [...parentSql, ...first, ...second]) await db.query(sql);
+	} catch (e) {
+		return { ok: false, error: e instanceof Error ? e.message.split('\n')[0]! : String(e) };
+	}
+	return { ok: true, hash: await introspectHash() };
+};
+
+const sqlCache = new Map<string, string[]>();
+const sqlFor = async (name: string): Promise<string[]> => {
+	if (!sqlCache.has(name)) sqlCache.set(name, (await diff(parent, mutations[name], [])).sqlStatements);
+	return sqlCache.get(name)!;
+};
+
+beforeAll(async () => {
+	const prepared = await prepareTestDatabase();
+	db = prepared.db;
+	clear = prepared.clear;
+});
+
+afterAll(async () => {
+	await clear?.();
+});
+
+describe('footprint model vs a real database', () => {
+	test('report', async () => {
+		const parentSql = (await diff({}, parent, [])).sqlStatements;
+		const falseNegatives: string[] = [];
+
+		for (const { a, b, name } of PAIRS) {
+			const [sa, sb] = [await sqlFor(a), await sqlFor(b)];
+
+			const ab = await applyBoth(parentSql, sa, sb);
+			const ba = await applyBoth(parentSql, sb, sa);
+			const commutes = ab.ok && ba.ok && ab.hash === ba.hash;
+
+			const footprintsA = (await diff(parent, mutations[a], [])).footprints;
+			const footprintsB = (await diff(parent, mutations[b], [])).footprints;
+			const found = postgresCommutativity.findConflict(footprintsA, footprintsB);
+			if (!found && !commutes) falseNegatives.push(name);
+		}
+
+		expect(falseNegatives, 'pairs that the rules call commutative and postgres rejects').toEqual([]);
+	}, 600_000);
+});
+
+describe('the same change on two branches, against a real database', () => {
+	const t = (id: any) => ({ t: pgTable('t', { id }) });
+	// The SQL of each change in `cases` fails when it runs a second time, so the rules must report the same
+	// change on two branches as a conflict.
+	const cases = {
+		'an identity is added': [t(integer().notNull()), t(integer().generatedAlwaysAsIdentity())],
+		'an identity is dropped': [t(integer().generatedAlwaysAsIdentity()), t(integer().notNull())],
+		'a generated expression is dropped': [t(integer().generatedAlwaysAs(sql`1`)), t(integer())],
+		'an integer becomes a serial': [t(integer().notNull()), t(serial())],
+		'a serial becomes an integer': [t(serial()), t(integer().notNull())],
+	};
+
+	test.each(Object.entries(cases))('%s: the SQL fails on the second run, and the rules report a conflict', async (
+		_,
+		[from, to],
+	) => {
+		const base = (await diff({}, from, [])).sqlStatements;
+		const { sqlStatements, footprints } = await diff(from, to, []);
+
+		expect(footprints.map((it) => it.statementType)).toStrictEqual(['alter_column']);
+		expect(await applyBoth(base, sqlStatements, [])).toMatchObject({ ok: true });
+		expect(await applyBoth(base, sqlStatements, sqlStatements)).toMatchObject({ ok: false });
+		expect(postgresCommutativity.findConflict(footprints, structuredClone(footprints))).toBeDefined();
+	});
+});
+
+// These cases take the statements and the SQL from the real diff, so they cover what generate writes for a
+// change of one column on each branch.
+describe('changes of one column on two branches vs a real database', () => {
+	const mood = pgEnum('mood', ['ok', 'sad']);
+	const feeling = pgEnum('feeling', ['ok', 'sad']);
+	// `moodWithoutSad` removes the value `sad`, so the diff drops the enum `mood` and creates it again.
+	const moodWithoutSad = pgEnum('mood', ['ok']);
+	const t = (column: Record<string, any>, extra: Record<string, unknown> = {}) => ({
+		...extra,
+		t: pgTable('t', column),
+	});
+	const expression = sql`'x'`;
+	const renameMood = ['public.mood->public.feeling'];
+
+	// `rules` is the expected verdict of the footprint rules, and `postgres` is the expected verdict of the
+	// database. `true` means that the two changes commute.
+	const cases: {
+		name: string;
+		base: Record<string, unknown>;
+		a: Record<string, unknown>;
+		b: Record<string, unknown>;
+		renames?: string[];
+		rules: boolean;
+		postgres: boolean;
+	}[] = [
+		{
+			name: 'NOT NULL and the default',
+			base: t({ c: varchar() }),
+			a: t({ c: varchar().notNull() }),
+			b: t({ c: varchar().default('x') }),
+			rules: true,
+			postgres: true,
+		},
+		{
+			name: 'NOT NULL and the type',
+			base: t({ c: varchar() }),
+			a: t({ c: varchar().notNull() }),
+			b: t({ c: text() }),
+			rules: true,
+			postgres: true,
+		},
+		{
+			name: 'two values of the default',
+			base: t({ c: varchar() }),
+			a: t({ c: varchar().default('x') }),
+			b: t({ c: varchar().default('y') }),
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'the default and the type',
+			base: t({ c: varchar() }),
+			a: t({ c: varchar().default('5') }),
+			b: t({ c: integer() }),
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'NOT NULL and the identity',
+			base: t({ n: integer().notNull() }),
+			a: t({ n: integer() }),
+			b: t({ n: integer().generatedAlwaysAsIdentity() }),
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'the default and the identity',
+			base: t({ n: integer().notNull() }),
+			a: t({ n: integer().notNull().default(1) }),
+			b: t({ n: integer().generatedAlwaysAsIdentity() }),
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'the type and the identity',
+			base: t({ n: integer().notNull() }),
+			a: t({ n: text().notNull() }),
+			b: t({ n: integer().generatedAlwaysAsIdentity() }),
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'NOT NULL and a dropped generation expression',
+			base: t({ g: varchar().notNull().generatedAlwaysAs(expression) }),
+			a: t({ g: varchar().generatedAlwaysAs(expression) }),
+			b: t({ g: varchar().notNull() }),
+			rules: true,
+			postgres: true,
+		},
+		{
+			name: 'NOT NULL on a column of an enum type and a rename of the enum',
+			base: t({ c: mood() }, { mood }),
+			a: t({ c: mood().notNull() }, { mood }),
+			b: t({ c: feeling() }, { feeling }),
+			renames: renameMood,
+			rules: true,
+			postgres: true,
+		},
+		{
+			name: 'the default of a column of an enum type and a rename of the enum',
+			base: t({ c: mood() }, { mood }),
+			a: t({ c: mood().default('ok') }, { mood }),
+			b: t({ c: feeling() }, { feeling }),
+			renames: renameMood,
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'a type change to an enum type and a rename of the enum',
+			base: t({ c: varchar() }, { mood }),
+			a: t({ c: mood() }, { mood }),
+			b: t({ c: varchar() }, { feeling }),
+			renames: renameMood,
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'NOT NULL on a column of an enum type and a removed value of the enum',
+			base: t({ c: mood() }, { mood }),
+			a: t({ c: mood().notNull() }, { mood }),
+			b: t({ c: moodWithoutSad() }, { mood: moodWithoutSad }),
+			rules: true,
+			postgres: true,
+		},
+		{
+			name: 'a type change from an enum type to another enum type and a removed value of the first enum',
+			base: t({ c: mood() }, { mood }),
+			a: t({ c: feeling() }, { mood, feeling }),
+			b: t({ c: moodWithoutSad() }, { mood: moodWithoutSad }),
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'a type change from an enum type to text and a removed value of the enum',
+			base: t({ c: mood() }, { mood }),
+			a: t({ c: text() }, { mood }),
+			b: t({ c: moodWithoutSad() }, { mood: moodWithoutSad }),
+			rules: false,
+			postgres: false,
+		},
+	];
+
+	test.each(cases)('$name', async ({ base, a, b, renames = [], rules, postgres }) => {
+		const baseSql = (await diff({}, base, [])).sqlStatements;
+		const left = await diff(base, a, []);
+		const right = await diff(base, b, renames);
+
+		const ab = await applyBoth(baseSql, left.sqlStatements, right.sqlStatements);
+		const ba = await applyBoth(baseSql, right.sqlStatements, left.sqlStatements);
+		const found = postgresCommutativity.findConflict(left.footprints, right.footprints);
+
+		expect({ rules: !found, postgres: ab.ok && ba.ok && ab.hash === ba.hash }).toStrictEqual({ rules, postgres });
+	});
+});
+
+// The matrix tests below run one statement pair for each matrix cell. `sqlOf` gives the SQL that the
+// convertor emits for the statement of a matrix row, and `baseObjects` gives the SQL that creates each
+// object that a statement can need.
+const sqlOf = (type: string) => fromJson([build(type)]).sqlStatements;
+
+const baseObjects: Record<NeededObject, string[]> = {
+	schema: sqlOf('create_schema'),
+	targetSchema: [`CREATE SCHEMA "s_new";`],
+	table: sqlOf('create_table'),
+	rls: sqlOf('alter_rls'),
+	column: sqlOf('add_column'),
+	referencedTable: [`CREATE TABLE "s"."t2" ("c2" varchar PRIMARY KEY);`],
+	tableWithUnique: [`CREATE TABLE "s"."t3" ("c3" varchar UNIQUE);`],
+	index: sqlOf('create_index'),
+	pk: sqlOf('add_pk'),
+	fk: sqlOf('create_fk'),
+	unique: sqlOf('add_unique'),
+	check: sqlOf('add_check'),
+	enum: sqlOf('create_enum'),
+	enumColumn: sqlOf('add_column:enum'),
+	sequence: sqlOf('create_sequence'),
+	view: sqlOf('create_view'),
+	policy: sqlOf('create_policy'),
+	role: sqlOf('create_role'),
+	privilege: sqlOf('grant_privilege'),
+};
+
+const unenforcedPolicy =
+	'both orders give a policy on a table without row level security, so postgres does not enforce the policy';
+// The mismatches that the matrix test accepts: cells where the rules report a conflict and postgres accepts
+// both orders. Keys are `row x column` in matrix order.
+const knownExceptions: Record<string, string> = {
+	'alter_column:default x alter_column:type':
+		'a type change converts the default, and the rules do not know that the conversion from varchar to text keeps it',
+	'create_policy x alter_rls:disable': unenforcedPolicy,
+	'create_policy:role x alter_rls:disable': unenforcedPolicy,
+	'recreate_column:enum x recreate_enum:column':
+		'both orders end with the same column of the enum type, and the rules do not know that the type conversion '
+		+ 'of recreate_enum and the new ADD COLUMN give the same column',
+};
+
+// Describes everything that a pair can change as sorted text, so that the matrix test can compare the
+// schemas of the two orders. Column order is left out, because two branches that add columns in a different
+// order hold the same schema.
+const fingerprint = async (): Promise<string> => {
+	const [{ facts }] = await db.query<{ facts: string }>(`
+		WITH ns AS (SELECT oid, nspname FROM pg_namespace WHERE nspname IN ('s', 's_new'))
+		SELECT coalesce(json_agg(fact ORDER BY fact), '[]')::text AS facts FROM (
+			SELECT 'schema ' || nspname FROM ns
+			UNION ALL
+			SELECT format('relation %s.%s kind=%s rls=%s acl=%s options=%s', ns.nspname, c.relname, c.relkind,
+				c.relrowsecurity, c.relacl, c.reloptions)
+			FROM pg_class c JOIN ns ON ns.oid = c.relnamespace
+			UNION ALL
+			SELECT format('column %s.%s.%s %s notnull=%s default=%s', ns.nspname, c.relname, a.attname,
+				format_type(a.atttypid, a.atttypmod), a.attnotnull, pg_get_expr(d.adbin, d.adrelid))
+			FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN ns ON ns.oid = c.relnamespace
+			LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+			WHERE a.attnum > 0 AND NOT a.attisdropped
+			UNION ALL
+			SELECT format('constraint %s.%s %s', ns.nspname, co.conname, pg_get_constraintdef(co.oid))
+			FROM pg_constraint co JOIN ns ON ns.oid = co.connamespace
+			UNION ALL
+			SELECT 'index ' || pg_get_indexdef(i.indexrelid)
+			FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid JOIN ns ON ns.oid = c.relnamespace
+			UNION ALL
+			SELECT format('enum %s.%s %s', ns.nspname, t.typname, string_agg(e.enumlabel, ',' ORDER BY e.enumsortorder))
+			FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid JOIN ns ON ns.oid = t.typnamespace
+			GROUP BY ns.nspname, t.typname
+			UNION ALL
+			SELECT format('view %s.%s %s', ns.nspname, c.relname, pg_get_viewdef(c.oid))
+			FROM pg_class c JOIN ns ON ns.oid = c.relnamespace WHERE c.relkind = 'v'
+			UNION ALL
+			SELECT format('sequence %s.%s %s %s %s %s', ns.nspname, c.relname, sq.seqincrement, sq.seqstart, sq.seqmin, sq.seqmax)
+			FROM pg_sequence sq JOIN pg_class c ON c.oid = sq.seqrelid JOIN ns ON ns.oid = c.relnamespace
+			UNION ALL
+			SELECT format('policy %s.%s.%s %s %s %s %s %s', schemaname, tablename, policyname, permissive, roles, cmd, qual,
+				with_check)
+			FROM pg_policies WHERE schemaname IN ('s', 's_new')
+			UNION ALL
+			SELECT format('role %s createdb=%s', rolname, rolcreatedb) FROM pg_roles WHERE rolname IN ('r', 'r_new')
+		) AS facts(fact)`);
+	return facts;
+};
+
+type Run = { ok: true; schema: string } | { ok: false; error: string };
+
+const run = async (sql: string[]): Promise<Run> => {
+	await clear();
+	try {
+		for (const statement of sql) await db.query(statement);
+	} catch (e) {
+		return { ok: false, error: e instanceof Error ? e.message.split('\n').filter(Boolean).at(-1)! : String(e) };
+	}
+	return { ok: true, schema: await fingerprint() };
+};
+
+const catalog = rows();
+const baseFor = (...types: string[]) =>
+	(Object.keys(baseObjects) as NeededObject[])
+		.filter((object) => types.some((type) => catalog[type]!.needs.includes(object)))
+		.flatMap((object) => baseObjects[object]);
+
+describe('matrix cells vs a real database', () => {
+	const { types, matrix, impossible } = matrixData;
+	// `matrix` and `impossible` store each grid row as one string of 0 and 1.
+	const isSet = (grid: string[], i: number, j: number) => grid[i]![j] === '1';
+
+	test('every matrix statement applies to its own base', async () => {
+		const failed: string[] = [];
+		for (const type of types) {
+			const result = await run([...baseFor(type), ...sqlOf(type)]);
+			if (!result.ok) failed.push(`${type}: ${result.error}`);
+		}
+		expect(failed).toEqual([]);
+	});
+
+	test('rules agree with postgres on every possible cell', async () => {
+		const mismatches: Record<string, string> = {};
+		for (let i = 0; i < types.length; i++) {
+			for (let j = i; j < types.length; j++) {
+				if (isSet(impossible, i, j) || isSet(impossible, j, i)) continue;
+				const [a, b] = [types[i]!, types[j]!];
+				const base = baseFor(a, b);
+				const ab = await run([...base, ...sqlOf(a), ...sqlOf(b)]);
+				const ba = await run([...base, ...sqlOf(b), ...sqlOf(a)]);
+
+				const why = !ab.ok
+					? `${a} then ${b} fails: ${ab.error}`
+					: !ba.ok
+					? `${b} then ${a} fails: ${ba.error}`
+					: ab.schema !== ba.schema
+					? 'both orders succeed with different schemas'
+					: 'both orders succeed with the same schema';
+				const postgresCommutes = ab.ok && ba.ok && ab.schema === ba.schema;
+				const rulesCommute = !isSet(matrix, i, j) && !isSet(matrix, j, i);
+				if (postgresCommutes === rulesCommute) continue;
+				// Skips a pair that no real fork point can have. `base` holds what both statements need, so `a`
+				// or `b` alone can fail on it. An example is a drop of an enum that the column of the other
+				// statement uses.
+				if (rulesCommute && !((await run([...base, ...sqlOf(a)])).ok && (await run([...base, ...sqlOf(b)])).ok)) {
+					continue;
+				}
+				mismatches[`${a} x ${b}`] = `rules say ${rulesCommute ? 'commute' : 'conflict'}, postgres: ${why}`;
+			}
+		}
+
+		const unexpected = Object.entries(mismatches).filter(([cell]) => !knownExceptions[cell]).map(([cell, why]) =>
+			`${cell}: ${why}`
+		);
+		const stale = Object.keys(knownExceptions).filter((cell) => !mismatches[cell]);
+		expect(unexpected, 'cells where postgres and the rules disagree').toEqual([]);
+		expect(stale, 'known exceptions that postgres and the rules now agree on').toEqual([]);
+	}, 300_000);
+});

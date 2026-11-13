@@ -1,5 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
-import { vector } from '@electric-sql/pglite/vector';
+import { vector } from '@electric-sql/pglite-pgvector';
 import { drizzle as drizzleNodePostgres } from 'drizzle-orm/node-postgres';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';

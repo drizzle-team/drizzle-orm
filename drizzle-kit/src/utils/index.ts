@@ -165,6 +165,8 @@ export const splitExpressions = (input: string | null): string[] => {
 
 	const expressions: string[] = [];
 	let parenDepth = 0;
+	// ARRAY[...] and subscripts hold commas of their own
+	let bracketDepth = 0;
 	let inSingleQuotes = false;
 	let inDoubleQuotes = false;
 	let currentExpressionStart = 0;
@@ -200,7 +202,11 @@ export const splitExpressions = (input: string | null): string[] => {
 				parenDepth++;
 			} else if (char === ')') {
 				parenDepth = Math.max(0, parenDepth - 1);
-			} else if (char === ',' && parenDepth === 0) {
+			} else if (char === '[') {
+				bracketDepth++;
+			} else if (char === ']') {
+				bracketDepth = Math.max(0, bracketDepth - 1);
+			} else if (char === ',' && parenDepth === 0 && bracketDepth === 0) {
 				expressions.push(input.substring(currentExpressionStart, i).trim());
 				currentExpressionStart = i + 1;
 			}

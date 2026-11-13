@@ -111,7 +111,7 @@ export const fromDatabase = async (
 	});
 
 	const namespacesQuery = db.query<Namespace>(
-		`SELECT oid, nspname as name FROM pg_catalog.pg_namespace WHERE pg_catalog.has_schema_privilege(oid, 'USAGE') ORDER BY pg_catalog.lower(nspname)`,
+		`SELECT oid, nspname as name FROM pg_catalog.pg_namespace ORDER BY pg_catalog.lower(nspname)`,
 	)
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
@@ -538,14 +538,21 @@ export const fromDatabase = async (
 			attnotnull AS "notNull",
 			CASE 
         		WHEN attndims > 0 THEN attndims
-        		WHEN t.typcategory = 'A' THEN 1  -- If it's an array type, default to 1 dimension
+        		-- An array type defaults to 1 dimension. A domain over an array and the vector types of the catalog are in this category too, and their type text has no brackets.
+        		WHEN t.typcategory = 'A' AND pg_catalog.format_type(atttypid, atttypmod) LIKE '%[]' THEN 1
         		ELSE 0
     		END as "dimensions",
 			atttypid as "typeId",
 			attgenerated::text as "generatedType", 
 			attidentity::text as "identityType",
 			pg_catalog.format_type(atttypid, atttypmod) as "type",
-			pg_catalog.pg_get_serial_sequence('"' OPERATOR(pg_catalog.||) "nspname" OPERATOR(pg_catalog.||) '"."' OPERATOR(pg_catalog.||) "relname" OPERATOR(pg_catalog.||) '"', "attname")::regclass::oid as "seqId"
+			(
+				SELECT d.objid FROM pg_catalog.pg_depend d
+				WHERE d.refobjid OPERATOR(pg_catalog.=) attr.attrelid
+					AND d.refobjsubid OPERATOR(pg_catalog.=) attr.attnum
+					AND d.objid IN (SELECT seqrelid FROM pg_catalog.pg_sequence)
+				LIMIT 1
+			) AS "seqId"
 		FROM
 			pg_catalog.pg_attribute attr
 			JOIN pg_catalog.pg_class cls ON cls.oid OPERATOR(pg_catalog.=) attr.attrelid
@@ -668,8 +675,6 @@ export const fromDatabase = async (
 	for (const privilege of privilegesList) {
 		privileges.push({
 			entityType: 'privileges',
-			// TODO: remove name and implement custom pk
-			name: `${privilege.grantor}_${privilege.grantee}_${privilege.schema}_${privilege.table}_${privilege.type}`,
 			grantor: privilege.grantor,
 			grantee: privilege.grantee,
 			schema: privilege.schema,
@@ -728,12 +733,12 @@ export const fromDatabase = async (
 		let columnTypeMapped = enumType ? enumType.name : column.type.replaceAll('[]', '');
 
 		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
+			.replace(/\bcharacter varying\b/, 'varchar')
+			.replace(/ without time zone\b/, '')
 			// .replace(' with time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char')
-			.replace('geometry(Point', 'geometry(point');
+			.replace(/\bcharacter\b/, 'char')
+			.replace(/\bgeometry\(Point\b/, 'geometry(point');
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
@@ -841,26 +846,25 @@ export const fromDatabase = async (
 
 	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
 		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId))!;
-		const schema = namespaces.find((it) => Number(it.oid) === Number(fk.schemaId))!;
 		const tableTo = tablesList.find((it) => Number(it.oid) === Number(fk.tableToId))!;
 
 		const columns = fk.columnsOrdinals.map((it) => {
 			const column = columnsList.find((column) =>
-				Number(column.tableId) === Number(fk.tableId) && column.ordinality === it
+				Number(column.tableId) === Number(table.oid) && column.ordinality === it
 			)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
 			const column = columnsList.find((column) =>
-				Number(column.tableId) === Number(fk.tableToId) && column.ordinality === it
+				Number(column.tableId) === Number(tableTo.oid) && column.ordinality === it
 			)!;
 			return column.name;
 		});
 
 		fks.push({
 			entityType: 'fks',
-			schema: schema.name,
+			schema: table.schema,
 			table: table.name,
 			name: fk.name,
 			nameExplicit: true,
@@ -949,7 +953,7 @@ export const fromDatabase = async (
           pg_index.indexrelid OPERATOR(pg_catalog.=) pg_class.oid
       ) metadata ON TRUE
       WHERE
-        relkind OPERATOR(pg_catalog.=) 'i'
+        relkind OPERATOR(pg_catalog.=) ANY (ARRAY['i', 'I'])
 		AND ${filterByTableIds ? `metadata."tableId" IN ${filterByTableIds}` : 'false'}
 	  ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
     `).then((rows) => {
@@ -1081,10 +1085,10 @@ export const fromDatabase = async (
 		}
 
 		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
+			.replace(/\bcharacter varying\b/, 'varchar')
+			.replace(/ without time zone\b/, '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char')
+			.replace(/\bcharacter\b/, 'char')
 			.replace('geometry(Point)', 'geometry(point)');
 
 		columnTypeMapped += '[]'.repeat(it.dimensions);

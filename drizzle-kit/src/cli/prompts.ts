@@ -38,26 +38,6 @@ const entityId = <K extends RenameCreateHintKind>(
 			}
 			return [entity.schema ?? defaultSchema, entity.table, entity.name] as unknown as IdFor<K>;
 		}
-		case 'privilege': {
-			const record = entity as Record<string, unknown>;
-			const required = (property: string): string => {
-				const value = record[property];
-				if (typeof value !== 'string') {
-					throw new Error(`Expected ${kind} resolver entity to include a string ${property} field`);
-				}
-				return value;
-			};
-			if (typeof entity.table !== 'string') {
-				throw new Error(`Expected ${kind} resolver entity to include a table name`);
-			}
-			return [
-				required('grantor'),
-				required('grantee'),
-				entity.schema ?? defaultSchema,
-				entity.table,
-				required('type'),
-			] as unknown as IdFor<K>;
-		}
 	}
 };
 

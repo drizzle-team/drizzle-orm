@@ -2,7 +2,7 @@ import type * as v from 'valibot';
 import type { ColumnDataConstraint, ColumnDataType, ColumnTypeData, ExtractColumnTypeData } from '~/column-builder.ts';
 import type { Column } from '~/column.ts';
 import type { Assume } from '~/utils.ts';
-import type { HasBaseColumn, Json, RemoveNeverElements } from '../utils.ts';
+import type { Json, RemoveNeverElements } from '../utils.ts';
 import type { bigintStringModeSchema, unsignedBigintStringModeSchema } from './column.ts';
 
 export type ExtractAdditionalProperties<
@@ -18,24 +18,10 @@ type GetLengthAction<T extends Record<string, any>, TType extends string | Array
 	T['fixedLength'] extends true ? v.LengthAction<TType, number, undefined>
 		: v.MaxLengthAction<TType, number, undefined>;
 
-type GetArraySchema<
-	TColumn extends Column,
-	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
-> = GetValibotType<
-	TColumn['_']['data'],
-	TType['type'],
-	TType['constraint'],
-	TColumn['_']['enumValues'],
-	HasBaseColumn<TColumn> extends true ? Assume<TColumn['_'], { baseColumn: Column }>['baseColumn'] : undefined,
-	ExtractAdditionalProperties<TColumn>
->;
-
 export type GetValibotType<
-	TData,
 	TColumnType extends ColumnDataType,
 	TConstraint extends ColumnDataConstraint | undefined,
 	TEnum extends string[] | undefined,
-	TBaseColumn extends Column | undefined,
 	TAdditionalProperties extends Record<string, any>,
 > = TColumnType extends 'array'
 	? TConstraint extends 'vector' | 'halfvector' ? TAdditionalProperties['max'] extends number ? v.SchemaWithPipe<
@@ -47,21 +33,6 @@ export type GetValibotType<
 		? v.TupleSchema<[v.NumberSchema<undefined>, v.NumberSchema<undefined>], undefined>
 	: TConstraint extends 'line'
 		? v.TupleSchema<[v.NumberSchema<undefined>, v.NumberSchema<undefined>, v.NumberSchema<undefined>], undefined>
-	: TConstraint extends 'basecolumn'
-		? TBaseColumn extends Column
-			? (GetArraySchema<TBaseColumn> extends infer ArrInternals extends v.BaseSchema<any, any, v.BaseIssue<any>>
-				? TAdditionalProperties['max'] extends number ? v.SchemaWithPipe<
-						[
-							v.ArraySchema<ArrInternals, undefined>,
-							GetLengthAction<
-								TAdditionalProperties,
-								Assume<TData, string | ArrayLike<unknown>>
-							>,
-						]
-					>
-				: v.ArraySchema<ArrInternals, undefined>
-				: v.AnySchema)
-		: v.ArraySchema<v.AnySchema, undefined>
 	: v.ArraySchema<v.AnySchema, undefined>
 	: TColumnType extends 'object' ? TConstraint extends 'geometry' | 'point' ? v.ObjectSchema<
 				{ readonly x: v.NumberSchema<undefined>; readonly y: v.NumberSchema<undefined> },
@@ -122,11 +93,9 @@ export type GetValibotTypeFromColumn<
 	TColumn extends Column,
 	TDataType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
 > = GetValibotType<
-	TColumn['_']['data'],
 	TDataType['type'],
 	TDataType['constraint'],
 	TColumn['_']['enumValues'],
-	HasBaseColumn<TColumn> extends true ? Assume<TColumn['_'], { baseColumn: Column }>['baseColumn'] : undefined,
 	ExtractAdditionalProperties<TColumn>
 >;
 
