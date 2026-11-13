@@ -39,10 +39,11 @@ describe('PgError object shape & field contract', () => {
 		expect(typeof pe.constraint).toBe('string');
 		expect(typeof (pe as { table?: unknown }).table).toBe('string');
 		expect(typeof (pe as { schema?: unknown }).schema).toBe('string');
-		// PG omits the column field for unique violations, so the server never sets it.
-		// NOTE: Bun pre-defines a numeric `Error.column` (source location), so we assert
-		// the server did NOT overwrite it with a string rather than checking for undefined.
-		expect(typeof (pe as { column?: unknown }).column).not.toBe('string');
+		// PG omits the column field for unique violations. JavaScriptCore (Bun) gives every Error a numeric
+		// `column` (its source position); PgError replaces it with the server's field, so it is undefined here,
+		// as in pg (and adapters that classify errors by `typeof column`, like Prisma's, rely on that).
+		expect(pe.column).toBeUndefined();
+		expect(typeof pe.line).toBe('string'); // the server source line (L), not the engine's number
 	});
 
 	test('NOT NULL violation (23502) populates column/table/schema', async () => {

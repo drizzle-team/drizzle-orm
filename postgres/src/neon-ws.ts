@@ -11,6 +11,7 @@
 // and src/auth.ts already does plain SCRAM). Defaults mirror @neondatabase/serverless: proxy address
 // `host => `${host}/v2``, `wss://`.
 import { Duplex } from 'node:stream';
+import { NEON_PROXY } from './connection.ts';
 import { connect as coreConnect, Connection, createPool as corePool, defaultDecoders, PgError, Pool } from './core.ts';
 import type { ConnectConfig, PoolConfig } from './types.ts';
 import { relaxChannelBinding, resolveUrl } from './url.ts';
@@ -177,13 +178,21 @@ function neonSocket(config: NeonConnectConfig): () => Promise<Duplex> {
  *  `postgres://…neon.tech/db?sslmode=require` connection string. */
 export function connect(config: string | NeonConnectConfig = {}): Promise<Connection<{ pooled: false }>> {
 	const c: NeonConnectConfig = typeof config === 'string' ? { url: config } : config;
-	return coreConnect({ ...relaxChannelBinding(c), ssl: false, socket: neonSocket(c) });
+	return coreConnect({
+		...relaxChannelBinding(c),
+		ssl: false,
+		socket: Object.assign(neonSocket(c), { [NEON_PROXY]: true }),
+	});
 }
 
 /** Create a lazy connection pool over Neon's WebSocket proxy. Accepts a config or a connection string. */
 export function createPool(config: string | NeonPoolConfig = {}): Pool {
 	const c: NeonPoolConfig = typeof config === 'string' ? { url: config } : config;
-	return corePool({ ...relaxChannelBinding(c), ssl: false, socket: neonSocket(c) });
+	return corePool({
+		...relaxChannelBinding(c),
+		ssl: false,
+		socket: Object.assign(neonSocket(c), { [NEON_PROXY]: true }),
+	});
 }
 
 export { Connection, defaultDecoders, PgError, Pool };

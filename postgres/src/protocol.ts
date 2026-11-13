@@ -420,9 +420,50 @@ export function parseRowDescription(body: Buffer): Field[] {
 	return fields;
 }
 
+// CommandComplete tags ("SELECT 50", "INSERT 0 5", "BEGIN") are ASCII: the command is the bytes up
+// to the first space, the row count the trailing digits. Common commands resolve to constant
+// strings, so the per-query parse allocates nothing (was toString + split + regex + parseInt).
+const KNOWN_COMMANDS = 'SELECT INSERT UPDATE DELETE MERGE BEGIN COMMIT ROLLBACK COPY FETCH MOVE SET'.split(' ');
+const COMMANDS: string[][] = []; // by length
+for (const c of KNOWN_COMMANDS) (COMMANDS[c.length] ??= []).push(c);
+const HAS_LATIN1_SLICE = typeof (Buffer.prototype as { latin1Slice?: unknown }).latin1Slice === 'function';
+
+function commandName(b: Buffer, n: number): string {
+	const known = COMMANDS[n];
+	if (known) {
+		next: for (const c of known) {
+			for (let i = 0; i < n; i++) if (b[i] !== c.charCodeAt(i)) continue next;
+			return c;
+		}
+	}
+	return HAS_LATIN1_SLICE
+		? (b as Buffer & { latin1Slice(s: number, e: number): string }).latin1Slice(0, n)
+		: b.toString('latin1', 0, n);
+}
+
+/** Decode a CommandComplete ('C') body into `command` and `rowCount` (null when the tag has no count). */
+export function parseCommandComplete(
+	body: Buffer,
+	into: { command?: string | null; rowCount?: number | null },
+): void {
+	let z = body.indexOf(0);
+	if (z < 0) z = body.length;
+	let sp = body.indexOf(32);
+	if (sp < 0 || sp > z) sp = z;
+	into.command = commandName(body, sp);
+	let k = z - 1, n = 0, mul = 1;
+	for (; k > sp; k--) {
+		const ch = body[k]!;
+		if (ch < 48 || ch > 57) break;
+		n += (ch - 48) * mul;
+		mul *= 10;
+	}
+	into.rowCount = k === z - 1 ? null : n;
+}
+
 /** Decode a ParameterDescription ('t') body into param-type OIDs. */
 export function parseParameterDescription(body: Buffer): number[] {
-	const n = body.readInt16BE(0);
+	const n = body.readUInt16BE(0); // unsigned: Bind allows up to 65535 params, signed goes negative past 32767
 	const oids: number[] = new Array(n);
 	for (let i = 0; i < n; i++) oids[i] = body.readInt32BE(2 + i * 4);
 	return oids;

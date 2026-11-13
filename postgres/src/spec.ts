@@ -19,6 +19,7 @@ import {
 	validateJsonSpec,
 } from './json.ts';
 import { type CustomMarker, type CustomTypeDef, isCustomMarker } from './registry.ts';
+import type { ShapeMapper } from './shape.ts';
 
 // PG type alias -> OID. `satisfies` (not a `: Record<…>` annotation) keeps the literal keys so PgType can
 // derive the alias union straight from this map — the type list and the runtime map can never drift apart.
@@ -296,4 +297,11 @@ export function mergeUnknownCols<F>(cols: CodegenCol[], fields: readonly F[], oi
 		});
 	}
 	return cols;
+}
+
+/** A shape's columns with binary downgraded to text, for the HTTP drivers: their protocols only carry text. */
+export function shapeTextCols(shape: ShapeSpec | ShapeMapper): CodegenCol[] {
+	return (typeof shape === 'function' ? (shape.$cols as CodegenCol[]) : shapeCols(shape)).map((c) =>
+		c.format === 'binary' ? { ...c, format: 'text' as const } : c
+	);
 }

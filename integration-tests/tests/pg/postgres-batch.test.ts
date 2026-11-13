@@ -1,3 +1,4 @@
+import type { BatchMetrics } from '@drizzle-team/postgres';
 import { defineRelations, DrizzleQueryError, eq, inArray, sql } from 'drizzle-orm';
 import { relations as oldRels } from 'drizzle-orm/_relations';
 import { type AnyPgColumn, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
@@ -768,5 +769,184 @@ describe('parallel', () => {
 		expectQueryError(response[3].status === 'rejected' && response[3].reason, 'select 1/0', '22012');
 
 		expect(await db.select({ name: usersTable.name }).from(usersTable)).toEqual([{ name: 'Survivor' }]);
+	});
+});
+
+describe('prepared statements', () => {
+	test.beforeEach(async ({ db }) => {
+		await db.execute(
+			`truncate table users, groups, users_to_groups, posts, comments, comment_likes RESTART IDENTITY CASCADE;`,
+		);
+	});
+
+	/** The named statements the batch's own connection holds, read inside the same batch */
+	const preparedNames = (db: PostgresDatabase<typeof relations>, prefix: string) =>
+		db.execute<{ name: string }>(
+			sql`select name from pg_prepared_statements where name like ${prefix + '%'} order by name`,
+		);
+
+	test('batch takes bound and unbound prepared queries next to builders, and runs them by name', async ({ db }) => {
+		const insertUser = db.insert(usersTable)
+			.values({ id: sql.placeholder('id'), name: sql.placeholder('name') })
+			.returning({ id: usersTable.id, name: usersTable.name })
+			.prepare('pbt_insert_user');
+		const getUser = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
+			.where(eq(usersTable.id, sql.placeholder('id')))
+			.prepare('pbt_get_user');
+		const countUsers = db.select({ n: sql<number>`count(*)::int` }).from(usersTable).prepare('pbt_count_users');
+
+		const response = await db.batch([
+			insertUser.bind({ id: 1, name: 'John' }),
+			insertUser.bind({ id: 2, name: 'Dan' }),
+			db.update(usersTable).set({ verified: 1 }).where(eq(usersTable.id, 2)),
+			getUser.bind({ id: 2 }),
+			countUsers,
+			preparedNames(db, 'pbt_'),
+		]);
+
+		expectTypeOf(response).toEqualTypeOf<[
+			{ id: number; name: string }[],
+			{ id: number; name: string }[],
+			PostgresQueryResult<never>,
+			{ id: number; name: string }[],
+			{ n: number }[],
+			PostgresQueryResult<{ name: string }>,
+		]>();
+
+		expect(response[0]).toEqual([{ id: 1, name: 'John' }]);
+		expect(response[1]).toEqual([{ id: 2, name: 'Dan' }]);
+		expect(response[2]).toMatchObject({ rowCount: 1 });
+		expect(response[3]).toEqual([{ id: 2, name: 'Dan' }]);
+		expect(response[4]).toEqual([{ n: 2 }]);
+		// the prepared items went out under their names; the builders and db.execute stayed unnamed
+		expect(response[5].rows).toEqual([
+			{ name: 'pbt_count_users' },
+			{ name: 'pbt_get_user' },
+			{ name: 'pbt_insert_user' },
+		]);
+	});
+
+	test('batch metrics: a repeated batch reuses its prepared statements, all in one round trip', async ({ db }) => {
+		const insertUser = db.insert(usersTable)
+			.values({ id: sql.placeholder('id'), name: sql.placeholder('name') })
+			.prepare('pbt_reuse_insert');
+		const getUser = db.select({ name: usersTable.name }).from(usersTable)
+			.where(eq(usersTable.id, sql.placeholder('id')))
+			.prepare('pbt_reuse_get');
+		const run = (id: number) =>
+			db.batch([insertUser.bind({ id, name: `user ${id}` }), getUser.bind({ id })], { metrics: true });
+
+		const first = await run(1);
+		expectTypeOf(first.metrics).toEqualTypeOf<BatchMetrics>();
+		expect([...first]).toMatchObject([{ rowCount: 1 }, [{ name: 'user 1' }]]);
+		expect(first.metrics).toMatchObject({ statements: 4, roundTrips: 1, parsed: 2, reused: 0, unnamed: 0 });
+		expect(first.metrics.queries.map((m) => m.statementName)).toEqual(['pbt_reuse_insert', 'pbt_reuse_get']);
+
+		// the same connection already holds both statements: no Parse, just Bind and Execute
+		const again = await run(2);
+		expect([...again]).toMatchObject([{ rowCount: 1 }, [{ name: 'user 2' }]]);
+		expect(again.metrics).toMatchObject({ statements: 4, roundTrips: 1, parsed: 0, reused: 2, unnamed: 0 });
+
+		// builders stay unnamed, and the batch is still one round trip
+		const builders = await db.batch([db.select().from(usersTable), db.select().from(usersTable)], { metrics: true });
+		expect(builders.metrics).toMatchObject({ statements: 4, roundTrips: 1, parsed: 0, reused: 0, unnamed: 2 });
+
+		// without metrics the response is the plain tuple
+		const plain = await db.batch([db.select().from(usersTable)]);
+		expect('metrics' in plain).toBe(false);
+	});
+
+	test('a prepared query without a name runs under its generated one', async ({ db }) => {
+		await db.insert(usersTable).values({ id: 1, name: 'John' });
+		const getUser = db.select({ name: usersTable.name }).from(usersTable)
+			.where(eq(usersTable.id, sql.placeholder('id')))
+			.prepare();
+		const generated = db.execute<{ n: number }>(
+			// other tests prepare the same text under explicit `pbt_` names; the generated name is the other one
+			sql`select count(*)::int as n from pg_prepared_statements where statement = ${getUser.getQuery().sql} and name not like 'pbt\_%'`,
+		);
+
+		const [user, statements] = await db.batch([getUser.bind({ id: 1 }), generated]);
+		expect(user).toEqual([{ name: 'John' }]);
+		expect(statements.rows).toEqual([{ n: 1 }]);
+	});
+
+	test('relational queries can be prepared and bound too', async ({ db }) => {
+		await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
+		const findUser = db.query.usersTable.findFirst({
+			columns: { id: true, name: true },
+			where: { id: sql.placeholder('id') },
+		}).prepare('pbt_find_user');
+
+		const response = await db.batch([findUser.bind({ id: 2 }), findUser.bind({ id: 3 })]);
+		expectTypeOf(response).toEqualTypeOf<[
+			{ id: number; name: string } | undefined,
+			{ id: number; name: string } | undefined,
+		]>();
+		expect(response).toEqual([{ id: 2, name: 'Dan' }, undefined]);
+	});
+
+	test('a missing placeholder value rejects the batch before anything runs', async ({ db }) => {
+		const insertUser = db.insert(usersTable)
+			.values({ id: sql.placeholder('id'), name: sql.placeholder('name') })
+			.prepare('pbt_insert_missing');
+
+		const unbound = await db.batch([
+			db.insert(usersTable).values({ id: 1, name: 'Doomed' }),
+			insertUser,
+		]).catch((e) => e);
+		expect(unbound).toBeInstanceOf(Error);
+		expect((unbound as Error).message).toBe('No value for placeholder "id" was provided');
+
+		const partial = await db.batch([
+			db.insert(usersTable).values({ id: 1, name: 'Doomed' }),
+			insertUser.bind({ id: 2 }),
+		]).catch((e) => e);
+		expect((partial as Error).message).toBe('No value for placeholder "name" was provided');
+
+		// a builder with a placeholder has no values to fill it from either
+		const builder = await db.batch([
+			db.select().from(usersTable).where(eq(usersTable.id, sql.placeholder('id'))),
+		]).catch((e) => e);
+		expect((builder as Error).message).toBe('No value for placeholder "id" was provided');
+
+		expect(await db.select().from(usersTable)).toEqual([]);
+	});
+
+	test('a failing bound item is reported with its own query and rolls the batch back', async ({ db }) => {
+		const insertPost = db.insert(postsTable)
+			.values({ id: sql.placeholder('id'), content: sql.placeholder('content'), ownerId: sql.placeholder('owner') })
+			.prepare('pbt_insert_post');
+
+		const error = await db.batch([
+			db.insert(usersTable).values({ id: 1, name: 'Doomed' }),
+			insertPost.bind({ id: 1, content: 'orphan', owner: 9999 }),
+		]).catch((e) => e);
+		expectQueryError(error, insertPost.getQuery().sql, '23503');
+
+		expect(await db.select().from(usersTable)).toEqual([]);
+	});
+
+	test('pipeline and parallel take bound prepared queries', async ({ db }) => {
+		await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
+		const getUser = db.select({ name: usersTable.name }).from(usersTable)
+			.where(eq(usersTable.id, sql.placeholder('id')))
+			.prepare('pbt_get_user_settled');
+
+		const piped = await db.pipeline([getUser.bind({ id: 1 }), getUser.bind({ id: 2 }), preparedNames(db, 'pbt_')]);
+		expectTypeOf(piped).toEqualTypeOf<[
+			Settled<{ name: string }[]>,
+			Settled<{ name: string }[]>,
+			Settled<PostgresQueryResult<{ name: string }>>,
+		]>();
+		expect(piped[0]).toEqual({ status: 'fulfilled', value: [{ name: 'John' }] });
+		expect(piped[1]).toEqual({ status: 'fulfilled', value: [{ name: 'Dan' }] });
+		expect(piped[2].status === 'fulfilled' && piped[2].value.rows).toContainEqual({ name: 'pbt_get_user_settled' });
+
+		const fanned = await db.parallel([getUser.bind({ id: 2 }), getUser.bind({ id: 1 })]);
+		expect(fanned).toEqual([
+			{ status: 'fulfilled', value: [{ name: 'Dan' }] },
+			{ status: 'fulfilled', value: [{ name: 'John' }] },
+		]);
 	});
 });

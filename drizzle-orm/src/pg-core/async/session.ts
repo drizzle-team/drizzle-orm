@@ -17,6 +17,32 @@ import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from 
 import { PgBasePreparedQuery, PgSession } from '../session.ts';
 import { PgAsyncDatabase } from './db.ts';
 
+/**
+ * A prepared query with its placeholder values bound, so it can run as one item of a batch:
+ *
+ * ```ts
+ * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
+ * const [alice, bob] = await db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
+ * ```
+ *
+ * Accepted by `batch`, `pipeline` and `parallel` of the `drizzle-orm/postgres` driver, which run it under the
+ * prepared statement's name. Created by {@link PgAsyncPreparedQuery.bind}.
+ */
+export class PgAsyncBoundQuery<T extends PreparedQueryConfig> {
+	static readonly [entityKind]: string = 'PgAsyncBoundQuery';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	// No `_` result marker on purpose: with it, this class would match the builder-only batch item type that the
+	// other pg drivers take (their declarations keep only `_`), and they would send its placeholders unfilled.
+
+	constructor(
+		readonly prepared: PgAsyncPreparedQuery<T>,
+		readonly placeholderValues: Record<string, unknown>,
+	) {}
+}
+
 export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBasePreparedQuery {
 	static override readonly [entityKind]: string = 'PgAsyncPreparedQuery';
 
@@ -56,6 +82,27 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 			&& !hasTelemetry;
 	}
 
+	/**
+	 * Pairs this query with values for its placeholders without running it: the lazy counterpart of
+	 * {@link execute}. Nothing is sent until the result is run as an item of `batch`, `pipeline` or `parallel`
+	 * of the `drizzle-orm/postgres` driver, which runs it under this query's statement name:
+	 *
+	 * ```ts
+	 * const [alice, bob] = await db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
+	 * ```
+	 *
+	 * Other drivers' batches don't accept it.
+	 */
+	bind(placeholderValues: Record<string, unknown> = {}): PgAsyncBoundQuery<T> {
+		return new PgAsyncBoundQuery(this, placeholderValues);
+	}
+
+	/**
+	 * Runs the query with values for its placeholders and returns a Promise of the result.
+	 *
+	 * Eager: the query is sent as soon as `execute` is called, whether or not the Promise is awaited. To hand the
+	 * query and its values to something that runs it later, such as a batch, use {@link bind}.
+	 */
 	override async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
 		const { query, logger, executor, mapper, fastPath } = this;
 

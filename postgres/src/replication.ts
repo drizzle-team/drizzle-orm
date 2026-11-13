@@ -10,7 +10,7 @@
 import type { Duplex } from 'node:stream';
 import { md5Password, parseSaslMechanisms, peerCertDer, type Scram, scramForChannel } from './auth.ts';
 import { addBrand } from './brand.ts';
-import { getDefaultTransport, type NormalizedConfig } from './connection.ts';
+import { getDefaultTransport, type NormalizedConfig, styleStartupParams, viaNeonProxy } from './connection.ts';
 import { buildDecoders } from './decode.ts';
 import {
 	type CellDecoder,
@@ -456,8 +456,11 @@ export class ReplicationConnection {
 			prepare: false,
 			binaryParams: false,
 			pipelineDepth: 1,
+			pipelineAuto: false,
 			pipelineFlush: 'sync',
 			temporal: 'date',
+			int8: 'bigint',
+			textValues: false,
 			reuseBinaryOids: new Set(),
 			reconnect: { enabled: false, base: 0, max: 0, maxRetries: 0 },
 			plugins: [],
@@ -507,7 +510,8 @@ export class ReplicationConnection {
 					database: this.cfg.database,
 					application_name: this.cfg.applicationName,
 					replication: 'database',
-					options: this.cfg.options,
+					// pgoutput prints text columns in this session's DateStyle
+					...styleStartupParams(this.cfg.options, false, viaNeonProxy(this.cfg.host, this.cfg.socket)),
 				}),
 			);
 			for (;;) {

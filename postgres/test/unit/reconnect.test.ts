@@ -211,7 +211,7 @@ describe('pool breaker: the tripping error survives', () => {
 		}
 	}, 10000);
 
-	test("the timeout Error's stack names the acquire path, not Timeout._onTimeout", async () => {
+	test("the timeout Error's stack names the query path, not Timeout._onTimeout", async () => {
 		const m = await MockPgServer.start({ onQuery: OK });
 		try {
 			const pool = createPool(
@@ -221,9 +221,13 @@ describe('pool breaker: the tripping error survives', () => {
 			const err = await pool.query('select 1').catch((e) => e) as Error;
 			// Built when waitForRecovery() is ENTERED. Constructed inside the setTimeout callback instead,
 			// the whole stack is `at Timeout._onTimeout` — no frame from the driver or the caller at all.
-			expect(err.stack).toContain('waitForRecovery');
-			expect(err.stack).toContain('acquire');
-			expect(err.stack).not.toContain('Timeout._onTimeout');
+			// Frames only: whether the stack starts with the message differs between runtimes, and the
+			// message itself says "pool acquire timed out". A shared query enters through _run, a
+			// checkout through acquire.
+			const frames = err.stack!.split('\n').slice(1).join('\n');
+			expect(frames).toContain('waitForRecovery');
+			expect(frames).toMatch(/\bat (?:acquire|_run) /);
+			expect(frames).not.toContain('Timeout._onTimeout');
 			await pool.end();
 		} finally {
 			await m.close();

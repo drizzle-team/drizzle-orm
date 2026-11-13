@@ -100,6 +100,27 @@
 			"types": "./dist/buffer-polyfill.d.ts",
 			"default": "./dist/buffer-polyfill.js"
 		},
+		"./compat-kysely": {
+			"types": "./dist/compat/kysely.d.ts",
+			"workerd": "./dist/compat/kysely-cf.js",
+			"deno": "./dist/compat/kysely-deno.js",
+			"bun": "./dist/compat/kysely-node.js",
+			"node": "./dist/compat/kysely-node.js"
+		},
+		"./compat-prisma7": {
+			"types": "./dist/compat/prisma7.d.ts",
+			"workerd": "./dist/compat/prisma7-cf.js",
+			"deno": "./dist/compat/prisma7-deno.js",
+			"bun": "./dist/compat/prisma7-node.js",
+			"node": "./dist/compat/prisma7-node.js"
+		},
+		"./compat-prisma8": {
+			"types": "./dist/compat/prisma8.d.ts",
+			"workerd": "./dist/compat/prisma8-cf.js",
+			"deno": "./dist/compat/prisma8-deno.js",
+			"bun": "./dist/compat/prisma8-node.js",
+			"node": "./dist/compat/prisma8-node.js"
+		},
 		"./effect": {
 			"types": "./dist/effect/index.d.ts",
 			"workerd": "./dist/effect/cf.js",
@@ -149,6 +170,7 @@
 		"test:slow": "SLOW_TESTS=1 bun test test/integration/replication.test.ts -t 'idle managed'",
 		"test:cf": "vitest run --config test/cf/vitest.config.ts",
 		"test:neon-ws": "bun test test/integration/neon-ws.test.ts",
+		"test:neon-pooler": "bun test test/integration/neon-pooler.test.ts",
 		"test:neon-http": "bun test test/integration/neon-http.test.ts test/integration/neon-http-parity.test.ts",
 		"test:aurora": "bun test test/unit/aurora.test.ts",
 		"test:aurora:live": "bun test test/integration/aurora.test.ts test/integration/aurora-parity.test.ts",
@@ -177,11 +199,16 @@
 		"@arethetypeswrong/cli": "^0.18.5",
 		"@cloudflare/vitest-pool-workers": "^0.5.2",
 		"@mitata/counters": "^0.0.8",
+		"@prisma/adapter-pg": "7.10.1",
+		"@prisma/driver-adapter-utils": "7.10.1",
+		"@prisma/orm-family-sql": "8.0.0-rc.23",
+		"@prisma/orm-target-postgres": "8.0.0-rc.23",
 		"@types/bun": "latest",
 		"@types/pg": "^8.20.0",
 		"cli-highlight": "^2.1.11",
 		"effect": "4.0.6",
 		"fast-check": "^4.8.0",
+		"kysely": "0.29.8",
 		"mitata": "^1.0.34",
 		"pg": "^8.22.0",
 		"pkg-pr-new": "0.0.88",
