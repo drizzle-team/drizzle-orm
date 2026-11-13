@@ -3,6 +3,7 @@ import pg from 'pg';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import { TransactionRollbackError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery } from '~/pg-core/async/session.ts';
 import { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
@@ -146,7 +147,12 @@ export class NodePgSession<
 				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
 			}
 			const result = await transaction(tx);
-			await tx.execute(sql`commit`);
+			// COMMIT on an aborted transaction returns the ROLLBACK command
+			// tag without an error, which would silently discard the writes
+			const commitResult = await tx.execute(sql`commit`);
+			if ((commitResult as unknown as QueryResult).command !== 'COMMIT') {
+				throw new TransactionRollbackError();
+			}
 			return result;
 		} catch (error) {
 			// nothing to roll back on a dead connection; failed rollback must not mask the original error
