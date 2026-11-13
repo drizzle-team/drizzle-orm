@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { PGlite } from '@electric-sql/pglite';
 import { randomUUID } from 'crypto';
-import { is } from 'drizzle-orm';
+import { is, Param, sql, SQL, StringChunk } from 'drizzle-orm';
 import { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
@@ -122,6 +122,21 @@ export const generateMigration = async (
 	return sqlStatements;
 };
 
+const toParameterizedSQL = (query: string, params: any[] = []) => {
+	if (params.length === 0) return sql.raw(query);
+	const chunks: (StringChunk | Param)[] = [];
+	const placeholder = /\$(\d+)/g;
+	let lastIndex = 0;
+	let match: RegExpExecArray | null;
+	while ((match = placeholder.exec(query)) !== null) {
+		if (match.index > lastIndex) chunks.push(new StringChunk(query.slice(lastIndex, match.index)));
+		chunks.push(new Param(params[Number(match[1]) - 1]));
+		lastIndex = match.index + match[0].length;
+	}
+	if (lastIndex < query.length) chunks.push(new StringChunk(query.slice(lastIndex)));
+	return new SQL(chunks);
+};
+
 export const pushSchema = async (
 	imports: Record<string, unknown>,
 	drizzleInstance: PgDatabase<any>,
@@ -137,7 +152,7 @@ export const pushSchema = async (
 
 	const db: DB = {
 		query: async (query: string, params?: any[]) => {
-			const res = await drizzleInstance.execute(sql.raw(query));
+			const res = await drizzleInstance.execute(toParameterizedSQL(query, params));
 			return res.rows;
 		},
 	};
