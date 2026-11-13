@@ -1,10 +1,7 @@
 import { DrizzlePostgresClient as Client } from '#postgres/effect/core';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/sql/SqlError';
-import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { DefaultServices } from '~/effect-core/defaults.ts';
-import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
@@ -19,7 +16,6 @@ import { jitCompatCheck } from '~/utils.ts';
 import {
 	type EffectPostgresBulkInsertOptions,
 	type EffectPostgresBulkUpdateOptions,
-	type EffectPostgresPipelineResponse,
 	type EffectPostgresQueryEffectHKT,
 	type EffectPostgresQueryResultHKT,
 	EffectPostgresSession,
@@ -35,27 +31,27 @@ export class EffectPostgresDatabase<TRelations extends AnyRelations = EmptyRelat
 	declare session: EffectPostgresSession<TRelations>;
 
 	/**
-	 * Runs multiple queries at once in a transaction
+	 * Runs the Effects in one transaction, with every statement pipelined on its connection
 	 *
-	 * A failing query fails the batch and rolls back the entire batch
+	 * A failing Effect fails the batch and rolls back the entire batch
+	 *
+	 * @example
+	 * ```ts
+	 * const [inserted, users] = yield* db.batch([db.insert(users).values({ name: 'John' }).returning(), db.select().from(users)]);
+	 * ```
 	 */
-	batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
-		batch: T,
-	): Effect.Effect<BatchResponse<T>, EffectDrizzleQueryError | SqlError>;
-	batch(batch: readonly BatchItem<'pg'>[]) {
-		return this.session.batch(batch);
+	batch<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
+		return this.session.batch(effects);
 	}
 
 	/**
-	 * Pipelines queries back-to-back on a single pooled connection, without a transaction
+	 * Runs the Effects concurrently on one pooled connection, without a transaction, so each statement commits on its own
 	 *
-	 * A failing query does not stop or roll back the others: each query gets its own `Result`
+	 * Every statement runs to the end, and the first failure in statement order fails the pipeline.
+	 * Wrap an Effect in `Effect.result` to get its failure as a value instead.
 	 */
-	pipeline<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
-		batch: T,
-	): Effect.Effect<EffectPostgresPipelineResponse<T>, SqlError>;
-	pipeline(batch: readonly BatchItem<'pg'>[]) {
-		return this.session.pipeline(batch);
+	pipeline<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
+		return this.session.pipeline(effects);
 	}
 
 	/**

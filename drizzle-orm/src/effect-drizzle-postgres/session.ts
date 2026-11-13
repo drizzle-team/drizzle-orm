@@ -1,16 +1,13 @@
 import type { QueryResult, ShapeSpec } from '#postgres';
-import type { DrizzlePostgresClient as Client } from '#postgres/effect/core';
-import * as Cause from 'effect/Cause';
+import { DrizzlePostgresClient as Client } from '#postgres/effect/core';
 import * as Effect from 'effect/Effect';
-import type * as Result from 'effect/Result';
 import type { SqlError } from 'effect/sql/SqlError';
-import type { BatchItem } from '~/batch.ts';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
-import { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
+import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
@@ -50,6 +47,8 @@ export class EffectPostgresPreparedQuery<T extends PreparedQueryConfig>
 {
 	static override readonly [entityKind]: string = 'EffectPostgresPreparedQuery';
 
+	protected override skipCacheLookup = Effect.service(Client.Pipelined);
+
 	constructor(
 		executor: (params?: unknown[]) => Effect.Effect<unknown, unknown, unknown>,
 		query: Query,
@@ -59,16 +58,11 @@ export class EffectPostgresPreparedQuery<T extends PreparedQueryConfig>
 		cache: EffectCacheShape,
 		queryMetadata: QueryMetadata | undefined,
 		cacheConfig: WithCacheConfig | undefined,
-		readonly shape: ShapeSpec | undefined,
 		paramsInErrors: boolean | undefined,
 	) {
 		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig, paramsInErrors);
 	}
 }
-
-export type EffectPostgresPipelineResponse<T extends readonly BatchItem[]> = {
-	[K in keyof T]: Result.Result<T[K]['_']['result'], EffectDrizzleQueryError>;
-};
 
 export interface EffectPostgresSessionOptions {
 	logger: EffectLoggerShape;
@@ -121,7 +115,6 @@ export class EffectPostgresSession<
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
-			shape,
 			this.options.paramsInErrors,
 		);
 	}
@@ -136,39 +129,12 @@ export class EffectPostgresSession<
 		return this.client.query(sql, params, { name, mode: mode === 'arrays' ? 'array' : 'object', shape });
 	}
 
-	batch(queries: readonly BatchItem<'pg'>[]) {
-		return this.client.batch(queries.map((query) => this.runBatchItem(query)));
+	batch<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
+		return this.client.batch(effects);
 	}
 
-	pipeline(queries: readonly BatchItem<'pg'>[]) {
-		return this.client.pipeline(queries.map((query) => Effect.result(this.runBatchItem(query))));
-	}
-
-	// Skips the logger and the cache: an async step before `client.query` would change the order of the
-	// statements on the connection.
-	private runBatchItem(item: BatchItem<'pg'>) {
-		const prepared = item._prepare();
-		if (!is(prepared, EffectPostgresPreparedQuery)) {
-			return Effect.die(new Error('Only queries built by an EffectPostgresDatabase can run in a batch or a pipeline'));
-		}
-		const { sql, params } = prepared.getQuery();
-		const { mode, mapper, shape } = prepared;
-
-		return this.query(sql, params, mode, shape).pipe(
-			Effect.flatMap((result) =>
-				Effect.try({
-					try: () => mapper ? mapper(result.rows) : mode === 'raw' ? result : result.rows,
-					catch: (e) => e,
-				})
-			),
-			Effect.mapError((e) =>
-				new EffectDrizzleQueryError({
-					query: sql,
-					params: this.options.paramsInErrors ? params : undefined,
-					cause: Cause.fail(e),
-				})
-			),
-		);
+	pipeline<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
+		return this.client.pipeline(effects);
 	}
 
 	bulkInsert(

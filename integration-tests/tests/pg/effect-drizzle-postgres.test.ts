@@ -20,6 +20,7 @@ import * as Redacted from 'effect/Redacted';
 import * as Result from 'effect/Result';
 import { Client as PgPeerClient } from 'pg';
 import { DB, runCommonEffectPgTests } from './effect-common';
+import { TestCache } from './instrumentation';
 import { relations } from './relations';
 import { usersMigratorTable } from './schema';
 
@@ -148,15 +149,36 @@ runCommonEffectPgTests({
 				yield* createBulkUsers(db);
 
 				const [first, duplicate, selected] = yield* db.pipeline([
-					db.insert(bulkUsers).values({ id: 1, name: 'John' }),
-					db.insert(bulkUsers).values({ id: 1, name: 'Duplicate' }),
-					db.select({ id: bulkUsers.id, name: bulkUsers.name }).from(bulkUsers),
+					Effect.result(db.insert(bulkUsers).values({ id: 1, name: 'John' })),
+					Effect.result(db.insert(bulkUsers).values({ id: 1, name: 'Duplicate' })),
+					Effect.result(db.select({ id: bulkUsers.id, name: bulkUsers.name }).from(bulkUsers)),
 				]);
 				assert(Result.isSuccess(first));
 				assert(Result.isFailure(duplicate));
 				assert(Predicate.isTagged(duplicate.failure, 'EffectDrizzleQueryError'));
 				assert(Result.isSuccess(selected));
 				expect(selected.success).toStrictEqual([{ id: 1, name: 'John' }]);
+			}));
+
+		it.effect('batch and pipeline send statements in order when the cache is on', () =>
+			Effect.gen(function*() {
+				const db = yield* PostgresDrizzle.make().pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(new TestCache('all'))),
+					Effect.provide(PostgresDrizzle.DefaultServices),
+				);
+				yield* createBulkUsers(db);
+
+				const [beforeBatchInsert] = yield* db.batch([
+					db.select({ id: bulkUsers.id }).from(bulkUsers),
+					db.insert(bulkUsers).values({ id: 1, name: 'John' }),
+				]);
+				expect(beforeBatchInsert).toStrictEqual([]);
+
+				const [beforePipelineInsert] = yield* db.pipeline([
+					db.select({ id: bulkUsers.id }).from(bulkUsers).where(sql`${bulkUsers.id} > 1`),
+					db.insert(bulkUsers).values({ id: 2, name: 'Jane' }),
+				]);
+				expect(beforePipelineInsert).toStrictEqual([]);
 			}));
 
 		it.effect('bulkInsert and bulkUpdate', () =>
