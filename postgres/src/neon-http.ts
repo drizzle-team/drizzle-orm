@@ -17,7 +17,7 @@ import { type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
 import { defaultDecoders } from './decode.ts';
 import { encodeJsonParams as encodeParams, setTransactionSnapshotSql } from './encode.ts';
 import { PgError } from './errors.ts';
-import { type RowMapper, RowMappers } from './mapper.ts';
+import { RowArena, type RowMapper, RowMappers, SeenBytes } from './mapper.ts';
 import { parseDataRow } from './protocol.ts';
 import type { ShapeMapper } from './shape.ts';
 import { mergeUnknownCols, type ShapeSpec, shapeTextCols } from './spec.ts';
@@ -144,54 +144,18 @@ function skipWs(buf: Buffer, i: number): number {
 
 const TX_SQL = /^\s*(begin|start\s+transaction|commit|end|rollback(?!\s+to\b)|abort|prepare\s+transaction)\b/i;
 
-// A reused scratch that assembles a synthetic wire DataRow body (int16 count + per-cell int32 len + bytes).
-class RowBuf {
-	buf = Buffer.allocUnsafe(4096);
-	pos = 2;
-	reset(): void {
-		this.pos = 2;
-	}
-	private ensure(n: number): void {
-		if (this.buf.length < this.pos + n) {
-			const nb = Buffer.allocUnsafe(Math.max(this.pos + n, this.buf.length * 2));
-			this.buf.copy(nb);
-			this.buf = nb;
-		}
-	}
-	pushNull(): void {
-		this.ensure(4);
-		this.buf.writeInt32BE(-1, this.pos);
-		this.pos += 4;
-	}
-	pushSlice(src: Buffer, start: number, end: number): void {
-		const len = end - start;
-		this.ensure(4 + len);
-		this.buf.writeInt32BE(len, this.pos);
-		this.pos += 4;
-		src.copy(this.buf, this.pos, start, end);
-		this.pos += len;
-	}
-	pushText(s: string | null): void {
-		if (s == null) {
-			this.pushNull();
-			return;
-		}
-		const b = Buffer.from(s, 'utf8');
-		this.pushSlice(b, 0, b.length);
-	}
-	finish(ncols: number): Buffer {
-		this.buf.writeInt16BE(ncols, 0);
-		return this.buf.subarray(0, this.pos);
-	}
-}
-addBrand(RowBuf, 'RowBuf');
-
 interface NeonField {
 	name: string;
 	dataTypeID: number;
 }
 
 const FKEY = Buffer.from('"fields":'), RKEY = Buffer.from('"rows":');
+
+/** What was built from a `fields` value this client has decoded before. */
+interface SeenFields {
+	mapper: RowMapper | null;
+	columns: string[];
+}
 
 function strField(buf: Buffer, key: string, from: number): string | null {
 	const i = buf.indexOf(key, from);
@@ -227,6 +191,10 @@ export class NeonHttpClient {
 	private temporal: 'date' | 'string';
 	private decoders: Map<number, Decoder>;
 	private rowMappers: RowMappers; // per-shape mapper cache, owned by this client
+	private seenFields: Record<'array' | 'object', SeenBytes<SeenFields>> = {
+		array: new SeenBytes(),
+		object: new SeenBytes(),
+	};
 
 	/** For API symmetry with the wire driver — an HTTP client is always "ready" (no socket). */
 	get state(): 'ready' {
@@ -369,14 +337,29 @@ export class NeonHttpClient {
 	): QueryResult<never> {
 		const fi = raw.indexOf(FKEY);
 		const fvs = skipWs(raw, fi + FKEY.length);
-		const fve = endOfValue(raw, fvs);
-		const fieldsJson = raw.toString('utf8', fvs, fve);
-		const fields = JSON.parse(fieldsJson) as NeonField[];
+		let fve = 0;
+		let mapper: RowMapper | null = null;
+		let columns!: string[];
+		// A plain query's `fields` value is compared, byte for byte and in place, with the ones this client has
+		// already decoded. A match gives the mapper and the column names without finding the value's end,
+		// building its string or parsing it: on a small result that work costs more than the rows do. The
+		// remembered bytes are one whole JSON array, so matching them at `fvs` means the value there IS that array.
+		const seen = shape === undefined && (mode === 'array' || mode === 'object') ? this.seenFields[mode] : null;
+		const hit = seen?.find(raw, fvs, -1);
+		if (hit) {
+			fve = fvs + hit.bytes.length;
+			({ mapper, columns } = hit.value);
+		} else {
+			fve = endOfValue(raw, fvs);
+			const fieldsJson = raw.toString('utf8', fvs, fve);
+			const fields = JSON.parse(fieldsJson) as NeonField[];
+			({ mapper, columns } = this.planFor(fields, fieldsJson, shape, mode));
+			seen?.add(raw, fvs, fve, { mapper, columns });
+		}
 		const ri = raw.indexOf(RKEY, fve);
 		let i = skipWs(raw, ri + RKEY.length) + 1; // past '['
-		const { mapper, columns } = this.planFor(fields, fieldsJson, shape, mode);
 		const ncols = columns.length;
-		const rb = new RowBuf();
+		const rb = new RowArena();
 		const rows: unknown[] = [];
 		for (;;) {
 			i = skipWs(raw, i);
@@ -390,7 +373,7 @@ export class NeonHttpClient {
 				break;
 			} // end of rows array
 			i++; // past the row's '['
-			rb.reset();
+			rb.begin();
 			for (let col = 0; col < ncols; col++) {
 				i = skipWs(raw, i);
 				c = raw[i]!;
@@ -399,21 +382,20 @@ export class NeonHttpClient {
 					c = raw[i]!;
 				}
 				if (c === 0x6e) {
-					rb.pushNull();
+					rb.push(null);
 					i += 4;
 				} // null
 				else {
 					const qs = i, se = scanString(raw, i);
 					if (scanEscaped) {
-						const b = Buffer.from(JSON.parse(raw.toString('utf8', qs, se)) as string, 'utf8');
-						rb.pushSlice(b, 0, b.length);
+						rb.push(JSON.parse(raw.toString('utf8', qs, se)) as string);
 					} else rb.pushSlice(raw, qs + 1, se - 1);
 					i = se;
 				}
 			}
 			i = skipWs(raw, i);
 			if (raw[i] === 0x5d) i++; // past the row's ']'
-			rows.push(this.rowFrom(mode, mapper, rb.finish(ncols)));
+			rows.push(this.rowFrom(mode, mapper, rb.end(ncols)));
 		}
 		return {
 			rows: rows as never[],
@@ -431,11 +413,11 @@ export class NeonHttpClient {
 	): QueryResult<never> {
 		const { mapper, columns } = this.planFor(result.fields, null, shape, mode);
 		const ncols = columns.length;
-		const rb = new RowBuf();
+		const rb = new RowArena();
 		const rows = result.rows.map((row) => {
-			rb.reset();
-			for (let c = 0; c < ncols; c++) rb.pushText(row[c] ?? null);
-			return this.rowFrom(mode, mapper, rb.finish(ncols));
+			rb.begin();
+			for (let c = 0; c < ncols; c++) rb.push(row[c] ?? null);
+			return this.rowFrom(mode, mapper, rb.end(ncols));
 		});
 		return {
 			rows: rows as never[],

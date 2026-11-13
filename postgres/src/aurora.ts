@@ -26,7 +26,7 @@ import { type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
 import { arrayLiteral, setTransactionSnapshotSql } from './encode.ts';
 import { PgError } from './errors.ts';
 import { parseJsonBuffer } from './jsonparse.ts';
-import { RowMappers } from './mapper.ts';
+import { RowArena, RowMappers } from './mapper.ts';
 import { parseDataRow } from './protocol.ts';
 import type { ShapeMapper } from './shape.ts';
 import { type AwsCredentials, signRequest } from './sigv4.ts';
@@ -275,15 +275,15 @@ function arrayToLiteral(a: ArrayValue, utc: boolean, delim: ',' | ';'): string {
 	return '{' + els.join(delim) + '}';
 }
 
-// A Field -> its PG text bytes (so the SAME compiled mapper the wire driver uses can decode it).
-function fieldToText(f: Field, utc: boolean, delim: ',' | ';'): Buffer | null {
+// A Field -> its PG text (so the SAME compiled mapper the wire driver uses can decode it); null = SQL NULL.
+function fieldToText(f: Field, utc: boolean, delim: ',' | ';'): string | null {
 	if (f.isNull) return null;
-	if (f.stringValue !== undefined) return Buffer.from(utc ? withUtc(f.stringValue) : f.stringValue, 'utf8');
-	if (f.longValue !== undefined) return Buffer.from(String(f.longValue), 'utf8');
-	if (f.doubleValue !== undefined) return Buffer.from(String(f.doubleValue), 'utf8');
-	if (f.booleanValue !== undefined) return Buffer.from(f.booleanValue ? 't' : 'f', 'utf8');
-	if (f.blobValue !== undefined) return Buffer.from('\\x' + Buffer.from(f.blobValue, 'base64').toString('hex'), 'utf8');
-	if (f.arrayValue !== undefined) return Buffer.from(arrayToLiteral(f.arrayValue, utc, delim), 'utf8');
+	if (f.stringValue !== undefined) return utc ? withUtc(f.stringValue) : f.stringValue;
+	if (f.longValue !== undefined) return String(f.longValue);
+	if (f.doubleValue !== undefined) return String(f.doubleValue);
+	if (f.booleanValue !== undefined) return f.booleanValue ? 't' : 'f';
+	if (f.blobValue !== undefined) return '\\x' + Buffer.from(f.blobValue, 'base64').toString('hex');
+	if (f.arrayValue !== undefined) return arrayToLiteral(f.arrayValue, utc, delim);
 	return null;
 }
 
@@ -527,24 +527,11 @@ export class AuroraClient {
 		const ncols = cols.length;
 		const utc = meta.map((m) => UTC_TYPENAMES.has(m.typeName));
 		const delim = meta.map((m) => (m.typeName === '_box' ? ';' as const : ',' as const));
+		const arena = new RowArena();
 		const rows = r.records.map((rec) => {
-			const cells = rec.map((f, i) => fieldToText(f, utc[i]!, delim[i]!));
-			let size = 2;
-			for (const c of cells) size += 4 + (c ? c.length : 0);
-			const b = Buffer.allocUnsafe(size);
-			b.writeInt16BE(ncols, 0);
-			let pos = 2;
-			for (const c of cells) {
-				if (c == null) {
-					b.writeInt32BE(-1, pos);
-					pos += 4;
-				} else {
-					b.writeInt32BE(c.length, pos);
-					pos += 4;
-					c.copy(b, pos);
-					pos += c.length;
-				}
-			}
+			arena.begin();
+			for (let i = 0; i < rec.length; i++) arena.push(fieldToText(rec[i]!, utc[i]!, delim[i]!));
+			const b = arena.end(ncols);
 			if (mapper) return mapper(b);
 			if (mode === 'buffer') return parseDataRow(b).map((cell) => (cell == null ? null : Buffer.from(cell)));
 			return Buffer.from(b);

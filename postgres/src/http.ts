@@ -92,7 +92,7 @@ function fnv1a64(b: Uint8Array): string {
 // One statement's slice of the stream (PROTOCOL.md "Splitting results": C/E/I terminate, never T).
 interface RawResult {
 	fields: Field[] | null;
-	descKey: string | null; // the RowDescription bytes as latin1: the row mapper cache key
+	desc: Buffer | null; // the RowDescription body: the row mapper is looked up by these bytes
 	rows: Buffer[];
 	command: string | null;
 	rowCount: number | null;
@@ -107,8 +107,8 @@ export class HttpClient {
 	private sendDesc: boolean;
 	// desc cache: sql -> { hash (sent as `desc`), fields (decode when the gateway omits T) }. Harvested
 	// from every T seen — including batch responses — self-correcting: a response WITH T overwrites.
-	// descKey: the T body as latin1 — the row mapper key, kept so a T-less response still hits the cache.
-	private descCache = new Map<string, { hash: string; fields: Field[]; descKey: string }>();
+	// desc: a copy of the T body — the row mapper is found by it, kept so a T-less response still finds one.
+	private descCache = new Map<string, { hash: string; fields: Field[]; desc: Buffer }>();
 
 	constructor(config: HttpConfig) {
 		if (!config.url) {
@@ -182,24 +182,25 @@ export class HttpClient {
 	// ---- stream splitting (PROTOCOL.md): each result ends with C, E, or I — never T ----
 	private split(msgs: RawMessage[], sqls: readonly string[]): { results: RawResult[]; trailing: PgError | null } {
 		const results: RawResult[] = [];
-		let cur: RawResult = { fields: null, descKey: null, rows: [], command: null, rowCount: null, error: null };
+		let cur: RawResult = { fields: null, desc: null, rows: [], command: null, rowCount: null, error: null };
 		let trailing: PgError | null = null;
 		const push = (): void => {
 			results.push(cur);
-			cur = { fields: null, descKey: null, rows: [], command: null, rowCount: null, error: null };
+			cur = { fields: null, desc: null, rows: [], command: null, rowCount: null, error: null };
 		};
 		for (const m of msgs) {
 			switch (m.type) {
 				case 'T': {
 					cur.fields = parseRowDescription(m.body);
-					cur.descKey = m.body.toString('latin1');
-					// harvest for desc elision + T-less decode; frame = header (5B, contiguous below body) + body
+					cur.desc = m.body;
+					// harvest for desc elision + T-less decode; frame = header (5B, contiguous below body) + body.
+					// The same description as last time for this statement: its hash and its copy still hold.
 					const i = results.length;
-					if (i < sqls.length) {
+					if (i < sqls.length && !this.descCache.get(sqls[i]!)?.desc.equals(m.body)) {
 						this.descCache.set(sqls[i]!, {
 							hash: fnv1a64(Buffer.from(m.body.buffer, m.body.byteOffset - 5, m.body.length + 5)),
 							fields: cur.fields,
-							descKey: cur.descKey,
+							desc: Buffer.from(m.body),
 						});
 					}
 					break;
@@ -279,7 +280,7 @@ export class HttpClient {
 	// RowDescription bytes, the resolved columns (a shape with 'unknown' columns).
 	private mapperFor(
 		fields: Field[],
-		descKey: string | null,
+		desc: Buffer | null,
 		shape: ShapeSpec | ShapeMapper | undefined,
 		mode: 'array' | 'object',
 	): { mapper: RowMapper; columns: string[] } {
@@ -291,8 +292,8 @@ export class HttpClient {
 					columns: plan.cols.map((c) => c.name),
 				};
 			}
-		} else if (descKey !== null) {
-			const mapper = this.rowMappers.forDescKey(descKey, false, mode, () => this.planCols(fields, undefined));
+		} else if (desc !== null) {
+			const mapper = this.rowMappers.forDesc(desc, false, mode, () => this.planCols(fields, undefined));
 			return { mapper, columns: fields.map((f) => f.name) };
 		}
 		const cols = this.planCols(fields, shape);
@@ -318,7 +319,7 @@ export class HttpClient {
 			return { rows: [], columns: [], rowCount: r.rowCount, command: r.command };
 		}
 		if (m === 'array' || m === 'object') {
-			const { mapper, columns } = this.mapperFor(fields, r.descKey ?? cached?.descKey ?? null, shape, m);
+			const { mapper, columns } = this.mapperFor(fields, r.desc ?? cached?.desc ?? null, shape, m);
 			const rows = r.rows.map((b) => mapper(b));
 			return { rows: rows as never[], columns, rowCount: r.rowCount, command: r.command };
 		}

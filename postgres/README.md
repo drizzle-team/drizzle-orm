@@ -109,11 +109,40 @@ effect. Deno reads only `ssl.ca` and `ssl.servername` and ignores the other `ssl
 The choice is made once, by the `exports` conditions in `package.json`, when the module is
 resolved or bundled. There is no fallback on purpose: a target with no TCP (a browser bundle, the
 Vercel Edge runtime) fails to resolve the root import at build time. Use
-`@drizzle-team/postgres/http`, `/neon-http` or `/neon-ws` there.
+`@drizzle-team/postgres/http`, `/neon-http`, `/neon-ws` or `/pglite` there.
 
 To force a transport, or when a bundler does not apply runtime conditions, import the explicit
 entry: `@drizzle-team/postgres/node`, `/cf` or `/deno`. Each exposes the same API as the root.
 `/core` has no transport at all; pass `config.transport` or `config.socket`.
+
+## PGlite
+
+`@drizzle-team/postgres/pglite` runs the driver against an in-process [PGlite](https://pglite.dev), with no
+server and no socket in between:
+
+```ts
+import { PGlite } from '@electric-sql/pglite'
+import { createPool } from '@drizzle-team/postgres/pglite'
+
+const pg = await PGlite.create()
+const pool = createPool(pg)
+```
+
+The driver writes the wire protocol straight into PGlite, so named statements, pipelining and transactions
+work as they do against a server. A point lookup by a named statement takes about 6 µs.
+
+PGlite is one Postgres backend with one session, and the entry adapts to that:
+
+- A pool has one connection (`max` must be 1). Queries share it, and wait behind a transaction.
+- One pool or connection per PGlite instance: a second one fails while the first is open.
+- Settings such as `applicationName` and `options` (`-c search_path=…`) are applied when the connection
+  opens. `user` and `database` are the instance's own.
+- Closing the connection ends its session as a disconnect would: an open transaction rolls back, and
+  `DISCARD ALL` drops prepared statements, temporary tables and session settings, including settings made
+  directly on the instance.
+- `pg.query()` and `pg.transaction()` on the same instance stay out of the driver's transactions, and the
+  driver's statements stay out of theirs. Calling one from inside the other's transaction waits forever.
+- A running statement can't be interrupted. Canceling a query closes the connection once its turn comes.
 
 ## Effect
 

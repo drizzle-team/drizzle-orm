@@ -305,6 +305,9 @@ importers:
       '@drizzle-team/brocli':
         specifier: 0.12.1
         version: 0.12.1
+      '@drizzle-team/postgres':
+        specifier: workspace:*
+        version: link:../postgres
       '@drizzle/test-utils':
         specifier: workspace:*
         version: link:../test-utils
@@ -466,7 +469,7 @@ importers:
         version: 17.2.1
       orm044:
         specifier: npm:drizzle-orm@0.44.1
-        version: drizzle-orm@0.44.1(ffaa6b5e15b310e7b5e76f5f5c1ad4e5)
+        version: drizzle-orm@0.44.1(27ce83425d3b7d78bd3486d0ee4c3ce8)
       oxc-parser:
         specifier: ^0.157.0
         version: 0.157.0
@@ -1136,6 +1139,9 @@ importers:
       '@cloudflare/vitest-pool-workers':
         specifier: ^0.5.2
         version: 0.5.41(@cloudflare/workers-types@4.20251126.0)(@vitest/runner@2.1.9)(@vitest/snapshot@2.1.9)(bufferutil@4.0.8)(supports-color@10.2.2)(utf-8-validate@6.0.3)(vitest@2.1.9(@types/node@24.10.1)(lightningcss@1.30.2)(supports-color@10.2.2)(terser@5.44.1))
+      '@electric-sql/pglite':
+        specifier: ^0.5.15
+        version: 0.5.15
       '@mitata/counters':
         specifier: ^0.0.8
         version: 0.0.8
@@ -17828,7 +17834,7 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7(supports-color@10.2.2)
 
-  drizzle-orm@0.44.1(ffaa6b5e15b310e7b5e76f5f5c1ad4e5):
+  drizzle-orm@0.44.1(27ce83425d3b7d78bd3486d0ee4c3ce8):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
       '@cloudflare/workers-types': 4.20251126.0
@@ -17851,6 +17857,7 @@ snapshots:
       bun-types: 1.4.4
       expo-sqlite: 14.0.6(expo@54.0.25(@babel/core@7.28.5(supports-color@10.2.2))(@modelcontextprotocol/sdk@1.29.0(supports-color@10.2.2)(zod@3.25.76))(bufferutil@4.0.8)(react-native@0.82.1(@babel/core@7.28.5(supports-color@10.2.2))(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(supports-color@10.2.2)(utf-8-validate@6.0.3))(react@18.3.1)(supports-color@10.2.2)(utf-8-validate@6.0.3))
       gel: 2.2.0(supports-color@10.2.2)
+      kysely: 0.29.8
       mysql2: 3.14.1
       pg: 8.16.3
       postgres: 3.4.7

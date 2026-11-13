@@ -68,6 +68,10 @@
 			"types": "./dist/neon-ws.d.ts",
 			"default": "./dist/neon-ws.js"
 		},
+		"./pglite": {
+			"types": "./dist/pglite.d.ts",
+			"default": "./dist/pglite.js"
+		},
 		"./neon-http": {
 			"types": "./dist/neon-http.d.ts",
 			"default": "./dist/neon-http.js"
@@ -198,6 +202,7 @@
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.18.5",
 		"@cloudflare/vitest-pool-workers": "^0.5.2",
+		"@electric-sql/pglite": "^0.5.15",
 		"@mitata/counters": "^0.0.8",
 		"@prisma/adapter-pg": "7.10.1",
 		"@prisma/driver-adapter-utils": "7.10.1",

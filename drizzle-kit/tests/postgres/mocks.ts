@@ -52,6 +52,7 @@ import {
 import { applyDeltas } from 'src/dialects/postgres/reconstruct';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
+import { connect } from '@drizzle-team/postgres/pglite';
 import { PGlite } from '@electric-sql/pglite';
 // @ts-ignore
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
@@ -669,7 +670,16 @@ export type TestDatabase<TClient = any> = {
 	clear: () => Promise<void>;
 };
 
-const client = new PGlite({ extensions: { citext, vector, pg_trgm } });
+const pglite = new PGlite({ extensions: { citext, vector, pg_trgm } });
+
+// Queries go to PGlite through Drizzle Postgres over an in-process socket (@drizzle-team/postgres/pglite).
+let connection: ReturnType<typeof connect> | undefined;
+const client = {
+	query: async <T = any>(sql: string, params?: unknown[]): Promise<{ rows: T[] }> => {
+		const conn = await (connection ??= connect(pglite));
+		return conn.query(sql, (params ?? []) as never[], { mode: 'object' }) as unknown as Promise<{ rows: T[] }>;
+	},
+};
 
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase<PGlite>> => {
 	const envPgVersion = process.env.PG_VERSION;
@@ -728,7 +738,7 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			}
 		},
 	};
-	return { db, close: async () => {}, clear, client };
+	return { db, close: async () => {}, clear, client: pglite };
 };
 
 export const preparePgVersionTestDatabase = async (

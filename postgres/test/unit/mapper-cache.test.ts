@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test';
 import { buildDecoders, type CodegenCol } from '../../src/decode.ts';
 import { Transform } from '../../src/json.ts';
-import { RowMappers } from '../../src/mapper.ts';
+import { RowMappers, SeenBytes } from '../../src/mapper.ts';
 import { defineType } from '../../src/registry.ts';
 import { shapeCols } from '../../src/spec.ts';
 
@@ -77,6 +77,43 @@ describe('row mapper cache', () => {
 		m.forDesc(desc('T1'), false, 'array', resolve); // same bytes, array mode: its own map
 		expect(built).toBe(3);
 		expect(m.forDesc(desc('T2'), false, 'object', resolve)).toBe(a); // other bytes, same columns: forCols dedupes the compile
+	});
+
+	test('forDesc: found by bytes, in a reused buffer, and past the number of descriptions kept', () => {
+		const m = new RowMappers('interpreted', buildDecoders());
+		let built = 0;
+		const resolve = () => (built++, cols);
+		// the driver hands over a view into its receive buffer, which the next message overwrites
+		const scratch = Buffer.alloc(64);
+		const view = (name: string) => {
+			const d = desc(name);
+			d.copy(scratch);
+			return scratch.subarray(0, d.length);
+		};
+		const a = m.forDesc(view('T1'), false, 'object', resolve);
+		const b = m.forDesc(view('T22'), false, 'object', resolve); // overwrites the bytes 'T1' was read from
+		expect(m.forDesc(view('T1'), false, 'object', resolve)).toBe(a);
+		expect(m.forDesc(view('T22'), false, 'object', resolve)).toBe(b);
+		expect(m.forDesc(view('T2'), false, 'object', resolve)).toBe(a); // a prefix of 'T22' is its own description
+		expect(built).toBe(3);
+		for (let pass = 0; pass < 2; pass++) {
+			for (let n = 0; n < 40; n++) m.forDesc(view('N' + n), false, 'object', resolve);
+		}
+		expect(built).toBe(43); // 40 more, each resolved once: the ones past the kept set fall back to the string key
+	});
+
+	test('SeenBytes: a match needs the same end, or room for the whole entry when the end is unknown', () => {
+		const s = new SeenBytes<number>();
+		const big = Buffer.from('[{"name":"id"},{"name":"name"}]');
+		s.add(big, 0, big.length, 1);
+		expect(s.find(big, 0, big.length)?.value).toBe(1);
+		expect(s.find(big, 0, -1)?.value).toBe(1);
+		const short = Buffer.from('[{"name":"id"}]'); // shorter than the remembered entry: must not read past its end
+		expect(s.find(short, 0, -1)).toBeUndefined();
+		expect(s.find(short, 0, short.length)).toBeUndefined();
+		const inside = Buffer.concat([Buffer.from('xx'), big, Buffer.from(',"rows":[]')]);
+		expect(s.find(inside, 2, -1)?.value).toBe(1);
+		expect(s.find(inside, 2, inside.length)).toBeUndefined(); // same start, another end
 	});
 
 	test('plan: resolved once per shape object, mapper once per mode', () => {
