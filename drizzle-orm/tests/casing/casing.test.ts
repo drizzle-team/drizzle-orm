@@ -25,4 +25,19 @@ describe.concurrent('casing', () => {
 	it('transforms to camel case 1', ({ expect }) => {
 		expect(toCamelCase('drizzle_kit')).toEqual('drizzleKit');
 	});
+
+	it('preserves non-Latin identifiers in snake case', ({ expect }) => {
+		expect(toSnakeCase('칼럼명')).toEqual('칼럼명');
+		expect(toSnakeCase('用户名')).toEqual('用户名');
+	});
+
+	it('preserves non-Latin identifiers in camel case', ({ expect }) => {
+		expect(toCamelCase('칼럼명')).toEqual('칼럼명');
+		expect(toCamelCase('用户名')).toEqual('用户名');
+	});
+
+	it('splits words on case boundaries in non-Latin cased scripts', ({ expect }) => {
+		expect(toSnakeCase('пользовательИмя')).toEqual('пользователь_имя');
+		expect(toCamelCase('пользователь_имя')).toEqual('пользовательИмя');
+	});
 });
