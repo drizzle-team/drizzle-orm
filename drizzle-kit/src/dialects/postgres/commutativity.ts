@@ -119,6 +119,11 @@ function targetOf(statement: JsonStatement): Footprint['statementTarget'] {
 		case 'revoke_privilege':
 		case 'regrant_privilege':
 			return ['table', statement.privilege.schema || '', statement.privilege.table || ''];
+
+		case 'comment_on_table':
+			return ['table', statement.schema, statement.table];
+		case 'comment_on_column':
+			return ['column', statement.schema, statement.table, statement.column];
 	}
 }
 
@@ -229,6 +234,8 @@ class PostgresCommutativity extends FootprintCommutativity<PostgresSnapshot> {
 			case 'grant_privilege':
 			case 'revoke_privilege':
 			case 'regrant_privilege':
+			case 'comment_on_table':
+			case 'comment_on_column':
 				return true;
 			default:
 				return false;
@@ -761,6 +768,17 @@ class PostgresCommutativity extends FootprintCommutativity<PostgresSnapshot> {
 					],
 				};
 			}
+
+			case 'comment_on_table':
+				return {
+					writes: altered('tblprop', s.schema, s.table, 'comment'),
+					reads: underTable(s.schema, s.table),
+				};
+			case 'comment_on_column':
+				return {
+					writes: altered('colprop', s.schema, s.table, s.column, 'comment'),
+					reads: [...underTable(s.schema, s.table), nref('col', s.schema, s.table, s.column)],
+				};
 
 			default: {
 				// Exhaustiveness guard: `statement` is `never` here only when every

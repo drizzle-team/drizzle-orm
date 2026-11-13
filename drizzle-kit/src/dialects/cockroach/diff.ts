@@ -724,6 +724,28 @@ export const ddlDiff = async (
 	const jsonAlterAddNotNull: JsonAlterColumnAddNotNull[] = [];
 	const jsonAlterDropNotNull: JsonAlterColumnDropNotNull[] = [];
 	const jsonAlterColumns: JsonAlterColumn[] = [];
+
+	const jsonCommentOnColumns = columnAlters
+		.filter((it) => it.comment && it.comment.from !== it.comment.to)
+		.map((it) => {
+			return prepareStatement('comment_on_column', {
+				schema: it.schema,
+				table: it.table,
+				column: it.name,
+				comment: it.comment?.to ?? null,
+			});
+		});
+
+	const jsonCommentOnTables = alters
+		.filter((it) => it.entityType === 'tables' && it.comment && it.comment.from !== it.comment.to)
+		.map((it) => {
+			return prepareStatement('comment_on_table', {
+				schema: it.schema,
+				table: it.name,
+				comment: it.comment!.to ?? null,
+			});
+		});
+
 	const filteredColumnAlters = columnAlters
 		.filter((it) => !it.generated)
 		.filter((it) => {
@@ -747,6 +769,10 @@ export const ddlDiff = async (
 
 			if (it.notNull && (it.notNull.to && it.identity?.to)) {
 				delete it.notNull;
+			}
+
+			if (it.comment) {
+				delete it.comment;
 			}
 
 			return ddl2.columns.hasDiff(it);
@@ -942,6 +968,8 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonAlterAddNotNull);
 	jsonStatements.push(...jsonAlterColumns);
+	jsonStatements.push(...jsonCommentOnTables);
+	jsonStatements.push(...jsonCommentOnColumns);
 	jsonStatements.push(...jsonAddPrimaryKeys);
 	jsonStatements.push(...jsonAlteredPKs);
 	jsonStatements.push(...jsonRecreatePk);

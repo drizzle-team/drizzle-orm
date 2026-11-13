@@ -635,6 +635,7 @@ test('pull after migrate with custom migrations table #1', async () => {
 
 			name: 'users',
 			schema: 'drizzle',
+			comment: null,
 		},
 		{
 			columns: [
@@ -682,6 +683,7 @@ test('pull after migrate with custom migrations table #2', async () => {
 
 			name: 'users',
 			schema: 'dbo',
+			comment: null,
 		},
 		{
 			columns: [
@@ -738,11 +740,13 @@ test('pull after migrate with custom migrations table #3', async () => {
 			entityType: 'tables',
 			name: 'users',
 			schema: 'custom',
+			comment: null,
 		},
 		{
 			entityType: 'tables',
 			name: 'users',
 			schema: 'dbo',
+			comment: null,
 		},
 		{
 			columns: [

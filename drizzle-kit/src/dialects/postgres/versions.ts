@@ -67,6 +67,7 @@ export const upToV8 = (
 			schema,
 			name: table.name,
 			isRlsEnabled: isRlsEnabled,
+			comment: null,
 		});
 
 		for (const column of Object.values(table.columns)) {
@@ -112,6 +113,7 @@ export const upToV8 = (
 				default: typeof column.default === 'undefined'
 					? null
 					: trimDefaultValueSuffix(String(column.default)),
+				comment: null,
 			});
 		}
 

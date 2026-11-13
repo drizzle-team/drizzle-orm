@@ -108,6 +108,7 @@ test('Issue #5957. Comma-separated enum values', async () => {
 			onUpdateNowFsp: null,
 			table: 'table',
 			type: "enum('a,b','a')",
+			comment: null,
 		},
 	]);
 	expect(pst).toStrictEqual(st0);

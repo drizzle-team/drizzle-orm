@@ -130,7 +130,7 @@ export const createDDLV1 = () =>
 export const createDDL = () =>
 	create({
 		schemas: { name: 'string' },
-		tables: { schema: 'string', name: 'string' },
+		tables: { schema: 'string', name: 'string', comment: 'string?' },
 		columns: {
 			schema: 'string',
 			table: 'string',
@@ -145,6 +145,7 @@ export const createDDL = () =>
 				increment: 'number',
 				seed: 'number',
 			},
+			comment: 'string?',
 		},
 		pks: {
 			schema: 'string',

@@ -262,6 +262,7 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 		if (x.entityType === 'enums' && x.schema === 'public') imports.add('cockroachEnum');
 		if (x.entityType === 'policies') imports.add('cockroachPolicy');
 		if (x.entityType === 'roles') imports.add('cockroachRole');
+		if ((x.entityType === 'tables' || x.entityType === 'columns') && x.comment !== null) imports.add('comment');
 	}
 
 	const enumStatements = ddl.enums
@@ -373,7 +374,8 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 			|| callbackFks.length > 0
 			|| table.policies.length > 0
 			|| primaryKeyType === 'callback'
-			|| table.checks.length > 0;
+			|| table.checks.length > 0
+			|| table.comment !== null;
 
 		if (hasCallback) {
 			statement += ', ';
@@ -385,6 +387,9 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 			statement += createTableIndexes(table.name, table.indexes, casing);
 			statement += createTablePolicies(table.policies, casing, rolesNameToTsKey);
 			statement += createTableChecks(table.checks, casing);
+			statement += table.comment !== null
+				? `\tcomment(${escapeForTsLiteral(table.comment)}),\n`
+				: '';
 			statement += ']';
 		}
 		statement += ');';
@@ -546,6 +551,9 @@ const createTableColumns = (
 		if (it.notNull && !it.identity && !pk) columnStatement += '.notNull()';
 		if (identity) columnStatement += generateIdentityParams(it);
 		if (generated) columnStatement += `.generatedAlwaysAs(sql\`${escapeForSqlTemplate(generated.as)}\`)`;
+		if (it.comment !== null) {
+			columnStatement += `.comment(${escapeForTsLiteral(it.comment)})`;
+		}
 
 		statement += '\t';
 		statement += columnStatement;

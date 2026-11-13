@@ -1,6 +1,6 @@
 import { is } from '~/entity.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { Table } from '~/table.ts';
+import { Comment, Table } from '~/table.ts';
 import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import type { SingleStoreCodecs } from './codecs.ts';
@@ -23,6 +23,7 @@ export function getTableConfig(table: SingleStoreTable) {
 	const baseName = table[Table.Symbol.BaseName];
 
 	const extraConfigBuilder = table[SingleStoreTable.Symbol.ExtraConfigBuilder];
+	let comment: string | undefined;
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[SingleStoreTable.Symbol.Columns]);
@@ -34,6 +35,8 @@ export function getTableConfig(table: SingleStoreTable) {
 				uniqueConstraints.push(builder.build(table));
 			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
+			} else if (is(builder, Comment)) {
+				comment = builder.value;
 			} else {
 				throwUnknownExtraConfigValue(name, builder);
 			}
@@ -48,6 +51,7 @@ export function getTableConfig(table: SingleStoreTable) {
 		name,
 		schema,
 		baseName,
+		comment,
 	};
 }
 

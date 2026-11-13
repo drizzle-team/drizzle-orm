@@ -1659,6 +1659,7 @@ test('introspect partitioned tables with indexes', async () => {
 			schema: 'public',
 			entityType: 'tables',
 			isRlsEnabled: false,
+			comment: null,
 		} satisfies (typeof tables)[number],
 	]);
 	expect(indexes).toStrictEqual([
@@ -1798,6 +1799,7 @@ test('introspect view with table filter', async () => {
 		schema: 'public',
 		name: 'table1',
 		isRlsEnabled: false,
+		comment: null,
 	}];
 	expect(res.tables).toStrictEqual(expectedTables);
 	expect(res.views).toStrictEqual([]);
@@ -1864,6 +1866,7 @@ test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect sequences with tab
 		schema: 'public',
 		name: 'table1',
 		isRlsEnabled: false,
+		comment: null,
 	}]);
 
 	expect(sequences).toBe([{
@@ -2053,6 +2056,7 @@ test('introspect enum within schema', async () => {
 			schema: 'public',
 			name: 'table1',
 			isRlsEnabled: false,
+			comment: null,
 		},
 	]);
 	expect(enums).toStrictEqual([]);
@@ -2282,6 +2286,7 @@ test('pull after migrate with custom migrations table #1', async () => {
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'drizzle',
+			comment: null,
 		},
 		{
 			columns: ['id'],
@@ -2337,6 +2342,7 @@ test('pull after migrate with custom migrations table #2', async () => {
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'public',
+			comment: null,
 		},
 		{
 			columns: ['id'],
@@ -2402,12 +2408,14 @@ test('pull after migrate with custom migrations table #3', async () => {
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'custom',
+			comment: null,
 		},
 		{
 			entityType: 'tables',
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'public',
+			comment: null,
 		},
 		{
 			columns: ['id'],
@@ -2899,12 +2907,14 @@ test('non-admin', async () => {
 			schema: 'public',
 			name: 'users',
 			isRlsEnabled: false,
+			comment: null,
 		},
 		{
 			entityType: 'tables',
 			schema: 'schema_not_for_non_admin',
 			name: 'table_not_for_non_admin',
 			isRlsEnabled: false,
+			comment: null,
 		},
 	]);
 	expect(fks.length).toBe(1);
@@ -3404,6 +3414,7 @@ test('issue #5941', async () => {
 			unique: false,
 			uniqueName: null,
 			uniqueNullsNotDistinct: false,
+			comment: null,
 		},
 	]);
 });
@@ -3451,6 +3462,7 @@ test('issue #5413', async () => {
 			unique: false,
 			uniqueName: null,
 			uniqueNullsNotDistinct: false,
+			comment: null,
 		},
 	]);
 });
@@ -3633,6 +3645,7 @@ test('issue No3250', async () => {
 			table: 'users',
 			type: 'varchar(64)',
 			typeSchema: null,
+			comment: null,
 		},
 	]);
 	expect(schema2.columns.find((it) => it.name === 'account_type')).toStrictEqual(
@@ -3653,6 +3666,7 @@ test('issue No3250', async () => {
 			unique: false,
 			uniqueName: null,
 			uniqueNullsNotDistinct: false,
+			comment: null,
 		},
 	);
 });
@@ -3737,6 +3751,7 @@ test('Issue No2965', async () => {
 		table: 'table',
 		type: 'jsonb',
 		typeSchema: null,
+		comment: null,
 	});
 });
 
@@ -3770,6 +3785,7 @@ test('Issue No 2595', async () => {
 		table: 'table',
 		type: 'varchar(20)',
 		typeSchema: null,
+		comment: null,
 	});
 });
 
@@ -3803,6 +3819,7 @@ test('Issue No2069', async () => {
 		table: 'table',
 		type: 'varchar(255)',
 		typeSchema: null,
+		comment: null,
 	});
 });
 
@@ -3837,6 +3854,7 @@ test('Issue No3446', async () => {
 		table: 'table',
 		type: 'bytea',
 		typeSchema: null,
+		comment: null,
 	}]);
 });
 
@@ -3946,6 +3964,7 @@ test('Issue No5626', async () => {
 			table: 'table',
 			type: 'text',
 			typeSchema: null,
+			comment: null,
 		},
 	]);
 });
@@ -3977,6 +3996,7 @@ test(`PlanetScale's Neki internal schema #1`, async () => {
 		name: 'users',
 		entityType: 'tables',
 		isRlsEnabled: false,
+		comment: null,
 	}]);
 
 	expect(schema2.schemas).toStrictEqual([]); // public is stripped
@@ -3985,6 +4005,7 @@ test(`PlanetScale's Neki internal schema #1`, async () => {
 		name: 'users',
 		entityType: 'tables',
 		isRlsEnabled: false,
+		comment: null,
 	}]);
 });
 test(`PlanetScale's Neki internal schema #2`, async () => {
@@ -4019,6 +4040,7 @@ test(`PlanetScale's Neki internal schema #2`, async () => {
 		name: 'users',
 		entityType: 'tables',
 		isRlsEnabled: false,
+		comment: null,
 	}]);
 
 	expect(schema2.schemas).toStrictEqual([{
@@ -4030,6 +4052,7 @@ test(`PlanetScale's Neki internal schema #2`, async () => {
 		name: 'users',
 		entityType: 'tables',
 		isRlsEnabled: false,
+		comment: null,
 	}]);
 });
 

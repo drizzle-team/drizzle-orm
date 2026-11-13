@@ -375,6 +375,21 @@ export interface JsonAlterView {
 	view: View;
 }
 
+export interface JsonCommentOnTable {
+	type: 'comment_on_table';
+	schema: string;
+	table: string;
+	comment: string | null;
+}
+
+export interface JsonCommentOnColumn {
+	type: 'comment_on_column';
+	schema: string;
+	table: string;
+	column: string;
+	comment: string | null;
+}
+
 export type JsonStatement =
 	| JsonCreateTable
 	| JsonDropTable
@@ -433,7 +448,9 @@ export type JsonStatement =
 	| JsonDropValueFromEnum
 	| JsonAlterColumnAddNotNull
 	| JsonAlterColumnDropNotNull
-	| JsonRecreatePrimaryKey;
+	| JsonRecreatePrimaryKey
+	| JsonCommentOnTable
+	| JsonCommentOnColumn;
 
 export const prepareStatement = <
 	TType extends JsonStatement['type'],

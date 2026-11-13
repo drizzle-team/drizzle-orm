@@ -190,6 +190,7 @@ export interface ColumnBuilderRuntimeConfig<TData> {
 	columnType: string;
 	generated: GeneratedColumnConfig<TData> | undefined;
 	generatedIdentity: GeneratedIdentityConfig | undefined;
+	comment: string | undefined;
 }
 
 export interface ColumnBuilderExtraConfig {
@@ -284,6 +285,7 @@ export abstract class ColumnBuilder<
 			dataType,
 			columnType,
 			generated: undefined,
+			comment: undefined,
 		} as ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig; // TODO: ??
 	}
 
@@ -384,6 +386,14 @@ export abstract class ColumnBuilder<
 		this.config.notNull = true;
 		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<this>>
 			: IsPrimaryKey<this>;
+	}
+
+	/**
+	 * Adds a comment to the column definition.
+	 */
+	comment(text: string): this {
+		this.config.comment = text;
+		return this;
 	}
 
 	abstract generatedAlwaysAs(

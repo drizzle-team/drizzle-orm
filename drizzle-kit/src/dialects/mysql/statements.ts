@@ -114,6 +114,12 @@ export interface AlterView {
 	view: View;
 }
 
+export interface AlterTable {
+	type: 'alter_table';
+	table: string;
+	comment: string | null;
+}
+
 export interface CreateCheck {
 	type: 'create_check';
 	check: CheckConstraint;
@@ -137,6 +143,7 @@ export type JsonStatement =
 	| DropView
 	| RenameView
 	| AlterView
+	| AlterTable
 	| DropConstraint
 	| CreateCheck;
 

@@ -17,7 +17,7 @@ export const privilegeTypes = [
 export const createDDL = () => {
 	return create({
 		schemas: { name: 'string' },
-		tables: { schema: 'string', name: 'string', isRlsEnabled: 'boolean' },
+		tables: { schema: 'string', name: 'string', isRlsEnabled: 'boolean', comment: 'string?' },
 		enums: {
 			schema: 'string',
 			name: 'string',
@@ -46,6 +46,7 @@ export const createDDL = () => {
 				cache: 'number?',
 				cycle: 'boolean?',
 			},
+			comment: 'string?',
 		},
 		indexes: {
 			schema: 'string',
@@ -294,6 +295,7 @@ export type Table = {
 	checks: CheckConstraint[];
 	policies: Policy[];
 	isRlsEnabled: boolean;
+	comment: string | null;
 };
 
 export type InterimColumn = Omit<Column, 'primaryKey'> & {

@@ -1,7 +1,7 @@
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
-import { escapeForSqlTemplate } from '../grammar';
+import { escapeForSqlTemplate, escapeForTsLiteral } from '../grammar';
 import { withCasing as makeCasing } from '../pull-utils';
 import { inspect } from '../utils';
 import type { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
@@ -113,6 +113,7 @@ export const ddlToTypeScript = (
 		if (it.entityType === 'pks' && (it.columns.length > 1)) imports.add('primaryKey');
 		if (it.entityType === 'checks') imports.add('check');
 		if (it.entityType === 'views') imports.add(vendor === 'mysql' ? 'mysqlView' : 'singlestoreView');
+		if (it.entityType === 'tables' && it.comment !== null) imports.add('comment');
 
 		if (it.entityType === 'columns' || it.entityType === 'viewColumn') {
 			const grammarType = typeFor(it.type);
@@ -162,7 +163,8 @@ export const ddlToTypeScript = (
 		const hasIndexes = indexes.length > 0;
 		const hasFKs = callbackFks.length > 0;
 		const hasChecks = checks.length > 0;
-		const hasCallbackParams = hasIndexes || hasFKs || primaryKeyType === 'callback' || hasChecks;
+		const hasComment = table.comment !== null;
+		const hasCallbackParams = hasIndexes || hasFKs || primaryKeyType === 'callback' || hasChecks || hasComment;
 
 		if (hasCallbackParams) {
 			statement += ',\n';
@@ -171,6 +173,7 @@ export const ddlToTypeScript = (
 			statement += createTableIndexes(indexes, withCasing);
 			statement += createTableFKs(callbackFks, withCasing);
 			statement += createTableChecks(checks);
+			statement += hasComment ? `\tcomment(${escapeForTsLiteral(table.comment ?? '')}),\n` : '';
 			statement += ']';
 		}
 
@@ -249,6 +252,7 @@ const column = (
 	onUpdateNowFsp: Column['onUpdateNowFsp'],
 	collation: Column['collation'],
 	charSet: Column['charSet'],
+	comment: Column['comment'],
 	vendor: 'mysql' | 'singlestore',
 ) => {
 	let lowered = type.startsWith('enum(') ? type : type.toLowerCase();
@@ -260,12 +264,15 @@ const column = (
 		out += def ? `.default(${def})` : '';
 		out += charSet ? `.charSet("${charSet}")` : '';
 		out += collation ? `.collate("${collation}")` : '';
+		out += comment !== null ? `.comment(${escapeForTsLiteral(comment)})` : '';
 
 		return out;
 	}
 
 	if (lowered === 'serial') {
-		return `${casing(name)}: serial(${dbColumnName({ name, casing: rawCasing })})`;
+		let res = `${casing(name)}: serial(${dbColumnName({ name, casing: rawCasing })})`;
+		res += comment !== null ? `.comment(${escapeForTsLiteral(comment)})` : '';
+		return res;
 	}
 
 	const grammarType = typeFor(lowered);
@@ -287,6 +294,7 @@ const column = (
 	res += onUpdateNow ? `.onUpdateNow(${onUpdateNowFsp ? '{ fsp: ' + onUpdateNowFsp + ' }' : ''})` : '';
 	res += charSet ? `.charSet("${charSet}")` : '';
 	res += collation ? `.collate("${collation}")` : '';
+	res += comment !== null ? `.comment(${escapeForTsLiteral(comment)})` : '';
 
 	return res;
 };
@@ -316,6 +324,7 @@ const createTableColumns = (
 			it.onUpdateNowFsp,
 			it.collation,
 			it.charSet,
+			it.comment,
 			vendor,
 		);
 
@@ -366,7 +375,7 @@ const createViewColumns = (
 
 	for (const it of columns) {
 		statement += '\n';
-		statement += column(it.type, it.name, casing, rawCasing, null, false, false, null, null, null, vendor);
+		statement += column(it.type, it.name, casing, rawCasing, null, false, false, null, null, null, null, vendor);
 		statement += it.notNull ? '.notNull()' : '';
 		statement += ',\n';
 	}

@@ -53,6 +53,7 @@ export interface CockroachColumnBuilderRuntimeConfig<TData> {
 	generated: GeneratedColumnConfig<TData> | undefined;
 	generatedIdentity: GeneratedIdentityConfig | undefined;
 	dimensions?: CockroachArrayDimension;
+	comment: string | undefined;
 }
 
 // TODO: remove isAutoincrement and hasRuntimeDefault
@@ -199,6 +200,7 @@ export abstract class CockroachColumnBuilder<
 			defaultFn: undefined,
 			onUpdateFn: undefined,
 			generatedIdentity: undefined,
+			comment: undefined,
 		} as CockroachColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 	}
 
@@ -286,6 +288,14 @@ export abstract class CockroachColumnBuilder<
 		this.config.primaryKey = true;
 		this.config.notNull = true;
 		return this as SetIsPrimaryKey<this>;
+	}
+
+	/**
+	 * Adds a comment to the column definition.
+	 */
+	comment(text: string): this {
+		this.config.comment = text;
+		return this;
 	}
 
 	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */

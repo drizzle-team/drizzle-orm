@@ -5,7 +5,7 @@ import { nameForUnique } from './grammar';
 
 export const createDDL = () =>
 	create({
-		tables: { name: 'string' },
+		tables: { name: 'string', comment: 'string?' },
 		columns: {
 			table: 'string',
 			name: 'string',
@@ -21,6 +21,7 @@ export const createDDL = () =>
 				type: ['stored', 'virtual'],
 				as: 'string',
 			},
+			comment: 'string?',
 		},
 		pks: {
 			table: 'string',
@@ -132,6 +133,7 @@ export type TableFull = {
 	fks: ForeignKey[];
 	checks: CheckConstraint[];
 	indexes: Index[];
+	comment: string | null;
 };
 
 export const fullTableFromDDL = (table: Table, ddl: MysqlDDL): TableFull => {
@@ -148,6 +150,7 @@ export const fullTableFromDDL = (table: Table, ddl: MysqlDDL): TableFull => {
 		fks,
 		checks,
 		indexes,
+		comment: table.comment ?? null,
 	};
 };
 

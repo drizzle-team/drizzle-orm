@@ -66,6 +66,7 @@ class MysqlCommutativity extends ConflictListCommutativity<
 		'create_table',
 		'drop_table',
 		'rename_table',
+		'alter_table',
 		'create_view',
 		'drop_view',
 		'alter_view',
@@ -76,7 +77,7 @@ class MysqlCommutativity extends ConflictListCommutativity<
 		return {
 			// Table operations
 			create_table: {
-				conflicts: ['create_table', 'drop_table', 'rename_table'],
+				conflicts: ['create_table', 'drop_table', 'rename_table', 'alter_table'],
 				buildInfo: (statement) => ({
 					primary: makeTarget(statement.table.name),
 					ancestors: [],
@@ -87,6 +88,7 @@ class MysqlCommutativity extends ConflictListCommutativity<
 					'create_table',
 					'drop_table',
 					'rename_table',
+					'alter_table',
 					'add_column',
 					'drop_column',
 					'alter_column',
@@ -104,10 +106,18 @@ class MysqlCommutativity extends ConflictListCommutativity<
 					'create_table',
 					'drop_table',
 					'rename_table',
+					'alter_table',
 					'create_index',
 				],
 				buildInfo: (statement) => ({
 					primary: makeTarget(statement.from),
+					ancestors: [],
+				}),
+			},
+			alter_table: {
+				conflicts: ['alter_table', 'drop_table', 'rename_table', 'create_table'],
+				buildInfo: (statement) => ({
+					primary: makeTarget(statement.table),
 					ancestors: [],
 				}),
 			},

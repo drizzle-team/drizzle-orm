@@ -90,6 +90,7 @@ export const fromDrizzleSchema = (
 			checks,
 			primaryKeys,
 			uniqueConstraints,
+			comment: tableComment,
 		} = getTableConfig(table);
 
 		if (schema) continue;
@@ -97,6 +98,7 @@ export const fromDrizzleSchema = (
 		result.tables.push({
 			entityType: 'tables',
 			name: tableName,
+			comment: tableComment || null,
 		});
 
 		for (const column of columns) {
@@ -155,6 +157,7 @@ export const fromDrizzleSchema = (
 				isUnique: column.isUnique,
 				uniqueName: column.uniqueName ?? null,
 				default: defaultValue,
+				comment: column.comment || null,
 			});
 		}
 

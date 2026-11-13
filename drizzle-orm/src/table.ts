@@ -155,6 +155,19 @@ export function getTableName<T extends Table | View>(table: T): T['_']['name'] {
 	return table[TableName];
 }
 
+export class Comment {
+	static readonly [entityKind]: string = 'Comment';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	constructor(public readonly value: string) {}
+}
+
+export function comment(text: string): Comment {
+	return new Comment(text);
+}
+
 export function getTableSchema<T extends Table | View>(table: T): T['_']['schema'] {
 	return table[TableSchema];
 }

@@ -325,6 +325,7 @@ export const fromDrizzleSchema = (
 			schema,
 			name: config.name,
 			isRlsEnabled,
+			comment: config.comment ?? null,
 		} satisfies PostgresEntities['tables'];
 	});
 
@@ -419,6 +420,7 @@ export const fromDrizzleSchema = (
 					uniqueName: column.uniqueName ?? null,
 					uniqueNullsNotDistinct: column.uniqueType === 'not distinct',
 					identity: identityValue,
+					comment: column.comment ?? null,
 				} satisfies InterimColumn;
 			}),
 		);

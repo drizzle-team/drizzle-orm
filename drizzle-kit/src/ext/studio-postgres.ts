@@ -38,6 +38,7 @@ export type InterimTable = {
 	pks: Interim<PrimaryKey>[];
 	fks: Interim<ForeignKey>[];
 	isRlsEnabled: boolean;
+	comment?: string | null;
 };
 
 export type InterimView = {
@@ -74,6 +75,7 @@ const fromInterims = ({
 		name: it.name,
 		schema: it.schema,
 		isRlsEnabled: it.isRlsEnabled,
+		comment: it.comment ?? null,
 	}));
 	const columns: InterimColumn[] = tables
 		.map((table) => {
@@ -81,6 +83,7 @@ const fromInterims = ({
 				return {
 					entityType: 'columns',
 					...it,
+					comment: it.comment ?? null,
 				} satisfies InterimColumn;
 			});
 		})
