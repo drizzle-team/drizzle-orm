@@ -23,6 +23,7 @@ const driversPackages = [
 	'bun:sqlite',
 	'@sqlitecloud/drivers',
 	'@tursodatabase/database',
+	'@tursodatabase/serverless',
 	'bun',
 ];
 
