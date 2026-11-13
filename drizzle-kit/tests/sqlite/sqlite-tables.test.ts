@@ -1154,3 +1154,27 @@ test('recreate table and add unique column', async (t) => {
 		`query error: INSERT INTO rating_event (id, player_id) VALUES ('e2', 'p1')\n\nUNIQUE constraint failed: rating_event.player_id`,
 	);
 });
+
+test('index changes between index and uniqueIndex', async () => {
+	const unique = {
+		t: sqliteTable('t', { a: integer() }, (t) => [uniqueIndex('t_a_idx').on(t.a)]),
+	};
+	const plain = {
+		t: sqliteTable('t', { a: integer() }, (t) => [index('t_a_idx').on(t.a)]),
+	};
+
+	// unique -> plain
+	await push({ db, to: unique });
+	const { sqlStatements: st1 } = await diff(unique, plain, []);
+	const { sqlStatements: pst1 } = await push({ db, to: plain });
+	const st01 = ['DROP INDEX IF EXISTS `t_a_idx`;', 'CREATE INDEX `t_a_idx` ON `t` (`a`);'];
+	expect(st1).toStrictEqual(st01);
+	expect(pst1).toStrictEqual(st01);
+
+	// plain -> unique
+	const { sqlStatements: st2 } = await diff(plain, unique, []);
+	const { sqlStatements: pst2 } = await push({ db, to: unique });
+	const st02 = ['DROP INDEX IF EXISTS `t_a_idx`;', 'CREATE UNIQUE INDEX `t_a_idx` ON `t` (`a`);'];
+	expect(st2).toStrictEqual(st02);
+	expect(pst2).toStrictEqual(st02);
+});
