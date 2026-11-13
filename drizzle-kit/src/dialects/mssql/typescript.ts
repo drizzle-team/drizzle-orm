@@ -477,7 +477,7 @@ const createTableUniques = (
 		statement += '\tunique(';
 		statement += it.nameExplicit ? `"${it.name}")` : ')';
 		statement += `.on(${it.columns.map((it) => `table.${withCasing(it, casing)}`).join(', ')})`;
-		statement += ',';
+		statement += `,\n`;
 	});
 
 	return statement;
@@ -489,10 +489,10 @@ const createTableChecks = (
 	let statement = '';
 
 	checkConstraints.forEach((it) => {
-		statement += 'check(';
+		statement += '\tcheck(';
 		statement += `"${it.name}", `;
 		statement += `sql\`${escapeForSqlTemplate(it.value)}\`)`;
-		statement += `,`;
+		statement += `,\n`;
 	});
 
 	return statement;
