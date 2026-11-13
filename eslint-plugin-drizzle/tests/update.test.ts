@@ -275,3 +275,34 @@ ruleTester.run('enforce update with where (array option)', myRule, {
 		},
 	],
 });
+
+ruleTester.run('enforce update with where (no cross-statement state leak)', myRule, {
+	valid: [
+		// `.where(...)` chained on the update call itself stays valid even after another statement
+		'const filtered = base.where(x);\nconst a = db.update({}).set({}).where({});',
+	],
+	invalid: [
+		{
+			// a `.where()` on a previous statement must not suppress the report
+			code: 'const filtered = base.where(x);\ndb.update(users).set({});',
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'db' } }],
+		},
+		{
+			code: 'const filtered = base.where(x);\nthis.dataSource.db.update({}).set({});',
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'this.dataSource.db' } }],
+		},
+	],
+});
+
+ruleTester.run('enforce update with where (.from() before .where())', myRule, {
+	valid: [
+		'const a = db.update({}).set({}).from({}).where({});',
+		'const a = db.update({}).set({}).from({}).where({}).returning();',
+	],
+	invalid: [
+		{
+			code: 'const a = db.update({}).set({}).from({});',
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'db' } }],
+		},
+	],
+});

@@ -36,3 +36,27 @@ export const resolveMemberExpressionPath = (node: TSESTree.MemberExpression) => 
 
 	return fullName;
 };
+
+/**
+ * Checks whether a `MemberExpression` like `db.delete` (or `db.update(...).set`) is
+ * followed by a `.where` access anywhere further up its call chain, e.g.
+ * `db.delete(users).where(...)` or `db.update(t).set({...}).from(...).where(...)`.
+ */
+export const isFollowedByWhere = (node: TSESTree.MemberExpression): boolean => {
+	let current: TSESTree.Node | undefined = node.parent;
+	while (current) {
+		if (current.type === 'CallExpression') {
+			current = current.parent;
+			continue;
+		}
+		if (current.type === 'MemberExpression') {
+			if (current.property.type === 'Identifier' && current.property.name === 'where') {
+				return true;
+			}
+			current = current.parent;
+			continue;
+		}
+		return false;
+	}
+	return false;
+};
