@@ -28,6 +28,7 @@ import type {
 	PgInteger,
 	PgLineABC,
 	PgLineTuple,
+	PgNumericBigInt,
 	PgPointObject,
 	PgPointTuple,
 	PgReal,
@@ -101,6 +102,10 @@ export function columnToSchema(column: Column): Type {
 			schema = type.unknown.array();
 		} else if (column.dataType === 'number') {
 			schema = numberColumnToSchema(column);
+		} else if (isColumnType<PgNumericBigInt<any>>(column, ['PgNumericBigInt'])) {
+			// `numeric` columns with `mode: 'bigint'` support arbitrary precision,
+			// so they must not be constrained to the int64 range like regular bigint columns.
+			schema = type.bigint;
 		} else if (column.dataType === 'bigint') {
 			schema = bigintColumnToSchema(column);
 		} else if (column.dataType === 'boolean') {
