@@ -6,6 +6,7 @@ import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
 	PgColumn,
+	PgCustomColumn,
 	PgDate,
 	PgDateString,
 	PgJson,
@@ -40,7 +41,7 @@ import {
 import { and, eq, View } from '~/sql/index.ts';
 import {
 	type DriverValueEncoder,
-	type Name,
+	Name,
 	Param,
 	type QueryTypingsValue,
 	type QueryWithTypings,
@@ -50,7 +51,7 @@ import {
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, mapColumnsToIdentifiers, orderSelectedFields, replaceIdentifierWithField, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';
@@ -242,8 +243,21 @@ export class PgDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+					const columnName = this.casing.getColumnCasing(field);
+					const customSelect = is(field, PgCustomColumn) ? field.getSelectSQL(columnName) : undefined;
+
+					if (customSelect) {
+						let query = is(customSelect, SQL.Aliased) ? customSelect.sql : customSelect;
+						if (isSingleTable) {
+							query = mapColumnsToIdentifiers(query, this.casing);
+						} else {
+							query = replaceIdentifierWithField(query, columnName, field);
+						}
+						chunk.push(query);
+						const alias = is(customSelect, SQL.Aliased) ? customSelect.fieldAlias : columnName;
+						chunk.push(sql` as ${sql.identifier(alias)}`);
+					} else if (isSingleTable) {
+						chunk.push(sql.identifier(columnName));
 					} else {
 						chunk.push(field);
 					}
@@ -1355,13 +1369,22 @@ export class PgDialect {
 		if (nestedQueryRelation) {
 			let field = sql`json_build_array(${
 				sql.join(
-					selection.map(({ field, tsKey, isJson }) =>
-						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
+					selection.map(({ field, tsKey, isJson }) => {
+						if (isJson) {
+							return sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`;
+						}
+						if (is(field, SQL.Aliased)) {
+							return field.sql;
+						}
+						if (is(field, PgCustomColumn)) {
+							const customSelect = field.getSelectSQL(this.casing.getColumnCasing(field));
+							if (customSelect) {
+								const query = is(customSelect, SQL.Aliased) ? customSelect.sql : customSelect;
+								return replaceIdentifierWithField(query, this.casing.getColumnCasing(field), field);
+							}
+						}
+						return field;
+					}),
 					sql`, `,
 				)
 			})`;

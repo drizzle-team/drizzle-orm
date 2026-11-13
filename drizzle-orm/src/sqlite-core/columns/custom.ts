@@ -1,7 +1,7 @@
 import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { SQL } from '~/sql/sql.ts';
+import type { DriverValueMapper, SQL } from '~/sql/sql.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
@@ -63,6 +63,7 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private selectFromDb?: (column: string, decoder: DriverValueMapper<any, any>) => SQL | SQL.Aliased;
 
 	constructor(
 		table: AnySQLiteTable<{ name: T['tableName'] }>,
@@ -72,10 +73,16 @@ export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCust
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.selectFromDb = config.customTypeParams.selectFromDb;
 	}
 
 	getSQLType(): string {
 		return this.sqlName;
+	}
+
+	/** @internal */
+	getSelectSQL(columnName: string = this.name): SQL | SQL.Aliased | undefined {
+		return typeof this.selectFromDb === 'function' ? this.selectFromDb(columnName, this) : undefined;
 	}
 
 	override mapFromDriverValue(value: T['driverParam']): T['data'] {
@@ -195,6 +202,17 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+	/**
+	 * Optional function to customize how a column is selected from the database.
+	 *
+	 * @example
+	 * ```ts
+	 * selectFromDb(column, decoder) {
+	 *   return sql<Point>`st_astext(${sql.identifier(column)})`.mapWith(decoder).as(column);
+	 * }
+	 * ```
+	 */
+	selectFromDb?: (column: string, decoder: DriverValueMapper<any, any>) => SQL | SQL.Aliased;
 }
 
 /**
