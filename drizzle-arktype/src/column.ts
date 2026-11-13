@@ -1,6 +1,14 @@
 import { type Type, type } from 'arktype';
 import type { Column, ColumnBaseConfig } from 'drizzle-orm';
 import type {
+	GelDateDuration,
+	GelDuration,
+	GelLocalDateString,
+	GelLocalTime,
+	GelRelDuration,
+	GelTimestamp,
+} from 'drizzle-orm/gel-core';
+import type {
 	MySqlBigInt53,
 	MySqlChar,
 	MySqlDouble,
@@ -115,6 +123,33 @@ export function columnToSchema(column: Column): Type {
 			schema = type.unknown;
 		} else if (column.dataType === 'buffer') {
 			schema = bufferSchema;
+		} else if (
+			isColumnType<
+				| GelDateDuration<any>
+				| GelDuration<any>
+				| GelRelDuration<any>
+				| GelLocalTime<any>
+				| GelLocalDateString<any>
+				| GelTimestamp<any>
+			>(column, [
+				'GelDateDuration',
+				'GelDuration',
+				'GelRelDuration',
+				'GelLocalTime',
+				'GelLocalDateString',
+				'GelTimestamp',
+			])
+		) {
+			// Gel-only ColumnDataType variants (dateDuration, duration, relDuration,
+			// localTime, localDate, localDateTime). Their runtime values are opaque driver
+			// class instances from the `gel` package (Duration, RelativeDuration,
+			// DateDuration, LocalTime, LocalDate, LocalDateTime). drizzle-arktype has no
+			// `gel` dependency, so rather than an `instanceof` check we validate that the
+			// value is a non-null object instead of letting it fall through to the
+			// `type.unknown` catch-all, which validated nothing (#6027).
+			schema = type.unknown.narrow((value) => typeof value === 'object' && value !== null).describe(
+				'a Gel temporal value',
+			);
 		}
 	}
 
