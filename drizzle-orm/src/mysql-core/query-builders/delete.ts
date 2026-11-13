@@ -172,7 +172,6 @@ export class MySqlDeleteBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildDeleteQuery(this.config);
 	}

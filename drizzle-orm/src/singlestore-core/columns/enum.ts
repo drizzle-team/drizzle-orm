@@ -30,7 +30,7 @@ export class SingleStoreEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'str
 	override generatedAlwaysAs(
 		as: SQL<unknown> | (() => SQL) | T['data'],
 		config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this, {}> {
+	): HasGenerated<this, { type: 'always' }> {
 		throw new Error('Method not implemented.');
 	}
 	static override readonly [entityKind]: string = 'SingleStoreEnumColumnBuilder';
