@@ -204,6 +204,7 @@
 		"@prisma/orm-family-sql": "8.0.0-rc.23",
 		"@prisma/orm-target-postgres": "8.0.0-rc.23",
 		"@types/bun": "latest",
+		"@types/node": "^24.7.2",
 		"@types/pg": "^8.20.0",
 		"cli-highlight": "^2.1.11",
 		"effect": "4.0.6",

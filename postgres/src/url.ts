@@ -105,10 +105,11 @@ export function parseConnectionString(url: string): Partial<ConnectConfig> {
 export function resolveUrl<T extends ConnectConfig>(config: T): T {
 	if (!config.url) return config;
 	const out = { ...parseConnectionString(config.url) } as Record<string, unknown>;
-	for (const k of Object.keys(config)) {
+	// Own symbol keys too: compat layers pass internal flags that way (RESULT_FIELDS).
+	for (const k of Reflect.ownKeys(config)) {
 		if (k === 'url') continue;
-		const v = (config as Record<string, unknown>)[k];
-		if (v !== undefined) out[k] = v; // explicit (defined) fields win over url-derived
+		const v = (config as Record<PropertyKey, unknown>)[k];
+		if (v !== undefined) (out as Record<PropertyKey, unknown>)[k] = v; // explicit (defined) fields win over url-derived
 	}
 	return out as unknown as T;
 }

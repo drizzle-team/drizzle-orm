@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import type { PGlite } from '@electric-sql/pglite';
 import { aliasedTable, eq, SQL, sql } from 'drizzle-orm';
 import {
@@ -29,7 +30,6 @@ import { suggestions } from 'src/cli/commands/push-postgres';
 import { runWithCliContext } from 'src/cli/context';
 import { HintsHandler } from 'src/cli/hints';
 import { prepareStatement } from 'src/dialects/postgres/statements';
-import { needToPostpone } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -399,7 +399,7 @@ test('add table #15', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5603
-test.skipIf(needToPostpone)('add table #16', async () => {
+test.skipIf(postponed)('add table #16', async () => {
 	const users = pgTable('users', {
 		name: text(),
 	}, (t) => [index('name_idx').on(t.name)]);

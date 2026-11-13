@@ -124,6 +124,7 @@ export interface NormalizedConfig {
 	temporal: 'date' | 'string'; // default decode for date/timestamp(tz) columns without an explicit target
 	int8: 'bigint' | 'string' | 'number'; // default decode for int8 columns without an explicit target
 	textValues: boolean; // every column without an explicit target decodes to its server text
+	resultFields: boolean; // results carry the column descriptions under RESULT_FIELDS (compat-prisma7)
 	reuseBinaryOids: Set<number>; // BINARY_FAST minus config.types overrides: cols to upgrade to binary on prepared-statement reuse
 	reconnect: { enabled: boolean; base: number; max: number; maxRetries: number | null };
 	transport?: Transport;
@@ -299,9 +300,9 @@ function transactionPoolerDetected(host: string, port: number): boolean {
 const keepsNamedStatements = (host: string): boolean =>
 	host.includes('-pooler.') && /\.(?:neon\.tech|vercel-storage\.com)$/i.test(host);
 
-// The server's column descriptions (type OIDs, …) of a socket result, under a symbol: the public result is
-// exactly { rows, columns, rowCount, command }, and compat layers whose callers need the types (compat-prisma7
-// reports column types) read them here.
+// The server's column descriptions (type OIDs, …) of a socket result, for compat layers whose callers need the
+// types (compat-prisma7 reports column types). Only a connection whose config carries `[RESULT_FIELDS]: true`
+// attaches them, under this symbol; every other result is exactly { rows, columns, rowCount, command }.
 export const RESULT_FIELDS = Symbol.for('drizzle-postgres.resultFields');
 /** The server's column descriptions of a socket query result, or undefined for results from other entries. */
 export const resultFields = (result: object): Field[] | undefined =>
@@ -755,6 +756,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			temporal: config.temporal ?? 'date',
 			int8: config.int8 ?? 'bigint',
 			textValues: config.textValues ?? false,
+			resultFields: (config as { [RESULT_FIELDS]?: boolean })[RESULT_FIELDS] === true,
 			decoders: decode?.decoders ?? buildDecoders(config.types, config.jsonBigints),
 			// types to auto-upgrade to binary on prepared-statement reuse — the bench-fast set, minus any OID the
 			// user overrode via config.types (binary decode bypasses the text override, so leave those as text).
@@ -1974,7 +1976,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 					rowCount: t.rowCount ?? null,
 					command: t.command ?? null,
 				};
-				(res as { [RESULT_FIELDS]?: Field[] })[RESULT_FIELDS] = fields;
+				if (this.cfg.resultFields) (res as { [RESULT_FIELDS]?: Field[] })[RESULT_FIELDS] = fields;
 				if (t.wantMetrics && m) res.metrics = m;
 				if (t.debug) res.debug = this.buildDebug(t);
 				t.resolve?.(res);

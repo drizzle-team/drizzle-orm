@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { SQL, sql } from 'drizzle-orm';
@@ -50,7 +51,6 @@ import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { fetchPartitions, fromDatabase as studioFromDatabase } from 'src/ext/studio-postgres';
 import { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
-import { needToPostpone } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
@@ -929,7 +929,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(needToPostpone)('introspect view #4', async () => {
+test.skipIf(postponed)('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -954,7 +954,7 @@ test.skipIf(needToPostpone)('introspect view #4', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(needToPostpone)('introspect view #5', async () => {
+test.skipIf(postponed)('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -2089,7 +2089,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(needToPostpone)('introspect sequences with table filter', async () => {
+test.skipIf(postponed)('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -4115,7 +4115,7 @@ test('Issue No3446', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6214
 // TODO revise this when "NOT VALID" feature is supported
-test.skipIf(needToPostpone)('Issue No6214', async () => {
+test.skipIf(postponed)('Issue No6214', async () => {
 	await db.query(`CREATE TABLE documents (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   version integer NOT NULL
@@ -4564,7 +4564,7 @@ test('Issue 6493', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6590
-test.skipIf(needToPostpone)('Issue No6590 #1', async () => {
+test.skipIf(postponed)('Issue No6590 #1', async () => {
 	await db.query(`create table t (a int, name text);`);
 	await db.query(`create index t_lower_desc_idx on t (lower(name) desc nulls last);`);
 	await db.query(`create index t_lower_pattern_idx on t (lower(name) text_pattern_ops);`);
@@ -4582,7 +4582,7 @@ test.skipIf(needToPostpone)('Issue No6590 #1', async () => {
 	// expect(schema2.indexes.map((it) => [it.name, it.columns])).toStrictEqual();
 });
 // https://github.com/drizzle-team/drizzle-orm/issues/6590
-test.skipIf(needToPostpone)('Issue No6590 #2', async () => {
+test.skipIf(postponed)('Issue No6590 #2', async () => {
 	await db.query(`create table t (tags varchar[] default ARRAY[]::varchar[]);`);
 
 	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(

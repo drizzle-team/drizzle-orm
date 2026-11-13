@@ -1,4 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { postponed } from '@drizzle/test-utils';
 import { and, defineRelations, eq, exists, inArray, not, sql } from 'drizzle-orm';
 import type { AnyPgColumn, PgColumnBuilder } from 'drizzle-orm/pg-core';
 import {
@@ -1045,7 +1046,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
 		// postgresjs returns strings for itemCount but other drivers return numbers
-		test.skipIf(Date.now() < +new Date('2026-11-24')).concurrent(
+		test.skipIf(postponed).concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = pgTable('rqb_order_item_19', {

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
+import { postponed } from '@drizzle/test-utils';
 import {
 	and,
 	asc,
@@ -755,7 +756,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
-	test.skipIf(Date.now() < +new Date('2026-11-24')).concurrent(
+	test.skipIf(postponed).concurrent(
 		'prepared statement sql.placeholder in .inArray',
 		async ({ db, push }) => {
 			const users = createUserTable('users_116');
@@ -774,7 +775,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
 	test
-		.skipIf(Date.now() < +new Date('2026-11-24'))
+		.skipIf(postponed)
 		.concurrent(
 			'prepared statement sql.placeholder in .inArray #2',
 			async ({ db, push, seed }) => {

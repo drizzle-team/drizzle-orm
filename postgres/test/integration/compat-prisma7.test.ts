@@ -201,6 +201,23 @@ describe('compat-prisma7 matches @prisma/adapter-pg', () => {
 		}
 	});
 
+	test('a connection string reports column types like a config does', async () => {
+		const c = TEST_CONFIG;
+		const url = c.url
+			?? `postgres://${encodeURIComponent(c.user!)}:${
+				encodeURIComponent(String(c.password ?? ''))
+			}@${c.host}:${c.port}/${c.database}`;
+		const a = await new PrismaPg(url).connect();
+		try {
+			const sql = "select 1::int4 a, 'x'::text b, now() c, '{}'::jsonb d";
+			const [r, want] = [await a.queryRaw(q(sql)), await ours.queryRaw(q(sql))];
+			expect(r.columnTypes).toEqual(want.columnTypes);
+			expect(r.columnTypes.length).toBe(4);
+		} finally {
+			await a.dispose();
+		}
+	});
+
 	test('standalone statements share connections; a transaction gets one of its own', async () => {
 		const a = await new PrismaPg({ ...TEST_CONFIG, decode: VARIANT, max: 2 }).connect();
 		try {

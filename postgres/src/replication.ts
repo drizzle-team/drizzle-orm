@@ -461,6 +461,7 @@ export class ReplicationConnection {
 			temporal: 'date',
 			int8: 'bigint',
 			textValues: false,
+			resultFields: false,
 			reuseBinaryOids: new Set(),
 			reconnect: { enabled: false, base: 0, max: 0, maxRetries: 0 },
 			plugins: [],

@@ -1,9 +1,9 @@
+import { postponed } from '@drizzle/test-utils';
 import { eq, exists, inArray, sql } from 'drizzle-orm';
 import { alias, getViewConfig, integer, QueryBuilder, sqliteTable, sqliteView } from 'drizzle-orm/sqlite-core';
 import type { SQLiteView } from 'drizzle-orm/sqlite-core';
 import { fromDrizzleSchema } from 'src/dialects/sqlite/drizzle';
 import { entityKey } from 'src/dialects/utils';
-import { needToPostpone } from 'tests/utils';
 import { expect, test } from 'vitest';
 
 const table = sqliteTable('t', { id: integer() });
@@ -121,12 +121,12 @@ test('view dependencies: cross joined view', () => {
 
 // TODO all below are enhancement
 // aliased views in from are written as plain identifiers by sqlite dialect
-test.skipIf(needToPostpone)('view dependencies: aliased view is not detected', () => {
+test.skipIf(postponed)('view dependencies: aliased view is not detected', () => {
 	const target = sqliteView(viewName).as((qb) => qb.select().from(alias(view1, 'x')));
 
 	expect(dependenciesOf(target)).toStrictEqual([entityKey(null, getViewConfig(view1).name)]);
 });
-test.skipIf(needToPostpone)(
+test.skipIf(postponed)(
 	'view dependencies: plain text name in raw sql is not detected',
 	() => {
 		const target = sqliteView(viewName, { id: integer() }).as(sql`select * from "v1"`);

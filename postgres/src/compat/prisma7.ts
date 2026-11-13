@@ -17,7 +17,7 @@
 // element. The same SQLSTATEs map to the same error kinds, and the same column types are unsupported.
 // test/integration/compat-prisma7.test.ts runs both adapters side by side.
 import { addBrand } from '../brand.ts';
-import { resultFields } from '../connection.ts';
+import { RESULT_FIELDS, resultFields } from '../connection.ts';
 import { parseArrayLiteral } from '../decode.ts';
 import { Pool } from '../pool.ts';
 import type { Decoder, PoolConfig, QueryOptions } from '../types.ts';
@@ -513,7 +513,8 @@ export class PrismaPg {
 
 	constructor(config: string | PoolConfig, options?: PrismaPgOptions) {
 		const c = typeof config === 'string' ? { url: config } : config;
-		this.#config = { ...c, int8: 'string', types: { ...c.types, ...DECODERS } };
+		// RESULT_FIELDS: results carry the column descriptions, from which queryRaw reports column types
+		this.#config = { ...c, int8: 'string', types: { ...c.types, ...DECODERS }, [RESULT_FIELDS]: true } as PoolConfig;
 		this.#options = options;
 	}
 
