@@ -173,10 +173,10 @@ export type PgInsertReturningAll<T extends AnyPgInsert, TDynamic extends boolean
 export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
 	target: IndexColumn | IndexColumn[];
 	/** @deprecated use either `targetWhere` or `setWhere` */
-	where?: SQL;
+	where?: SQL | undefined;
 	// TODO: add tests for targetWhere and setWhere
-	targetWhere?: SQL;
-	setWhere?: SQL;
+	targetWhere?: SQL | undefined;
+	setWhere?: SQL | undefined;
 	set: PgUpdateSetSource<T['_']['table']>;
 }
 
