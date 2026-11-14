@@ -21,7 +21,10 @@ import {
 	alias,
 	bigint,
 	boolean,
+	bytea,
+	char,
 	customType,
+	doublePrecision,
 	except,
 	getMaterializedViewConfig,
 	integer,
@@ -32,11 +35,14 @@ import {
 	pgTable,
 	pgView,
 	primaryKey,
+	real,
 	serial,
+	smallint,
 	text,
 	time,
 	timestamp,
 	union,
+	varchar,
 } from 'drizzle-orm/pg-core';
 import type { PgEffectDatabase } from 'drizzle-orm/pg-core/effect/db';
 import { PgEffectSession } from 'drizzle-orm/pg-core/effect/session';
@@ -377,6 +383,72 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 							self: [expected],
 						});
 					})
+				);
+			}));
+
+		it.effect('empty arrays', () =>
+			Effect.gen(function*() {
+				const emptyArrays = pgTable('empty_arrays_ef', {
+					id: integer('id').primaryKey(),
+					arrbool: boolean('arrbool').array().notNull(),
+					arrbytea: bytea('arrbytea').array().notNull(),
+					arrchar: char('arrchar').array().notNull(),
+					arrvarchar: varchar('arrvarchar').array().notNull(),
+					arrtext: text('arrtext').array().notNull(),
+					arrsmallint: smallint('arrsmallint').array().notNull(),
+					arrint: integer('arrint').array().notNull(),
+					arrbigint: bigint('arrbigint', { mode: 'bigint' }).array().notNull(),
+					arrreal: real('arrreal').array().notNull(),
+					arrdouble: doublePrecision('arrdouble').array().notNull(),
+				});
+
+				yield* push(yield* DB, { emptyArrays });
+				const db = yield* createDB({ emptyArrays }, (r) => ({
+					emptyArrays: { self: r.many.emptyArrays({ from: r.emptyArrays.id, to: r.emptyArrays.id }) },
+				}));
+
+				const empty = {
+					arrbool: [],
+					arrbytea: [],
+					arrchar: [],
+					arrvarchar: [],
+					arrtext: [],
+					arrsmallint: [],
+					arrint: [],
+					arrbigint: [],
+					arrreal: [],
+					arrdouble: [],
+				};
+
+				const filled = {
+					arrbool: [true, false],
+					arrbytea: [Buffer.from([1, 2, 255])],
+					arrchar: ['a'],
+					arrvarchar: ['b'],
+					arrtext: ['c', 'd'],
+					arrsmallint: [1],
+					arrint: [1, 2],
+					arrbigint: [1n],
+					arrreal: [1, 1.5],
+					arrdouble: [1, 1.5],
+				};
+
+				yield* db.insert(emptyArrays).values([{ id: 1, ...empty }, { id: 2, ...filled }]);
+
+				expect(yield* db.select().from(emptyArrays).orderBy(emptyArrays.id)).toStrictEqual([
+					{ id: 1, ...empty },
+					{ id: 2, ...filled },
+				]);
+				expect(yield* db.select({ id: emptyArrays.id }).from(emptyArrays).where(eq(emptyArrays.arrint, [])))
+					.toStrictEqual([{ id: 1 }]);
+
+				yield* db.update(emptyArrays).set(empty).where(eq(emptyArrays.id, 2));
+
+				const expected = [{ id: 1, ...empty }, { id: 2, ...empty }];
+
+				expect(yield* db.select().from(emptyArrays).orderBy(emptyArrays.id)).toStrictEqual(expected);
+				expect(yield* db.query.emptyArrays.findMany({ with: { self: true }, orderBy: { id: 'asc' } })).toStrictEqual(
+					expected.map((row) => ({ ...row, self: [row] })),
 				);
 			}));
 

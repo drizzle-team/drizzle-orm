@@ -20,6 +20,21 @@ import {
 } from '~/pg-core/codecs.ts';
 import { pgHexToUint8Array } from '~/utils.ts';
 
+// `bytea[]` params are sent as pg array literals of `\x`-hex elements
+const uint8ArrayToPgHex = (value: Uint8Array | null) => {
+	if (value === null) return value;
+
+	let hex = '\\x';
+	for (let i = 0; i < value.length; ++i) {
+		hex += value[i]!.toString(16).padStart(2, '0');
+	}
+
+	return hex;
+};
+
+// `BigInt` throws on `NULL` array elements
+const bigIntOrNull = (value: string | bigint | null) => value === null ? value : BigInt(value);
+
 export const effectPgCodecs = refineGenericPgCodecs({
 	bit: {
 		cast: castToText,
@@ -123,6 +138,7 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
+	bool: { normalizeParamArray: (v) => makePgArray(v) },
 	box: {
 		cast: castToText,
 		castArray: castToTextArr,
@@ -138,6 +154,7 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	char: { normalizeParamArray: (v) => makePgArray(v) },
 	cidr: { normalizeParamArray: (v) => makePgArray(v) },
 	circle: {
 		cast: castToText,
@@ -154,6 +171,7 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	float8: { normalizeParamArray: (v) => makePgArray(v) },
 	'geography(point)': {
 		cast: castToText,
 		castArray: castToTextArr,
@@ -165,6 +183,7 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makeGeometryArray,
 	},
 	inet: { normalizeParamArray: (v) => makePgArray(v) },
+	int: { normalizeParamArray: (v) => makePgArray(v) },
 	int4multirange: {
 		cast: castToText,
 		castArray: castToTextArr,
@@ -271,6 +290,8 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	smallint: { normalizeParamArray: (v) => makePgArray(v) },
+	text: { normalizeParamArray: (v) => makePgArray(v) },
 	time: {
 		cast: castToText,
 		castArray: castToTextArr,
@@ -316,6 +337,7 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	varchar: { normalizeParamArray: (v) => makePgArray(v) },
 	xml: {
 		cast: castToText,
 		castArray: castToTextArr,
@@ -332,6 +354,7 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeArray: typeof Buffer === 'undefined'
 			? undefined
 			: arrayCompatNormalize((v: Uint8Array) => Buffer.from(v)),
+		normalizeParamArray: arrayCompatNormalizeInput(uint8ArrayToPgHex, true),
 	},
 	enum: {
 		cast: castToText,
@@ -349,6 +372,11 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeArray: arrayCompatNormalize(BigInt),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	bigint: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(bigIntOrNull),
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	'bigint:number': {
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
@@ -359,6 +387,7 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeArray: arrayCompatNormalize(String),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	bigserial: { normalize: BigInt },
 	'bigserial:number': { normalize: Number },
 	// Binary `float4` is widened to float64
 	float4: {
@@ -366,6 +395,7 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
+		normalizeParamArray: (v) => makePgArray(v),
 	},
 	uuid: { normalizeParamArray: (v) => makePgArray(v) },
 	halfvec: {
