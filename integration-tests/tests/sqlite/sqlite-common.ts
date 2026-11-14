@@ -953,6 +953,37 @@ export function tests() {
 			]);
 		});
 
+		test('insert: placeholders on nullable column with encoder and null value', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const testTable = sqliteTable('nullable_encoder_test', {
+				id: integer('id').primaryKey(),
+				verified: integer('verified', { mode: 'boolean' }),
+			});
+
+			await db.run(sql`drop table if exists ${testTable}`);
+			await db.run(sql`create table ${testTable} (id integer primary key, verified integer)`);
+
+			const stmt = db.insert(testTable).values({
+				id: sql.placeholder('id'),
+				verified: sql.placeholder('verified'),
+			}).prepare();
+
+			await stmt.run({ id: 1, verified: null });
+			await stmt.run({ id: 2, verified: true });
+			await stmt.run({ id: 3, verified: false });
+
+			const result = await db.select().from(testTable).all();
+
+			await db.run(sql`drop table ${testTable}`);
+
+			expect(result).toEqual([
+				{ id: 1, verified: null },
+				{ id: 2, verified: true },
+				{ id: 3, verified: false },
+			]);
+		});
+
 		test('prepared statement with placeholder in .where', async (ctx) => {
 			const { db } = ctx.sqlite;
 
