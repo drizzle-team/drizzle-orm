@@ -93,6 +93,12 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
+	if (typeof params[0] === 'function') {
+		throw new TypeError(
+			'Passing a postgres.js client directly to drizzle() is no longer supported. Use drizzle({ client }) instead.',
+		);
+	}
+
 	const { connection, client, ...DrizzlePgConfig } = params[0] as {
 		connection?: { url?: string } & Options<Record<string, PostgresType>>;
 		client?: TClient;
