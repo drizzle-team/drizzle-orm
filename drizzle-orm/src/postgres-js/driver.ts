@@ -28,9 +28,14 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 	const transparentParser = (val: any) => val;
 
 	// Override postgres.js default date parsers: https://github.com/porsager/postgres/discussions/761
+	// Only the inbound *parsers* are neutralized here so Drizzle can parse the
+	// raw text itself. The outbound *serializers* for these OIDs must be left
+	// untouched — overriding them breaks JS `Date` params passed through raw
+	// `sql` templates, since postgres.js's Bind() step expects the serializer
+	// to produce a wire-safe string, not a `Date` instance passed straight
+	// through. See https://github.com/drizzle-team/drizzle-orm/issues/5789
 	for (const type of ['1184', '1082', '1083', '1114', '1182', '1185', '1115', '1231']) {
 		client.options.parsers[type as any] = transparentParser;
-		client.options.serializers[type as any] = transparentParser;
 	}
 	client.options.serializers['114'] = transparentParser;
 	client.options.serializers['3802'] = transparentParser;
