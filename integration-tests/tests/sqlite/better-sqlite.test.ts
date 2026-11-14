@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { sql } from 'drizzle-orm';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
@@ -46,6 +47,83 @@ test('migrator', async () => {
 	db.run(sql`drop table another_users`);
 	db.run(sql`drop table users12`);
 	db.run(sql`drop table __drizzle_migrations`);
+});
+
+test('migrator: table-rebuild migration preserves child rows with ON DELETE CASCADE FK', () => {
+	const migrationDir = './migrations/sqlite-fk-cascade-test';
+	if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
+	mkdirSync(`${migrationDir}/meta`, { recursive: true });
+
+	db.run(sql`drop table if exists \`child_fk_test\``);
+	db.run(sql`drop table if exists \`parent_fk_test\``);
+	db.run(sql`drop table if exists \`__drizzle_migrations\``);
+
+	// Initial schema: parent + child with ON DELETE CASCADE
+	writeFileSync(
+		`${migrationDir}/0000_initial.sql`,
+		[
+			"CREATE TABLE `parent_fk_test` (`id` integer PRIMARY KEY NOT NULL, `mode` text DEFAULT 'a');",
+			'--> statement-breakpoint',
+			"CREATE TABLE `child_fk_test` (`id` integer PRIMARY KEY NOT NULL, `parent_id` integer NOT NULL REFERENCES `parent_fk_test`(`id`) ON DELETE CASCADE);",
+		].join('\n'),
+	);
+	writeFileSync(
+		`${migrationDir}/meta/_journal.json`,
+		JSON.stringify({
+			version: '5',
+			dialect: 'sqlite',
+			entries: [{ idx: 0, version: '5', when: 1704067200000, tag: '0000_initial', breakpoints: true }],
+		}),
+	);
+	migrate(db, { migrationsFolder: migrationDir });
+
+	db.run(sql`PRAGMA foreign_keys=ON`);
+	db.run(sql`INSERT INTO parent_fk_test VALUES (1, 'a')`);
+	db.run(sql`INSERT INTO child_fk_test VALUES (1, 1), (2, 1)`);
+
+	// Table-rebuild migration in the exact drizzle-kit output shape
+	writeFileSync(
+		`${migrationDir}/0001_rebuild.sql`,
+		[
+			'PRAGMA foreign_keys=OFF;',
+			'--> statement-breakpoint',
+			"CREATE TABLE `__new_parent_fk_test` (`id` integer PRIMARY KEY NOT NULL, `mode` text DEFAULT 'b');",
+			'--> statement-breakpoint',
+			'INSERT INTO `__new_parent_fk_test` SELECT `id`, `mode` FROM `parent_fk_test`;',
+			'--> statement-breakpoint',
+			'DROP TABLE `parent_fk_test`;',
+			'--> statement-breakpoint',
+			'ALTER TABLE `__new_parent_fk_test` RENAME TO `parent_fk_test`;',
+			'--> statement-breakpoint',
+			'PRAGMA foreign_keys=ON;',
+		].join('\n'),
+	);
+	writeFileSync(
+		`${migrationDir}/meta/_journal.json`,
+		JSON.stringify({
+			version: '5',
+			dialect: 'sqlite',
+			entries: [
+				{ idx: 0, version: '5', when: 1704067200000, tag: '0000_initial', breakpoints: true },
+				{ idx: 1, version: '5', when: 1704153600000, tag: '0001_rebuild', breakpoints: true },
+			],
+		}),
+	);
+	migrate(db, { migrationsFolder: migrationDir });
+
+	// Child rows must survive; without the fix they are silently wiped by CASCADE
+	const childRows = db.all<{ id: number; parent_id: number }>(
+		sql`SELECT id, parent_id FROM child_fk_test ORDER BY id`,
+	);
+	expect(childRows).toStrictEqual([
+		{ id: 1, parent_id: 1 },
+		{ id: 2, parent_id: 1 },
+	]);
+
+	db.run(sql`DROP TABLE IF EXISTS child_fk_test`);
+	db.run(sql`DROP TABLE IF EXISTS parent_fk_test`);
+	db.run(sql`DROP TABLE IF EXISTS \`__drizzle_migrations\``);
+	rmSync(migrationDir, { recursive: true });
 });
 
 skipTests([
