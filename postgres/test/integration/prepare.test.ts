@@ -30,6 +30,27 @@ describe('prepare auto-detect (no connection)', () => {
 		const session = new Connection({ host: 'aws-0-us-east-1.pooler.supabase.com', port: 5432 }).cfg;
 		expect([session.isBehindPooler, session.prepare]).toEqual([false, true]);
 	});
+	test('port 6432 (PgBouncer) → a pooler; named statements and pipelining stay on only for PlanetScale Postgres', () => {
+		const cfg = (o: Record<string, unknown>) => {
+			const c = new Connection(o).cfg;
+			return [c.isBehindPooler, c.prepare, c.pipelineDepth];
+		};
+		expect(cfg({ host: 'eu-central-2.pg.psdb.cloud', port: 6432 })).toEqual([true, true, 100]);
+		expect(cfg({ host: 'eu-central-2.pg.psdb.cloud', port: 6432, pipeline: false })).toEqual([true, true, 1]);
+		expect(cfg({ host: 'my-server.postgres.database.azure.com', port: 6432 })).toEqual([true, false, 1]);
+		expect(cfg({ host: '127.0.0.1', port: 6432 })).toEqual([true, false, 1]);
+		expect(cfg({ host: '127.0.0.1', port: 6432, pooler: false })).toEqual([false, true, 100]);
+	});
+	test('PlanetScale Postgres direct and Neki (port 5432) are no pooler', () => {
+		const direct = new Connection({ host: 'aws-eu-central-1-1.pg.psdb.cloud', port: 5432 }).cfg;
+		expect([direct.isBehindPooler, direct.prepare, direct.pipelineDepth]).toEqual([false, true, 100]);
+	});
+	test('Prisma Postgres: the pooled host is a pooler without named statements, the direct host is not', () => {
+		const pooled = new Connection({ host: 'pooled.db.prisma.io' }).cfg;
+		expect([pooled.isBehindPooler, pooled.prepare, pooled.pipelineDepth]).toEqual([true, false, 1]);
+		const direct = new Connection({ host: 'db.prisma.io' }).cfg;
+		expect([direct.isBehindPooler, direct.prepare]).toEqual([false, true]);
+	});
 	test('Vercel runtime → off (overridable)', () => {
 		const prev = process.env.VERCEL;
 		process.env.VERCEL = '1';

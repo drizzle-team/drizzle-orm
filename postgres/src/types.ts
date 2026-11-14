@@ -196,9 +196,12 @@ export interface ConnectConfig {
 	 *  Set `false` behind a transaction-mode pooler (PgBouncer/Supavisor) where a named statement prepared
 	 *  on one backend may not exist on the next — every query then goes unnamed (Parse+Bind+Execute).
 	 *  Default: auto — off when a pooler is detected (Neon `-pooler` host, port 6543 for Supabase Supavisor
-	 *  in transaction mode, or the Vercel serverless runtime) or declared (`pooler`), on otherwise. Neon's
-	 *  pooled endpoints are the exception: their PgBouncer keeps named statements across backends, so it
-	 *  stays on there. Explicit value always wins; a connection string can carry it as `?prepare=false`. */
+	 *  in transaction mode, port 6432 for PgBouncer as PlanetScale Postgres, Azure and AlloyDB serve it,
+	 *  Prisma Postgres' `pooled.db.prisma.io`, or the Vercel serverless runtime) or declared (`pooler`), on
+	 *  otherwise. Neon's pooled endpoints and PlanetScale's port 6432 are the exception: their PgBouncer
+	 *  keeps named statements across backends, so it stays on there. Cloudflare Hyperdrive and Neki keep
+	 *  them too and need no detection: the defaults work through both. Explicit value always wins; a
+	 *  connection string can carry it as `?prepare=false`. */
 	prepare?: boolean;
 	/** Declares whether the connection goes through a transaction-mode pooler, such as PgBouncer. It
 	 *  replaces the detection from the host and port that `prepare` describes. Behind a pooler, `prepare`
@@ -215,7 +218,8 @@ export interface ConnectConfig {
 	 *  trip between each (N concurrently issued queries, e.g. `Promise.all`, take ~1 round trip). Results
 	 *  return in request order; the server runs them one at a time (pipelining hides network latency, not
 	 *  server CPU).
-	 *  - omitted / `true`: on with `depth: 'auto'`; omitted is off behind a transaction pooler (`pooler`).
+	 *  - omitted / `true`: on with `depth: 'auto'`; omitted is off behind a transaction pooler (`pooler`),
+	 *    except PlanetScale Postgres' PgBouncer (port 6432), which takes pipelined queries.
 	 *  - `false`: one query at a time (depth 1). Explicit pipelines still pipeline: `pool.batch()` always,
 	 *    `pool.pipeline()` unless behind a transaction pooler.
 	 *  - `{ depth: 'auto' }`: the in-flight limit follows the connection's lowest measured round trip,

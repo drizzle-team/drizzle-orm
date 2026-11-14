@@ -300,6 +300,10 @@ function transactionPoolerDetected(host: string, port: number): boolean {
 	// Supabase Supavisor in transaction mode. Its session mode, port 5432 on the same pooler host, keeps one
 	// backend per client connection, so it is not a transaction pooler.
 	if (port === 6543) return true;
+	// PgBouncer's own default port. PlanetScale Postgres, Azure Flexible Server and AlloyDB serve their pooled
+	// endpoint on it, on the same host as the direct one.
+	if (port === 6432) return true;
+	if (/^pooled\.db\.prisma\.io$/i.test(host)) return true; // Prisma Postgres: PgBouncer in transaction mode
 	if (process.env.VERCEL || process.env.VERCEL_ENV) return true; // Vercel serverless: connections are ~always pooled
 	return false;
 }
@@ -307,9 +311,19 @@ function transactionPoolerDetected(host: string, port: number): boolean {
 // Neon's pooled endpoints (Neon, and Vercel Postgres, which runs on Neon) run PgBouncer with prepared-statement
 // tracking (max_prepared_statements): a named statement keeps working whichever backend a transaction lands on,
 // so `prepare` stays on there. Checked against a live -pooler endpoint (test/integration/neon-pooler.test.ts).
+// PlanetScale Postgres' PgBouncer (port 6432) does the same: checked live, with five clients each moved over
+// four or five backends and their named statements still working.
 // Any other pooler may not track them, so named statements stay off behind it.
-const keepsNamedStatements = (host: string): boolean =>
-	host.includes('-pooler.') && /\.(?:neon\.tech|vercel-storage\.com)$/i.test(host);
+const keepsNamedStatements = (host: string, port: number): boolean =>
+	(host.includes('-pooler.') && /\.(?:neon\.tech|vercel-storage\.com)$/i.test(host))
+	|| planetscalePgBouncer(host, port);
+
+const planetscalePgBouncer = (host: string, port: number): boolean => port === 6432 && /\.pg\.psdb\.cloud$/i.test(host);
+
+// A transaction pooler that takes pipelined queries: `pipeline` (and the pool's sharing) stays on behind it.
+// PlanetScale's PgBouncer ran 100 queries in flight on one connection, named and unnamed, in about 60 ms,
+// against about 2.8 s one at a time.
+const poolerPipelines = planetscalePgBouncer;
 
 // The server's column descriptions (type OIDs, …) of a socket result, for compat layers whose callers need the
 // types (compat-prisma7 reports column types). Only a connection whose config carries `[RESULT_FIELDS]: true`
@@ -379,8 +393,8 @@ export function isUntrustedCertificate(err: unknown): boolean {
 }
 
 // The starting depth, and whether it follows the round trip. An explicit value beats pooler detection.
-const resolvePipeline = (p: ConnectConfig['pipeline'], behindPooler: boolean): { depth: number; auto: boolean } =>
-	p === false || (p == null && behindPooler)
+const resolvePipeline = (p: ConnectConfig['pipeline'], offByPooler: boolean): { depth: number; auto: boolean } =>
+	p === false || (p == null && offByPooler)
 		? { depth: 1, auto: false }
 		: typeof p === 'object' && typeof p.depth === 'number'
 		? { depth: Math.max(1, p.depth), auto: false }
@@ -389,7 +403,15 @@ const resolvePipeline = (p: ConnectConfig['pipeline'], behindPooler: boolean): {
 /** The starting pipeline depth of a connection built from `config` (1 = no pipelining). Resolves the
  *  host and port the way the Connection constructor does, so pooler detection matches. */
 export function pipelineDepthOf(config: ConnectConfig): number {
-	return resolvePipeline(config.pipeline, behindPoolerOf(config)).depth;
+	return resolvePipeline(config.pipeline, pipelineOffByPooler(config)).depth;
+}
+
+/** Whether the pooler in front of a config's connections turns the `pipeline` default off: any transaction
+ *  pooler but one known to take pipelined queries. */
+function pipelineOffByPooler(config: ConnectConfig): boolean {
+	const host = config.host || process.env.PGHOST || 'localhost';
+	const port = config.port || Number(process.env.PGPORT) || 5432;
+	return behindPoolerOf(config) && !poolerPipelines(host, port);
 }
 
 /** Whether a (url-resolved) config's connections go through a transaction pooler: the `pooler` option (or
@@ -402,10 +424,13 @@ export function behindPoolerOf(config: ConnectConfig): boolean {
 }
 
 /** Whether a (url-resolved) config's connections use server-side named statements: `prepare`, else off
- *  behind a transaction pooler that doesn't keep them across backends (all but Neon's). */
+ *  behind a transaction pooler that doesn't keep them across backends (all but Neon's and PlanetScale's). */
 export function prepareOf(config: ConnectConfig): boolean {
 	if (config.prepare !== undefined) return config.prepare;
-	return !behindPoolerOf(config) || keepsNamedStatements(config.host || process.env.PGHOST || 'localhost');
+	if (!behindPoolerOf(config)) return true;
+	const host = config.host || process.env.PGHOST || 'localhost';
+	const port = config.port || Number(process.env.PGPORT) || 5432;
+	return keepsNamedStatements(host, port);
 }
 
 // A CancelRequest needs a second connection to the server, so only a connection that a pool opened
@@ -590,7 +615,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	 *  stay at the depth: each is its own transaction, and the pooler may give the next one another
 	 *  backend while it is already on the wire. `fn` must enqueue synchronously. */
 	_pipelined<T>(fn: () => T): T {
-		if (this.cfg.isBehindPooler) return fn();
+		if (this.cfg.isBehindPooler && !poolerPipelines(this.cfg.host, this.cfg.port)) return fn();
 		const was = this.explicitPipeline;
 		this.explicitPipeline = true;
 		try {
@@ -761,8 +786,11 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			prepare: prepareOf(config), // explicit wins; else off behind a pooler that doesn't keep named statements
 			binaryParams: config.binaryParams ?? true,
 			// Pipelining: default on (auto-off behind a transaction pooler, where multiple in-flight implicit
-			// transactions on one client conn confuse the pooler's per-tx server assignment). Explicit wins.
-			...((r) => ({ pipelineDepth: r.depth, pipelineAuto: r.auto }))(resolvePipeline(config.pipeline, behindPooler)),
+			// transactions on one client conn confuse the pooler's per-tx server assignment, unless the pooler is
+			// known to take them). Explicit wins.
+			...((r) => ({ pipelineDepth: r.depth, pipelineAuto: r.auto }))(
+				resolvePipeline(config.pipeline, pipelineOffByPooler(config)),
+			),
 			pipelineFlush: (typeof config.pipeline === 'object' && config.pipeline.flush) || 'microtask', // coalesce same-tick writes by default
 			temporal: config.temporal ?? 'date',
 			int8: config.int8 ?? 'bigint',
