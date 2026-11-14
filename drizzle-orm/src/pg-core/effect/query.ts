@@ -1,7 +1,6 @@
 import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import { relationalQueryCacheConfig, relationalQueryCacheMetadata } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { PgRelationalQuery, type PgRelationalQueryHKTBase } from '../query-builders/query.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -27,38 +26,14 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
-	_prepare(
+	override _prepare(
 		name?: string,
 		generateName = false,
 	): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
-		const { dialect } = this;
-		const isFirst = this.mode === 'first';
-		const { query, builtQuery, usedTables } = this._toSQL();
-		const shape = this.shape ??= dialect.shapeGenerator?.(
-			{ type: 'relational', fields: query.selection },
-			undefined,
-		);
-
-		const mapper = shape
-			? (isFirst ? (rows: any[]) => rows[0] : undefined)
-			: dialect.mapperGenerators.relationalRows({
-				isFirst,
-				parseJson: this.parseJson,
-				parseJsonIfString: false,
-				rootJsonMappers: false,
-				selection: query.selection,
-				arrayModeRoot: true,
-			});
-
-		return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
-			builtQuery,
-			shape ? 'objects' : 'arrays',
-			name ?? generateName,
-			mapper,
-			relationalQueryCacheMetadata(this.config, query.sql, usedTables, this),
-			relationalQueryCacheConfig(this.config),
-			shape,
-		);
+		return super._prepare(name, generateName) as PgEffectPreparedQuery<
+			PreparedQueryConfig & { execute: TResult },
+			TEffectHKT
+		>;
 	}
 
 	prepare(name?: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {

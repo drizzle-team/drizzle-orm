@@ -63,7 +63,8 @@ asyncConnector;
 declare const edb: EffectPostgresDatabase;
 
 {
-	// batch: one transaction, a tuple of results
+	// batch: one transaction, a tuple of results. The cache is invalidated once, after the run, so a failure of
+	// that arrives as EffectCacheError itself, like after a bulk write
 	const batched = edb.batch([
 		edb.select().from(items),
 		edb.insert(items).values({ id: 1, name: 'a' }).returning({ id: items.id }),
@@ -71,7 +72,7 @@ declare const edb: EffectPostgresDatabase;
 	Expect<
 		Equal<
 			typeof batched,
-			Effect.Effect<[Item[], { id: number }[]], EffectDrizzleQueryError | SqlError, never>
+			Effect.Effect<[Item[], { id: number }[]], EffectDrizzleQueryError | SqlError | EffectCacheError, never>
 		>
 	>;
 
@@ -80,7 +81,7 @@ declare const edb: EffectPostgresDatabase;
 	Expect<
 		Equal<
 			typeof piped,
-			Effect.Effect<[Item[], { id: number }[]], EffectDrizzleQueryError | SqlError, never>
+			Effect.Effect<[Item[], { id: number }[]], EffectDrizzleQueryError | SqlError | EffectCacheError, never>
 		>
 	>;
 }
@@ -89,7 +90,12 @@ declare const resultOf: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effe
 
 {
 	const settled = edb.pipeline([resultOf(edb.select().from(items))]);
-	Expect<Equal<typeof settled, Effect.Effect<[Result.Result<Item[], EffectDrizzleQueryError>], SqlError, never>>>;
+	Expect<
+		Equal<
+			typeof settled,
+			Effect.Effect<[Result.Result<Item[], EffectDrizzleQueryError>], SqlError | EffectCacheError, never>
+		>
+	>;
 }
 
 {

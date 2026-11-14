@@ -69,6 +69,17 @@ export class NoopCache extends Cache {
 }
 
 // TODO: one place for all dialects
+/**
+ * The tables whose cached queries a statement makes stale, `undefined` for a statement that changes nothing.
+ * One rule for every way a statement is run: on its own, and in a batch or a pipeline, which don't go through
+ * {@link strategyFor}
+ */
+export const mutatedTables = (queryMetadata: QueryMetadata | undefined): string[] | undefined => {
+	if (!queryMetadata) return undefined;
+	const { type } = queryMetadata;
+	return type === 'insert' || type === 'update' || type === 'delete' ? queryMetadata.tables() : undefined;
+};
+
 export const strategyFor = async (
 	query: string,
 	params: any[] | undefined,
@@ -79,8 +90,8 @@ export const strategyFor = async (
 
 	const { type } = queryMetadata;
 
-	if (type === 'insert' || type === 'update' || type === 'delete') {
-		const tables = queryMetadata.tables();
+	const tables = mutatedTables(queryMetadata);
+	if (tables !== undefined) {
 		return tables.length > 0 ? { type: 'invalidate' as const, tables } : { type: 'skip' as const };
 	}
 

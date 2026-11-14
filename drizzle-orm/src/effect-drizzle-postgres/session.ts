@@ -1,13 +1,16 @@
 import type { QueryResult, ShapeSpec } from '#postgres';
 import { DrizzlePostgresClient as Client } from '#postgres/effect/core';
 import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
 import type { SqlError } from 'effect/sql/SqlError';
-import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
+import { type EffectCacheError, type EffectCacheShape, PendingCacheInvalidation } from '~/cache/core/cache-effect.ts';
+import { NoopCache } from '~/cache/core/cache.ts';
+import { PendingInvalidation } from '~/cache/core/flow.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
@@ -22,6 +25,7 @@ import {
 } from '~/postgres/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
+import { fromProgram } from '~/runtime/effect.ts';
 import type { Query } from '~/sql/sql.ts';
 import { usedTablesOf } from '~/used-tables.ts';
 import type { Simplify } from '~/utils.ts';
@@ -131,12 +135,41 @@ export class EffectPostgresSession<
 		return this.client.query(sql, params, { name, mode: mode === 'arrays' ? 'array' : 'object', shape });
 	}
 
+	/** The cache as the shared flow takes it: `undefined` when there is none to invalidate */
+	private get cacheOps(): EffectCacheShape | undefined {
+		const { cache } = this.options;
+		return cache && !(cache.cache && is(cache.cache, NoopCache)) ? cache : undefined;
+	}
+
+	/**
+	 * Runs the statements of a batch or a pipeline out of the cache, and invalidates what they wrote when the run
+	 * is done. `alsoOnFailure`: the statements commit one by one, so the ones that ran are invalidated also when
+	 * another one failed; a failed batch is rolled back, with nothing to invalidate
+	 */
+	private invalidating<T extends Effect.Effect<any, any, any>>(
+		statements: T,
+		alsoOnFailure: boolean,
+	): Effect.Effect<Effect.Success<T>, Effect.Error<T> | EffectCacheError, Effect.Services<T>> {
+		return Effect.suspend(() => {
+			const pending = new PendingInvalidation();
+			const flush = fromProgram<void, EffectCacheError>(() => pending.flush(this.cacheOps));
+			const run = Effect.provideService(statements, PendingCacheInvalidation, pending);
+
+			return Effect.tap(
+				alsoOnFailure
+					? Effect.onExit(run, (exit) => Exit.isSuccess(exit) ? Effect.void : Effect.ignore(flush))
+					: run,
+				() => flush,
+			);
+		});
+	}
+
 	batch<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
-		return this.client.batch(effects);
+		return this.invalidating(this.client.batch(effects), false);
 	}
 
 	pipeline<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
-		return this.client.pipeline(effects);
+		return this.invalidating(this.client.pipeline(effects), true);
 	}
 
 	bulkInsert<R = never>(

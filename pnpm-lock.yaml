@@ -211,7 +211,7 @@ importers:
         version: link:drizzle-orm/dist
       drizzle-orm-old:
         specifier: npm:drizzle-orm@^0.27.2
-        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@5.20261019.1)(@libsql/client@0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@13.0.3)(bun-types@1.4.4)(kysely@0.29.8)(mysql2@3.24.4(@types/node@25.5.0))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.13.0)(sqlite3@5.1.7(supports-color@10.2.2))
+        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@5.20261019.1)(@libsql/client@0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@13.0.3)(bun-types@1.4.4)(kysely@0.29.8)(mysql2@3.24.6(@types/node@25.5.0))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.13.0)(sqlite3@5.1.7(supports-color@10.2.2))
       eslint-plugin-drizzle-internal:
         specifier: link:eslint/eslint-plugin-drizzle-internal
         version: link:eslint/eslint-plugin-drizzle-internal
@@ -556,32 +556,32 @@ importers:
         specifier: workspace:*
         version: link:../test-utils
       '@effect/sql-d1':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)
       '@effect/sql-libsql':
-        specifier: 4.0.0
-        version: 4.0.0(bufferutil@4.0.8)(effect@4.0.6)(utf-8-validate@6.0.3)
+        specifier: 4.0.6
+        version: 4.0.6(bufferutil@4.0.8)(effect@4.0.6)(utf-8-validate@6.0.3)
       '@effect/sql-mysql2':
-        specifier: 4.0.0
-        version: 4.0.0(@types/node@25.5.0)(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(@types/node@25.5.0)(effect@4.0.6)
       '@effect/sql-pg':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)
       '@effect/sql-pglite':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)
       '@effect/sql-sqlite-bun':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)
       '@effect/sql-sqlite-do':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)
       '@effect/sql-sqlite-node':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)
       '@effect/sql-sqlite-wasm':
-        specifier: 4.0.0
-        version: 4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(@effect/wa-sqlite@0.1.2)(effect@4.0.6)
       '@electric-sql/pglite':
         specifier: ^0.5.15
         version: 0.5.15
@@ -912,35 +912,35 @@ importers:
         specifier: workspace:*
         version: link:../postgres
       '@effect/sql-d1':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)
       '@effect/sql-libsql':
-        specifier: 4.0.0
-        version: 4.0.0(bufferutil@4.0.8)(effect@4.0.6)(utf-8-validate@6.0.3)
+        specifier: 4.0.6
+        version: 4.0.6(bufferutil@4.0.8)(effect@4.0.6)(utf-8-validate@6.0.3)
       '@effect/sql-mysql2':
-        specifier: 4.0.0
-        version: 4.0.0(@types/node@25.5.0)(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(@types/node@25.5.0)(effect@4.0.6)
       '@effect/sql-pg':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)
       '@effect/sql-pglite':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)
       '@effect/sql-sqlite-bun':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)
       '@effect/sql-sqlite-do':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)
       '@effect/sql-sqlite-node':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)
       '@effect/sql-sqlite-wasm':
-        specifier: 4.0.0
-        version: 4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.6)
+        specifier: 4.0.6
+        version: 4.0.6(@effect/wa-sqlite@0.1.2)(effect@4.0.6)
       '@effect/vitest':
-        specifier: 4.0.0
-        version: 4.0.0(effect@4.0.6)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))
+        specifier: 4.0.6
+        version: 4.0.6(effect@4.0.6)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))
       '@electric-sql/pglite':
         specifier: 0.5.15
         version: 0.5.15
@@ -1253,7 +1253,7 @@ importers:
     dependencies:
       drizzle-beta:
         specifier: npm:drizzle-orm@1.0.0-beta.21
-        version: drizzle-orm@1.0.0-beta.21(e40169a6e14aa4f1c086ea3859c60cc9)
+        version: drizzle-orm@1.0.0-beta.21(ae19a762dfd6754442eb0ea5eb14331d)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -2372,20 +2372,20 @@ packages:
     peerDependencies:
       effect: ^3.19.8
 
-  '@effect/sql-d1@4.0.0':
-    resolution: {integrity: sha512-pmkzncZCGD6CLyvc89keEBU85h+gHVCu/LKQnThd+ruYSUbG0R9jYA+lnk3R8Djp0wQW6SbsbmHQuhopIYyo3Q==}
+  '@effect/sql-d1@4.0.6':
+    resolution: {integrity: sha512-W149Svo5pR+7eoKtTmMX3aFCJKQmvMdypKhMlFekKvy2UjY6h5Af8d+9YeBeOXkYtDQjxNs4l6iv7EqbF6XBbg==}
     peerDependencies:
-      effect: ^4.0.0
+      effect: ^4.0.6
 
-  '@effect/sql-libsql@4.0.0':
-    resolution: {integrity: sha512-RgMr2gdhE4J3oEsIv1jQcgSoSrd4OCaAbbSPx3q4KvKWRjMFScpUKEa1SnjgmA/nyanmTW1p/SR1Xtynh8kfAA==}
+  '@effect/sql-libsql@4.0.6':
+    resolution: {integrity: sha512-Skxu+Dou3e1vL4Eq+y90uEkpV380DEranCqvYJn0+kzj10LxnnetFx/XXlKbEXV7UH2TN48gyTFIwVCs45nuKQ==}
     peerDependencies:
-      effect: ^4.0.0
+      effect: ^4.0.6
 
-  '@effect/sql-mysql2@4.0.0':
-    resolution: {integrity: sha512-x/heBQ6HmzdncYtiqo+gen+a8H7uCBqVNoaUA91VvZAkac+7WZek5XMl2IvCaFiPD9fMwFFnIdpCsZAQgX45yg==}
+  '@effect/sql-mysql2@4.0.6':
+    resolution: {integrity: sha512-eHB9zxelTGr5JWn0vbHyjN4segLOs0VeW65Ul2NisUfuEktiFhpJxHJW4uE7dXrAu7Xa359mA3fTajCCWXSFig==}
     peerDependencies:
-      effect: ^4.0.0
+      effect: ^4.0.6
 
   '@effect/sql-pg@0.49.7':
     resolution: {integrity: sha512-7yGHEcSTj3jo7EZxC4cEXUno+/pgbEjjY5WLrx0Nfta07Vu6CTplcSOQ5KA24HwkclBidNwfX7LWghc04kAgUQ==}
@@ -2395,36 +2395,36 @@ packages:
       '@effect/sql': ^0.48.1
       effect: ^3.19.6
 
-  '@effect/sql-pg@4.0.0':
-    resolution: {integrity: sha512-w0sRMA08Tgz73aReYpFSxD+nz2LUKYhH/4zaRpo4G5b5YG+eqiAL7XYhqIjvGZ8MZacazbG71Jhprv6ccz9HDg==}
+  '@effect/sql-pg@4.0.6':
+    resolution: {integrity: sha512-mh2Z+Hi1/AWtkoGuzub2PPCHN7ZsMAbY8dlv/YbdJ6PoXVdrVAGsr+FeeoeD6f0rdnln4DQm7PvFjv1htAjY9w==}
     peerDependencies:
-      effect: ^4.0.0
+      effect: ^4.0.6
 
-  '@effect/sql-pglite@4.0.0':
-    resolution: {integrity: sha512-BTlCPSipKMHZJEoJ94rR4f8Gx8cv8tLpZeHc3sajg2ko/2GY8s6CyycSra3Z6GLFUhcivRTYQ9Zc5LThz64qfQ==}
+  '@effect/sql-pglite@4.0.6':
+    resolution: {integrity: sha512-pAKT7ZyY4Y6Nud3MlHXyFuLlH4pFUYpUeywtGWIcHOJtuA/8A8UvXijxrCkZ1dmLYThOqr7tWx5/mqN+lb8/EA==}
     peerDependencies:
-      effect: ^4.0.0
+      effect: ^4.0.6
 
-  '@effect/sql-sqlite-bun@4.0.0':
-    resolution: {integrity: sha512-tUDqqNq4lZMLQkp8YDQej2uuy8BBjmqfMXcJU/KOmrK/WWbzudC8oabZ1TEs1lLSuKzhBEPhnE0cRtAOYe05ew==}
+  '@effect/sql-sqlite-bun@4.0.6':
+    resolution: {integrity: sha512-IUf0d6NrrG+m/yKqziGyE9xQO5cOPzyDcb98S39OpdQMKHBZjVtx+TN+nz3b8Spc6AvfKjFYTcvXSjSzgjDRug==}
     peerDependencies:
-      effect: ^4.0.0
+      effect: ^4.0.6
 
-  '@effect/sql-sqlite-do@4.0.0':
-    resolution: {integrity: sha512-XkRZmQOPblzwjmAJ0RWSOiLlTsKkf1EigZsxUNuIuk4uZ/pnufSqvDpXubCwv8iyRTbOLFMmM+EyOEH5V5XqAw==}
+  '@effect/sql-sqlite-do@4.0.6':
+    resolution: {integrity: sha512-/s0hoRu0/J3Xdp2PoUAsNEc1AwFb+Y9rldXVkZmtdcOSnrx3Vo9DsZaCSK6+qLbhI10jjJftzmmtFtLrUqAwIw==}
     peerDependencies:
-      effect: ^4.0.0
+      effect: ^4.0.6
 
-  '@effect/sql-sqlite-node@4.0.0':
-    resolution: {integrity: sha512-xyUSLY7v55iMgGxrjFrTo5ngixgQ3jLmOQ+AX8CCazO/caxuMM0oq8zb974FAcvQHRrpMEWU7Vnoo+rxct7PAQ==}
+  '@effect/sql-sqlite-node@4.0.6':
+    resolution: {integrity: sha512-mYWr1Ppoz3/XrY+ZBnYfdvZvdcAYJTO6VcWoNetBX5n2c0VKHqg9S8WO6EpgtV5WiR8/yHHmu3qkfAGHJmalcA==}
     peerDependencies:
-      effect: ^4.0.0
+      effect: ^4.0.6
 
-  '@effect/sql-sqlite-wasm@4.0.0':
-    resolution: {integrity: sha512-kYnf0wSDrm1BHnQJl9GGkJPtX1UGmZuvHPQPxvyvumTT7uwp3zV47CVdBR/YOPMVRdgsnIHFaPDtk3O32/QbAw==}
+  '@effect/sql-sqlite-wasm@4.0.6':
+    resolution: {integrity: sha512-+5NjQPKIGpoZOq0ZjUy1r6YwF9jvO6ys1ffAbYKdjWVTCzTe2ZzFonTUzXra2EYfLvoXxel6hNReZD1675NvpQ==}
     peerDependencies:
       '@effect/wa-sqlite': '>=0.1.2 <0.2.0'
-      effect: ^4.0.0
+      effect: ^4.0.6
 
   '@effect/sql@0.48.5':
     resolution: {integrity: sha512-OhmqA4zaajZc5F4M30W/5UjnjnhW+Z3MIbdTn6KihYOywXG+uSD2RVDhW4HiMWlysD4jv2mapbYSzi+IowYqOg==}
@@ -2433,10 +2433,10 @@ packages:
       '@effect/platform': ^0.93.5
       effect: ^3.19.8
 
-  '@effect/vitest@4.0.0':
-    resolution: {integrity: sha512-kGElCPFGtP+CgMCwV/HjJWqtE3zYo6I1+8MSA54l+EI24lPU9p2Efa+TBp1jfkg9j711KKzEqgSAy3VzTsb76Q==}
+  '@effect/vitest@4.0.6':
+    resolution: {integrity: sha512-oKNbtyUHK5+0o730CXwojULEu7f3+c235pYFD4U5T//o+hHrJbYbZU4bRkcv936tPr5IOnmujeyQiC/LuJJjHw==}
     peerDependencies:
-      effect: ^4.0.0
+      effect: ^4.0.6
       vitest: '>=5.0.0 <6.0.0'
 
   '@effect/wa-sqlite@0.1.2':
@@ -9117,8 +9117,8 @@ packages:
     resolution: {integrity: sha512-7ytuPQJjQB8TNAYX/H2yhL+iQOnIBjAMam361R7UAL0lOVXWjtdrmoL9HYKqKoLp/8UUTRcvo1QPvK9KL7wA8w==}
     engines: {node: '>= 8.0'}
 
-  mysql2@3.24.4:
-    resolution: {integrity: sha512-A2olluVlj0mvgyIRRISMEzXc51m+21mRtcMVjJyIpt2GG98+XrC9m9HzsqcMsX2LcnfccJvY5NB22g8fENBnOA==}
+  mysql2@3.24.6:
+    resolution: {integrity: sha512-enu73KhbAua2L3dIxjc6qg6ZJ7H3pt1BImZASWNWY5xSsmJ1ZuUPULTDGXgmJbI61vb+nJAG19IZclIq19UidQ==}
     engines: {node: '>= 8.0'}
     peerDependencies:
       '@types/node': '>= 8'
@@ -13313,12 +13313,12 @@ snapshots:
       msgpackr: 1.11.9
       multipasta: 0.2.7
 
-  '@effect/sql-d1@4.0.0(effect@4.0.6)':
+  '@effect/sql-d1@4.0.6(effect@4.0.6)':
     dependencies:
       '@cloudflare/workers-types': 5.20261019.1
       effect: 4.0.6
 
-  '@effect/sql-libsql@4.0.0(bufferutil@4.0.8)(effect@4.0.6)(utf-8-validate@6.0.3)':
+  '@effect/sql-libsql@4.0.6(bufferutil@4.0.8)(effect@4.0.6)(utf-8-validate@6.0.3)':
     dependencies:
       '@libsql/client': 0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       effect: 4.0.6
@@ -13326,10 +13326,10 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@effect/sql-mysql2@4.0.0(@types/node@25.5.0)(effect@4.0.6)':
+  '@effect/sql-mysql2@4.0.6(@types/node@25.5.0)(effect@4.0.6)':
     dependencies:
       effect: 4.0.6
-      mysql2: 3.24.4(@types/node@25.5.0)
+      mysql2: 3.24.6(@types/node@25.5.0)
     transitivePeerDependencies:
       - '@types/node'
 
@@ -13348,28 +13348,28 @@ snapshots:
       - pg-native
     optional: true
 
-  '@effect/sql-pg@4.0.0(effect@4.0.6)':
+  '@effect/sql-pg@4.0.6(effect@4.0.6)':
     dependencies:
       effect: 4.0.6
 
-  '@effect/sql-pglite@4.0.0(effect@4.0.6)':
+  '@effect/sql-pglite@4.0.6(effect@4.0.6)':
     dependencies:
       '@electric-sql/pglite': 0.5.15
       effect: 4.0.6
 
-  '@effect/sql-sqlite-bun@4.0.0(effect@4.0.6)':
+  '@effect/sql-sqlite-bun@4.0.6(effect@4.0.6)':
     dependencies:
       effect: 4.0.6
 
-  '@effect/sql-sqlite-do@4.0.0(effect@4.0.6)':
+  '@effect/sql-sqlite-do@4.0.6(effect@4.0.6)':
     dependencies:
       effect: 4.0.6
 
-  '@effect/sql-sqlite-node@4.0.0(effect@4.0.6)':
+  '@effect/sql-sqlite-node@4.0.6(effect@4.0.6)':
     dependencies:
       effect: 4.0.6
 
-  '@effect/sql-sqlite-wasm@4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.6)':
+  '@effect/sql-sqlite-wasm@4.0.6(@effect/wa-sqlite@0.1.2)(effect@4.0.6)':
     dependencies:
       '@effect/wa-sqlite': 0.1.2
       effect: 4.0.6
@@ -13381,7 +13381,7 @@ snapshots:
       effect: 3.22.4
       uuid: 11.1.0
 
-  '@effect/vitest@4.0.0(effect@4.0.6)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))':
+  '@effect/vitest@4.0.6(effect@4.0.6)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))':
     dependencies:
       effect: 4.0.6
       vitest: 5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
@@ -17835,7 +17835,7 @@ snapshots:
     dependencies:
       wordwrap: 1.0.0
 
-  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@5.20261019.1)(@libsql/client@0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@13.0.3)(bun-types@1.4.4)(kysely@0.29.8)(mysql2@3.24.4(@types/node@25.5.0))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.13.0)(sqlite3@5.1.7(supports-color@10.2.2)):
+  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@5.20261019.1)(@libsql/client@0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@9.6.0)(@types/pg@8.23.1)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@13.0.3)(bun-types@1.4.4)(kysely@0.29.8)(mysql2@3.24.6(@types/node@25.5.0))(pg@8.22.0)(postgres@3.4.9)(sql.js@1.13.0)(sqlite3@5.1.7(supports-color@10.2.2)):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
       '@cloudflare/workers-types': 5.20261019.1
@@ -17850,7 +17850,7 @@ snapshots:
       better-sqlite3: 13.0.3
       bun-types: 1.4.4
       kysely: 0.29.8
-      mysql2: 3.24.4(@types/node@25.5.0)
+      mysql2: 3.24.6(@types/node@25.5.0)
       pg: 8.22.0
       postgres: 3.4.9
       sql.js: 1.13.0
@@ -17887,7 +17887,7 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7(supports-color@10.2.2)
 
-  drizzle-orm@1.0.0-beta.21(e40169a6e14aa4f1c086ea3859c60cc9):
+  drizzle-orm@1.0.0-beta.21(ae19a762dfd6754442eb0ea5eb14331d):
     dependencies:
       '@types/mssql': 9.1.11(supports-color@10.2.2)
       mssql: 11.0.1(supports-color@10.2.2)
@@ -17920,7 +17920,7 @@ snapshots:
       bun-types: 1.4.4
       expo-sqlite: 14.0.6(expo@54.0.25(@babel/core@7.28.5(supports-color@10.2.2))(@modelcontextprotocol/sdk@1.29.0(supports-color@10.2.2)(zod@3.25.76))(bufferutil@4.0.8)(react-native@0.82.1(@babel/core@7.28.5(supports-color@10.2.2))(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(supports-color@10.2.2)(utf-8-validate@6.0.3))(react@18.3.1)(supports-color@10.2.2)(utf-8-validate@6.0.3))
       gel: 2.2.0(supports-color@10.2.2)
-      mysql2: 3.24.4(@types/node@26.1.2)
+      mysql2: 3.24.6(@types/node@26.1.2)
       pg: 8.22.0
       postgres: 3.4.9
       sql.js: 1.13.0
@@ -20388,7 +20388,7 @@ snapshots:
       seq-queue: 0.0.5
       sqlstring: 2.3.3
 
-  mysql2@3.24.4(@types/node@25.5.0):
+  mysql2@3.24.6(@types/node@25.5.0):
     dependencies:
       '@types/node': 25.5.0
       aws-ssl-profiles: 1.1.2
@@ -20399,7 +20399,7 @@ snapshots:
       named-placeholders: 1.1.6
       sql-escaper: 1.5.1
 
-  mysql2@3.24.4(@types/node@26.1.2):
+  mysql2@3.24.6(@types/node@26.1.2):
     dependencies:
       '@types/node': 26.1.2
       aws-ssl-profiles: 1.1.2

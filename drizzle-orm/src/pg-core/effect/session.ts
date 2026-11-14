@@ -1,9 +1,9 @@
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
-import type { EffectCacheError, EffectCacheShape } from '~/cache/core/cache-effect.ts';
+import { type EffectCacheError, type EffectCacheShape, PendingCacheInvalidation } from '~/cache/core/cache-effect.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
-import { cachedQuery } from '~/cache/core/flow.ts';
+import { cachedQuery, PendingInvalidation } from '~/cache/core/flow.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { MigratorInitError } from '~/effect-core/errors.ts';
 import { EffectDrizzleQueryError, EffectTransactionRollbackError } from '~/effect-core/errors.ts';
@@ -96,16 +96,30 @@ export class PgEffectPreparedQuery<
 		const hasCache = cache && !(cache.cache && is(cache.cache, NoopCache));
 
 		// The shared cache flow (`cachedQuery`), run natively by Effect: the cache's methods and `query` are Effects
-		const flow = fromProgram<A, E | EffectCacheError, R>(() =>
-			cachedQuery<A>(hasCache ? cache : undefined, queryString, params, queryMetadata, cacheConfig, () => query)
-		);
+		const flow = (pending?: PendingInvalidation) =>
+			fromProgram<A, E | EffectCacheError, R>(() =>
+				cachedQuery<A>(
+					hasCache ? cache : undefined,
+					queryString,
+					params,
+					queryMetadata,
+					cacheConfig,
+					() => query,
+					pending,
+				)
+			);
 
-		const guarded = !hasCache ? flow : Effect.flatMap(this.skipCacheLookup, (skip) => {
-			if (!skip) return flow;
+		const guarded = !hasCache
+			? flow()
+			: Effect.flatMap(Effect.all([PendingCacheInvalidation, this.skipCacheLookup]), ([pending, skip]) => {
+				// A statement of the session's batch or pipeline: the run invalidates what it wrote
+				if (pending !== undefined) return flow(pending);
+				if (!skip) return flow();
 
-			const tables = queryMetadata && queryMetadata.type !== 'select' ? queryMetadata.tables() : [];
-			return tables.length > 0 ? Effect.tap(query, () => cache.onMutate({ tables })) : query;
-		});
+				// Pipelined by the client itself, with no run to invalidate for it: right after the statement
+				const own = new PendingInvalidation();
+				return Effect.tap(flow(own), () => fromProgram<void, EffectCacheError>(() => own.flush(cache)));
+			});
 
 		return guarded.pipe(
 			Effect.catch((e) => {

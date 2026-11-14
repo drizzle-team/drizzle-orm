@@ -3,14 +3,17 @@ import {
 	type BuildQueryResult,
 	type BuildRelationalQueryResult,
 	type DBQueryConfigRoot,
+	relationalQueryCacheConfig,
+	relationalQueryCacheMetadata,
 	relationalQueryUsedTablesInit,
 	type RelationalRowsMapper,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { tracer } from '~/tracing.ts';
 import type { PgDialect } from '../dialect.ts';
-import type { PgSession } from '../session.ts';
+import type { PgBasePreparedQuery, PgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
 export type PgDBQueryConfigRoot<
@@ -159,5 +162,46 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 
 	toSQL(): Query {
 		return this._toSQL().builtQuery;
+	}
+
+	/**
+	 * Prepares the query on the session, for both runtimes: the session decides what the prepared query's `execute`
+	 * returns. Rows are mapped by the driver's shape when it has one, by a row mapper otherwise. The runtime's
+	 * builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const { dialect } = this;
+			const isFirst = this.mode === 'first';
+
+			const { query, builtQuery, usedTables } = this._toSQL();
+			const shape = this.shape ??= dialect.shapeGenerator?.(
+				{ type: 'relational', fields: query.selection },
+				undefined,
+			);
+
+			const mapper = this.mapper ??= shape
+				? (isFirst ? (rows: any[]) => rows[0] : undefined)
+				: dialect.mapperGenerators.relationalRows({
+					isFirst,
+					parseJson: this.parseJson,
+					parseJsonIfString: false,
+					rootJsonMappers: false,
+					selection: query.selection,
+					arrayModeRoot: true,
+				});
+
+			return this.session.prepareQuery(
+				builtQuery,
+				shape ? 'objects' : 'arrays',
+				name ?? generateName,
+				mapper as ((rows: unknown[]) => any) | undefined,
+				relationalQueryCacheMetadata(this.config, query.sql, usedTables, this),
+				relationalQueryCacheConfig(this.config),
+				shape,
+			);
+		});
 	}
 }

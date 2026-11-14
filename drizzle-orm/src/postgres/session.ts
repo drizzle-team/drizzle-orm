@@ -2,6 +2,7 @@ import type { BatchMetrics, Connection, PgType, Pool, PoolQuery, QueryResult, Sh
 import { isBrand } from '#postgres/brand';
 import type { BatchItem, SettledQueryResult } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import { PendingInvalidation } from '~/cache/core/flow.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -19,6 +20,7 @@ import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConf
 import { PgTable } from '~/pg-core/table.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
+import { run } from '~/runtime/async.ts';
 import { chunkKindOf, chunkKinds, fillPlaceholders, Param, Placeholder, type Query } from '~/sql/sql.ts';
 import { type InferInsertModel, Table } from '~/table.ts';
 import { usedTablesOf } from '~/used-tables.ts';
@@ -238,7 +240,7 @@ export class PostgresSession<
 			const query = typeof index === 'number' ? prepared[index] : undefined;
 			if (!query) throw e;
 			throw this.queryError(query, e, queries[index as number]!);
-		}).then((results) => {
+		}).then(async (results) => {
 			const response = new Array(results.length);
 			for (let i = 0; i < results.length; ++i) {
 				const { mapper, mode } = prepared[i]!;
@@ -252,8 +254,26 @@ export class PostgresSession<
 			}
 			if (results.metrics) (response as { metrics?: BatchMetrics }).metrics = results.metrics;
 
+			// the batch is committed by now
+			await this.invalidateMutated(prepared);
 			return response;
 		});
+	}
+
+	/**
+	 * Statements of `batch`, `pipeline` and `parallel` are sent without the cache: none is answered from it or
+	 * stored in it. The ones that changed data still make cached queries stale, the same as when run on their own.
+	 * `settled`, when given, leaves out the statements that failed
+	 */
+	private invalidateMutated(
+		prepared: PostgresPreparedQuery<any>[],
+		settled?: { status: 'fulfilled' | 'rejected' }[],
+	): Promise<void> {
+		const pending = new PendingInvalidation();
+		for (let i = 0; i < prepared.length; ++i) {
+			if (settled?.[i]!.status !== 'rejected') prepared[i]!._noteMutation(pending);
+		}
+		return run(pending.flush(is(this.cache, NoopCache) ? undefined : this.cache));
 	}
 
 	/**
@@ -265,7 +285,7 @@ export class PostgresSession<
 		queries: T,
 	): Promise<SettledQueryResult<any>[]> {
 		const { pool, prepared, built } = this.buildMulti('pipeline', queries);
-		return pool.pipeline(built).then((results) => {
+		return pool.pipeline(built).then(async (results) => {
 			const response = new Array(results.length);
 			for (let i = 0; i < results.length; ++i) {
 				const { mapper, mode } = prepared[i]!;
@@ -289,6 +309,7 @@ export class PostgresSession<
 				}
 			}
 
+			await this.invalidateMutated(prepared, results);
 			return response;
 		});
 	}
@@ -302,7 +323,7 @@ export class PostgresSession<
 		queries: T,
 	): Promise<SettledQueryResult<any>[]> {
 		const { pool, prepared, built } = this.buildMulti('parallel', queries);
-		return pool.parallel(built).then((results) => {
+		return pool.parallel(built).then(async (results) => {
 			const response = new Array(results.length);
 			for (let i = 0; i < results.length; ++i) {
 				const { mapper, mode } = prepared[i]!;
@@ -326,6 +347,7 @@ export class PostgresSession<
 				}
 			}
 
+			await this.invalidateMutated(prepared, results);
 			return response;
 		});
 	}
@@ -390,6 +412,8 @@ export class PostgresSession<
 				: (item as BatchItem<'pg'>)._prepare()) as PostgresPreparedQuery<any>;
 			const builtQuery = preparedQuery.getQuery();
 			const params = batchParams(builtQuery.params, boundValues(item));
+			// logged like a query that is run on its own
+			this.logger.logQuery(builtQuery.sql, params);
 			prepared[i] = preparedQuery;
 			built[i] = preparedQuery.mode === 'arrays'
 				? pool.query(builtQuery.sql, params, {

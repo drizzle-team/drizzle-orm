@@ -87,6 +87,8 @@ runCommonEffectPgTests({
 		'Column as decoder applies codecs - Jit mappers',
 		'time zones are preserved',
 		'time zones are preserved - non-UTC session',
+		// reads `timestamp` columns in every query; `effect-pg` and `effect-drizzle-postgres` run it
+		'RQB v2 one shape run again with other values',
 	],
 	addTests: (it) => {
 		nullTimestampTests(it, createDB);

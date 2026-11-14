@@ -1193,6 +1193,137 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				}]);
 			}));
 
+		// Nothing of one relational query may leak into the next one of the same shape: each shape below is run
+		// several times, with other values each time
+		it.effect('RQB v2 one shape run again with other values', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				yield* push(db, { rqbUser, rqbPost });
+
+				const users = [1, 2, 3, 4].map((i) => ({ id: i, name: `user${i}`, createdAt: new Date(1e12 + i * 1000) }));
+				const posts = users.flatMap((user) =>
+					[1, 2, 3].map((j) => ({
+						id: user.id * 10 + j,
+						userId: user.id,
+						content: `post${j}`,
+						createdAt: new Date(1e12 + j * 1000),
+					}))
+				);
+				yield* db.insert(rqbUser).values(users);
+				yield* db.insert(rqbPost).values(posts);
+
+				const byId = { id: 'asc' } as const;
+				const check = (query: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0], i: number) =>
+					Effect.gen(function*() {
+						const user = users[i - 1]!;
+
+						expect(yield* query.query.rqbUser.findFirst({ where: { id: i } })).toStrictEqual(user);
+						expect(yield* query.query.rqbUser.findMany({ where: { name: { like: `%${i}` } } })).toStrictEqual([user]);
+						expect(yield* query.query.rqbUser.findMany({ where: { id: { in: [i, 5 - i] } }, orderBy: byId }))
+							.toStrictEqual(users.filter((row) => row.id === i || row.id === 5 - i));
+						expect(
+							yield* query.query.rqbUser.findMany({ where: { createdAt: { gt: user.createdAt } }, orderBy: byId }),
+						).toStrictEqual(users.filter((row) => row.id > i));
+						expect(yield* query.query.rqbUser.findMany({ orderBy: byId, limit: i, offset: 4 - i }))
+							.toStrictEqual(users.slice(4 - i, 4));
+
+						const content = `post${(i % 3) + 1}`;
+						expect(
+							yield* query.query.rqbUser.findFirst({
+								where: { OR: [{ id: i }, { name: 'nobody' + i }] },
+								with: { posts: { where: { content: { ne: content } }, orderBy: byId, limit: (i % 2) + 1 } },
+							}),
+						).toStrictEqual({
+							...user,
+							posts: posts.filter((row) => row.userId === i && row.content !== content).slice(0, (i % 2) + 1),
+						});
+
+						expect(
+							yield* query.query.rqbPost.findFirst({ where: { id: i * 10 + 2 }, with: { author: true } }),
+						).toStrictEqual({ ...posts.find((row) => row.id === i * 10 + 2)!, author: user });
+					});
+
+				for (let round = 0; round < 3; ++round) {
+					for (const i of [1, 2, 3, 4]) yield* check(db, i);
+				}
+
+				// the same in a transaction
+				yield* db.transaction((tx) =>
+					Effect.gen(function*() {
+						for (const i of [4, 1, 3]) yield* check(tx, i);
+					})
+				);
+			}));
+
+		// Values that decide the query, not only its params. Each sequence was once answered with the query of the
+		// value before it, so every one is run from each of its values first, and then again
+		it.effect('RQB v2 values that change the query, in sequences', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				yield* push(db, { rqbUser, rqbPost });
+
+				const createdAt = new Date(1e12);
+				const posts = [1, 2, 3, 4, 5, 6].map((i) => ({
+					id: i,
+					userId: (i % 2) + 1,
+					content: i % 2 ? null : `post${i}`,
+					createdAt,
+				}));
+				yield* db.insert(rqbUser).values([1, 2].map((i) => ({ id: i, name: `user${i}`, createdAt })));
+				yield* db.insert(rqbPost).values(posts);
+
+				const ids = (config: Record<string, unknown>) =>
+					Effect.map(
+						db.query.rqbPost.findMany({ columns: { id: true }, orderBy: { id: 'asc' }, ...config } as any),
+						(found) => (found as { id: number }[]).map((row) => row.id),
+					);
+				const idsWhere = (keep: (row: typeof posts[number]) => boolean) => posts.filter(keep).map((row) => row.id);
+				const everyOrder = <T>(values: T[], check: (value: T) => Effect.Effect<void, any, any>) =>
+					Effect.gen(function*() {
+						for (let first = 0; first < values.length; ++first) {
+							for (let i = 0; i < values.length * 2; ++i) yield* check(values[(first + i) % values.length]!);
+						}
+					});
+
+				// `isNull` / `isNotNull` given a number or a string: a falsy one means no filter
+				yield* everyOrder<unknown>([1, 0, 2, 0, 'x', ''], (value) =>
+					Effect.gen(function*() {
+						expect(yield* ids({ where: { content: { isNull: value } } }), String(value))
+							.toStrictEqual(idsWhere((row) => !value || row.content === null));
+						expect(yield* ids({ where: { id: { lte: 5 }, content: { isNotNull: value } } }), String(value))
+							.toStrictEqual(idsWhere((row) => row.id <= 5 && (!value || row.content !== null)));
+					}));
+
+				// lists of every length, short and long
+				for (const length of [1, 2, 3, 2, 33, 40, 200, 1, 33]) {
+					const list = new Array(length).fill(0).map((_, i) => i + 1);
+					expect(yield* ids({ where: { id: { in: list } } }), `in ${length}`)
+						.toStrictEqual(idsWhere((row) => row.id <= length));
+					expect(yield* ids({ where: { id: { notIn: list } } }), `notIn ${length}`)
+						.toStrictEqual(idsWhere((row) => row.id > length));
+				}
+
+				// `limit` and `offset`, zero among them
+				yield* everyOrder([0, 3, 0, 6, 1], (value) =>
+					Effect.gen(function*() {
+						expect(yield* ids({ limit: value }), `limit ${value}`)
+							.toStrictEqual(posts.slice(0, value).map((row) => row.id));
+						expect(yield* ids({ limit: 2, offset: value }), `offset ${value}`)
+							.toStrictEqual(posts.slice(value, value + 2).map((row) => row.id));
+					}));
+
+				// the same filter with its keys in another order, and a filter on a relation
+				for (const i of [1, 2, 3, 4, 5, 6, 1]) {
+					const expected = idsWhere((row) => row.id >= i && row.userId !== (i % 2) + 1).slice(0, 3);
+					expect(yield* ids({ where: { id: { gte: i }, userId: { ne: (i % 2) + 1 } }, limit: 3 }))
+						.toStrictEqual(expected);
+					expect(yield* ids({ limit: 3, where: { userId: { ne: (i % 2) + 1 }, id: { gte: i } } }))
+						.toStrictEqual(expected);
+					expect(yield* ids({ where: { author: { name: `user${(i % 2) + 1}` } } }))
+						.toStrictEqual(idsWhere((row) => row.userId === (i % 2) + 1));
+				}
+			}));
+
 		it.effect('transaction', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;

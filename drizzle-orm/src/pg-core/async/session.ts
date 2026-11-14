@@ -1,5 +1,5 @@
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import { cachedQuery, type CacheOps } from '~/cache/core/flow.ts';
+import { cachedQuery, type CacheOps, type PendingInvalidation } from '~/cache/core/flow.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { is } from '~/entity.ts';
@@ -96,6 +96,16 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 	 */
 	bind(placeholderValues: Record<string, unknown> = {}): PgAsyncBoundQuery<T> {
 		return new PgAsyncBoundQuery(this, placeholderValues);
+	}
+
+	/**
+	 * Leaves the tables this query writes in `pending`, for a session that sends the query without `execute`
+	 * (a batch, a pipeline) and invalidates the cache for the whole run
+	 *
+	 * @internal
+	 */
+	_noteMutation(pending: PendingInvalidation): void {
+		pending.add(this.queryMetadata);
 	}
 
 	/**
