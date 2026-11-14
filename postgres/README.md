@@ -90,6 +90,44 @@ and inside a transaction, the driver reads the rest of the result and drops it.
 The HTTP clients (`/http`, `/neon-http`, `/aurora`) accept `timeout` and `signal` on every client. They
 stop the client from waiting for the response. The service decides whether the query stops.
 
+## Connection poolers
+
+A transaction-mode pooler gives a client a backend for one transaction at a time. Behind one, the driver
+sends one query at a time (no pipelining, no shared pool queries) and, unless the pooler keeps named
+statements across backends, sends every statement unnamed. It detects these from the host and port:
+
+| Connection | Detected by | Named statements | Pipelining |
+|---|---|---|---|
+| Neon pooled, Vercel Postgres pooled | `-pooler.` in the host | on | off |
+| Supabase pooler, transaction mode | port 6543 | off | off |
+| PlanetScale Postgres PgBouncer | port 6432 on `*.pg.psdb.cloud` | on | on |
+| PgBouncer elsewhere (Azure Flexible Server, AlloyDB, self-hosted) | port 6432 | off | off |
+| Prisma Postgres pooled | host `pooled.db.prisma.io` | off | off |
+| Vercel serverless runtime | `VERCEL` / `VERCEL_ENV` | off, on for Neon hosts | off |
+
+PlanetScale Postgres keeps both on through its PgBouncer. Checked live: five clients were each moved over
+four or five backends and their named statements kept working, and 100 queries in flight on one connection
+took about 60 ms, against about 2.8 s one at a time. PlanetScale's dashboard shows the direct connection
+string; the pooled one is the same host and credentials with port 6432.
+
+Everything else is treated as a direct connection, with named statements and pipelining on. That is right
+for these, which pool but keep both working:
+
+- **Cloudflare Hyperdrive:** checked from a deployed Worker against Neon, PlanetScale Postgres and Neki,
+  with clients moved between backends mid-run.
+- **Neki:** one endpoint on port 5432; its router keeps session state and named statements per client.
+- **Supabase session mode** (port 5432 on the pooler host): one backend per client. Checked live.
+- **AWS RDS Proxy:** tracks protocol-level named statements. Not checked against a live proxy.
+
+Supabase's transaction mode (port 6543) is the opposite case, also checked live. With named statements forced
+on, a statement fails with `42P05 prepared statement already exists`. With pipelining forced on, 100 queries
+sent at once never get their answers. Leave both off there.
+
+A pooler the driver can't see from the host and port needs declaring: `pooler: true`, or `?pooler=true` /
+`?pgbouncer=true` in the connection string. That covers DigitalOcean and Aiven connection pools, Heroku's
+pooled URL and Crunchy Bridge. `pooler: false` turns detection off, and `prepare` and `pipeline` each
+override their own default.
+
 ## Runtimes
 
 The root import picks its TCP transport from the runtime, so the same line works everywhere:
@@ -147,8 +185,10 @@ PGlite is one Postgres backend with one session, and the entry adapts to that:
 ## Effect
 
 `@drizzle-team/postgres/effect` implements Effect's `SqlClient` on top of the Drizzle Postgres pool, and its layers
-include the transport of each runtime. See [src/effect/README.md](src/effect/README.md) for
-setup, runtimes and examples.
+include the transport of each runtime. `/effect/neon-ws` and `/effect/pglite` provide the same client over Neon's
+WebSocket proxy and PGlite, `/effect/aurora` is a `SqlClient` over the Aurora Data API, and `/effect/http` and
+`/effect/neon-http` run statements and one-request transactions over HTTP. See
+[src/effect/README.md](src/effect/README.md) for setup, runtimes and examples.
 
 ## Kysely
 

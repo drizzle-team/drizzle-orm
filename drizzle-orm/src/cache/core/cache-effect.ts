@@ -4,6 +4,7 @@ import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
 import { entityKind, is } from '~/entity.ts';
 import { type Cache as DrizzleCache, type MutationOption, NoopCache } from './cache.ts';
+import type { PendingInvalidation } from './flow.ts';
 import type { CacheConfig } from './types.ts';
 
 export interface EffectCacheShape {
@@ -95,6 +96,17 @@ export class EffectCache extends Context.Service<EffectCache, EffectCacheShape>(
 		return Layer.succeed(EffectCache, EffectCache.fromDrizzle(cache));
 	}
 }
+
+/**
+ * Set while the statements of a batch or a pipeline run: they stay out of the cache, and leave the tables they
+ * wrote here for the run to invalidate when it is done. See {@link PendingInvalidation}
+ *
+ * @internal
+ */
+export const PendingCacheInvalidation = Context.Reference<PendingInvalidation | undefined>(
+	'drizzle-orm/PendingCacheInvalidation',
+	{ defaultValue: () => undefined },
+);
 
 function make(cache: DrizzleCache): EffectCacheShape {
 	const strategy = () => cache.strategy();

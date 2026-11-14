@@ -147,6 +147,26 @@
 		"./effect/core": {
 			"types": "./dist/effect/core.d.ts",
 			"default": "./dist/effect/core.js"
+		},
+		"./effect/neon-ws": {
+			"types": "./dist/effect/neon-ws.d.ts",
+			"default": "./dist/effect/neon-ws.js"
+		},
+		"./effect/pglite": {
+			"types": "./dist/effect/pglite.d.ts",
+			"default": "./dist/effect/pglite.js"
+		},
+		"./effect/http": {
+			"types": "./dist/effect/http.d.ts",
+			"default": "./dist/effect/http.js"
+		},
+		"./effect/neon-http": {
+			"types": "./dist/effect/neon-http.d.ts",
+			"default": "./dist/effect/neon-http.js"
+		},
+		"./effect/aurora": {
+			"types": "./dist/effect/aurora.d.ts",
+			"default": "./dist/effect/aurora.js"
 		}
 	},
 	"files": [

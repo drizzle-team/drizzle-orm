@@ -5,7 +5,6 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
@@ -74,32 +73,8 @@ export class PgAsyncInsertBase<
 	declare protected session: PgAsyncSession;
 
 	/** @internal */
-	_prepare(name?: string, generateName = false): PgInsertPrepare<this> {
-		const { session, config, dialect } = this;
-		const { returning: fields } = config;
-
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const shape = fields
-				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, undefined)
-				: undefined;
-
-			const query = dialect.sqlToQuery(this.getSQL());
-			const mapper = shape || !fields
-				? undefined
-				: this.dialect.mapperGenerators.rows(fields, undefined);
-
-			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
-				query,
-				shape ? 'objects' : fields ? 'arrays' : 'raw',
-				name ?? generateName,
-				mapper,
-				{ type: 'insert', tables: () => usedTablesOf(this.config.table) },
-				undefined,
-				shape,
-			);
-
-			return preparedQuery;
-		});
+	override _prepare(name?: string, generateName = false): PgInsertPrepare<this> {
+		return super._prepare(name, generateName) as PgInsertPrepare<this>;
 	}
 
 	prepare(name?: string): PgInsertPrepare<this> {

@@ -1,7 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { IndexColumn } from '~/pg-core/indexes.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
+import type { PgBasePreparedQuery, PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
 import type { PgTable, TableConfig } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
@@ -13,6 +13,7 @@ import type { InferInsertModel } from '~/table.ts';
 import { getTableName, Table } from '~/table.ts';
 import { type Assume, type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
+import { prepareMutation } from './prepare.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
@@ -570,5 +571,23 @@ export class PgInsertBase<
 
 	$dynamic(): PgInsertDynamic<this> {
 		return this as any;
+	}
+
+	/**
+	 * Prepares the query on the session, for both runtimes. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
+		const { session, dialect, config } = this;
+		return prepareMutation(
+			'insert',
+			session,
+			dialect,
+			config,
+			() => this.getSQL(),
+			undefined,
+			name ?? generateName,
+		);
 	}
 }

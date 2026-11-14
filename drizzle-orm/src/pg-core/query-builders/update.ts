@@ -1,7 +1,7 @@
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
+import type { PgBasePreparedQuery, PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
@@ -32,12 +32,14 @@ import {
 	getTableLikeName,
 	mapUpdateSet,
 	orderSelectedFields,
+	resolveNullableObjectPaths,
 	type Simplify,
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { PgViewBase } from '../view-base.ts';
+import { prepareMutation } from './prepare.ts';
 import type {
 	CheckTableLikeSelection,
 	PgSelectJoinConfig,
@@ -695,5 +697,26 @@ export class PgUpdateBase<
 
 	$dynamic(): PgUpdateDynamic<this> {
 		return this as any;
+	}
+
+	/**
+	 * Prepares the query on the session, for both runtimes. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
+		const { session, dialect, config, joinsNotNullableMap } = this;
+		const nullableObjectPaths = config.returning
+			? resolveNullableObjectPaths(config.returning, joinsNotNullableMap)
+			: undefined;
+		return prepareMutation(
+			'update',
+			session,
+			dialect,
+			config,
+			() => this.getSQL(),
+			nullableObjectPaths,
+			name ?? generateName,
+		);
 	}
 }

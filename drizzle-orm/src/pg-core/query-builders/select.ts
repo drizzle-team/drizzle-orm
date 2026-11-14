@@ -2,7 +2,7 @@ import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgColumn } from '~/pg-core/columns/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgSession } from '~/pg-core/session.ts';
+import type { PgBasePreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { SubqueryWithSelection } from '~/pg-core/subquery.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { PgViewBase } from '~/pg-core/view-base.ts';
@@ -22,6 +22,7 @@ import { SQL, sql } from '~/sql/sql.ts';
 import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
+import { tracer } from '~/tracing.ts';
 import { usedTablesOf } from '~/used-tables.ts';
 import {
 	type Assume,
@@ -29,6 +30,7 @@ import {
 	getTableLikeName,
 	haveSameKeys,
 	orderSelectedFields,
+	resolveNullableObjectPaths,
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -1168,6 +1170,42 @@ export class PgSelectBase<
 			? { enabled: false }
 			: { enabled: true, autoInvalidate: true, ...config };
 		return this;
+	}
+
+	/**
+	 * Prepares the query on the session, for both runtimes: the session decides what the prepared query's `execute`
+	 * returns. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
+		const { session, dialect, cacheConfig, config, joinsNotNullableMap } = this;
+
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const fieldsList = this._resolveSelection();
+			const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, joinsNotNullableMap);
+
+			const shape = config.shape ??= dialect.shapeGenerator?.(
+				{ type: 'plain', fields: fieldsList },
+				nullableObjectPaths,
+			);
+
+			const sequel = this.getSQL();
+			const query = config.tagged ? dialect._sqlToQuery(sequel) : dialect.sqlToQuery(sequel);
+			const mapper = shape
+				? undefined
+				: (config.mapper ??= dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths));
+
+			return session!.prepareQuery(
+				query,
+				shape ? 'objects' : 'arrays',
+				name ?? generateName,
+				mapper as ((rows: unknown[]) => any) | undefined,
+				{ type: 'select', tables: () => this.getUsedTables(sequel) },
+				cacheConfig,
+				shape,
+			);
+		});
 	}
 }
 

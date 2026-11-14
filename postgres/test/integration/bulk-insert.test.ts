@@ -159,6 +159,44 @@ describe('bulkInsert', () => {
 	}, TEST_TIMEOUT);
 });
 
+describe('a chunked atomic bulk write next to other statements on its connection', () => {
+	// The bulk call's own transaction goes out in one piece, so concurrent statements on the connection stay out of it
+	const DDL_PK = (t: string) => `create temp table ${t}(id int8 primary key, name text)`;
+	const PK_COLS = { id: 'int8', name: 'text' } as const;
+	const numbered = (n: number) => Array.from({ length: n }, (_, i) => [i, `n${i}`]);
+
+	test('its rollback keeps the other statements, and their failure does not abort it', async () => {
+		await withConn(async (c) => {
+			await c.query(DDL_PK(`${K}_iso`));
+			const [bulk, other] = await Promise.allSettled([
+				c.bulkInsert(`${K}_iso`, PK_COLS, [...numbered(50), [7, 'duplicate']], { chunk: 10 }),
+				c.query(`insert into ${K}_iso values (1000, 'other')`),
+			]);
+			expect([bulk.status, other.status]).toEqual(['rejected', 'fulfilled']);
+			expect((await c.query(`select id from ${K}_iso`)).rows).toEqual([[1000n]]);
+
+			const [kept, failed] = await Promise.allSettled([
+				c.bulkInsert(`${K}_iso`, PK_COLS, numbered(50), { chunk: 10 }),
+				c.query('select 1/0'),
+			]);
+			expect([kept.status, failed.status]).toEqual(['fulfilled', 'rejected']);
+			expect((await c.query(`select count(*)::int from ${K}_iso`)).rows).toEqual([[51]]);
+		});
+	}, TEST_TIMEOUT);
+
+	test('the same holds for a chunked copyMany', async () => {
+		await withConn(async (c) => {
+			await c.query(DDL_PK(`${K}_isocopy`));
+			const [copy, other] = await Promise.allSettled([
+				c.copyMany(`${K}_isocopy`, PK_COLS, [...numbered(50), [7, 'duplicate']], { chunk: 10 }),
+				c.query(`insert into ${K}_isocopy values (1000, 'other')`),
+			]);
+			expect([copy.status, other.status]).toEqual(['rejected', 'fulfilled']);
+			expect((await c.query(`select id from ${K}_isocopy`)).rows).toEqual([[1000n]]);
+		});
+	}, TEST_TIMEOUT);
+});
+
 describe('bulkInsert defaults:true', () => {
 	const DCOLS = { id: 'int8', name: 'text', status: 'text', n: 'int4', at: 'timestamptz' } as const;
 	const DDDL = (t: string) =>

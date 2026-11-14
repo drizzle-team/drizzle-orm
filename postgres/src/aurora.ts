@@ -358,7 +358,8 @@ export class AuroraClient {
 	private readonly secretArn: string;
 	private readonly database?: string;
 	private readonly region: string;
-	private readonly endpoint: string;
+	/** The Data API endpoint the client calls. */
+	readonly endpoint: string;
 	private readonly credentials?: AwsCredentials;
 	private readonly signOverride?: AuroraConfig['sign'];
 	private readonly fetchImpl: typeof fetch;
@@ -654,10 +655,7 @@ export class AuroraClient {
 				throw e;
 			}
 		}
-		const { transactionId } = await this.call<{ transactionId: string }>('BeginTransaction', this.base());
-		const tx: AuroraClient = Object.create(this);
-		(tx as unknown as { txId?: string; spCounter: number }).txId = transactionId;
-		(tx as unknown as { txId?: string; spCounter: number }).spCounter = 0;
+		const tx = await this.openTransaction();
 		try {
 			const set = options ? beginOptions(options) : '';
 			if (set) await tx.query('set transaction ' + set);
@@ -665,18 +663,45 @@ export class AuroraClient {
 				await tx.query(setTransactionSnapshotSql(options.snapshot));
 			}
 			const r = await fn(tx);
-			await this.call('CommitTransaction', { resourceArn: this.resourceArn, secretArn: this.secretArn, transactionId });
+			await tx.commitTransaction();
 			return r;
 		} catch (e) {
 			try {
-				await this.call('RollbackTransaction', {
-					resourceArn: this.resourceArn,
-					secretArn: this.secretArn,
-					transactionId,
-				});
+				await tx.rollbackTransaction();
 			} catch { /* */ }
 			throw e;
 		}
+	}
+
+	/** Starts a Data API transaction (BeginTransaction) and returns a client whose statements run in it. End it with
+	 *  `commitTransaction()` or `rollbackTransaction()` on that client. For a caller that owns the transaction's
+	 *  boundaries, like the Effect entry; begin(fn) does both ends for you. */
+	async openTransaction(): Promise<AuroraClient> {
+		if (this.txId) {
+			throw new Error('@drizzle-team/postgres/aurora: openTransaction() on a client that is already in one');
+		}
+		const { transactionId } = await this.call<{ transactionId: string }>('BeginTransaction', this.base());
+		const tx: AuroraClient = Object.create(this);
+		(tx as unknown as { txId?: string; spCounter: number }).txId = transactionId;
+		(tx as unknown as { txId?: string; spCounter: number }).spCounter = 0;
+		return tx;
+	}
+
+	/** Commits the transaction of a client from `openTransaction()` (CommitTransaction). */
+	async commitTransaction(): Promise<void> {
+		await this.endTransaction('CommitTransaction');
+	}
+
+	/** Rolls back the transaction of a client from `openTransaction()` (RollbackTransaction). */
+	async rollbackTransaction(): Promise<void> {
+		await this.endTransaction('RollbackTransaction');
+	}
+
+	private async endTransaction(op: 'CommitTransaction' | 'RollbackTransaction'): Promise<void> {
+		const transactionId = this.txId;
+		if (!transactionId) throw new Error(`@drizzle-team/postgres/aurora: ${op} on a client that is in no transaction`);
+		await this.call(op, { resourceArn: this.resourceArn, secretArn: this.secretArn, transactionId });
+		this.txId = undefined;
 	}
 
 	/** No-op — the Data API holds no connection. Present for API symmetry. */

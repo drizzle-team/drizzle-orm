@@ -4,6 +4,40 @@ import { definePlugin, defineRule } from 'oxlint';
 export default definePlugin({
 	meta: { name: 'drizzle-internal' },
 	rules: {
+		'no-try-in-core-program': defineRule({
+			meta: {
+				messages: {
+					tryInCoreProgram:
+						'No try/catch/finally in a core program: Effect never calls throw() or return() on the generator, so the catch or finally would run under the async runner and be skipped under Effect. Use `using` for cleanup and `attempt` to inspect a failure.',
+				},
+			},
+			create: (context) => {
+				// Core programs are the generators of files that import the runtime core (drizzle-orm/src/runtime/index.ts)
+				let importsCore = false;
+
+				return {
+					ImportDeclaration: (node) => {
+						if (/(^|\/)runtime\/index\.ts$/.test(node.source.value)) importsCore = true;
+					},
+					TryStatement: (node) => {
+						if (!importsCore) return;
+
+						let fn = node.parent;
+						while (
+							fn && fn.type !== 'FunctionDeclaration' && fn.type !== 'FunctionExpression'
+							&& fn.type !== 'ArrowFunctionExpression'
+						) fn = fn.parent;
+						if (!fn?.generator) return;
+
+						context.report({
+							node,
+							message:
+								'No try/catch/finally in a core program: Effect never calls throw() or return() on the generator, so the catch or finally would run under the async runner and be skipped under Effect. Use `using` for cleanup and `attempt` to inspect a failure.',
+						});
+					},
+				};
+			},
+		}),
 		'prefer-new-array': defineRule({
 			meta: {
 				messages: {

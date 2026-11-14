@@ -169,6 +169,10 @@ describe('url in config: merge + pooler auto-detect (no connection)', () => {
 			['postgres://u:p@ep-x-pooler.us-east-2.aws.neon.tech/d', true, true], // Neon's pooler keeps named statements
 			['postgres://u:p@aws-0-x.pooler.supabase.com:6543/postgres', true, false],
 			['postgres://u:p@aws-0-x.pooler.supabase.com:5432/postgres', false, true], // Supavisor session mode
+			['postgres://u:p@aws-eu-central-1-1.pg.psdb.cloud:6432/postgres', true, true], // PlanetScale's PgBouncer keeps them
+			['postgres://u:p@aws-eu-central-1-1.pg.psdb.cloud:5432/postgres', false, true], // PlanetScale direct, and Neki
+			['postgres://u:p@my-server.postgres.database.azure.com:6432/d', true, false],
+			['postgres://u:p@pooled.db.prisma.io:5432/postgres', true, false],
 			['postgres://u:p@db.internal:5432/d?pgbouncer=true', true, false],
 			['postgres://u:p@db.internal:5432/d?prepare=false', false, false],
 			[{ url: 'postgres://u:p@db.internal:5432/d?pgbouncer=true', prepare: true }, true, true],

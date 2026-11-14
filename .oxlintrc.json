@@ -71,7 +71,8 @@
 			"files": ["drizzle-orm/src/**/*"],
 			"rules": {
 				"drizzle-internal/require-entity-kind": "error",
-				"drizzle-internal/require-has-instance": "error"
+				"drizzle-internal/require-has-instance": "error",
+				"drizzle-internal/no-try-in-core-program": "error"
 			}
 		},
 		{

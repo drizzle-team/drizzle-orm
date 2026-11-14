@@ -1,4 +1,5 @@
-// Runs every TypeScript example in src/effect/README.md against the local cluster.
+// Runs every TypeScript example in src/effect/README.md against the local cluster. Examples fenced as `ts no-run`
+// need a server that the local cluster can't stand in for (Neon, Aurora, an HTTP gateway), so they don't run.
 import { expect, test } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -20,7 +21,7 @@ for (const [i, code] of examples.entries()) {
 		writeFileSync(
 			file,
 			code
-				.replaceAll("'@drizzle-team/postgres/effect/core'", `'${root}src/effect/core.ts'`)
+				.replace(/'@drizzle-team\/postgres\/effect\/([\w-]+)'/g, `'${root}src/effect/$1.ts'`)
 				.replaceAll("'@drizzle-team/postgres/effect'", `'${root}src/effect/index.ts'`)
 				.replaceAll("'@drizzle-team/postgres'", `'${root}src/index.ts'`),
 		);

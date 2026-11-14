@@ -1,6 +1,6 @@
 // Bulk writes as Effects: bulkInsert, bulkUpdate and copyMany.
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
-import { Cause, Effect, Exit, Fiber } from 'effect';
+import { Cause, Effect, Exit, Fiber, Ref } from 'effect';
 import { DrizzlePostgresClient } from '../../src/effect/index.ts';
 import { testPool } from '../helpers/db.ts';
 import { runTest } from '../helpers/effect.ts';
@@ -87,4 +87,83 @@ describe('bulk writes', () => {
 		}
 		expect(await rows()).toEqual([]);
 	}, 10000);
+});
+
+const numbered = (n: number, from = 0) => Array.from({ length: n }, (_, i) => [from + i, `n${from + i}`]);
+const failure = <E>(exit: Exit.Exit<unknown, E>) =>
+	Exit.isFailure(exit) ? exit.cause.reasons.find(Cause.isFailReason)?.error : undefined;
+
+describe('a chunked bulk write in a pipeline', () => {
+	test('runs in its own transaction, so its rollback keeps the other statements', async () => {
+		const exit = await runTest(Effect.exit(Effect.gen(function*() {
+			const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
+			return yield* client.pipeline([
+				client.bulkInsert(T, COLUMNS, [...numbered(100), [5, 'duplicate']], { chunk: 10 }),
+				client.query(`insert into ${T} values (1000, 'other')`),
+			]);
+		})));
+		expect(Exit.isFailure(exit)).toBe(true);
+		expect(await rows()).toEqual([[1000, 'other']]);
+	});
+
+	test('is not aborted by another statement that fails', async () => {
+		const exit = await runTest(Effect.exit(Effect.gen(function*() {
+			const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
+			return yield* client.pipeline([
+				client.bulkInsert(T, COLUMNS, numbered(100), { chunk: 10 }),
+				client.query('select 1/0'),
+			]);
+		})));
+		expect((failure(exit) as { reason: { _tag: string } }).reason._tag).toBe('UnknownError');
+		expect(await rows()).toHaveLength(100);
+	});
+});
+
+describe('bulk progress', () => {
+	test('onProgress is an Effect that runs for every chunk, in order, before the result', async () => {
+		const seen = await runTest(Effect.gen(function*() {
+			const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
+			const progress = yield* Ref.make<number[]>([]);
+			yield* client.bulkInsert(T, COLUMNS, numbered(50), {
+				chunk: 10,
+				onProgress: (p) => Effect.andThen(Effect.sleep('5 millis'), Ref.update(progress, (a) => [...a, p.rows])),
+			});
+			return yield* Ref.get(progress);
+		}));
+		expect(seen).toEqual([10, 20, 30, 40, 50]);
+	});
+});
+
+describe('bulk errors', () => {
+	test('input the driver rejects is a BulkInputError', async () => {
+		const exit = await runTest(Effect.exit(Effect.gen(function*() {
+			const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
+			return yield* client.bulkUpdate(T, COLUMNS, [{ id: 1, name: 'a' }], { by: 'missing' });
+		})));
+		expect(failure(exit)).toMatchObject({ _tag: 'BulkInputError', operation: 'bulkUpdate' });
+	});
+
+	test('atomic: false inside a transaction is a BulkInputError, before anything runs', async () => {
+		const exit = await runTest(Effect.exit(Effect.gen(function*() {
+			const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
+			return yield* client.withTransaction(client.bulkInsert(T, COLUMNS, numbered(30), { chunk: 10, atomic: false }));
+		})));
+		expect(failure(exit)).toMatchObject({ _tag: 'BulkInputError', operation: 'bulkInsert' });
+		expect(await rows()).toEqual([]);
+	});
+
+	test('a failure with atomic: false is a BulkPartialError with the committed row count', async () => {
+		const exit = await runTest(Effect.exit(Effect.gen(function*() {
+			const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
+			return yield* client.bulkInsert(T, COLUMNS, [...numbered(25), [3, 'duplicate'], ...numbered(10, 100)], {
+				chunk: 10,
+				atomic: false,
+			});
+		})));
+		const error = failure(exit) as { _tag: string; committedRows: number; error: { reason: { _tag: string } } };
+		expect(error._tag).toBe('BulkPartialError');
+		expect(error.committedRows).toBe(20);
+		expect(error.error.reason._tag).toBe('UniqueViolation');
+		expect(await rows()).toHaveLength(20);
+	});
 });
