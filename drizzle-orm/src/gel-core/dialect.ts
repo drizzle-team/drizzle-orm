@@ -1,6 +1,6 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
-import { Column } from '~/column.ts';
+import { Column, mapColumnSelection } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import { GelColumn, GelDecimal, GelJson, GelUUID } from '~/gel-core/columns/index.ts';
@@ -235,13 +235,22 @@ export class GelDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
-					// Gel throws an error when more than one similarly named columns exist within context instead of preferring the closest one
-					// thus forcing us to be explicit about column's source
-					// if (isSingleTable) {
-					// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-					// } else {
-					chunk.push(field);
-					// }
+					if (field.selectFromDb) {
+						const columnSql = field.getSQL();
+						const selectionSql = mapColumnSelection(field, columnSql);
+						chunk.push(selectionSql);
+						if (selectionSql !== columnSql) {
+							chunk.push(sql` as ${sql.identifier(this.casing.getColumnCasing(field))}`);
+						}
+					} else {
+						// Gel throws an error when more than one similarly named columns exist within context instead of preferring the closest one
+						// thus forcing us to be explicit about column's source
+						// if (isSingleTable) {
+						// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+						// } else {
+						chunk.push(field);
+						// }
+					}
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
 
