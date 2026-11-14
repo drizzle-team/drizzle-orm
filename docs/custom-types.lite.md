@@ -94,6 +94,23 @@ const usersTable = pgTable('users', {
 });
 ```
 
+You can also wrap a custom column when it is selected from the database. This is useful for database types
+that need a SQL function before `fromDriver` receives the raw driver value, for example PostGIS geometry:
+
+```typescript
+const customGeometry = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return 'geometry';
+  },
+  selectFromDb(column) {
+    return sql`ST_AsText(${column})`;
+  },
+  fromDriver(value) {
+    return value;
+  },
+});
+```
+
 ### MySql Data Types using `mysql2` driver
 
 ---
@@ -293,5 +310,19 @@ export interface CustomTypeParams<T extends Partial<CustomTypeValues>> {
    * ```
    */
   fromDriver?: (value: T['driverData']) => T['data'];
+
+  /**
+   * Optional SQL wrapper used when this custom column is selected from the database.
+   * The returned expression is automatically aliased back to the column name and decoded
+   * with `fromDriver`, so callers should only wrap the provided column SQL.
+   *
+   * @example
+   * ```
+   * selectFromDb(column) {
+   *   return sql`lower(${column})`;
+   * }
+   * ```
+   */
+  selectFromDb?: (column: SQL) => SQL<T['data']>;
 }
 ````

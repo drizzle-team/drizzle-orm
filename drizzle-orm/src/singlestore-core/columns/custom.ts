@@ -66,6 +66,7 @@ export class SingleStoreCustomColumn<T extends ColumnBaseConfig<'custom', 'Singl
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	readonly selectFromDb?: (column: SQL) => SQL;
 
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
@@ -75,6 +76,7 @@ export class SingleStoreCustomColumn<T extends ColumnBaseConfig<'custom', 'Singl
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.selectFromDb = config.customTypeParams.selectFromDb;
 	}
 
 	getSQLType(): string {
@@ -198,6 +200,20 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional SQL wrapper used when this custom column is selected from the database.
+	 * The returned expression is automatically aliased back to the column name and decoded
+	 * with `fromDriver`, so callers should only wrap the provided column SQL.
+	 *
+	 * @example
+	 * ```
+	 * selectFromDb(column) {
+	 * 	return sql`lower(${column})`;
+	 * }
+	 * ```
+	 */
+	selectFromDb?: (column: SQL) => SQL<T['data']>;
 }
 
 /**
