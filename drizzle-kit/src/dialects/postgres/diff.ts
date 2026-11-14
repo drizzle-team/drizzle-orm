@@ -509,6 +509,11 @@ export const ddlDiff = async (
 			delete it.type;
 		}
 
+		// char === char(1)
+		if (it.type && it.type.from.replace(/^char\(1\)$/, 'char') === it.type.to.replace(/^char\(1\)$/, 'char')) {
+			delete it.type;
+		}
+
 		// Ignores a change of only `typeSchema` when one state has no schema, because a snapshot of an older
 		// format can store no schema for the enum of a column.
 		if (!it.type && it.typeSchema && (it.typeSchema.from === null || it.typeSchema.to === null)) {

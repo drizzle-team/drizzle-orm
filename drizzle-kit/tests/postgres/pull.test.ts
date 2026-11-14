@@ -1399,6 +1399,28 @@ test('role with properties', async () => {
 	expect(generateSqlStatements).toStrictEqual([]);
 });
 
+test('role with login', async () => {
+	const schema = {
+		usersRole: pgRole('user', { canLogin: true }),
+	};
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'role-with-login', ['public'], {
+		roles: { include: ['user'] },
+	});
+
+	const [role] = await db.query<{ rolcanlogin: boolean }>(`SELECT rolcanlogin FROM pg_roles WHERE rolname = 'user'`);
+	expect(role!.rolcanlogin).toBe(true);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
 test('role with a few properties', async () => {
 	const schema = {
 		usersRole: pgRole('user', { inherit: false, createRole: true }),
@@ -4248,4 +4270,15 @@ test('introspect json array defaults with a backslash, a backtick and "${"', asy
 	expect(generateSqlStatements).toStrictEqual([]);
 	expect(defaultsInDatabase[0]).toStrictEqual(['column1', `'${arrayLiteral}'`]);
 	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
+});
+
+test('introspect a not valid check', async () => {
+	await db.query(`CREATE TABLE "users" ("age" integer);`);
+	await db.query(`ALTER TABLE "users" ADD CONSTRAINT "users_age_check" CHECK ("age" > 21) NOT VALID;`);
+
+	const { checks } = await fromDatabase(db, () => true);
+
+	expect(checks.map((it) => ({ name: it.name, value: it.value }))).toStrictEqual([
+		{ name: 'users_age_check', value: '(age > 21)' },
+	]);
 });

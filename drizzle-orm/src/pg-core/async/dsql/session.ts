@@ -40,6 +40,10 @@ function getOccCode(error: unknown): string | undefined {
 	return undefined;
 }
 
+export function isDsqlOccError(error: unknown): boolean {
+	return getOccCode(error) !== undefined;
+}
+
 export function surfaceDsqlOccCode(error: unknown): never {
 	if (error && typeof error === 'object' && !('code' in error)) {
 		const code = getOccCode(error);

@@ -21,6 +21,13 @@ import type {
 } from '../../dialects/postgres/ddl';
 import { createDDL, interimToDDL, postgresToRelationsPull } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
+import {
+	assertDsqlBreakpoints,
+	assertNoInvalidDsqlObjects,
+	dsqlEntityFilter,
+	toDsql,
+	withDsqlOccRetry,
+} from '../../dialects/postgres/dsql';
 import { assertHistory, readEntries } from '../../dialects/postgres/folder';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
 import { toJsonBaseSnapshot } from '../../dialects/postgres/snapshot';
@@ -54,6 +61,9 @@ export const handle = async (
 	init: boolean,
 	db?: Awaited<ReturnType<typeof preparePostgresDB>>,
 ) => {
+	const isDsql = 'driver' in credentials && credentials.driver === 'dsql';
+	if (isDsql) assertDsqlBreakpoints('pull', breakpoints);
+
 	const entries = readEntries(out);
 	assertHistory(entries);
 	const snapshots = entries.map((it) => it.path);
@@ -64,7 +74,12 @@ export const handle = async (
 	}
 
 	const text = outputFormat() === 'text';
-	const entityFilter = prepareEntityFilter('postgresql', filtersConfig, []);
+	const filter = prepareEntityFilter('postgresql', filtersConfig, []);
+	const entityFilter = isDsql ? dsqlEntityFilter(filter) : filter;
+	if (isDsql) {
+		await assertNoInvalidDsqlObjects(db, entityFilter, migrations);
+		db = withDsqlOccRetry(db);
+	}
 
 	let res: Awaited<ReturnType<typeof fromDatabaseForDrizzle>>;
 	if (text) {
@@ -105,7 +120,7 @@ export const handle = async (
 	let snapshotPath: string;
 	let migrationPath: string | undefined;
 	if (snapshots.length === 0) {
-		const { sqlStatements, groupedStatements } = await ddlDiff(
+		const diffResult = await ddlDiff(
 			createDDL(), // dry ddl
 			ddl2,
 			resolver<Schema>('schema'),
@@ -123,6 +138,7 @@ export const handle = async (
 			resolver<ForeignKey>('foreign key'),
 			'push',
 		);
+		const { sqlStatements, groupedStatements } = isDsql ? toDsql(diffResult, ddl2) : diffResult;
 
 		({ snapshotPath, migrationPath } = writeResult({
 			snapshot: toJsonBaseSnapshot(ddl2, [originUUID], footprintsOf(groupedStatements)),

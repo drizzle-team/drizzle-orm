@@ -18,6 +18,7 @@ import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
 import { postgresJsDsqlTest as test } from './instrumentation';
+import { migratorJobTests } from './migrator-jobs';
 import { usersMigratorTable } from './schema';
 
 tests(test, [
@@ -25,6 +26,7 @@ tests(test, [
 	'set json/jsonb fields with strings and retrieve with the ->> operator',
 	'set json/jsonb fields with strings and retrieve with the -> operator',
 ]);
+migratorJobTests(test, migrate);
 
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresJsDsqlDatabase;

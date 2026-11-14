@@ -67,6 +67,7 @@ test('export #3', async (t) => {
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
 		dialect: 'sqlite',
+		driver: 'expo',
 		filenames: [filename],
 		sql: true,
 		output: 'text',
