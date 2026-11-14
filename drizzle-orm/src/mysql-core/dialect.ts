@@ -245,7 +245,12 @@ export class MySqlDialect {
 					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, Column)) {
-				if (isSingleTable) {
+				if (field.selectFromDb) {
+					const colRef = isSingleTable
+						? sql.identifier(this.casing.getColumnCasing(field))
+						: field;
+					chunk.push(sql`${field.selectFromDb(sql`${colRef}`)} as ${sql.identifier(this.casing.getColumnCasing(field))}`);
+				} else if (isSingleTable) {
 					chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 				} else {
 					chunk.push(field);

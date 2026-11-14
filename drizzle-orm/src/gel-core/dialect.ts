@@ -235,13 +235,17 @@ export class GelDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
-					// Gel throws an error when more than one similarly named columns exist within context instead of preferring the closest one
-					// thus forcing us to be explicit about column's source
-					// if (isSingleTable) {
-					// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-					// } else {
-					chunk.push(field);
-					// }
+					if (field.selectFromDb) {
+						chunk.push(sql`${field.selectFromDb(sql`${field}`)} as ${sql.identifier(this.casing.getColumnCasing(field))}`);
+					} else {
+						// Gel throws an error when more than one similarly named columns exist within context instead of preferring the closest one
+						// thus forcing us to be explicit about column's source
+						// if (isSingleTable) {
+						// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+						// } else {
+						chunk.push(field);
+						// }
+					}
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
 
