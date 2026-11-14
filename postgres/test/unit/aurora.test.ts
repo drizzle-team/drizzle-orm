@@ -5,9 +5,10 @@
 //   - request shaping, transactions (Begin/Commit/Rollback + transactionId), error -> PgError
 // Live end-to-end against a real Aurora Data API cluster is deferred.
 import { describe, expect, test } from 'bun:test';
+import { createHash, createHmac } from 'node:crypto';
 import { type AuroraConfig, bind, connect, PgError, toParameters } from '../../src/aurora.ts';
 import { Shape } from '../../src/shape.ts';
-import { signV4 } from '../../src/sigv4.ts';
+import { signRequest, signV4 } from '../../src/sigv4.ts';
 
 describe('SigV4 signer (src/sigv4.ts)', () => {
 	test('matches AWS documented vector: GET iam ListUsers 20150830', async () => {
@@ -30,6 +31,88 @@ describe('SigV4 signer (src/sigv4.ts)', () => {
 		expect(r.canonicalHash).toBe('f536975d06c0309214f805bb90ccff089219ecd68b2577efef23edd43b7e1a59');
 		expect(r.signature).toBe('33f5dad2191de0cb4b7ab912f876876c2c4f72e2991a458f9499233c7b992438');
 		expect(r.signedHeaders).toBe('content-type;host;x-amz-date');
+	});
+});
+
+// The signing key is kept between requests (src/sigv4.ts signingKey). Each case is checked against a
+// signature computed here from scratch with node:crypto, so a key kept under the wrong inputs shows.
+describe('SigV4 signer: kept signing keys', () => {
+	const sha = (s: string) => createHash('sha256').update(s).digest('hex');
+	const mac = (k: string | Buffer, s: string) => createHmac('sha256', k).update(s).digest();
+	const url = 'https://rds-data.us-east-1.amazonaws.com/Execute';
+	const reference = (i: { body: string; region: string; amzDate: string; secret: string; token?: string }) => {
+		const date = i.amzDate.slice(0, 8);
+		const headers: Record<string, string> = {
+			'content-type': 'application/json',
+			host: 'rds-data.us-east-1.amazonaws.com',
+			'x-amz-content-sha256': sha(i.body),
+			'x-amz-date': i.amzDate,
+		};
+		if (i.token) headers['x-amz-security-token'] = i.token;
+		const names = Object.keys(headers).sort();
+		const canonical = [
+			'POST',
+			'/Execute',
+			'',
+			names.map((n) => `${n}:${headers[n]}\n`).join(''),
+			names.join(';'),
+			sha(i.body),
+		]
+			.join('\n');
+		const scope = `${date}/${i.region}/rds-data/aws4_request`;
+		const key = mac(mac(mac(mac('AWS4' + i.secret, date), i.region), 'rds-data'), 'aws4_request');
+		const signature = mac(key, ['AWS4-HMAC-SHA256', i.amzDate, scope, sha(canonical)].join('\n')).toString('hex');
+		return `AWS4-HMAC-SHA256 Credential=AKID/${scope}, SignedHeaders=${names.join(';')}, Signature=${signature}`;
+	};
+	const sign = (i: { body: string; region: string; amzDate: string; secret: string; token?: string }) =>
+		signRequest({
+			method: 'POST',
+			url,
+			body: i.body,
+			service: 'rds-data',
+			region: i.region,
+			amzDate: i.amzDate,
+			credentials: { accessKeyId: 'AKID', secretAccessKey: i.secret, sessionToken: i.token },
+			headers: { 'Content-Type': 'application/json' },
+		});
+
+	test('same day, different bodies and times', async () => {
+		for (
+			const [body, amzDate] of [
+				['{"sql":"select 1"}', '20261113T101500Z'],
+				['{"sql":"select 2"}', '20261113T235959Z'],
+				['', '20261113T000000Z'],
+			]
+		) {
+			const i = { body: body!, region: 'us-east-1', amzDate: amzDate!, secret: 's3cret' };
+			const h = await sign(i);
+			expect(h['Authorization']).toBe(reference(i));
+			expect(h['X-Amz-Content-Sha256']).toBe(sha(body!));
+		}
+	});
+
+	test('a new day, region or secret is never signed with a kept key', async () => {
+		const base = { body: '{"sql":"select 1"}', region: 'us-east-1', amzDate: '20261113T101500Z', secret: 's3cret' };
+		const variants = [
+			base,
+			{ ...base, amzDate: '20261114T000000Z' },
+			{ ...base, region: 'eu-west-1' },
+			{ ...base, secret: 'other' },
+			{ ...base, secret: 's3cret', token: 'tok' },
+			base,
+		];
+		for (const v of variants) expect((await sign(v))['Authorization']).toBe(reference(v));
+	});
+
+	test('more distinct keys than are kept, concurrently', async () => {
+		const cases = Array.from({ length: 30 }, (_, k) => ({
+			body: `{"n":${k}}`,
+			region: 'us-east-1',
+			amzDate: `202611${String(1 + (k % 15)).padStart(2, '0')}T101500Z`,
+			secret: `secret-${k % 3}`,
+		}));
+		const got = await Promise.all(cases.map(sign));
+		for (let k = 0; k < cases.length; k++) expect(got[k]!['Authorization']).toBe(reference(cases[k]!));
 	});
 });
 

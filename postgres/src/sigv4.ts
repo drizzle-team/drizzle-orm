@@ -19,15 +19,31 @@ function toHex(b: ArrayBuffer | Uint8Array): string {
 async function sha256Hex(data: string): Promise<string> {
 	return toHex(await crypto.subtle.digest('SHA-256', enc.encode(data)));
 }
-async function hmac(key: Uint8Array, data: string): Promise<Uint8Array> {
-	const k = await crypto.subtle.importKey('raw', key as never, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-	return new Uint8Array(await crypto.subtle.sign('HMAC', k, enc.encode(data) as never));
+const HMAC = { name: 'HMAC', hash: 'SHA-256' } as const;
+function hmacKey(raw: Uint8Array): Promise<CryptoKey> {
+	return crypto.subtle.importKey('raw', raw as never, HMAC, false, ['sign']);
 }
-async function signingKey(secret: string, date: string, region: string, service: string): Promise<Uint8Array> {
-	let k = await hmac(enc.encode('AWS4' + secret), date);
-	k = await hmac(k, region);
-	k = await hmac(k, service);
-	return hmac(k, 'aws4_request');
+async function hmac(key: CryptoKey, data: string): Promise<Uint8Array> {
+	return new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(data) as never));
+}
+
+// The signing key depends only on the secret, the UTC day, the region and the service, so it is the same
+// for every request a client sends that day. Deriving it is four chained HMACs (most of the cost of
+// signing a small request), so the derived keys are kept: one per distinct input, a handful at most.
+const MAX_SIGNING_KEYS = 8;
+const signingKeys = new Map<string, CryptoKey>();
+async function signingKey(secret: string, date: string, region: string, service: string): Promise<CryptoKey> {
+	const id = `${date}\n${region}\n${service}\n${secret}`;
+	let key = signingKeys.get(id);
+	if (key === undefined) {
+		let k = await hmac(await hmacKey(enc.encode('AWS4' + secret)), date);
+		k = await hmac(await hmacKey(k), region);
+		k = await hmac(await hmacKey(k), service);
+		key = await hmacKey(await hmac(await hmacKey(k), 'aws4_request'));
+		if (signingKeys.size >= MAX_SIGNING_KEYS) signingKeys.clear(); // yesterday's keys, rotated credentials
+		signingKeys.set(id, key);
+	}
+	return key;
 }
 /** Current UTC time as an SigV4 basic-format timestamp `YYYYMMDDTHHMMSSZ`. */
 export function amzDateNow(): string {
@@ -47,6 +63,8 @@ export interface SigV4Input {
 	region: string;
 	credentials: AwsCredentials;
 	amzDate: string;
+	/** SHA-256 of `body` as hex, when the caller has already computed it. */
+	payloadHash?: string;
 }
 
 /** Low-level SigV4: compute the Authorization header + intermediates for an already-assembled header set.
@@ -55,7 +73,7 @@ export async function signV4(
 	i: SigV4Input,
 ): Promise<{ authorization: string; signature: string; canonicalHash: string; signedHeaders: string }> {
 	const date = i.amzDate.slice(0, 8);
-	const payloadHash = await sha256Hex(i.body);
+	const payloadHash = i.payloadHash ?? await sha256Hex(i.body);
 	const lc: Record<string, string> = {};
 	for (const k of Object.keys(i.headers)) lc[k.toLowerCase()] = i.headers[k]!;
 	const names = Object.keys(lc).sort();
@@ -118,6 +136,7 @@ export async function signRequest(i: SignRequestInput): Promise<Record<string, s
 		region: i.region,
 		credentials: i.credentials,
 		amzDate,
+		payloadHash,
 	});
 	const out: Record<string, string> = {
 		...i.headers,

@@ -105,6 +105,167 @@ describe('Parser — framing', () => {
 	});
 });
 
+describe('Parser — messages cut across chunks', () => {
+	const frame = (type: string, body: Buffer) => {
+		const b = Buffer.alloc(5 + body.length);
+		b.write(type, 0, 'latin1');
+		b.writeInt32BE(body.length + 4, 1);
+		body.copy(b, 5);
+		return b;
+	};
+	const filled = (n: number, seed: number) => {
+		const b = Buffer.alloc(n);
+		for (let i = 0; i < n; i++) b[i] = (i * 31 + seed) & 0xff;
+		return b;
+	};
+	const feed = (p: Parser, stream: Buffer, sizes: () => number) => {
+		const out: ReturnType<Parser['push']> = [];
+		for (let off = 0; off < stream.length;) {
+			const n = Math.min(sizes(), stream.length - off);
+			// a copy per chunk, as a socket delivers them: the parser must not rely on one backing buffer
+			out.push(...p.push(Buffer.from(stream.subarray(off, off + n))));
+			off += n;
+		}
+		return out;
+	};
+
+	test('a large message over many chunks, with messages before and after it', () => {
+		const big = filled(3_000_000, 7);
+		const stream = Buffer.concat([
+			frame('D', filled(10, 1)),
+			frame('D', big),
+			frame('C', filled(9, 2)),
+			frame('Z', filled(1, 3)),
+		]);
+		const out = feed(new Parser(), stream, () => 65536);
+		expect(out.map((m) => m.type)).toEqual(['D', 'D', 'C', 'Z']);
+		expect(out[1]!.body.equals(big)).toBe(true);
+		expect(out[2]!.body.equals(filled(9, 2))).toBe(true);
+		expect(out[3]!.body.equals(filled(1, 3))).toBe(true);
+	});
+
+	test('every cut position of a small stream gives the same messages', () => {
+		const bodies = [filled(0, 1), filled(1, 2), filled(40, 3), filled(7, 4)];
+		const stream = Buffer.concat(bodies.map((b, i) => frame('ABCD'[i]!, b)));
+		for (let a = 1; a < stream.length; a++) {
+			for (let b = a; b < stream.length; b += 5) {
+				const p = new Parser();
+				const out = [
+					...p.push(Buffer.from(stream.subarray(0, a))),
+					...p.push(Buffer.from(stream.subarray(a, b))),
+					...p.push(Buffer.from(stream.subarray(b))),
+				];
+				expect(out.map((m) => m.type).join('')).toBe('ABCD');
+				for (let i = 0; i < 4; i++) expect(out[i]!.body.equals(bodies[i]!)).toBe(true);
+			}
+		}
+	});
+
+	test('random message sizes and random chunk sizes', () => {
+		let x = 12345;
+		const rnd = (n: number) => (x = (x * 1103515245 + 12345) & 0x7fffffff) % n;
+		const bodies: Buffer[] = [];
+		for (let i = 0; i < 400; i++) bodies.push(filled(rnd(8) === 0 ? rnd(200_000) : rnd(300), i));
+		const stream = Buffer.concat(bodies.map((b) => frame('D', b)));
+		const out = feed(new Parser(), stream, () => 1 + rnd(rnd(4) === 0 ? 70_000 : 900));
+		expect(out.length).toBe(bodies.length);
+		for (let i = 0; i < bodies.length; i++) expect(out[i]!.body.equals(bodies[i]!)).toBe(true);
+	});
+
+	test('the frame header sits just before the body, joined or not', () => {
+		const stream = Buffer.concat([frame('T', filled(20, 1)), frame('D', filled(5000, 2))]);
+		for (const size of [stream.length, 1000, 3]) {
+			const out = feed(new Parser(), stream, () => size);
+			for (const m of out) {
+				const whole = Buffer.from(m.body.buffer, m.body.byteOffset - 5, m.body.length + 5);
+				expect(String.fromCharCode(whole[0]!)).toBe(m.type);
+				expect(whole.readInt32BE(1)).toBe(m.body.length + 4);
+			}
+		}
+	});
+
+	test('a body handed out is not changed by later chunks', () => {
+		const p = new Parser();
+		const first = frame('D', filled(100, 1)), second = frame('D', filled(100, 2));
+		const a = p.push(Buffer.concat([first, second.subarray(0, 50)]));
+		const kept = a[0]!.body;
+		const b = p.push(Buffer.from(second.subarray(50)));
+		expect(kept.equals(filled(100, 1))).toBe(true);
+		expect(b[0]!.body.equals(filled(100, 2))).toBe(true);
+	});
+
+	test('a bad length after a joined message still throws', () => {
+		const p = new Parser();
+		const ok = frame('D', filled(100, 1));
+		p.push(Buffer.from(ok.subarray(0, 30)));
+		expect(() => p.push(Buffer.concat([ok.subarray(30), Buffer.from([0x5a, 0, 0, 0, 3])]))).toThrow(
+			/invalid backend message length/,
+		);
+	});
+});
+
+describe('Parser.feed — messages in place', () => {
+	const frame = (type: string, body: Buffer) => {
+		const b = Buffer.alloc(5 + body.length);
+		b.write(type, 0, 'latin1');
+		b.writeInt32BE(body.length + 4, 1);
+		body.copy(b, 5);
+		return b;
+	};
+	const filled = (n: number, seed: number) => {
+		const b = Buffer.alloc(n);
+		for (let i = 0; i < n; i++) b[i] = (i * 31 + seed) & 0xff;
+		return b;
+	};
+
+	test('gives the same messages as push(), in the same order, for any chunk size', () => {
+		let x = 99;
+		const rnd = (n: number) => (x = (x * 1103515245 + 12345) & 0x7fffffff) % n;
+		const types = 'TDDDCZ';
+		const bodies = Array.from({ length: 300 }, (_, i) => filled(rnd(6) === 0 ? rnd(90_000) : rnd(200), i));
+		const stream = Buffer.concat(bodies.map((b, i) => frame(types[i % types.length]!, b)));
+		for (const size of [1, 7, 4096, 65536, stream.length]) {
+			const p = new Parser();
+			const got: { type: string; body: Buffer }[] = [];
+			for (let off = 0; off < stream.length; off += size) {
+				p.feed(Buffer.from(stream.subarray(off, off + size)), (type, buf, start, end) => {
+					// the frame header sits just before the body
+					expect(buf[start - 5]).toBe(type);
+					expect(buf.readInt32BE(start - 4)).toBe(end - start + 4);
+					got.push({ type: String.fromCharCode(type), body: Buffer.from(buf.subarray(start, end)) });
+				});
+			}
+			expect(got.length).toBe(bodies.length);
+			for (let i = 0; i < bodies.length; i++) {
+				expect(got[i]!.type).toBe(types[i % types.length]!);
+				expect(got[i]!.body.equals(bodies[i]!)).toBe(true);
+			}
+		}
+	});
+
+	test('whole messages in one chunk are not copied', () => {
+		const chunk = Buffer.concat([frame('D', filled(10, 1)), frame('D', filled(20, 2))]);
+		const seen: Buffer[] = [];
+		new Parser().feed(chunk, (_t, buf) => seen.push(buf));
+		expect(seen.length).toBe(2);
+		expect(seen[0]).toBe(chunk);
+		expect(seen[1]).toBe(chunk);
+	});
+
+	test('a sink that throws does not get the same message twice', () => {
+		const p = new Parser();
+		const chunk = Buffer.concat([frame('A', filled(3, 1)), frame('B', filled(3, 2)), frame('C', filled(3, 3))]);
+		const seen: string[] = [];
+		expect(() =>
+			p.feed(chunk, (type) => {
+				seen.push(String.fromCharCode(type));
+				if (type === 66) throw new Error('boom');
+			})
+		).toThrow('boom');
+		expect(seen).toEqual(['A', 'B']);
+	});
+});
+
 describe('parseRowDescription / parseDataRow', () => {
 	test('row description decodes name + oid', () => {
 		const body = Buffer.concat([u16(1), Buffer.from('id\0'), i32(0), u16(0), i32(23), u16(4), i32(-1), u16(0)]);

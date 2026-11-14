@@ -25,7 +25,6 @@ import {
 	parseDataRow,
 	parseParameterDescription,
 	Parser,
-	parseRowDescription,
 	W,
 	writeBindRaw,
 	writeBindWith,
@@ -994,22 +993,21 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			if (p.tFirst === undefined) p.tFirst = performance.now();
 			p.recv += buf.length;
 		}
-		let messages;
+		// A bad frame, or a throw in a handler (protocol desync), tears down the socket; recoverable
+		// per-row decode errors are caught inside dataRow() and never reach here.
 		try {
-			messages = this.parser.push(buf);
+			this.parser.feed(buf, this.onMessage);
 		} catch (e) {
 			return this.onSocketDown(e as Error);
 		}
-		// A throw in a handler (protocol desync) tears down the socket; recoverable per-row
-		// decode errors are caught inside dataRow() and never reach here.
-		for (const m of messages) {
-			try {
-				this.handle(m.type, m.body);
-			} catch (e) {
-				return this.onSocketDown(e as Error);
-			}
-		}
 	}
+
+	// One message from the parser, in place. A row goes to its mapper as (chunk, offset): no view is made
+	// for it. Every other message is rare enough to get one.
+	private onMessage = (type: number, buf: Buffer, start: number, end: number): void => {
+		if (type === 68 /* D */ && this.current?.wire === undefined) return this.dataRow(buf, start, end);
+		this.handle(String.fromCharCode(type), buf.subarray(start, end));
+	};
 
 	private handle(type: string, body: Buffer): void {
 		const wire = this.current?.wire;
@@ -1080,7 +1078,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				return;
 			case 'T':
 				if (this.current) {
-					this.current.fields = parseRowDescription(body);
+					this.current.fields = this.rowMappers.fieldsFor(body);
 					if (this.current.wire) {
 						if (this.current._cacheName) this.cacheStatement(this.current);
 						return;
@@ -1119,8 +1117,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				}
 				return;
 			case 'D':
-				if (wire !== undefined) return;
-				return this.dataRow(body); // wire: the frame IS the row — nothing to decode
+				return; // only reached in wire mode, where the frame IS the row — nothing to decode
 			case 'C':
 				if (this.current && wire === undefined) {
 					parseCommandComplete(body, this.current);
@@ -1306,25 +1303,25 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		return this.rowMappers.forCols(this.resolveCols(cols), mode);
 	}
 
-	private dataRow(body: Buffer): void {
+	private dataRow(buf: Buffer, start: number, end: number): void {
 		const t = this.current;
 		if (!t || t.cancelled || t.error || t.settled) return;
 		let row: unknown;
 		const p = t.perf;
+		const s = p ? performance.now() : 0;
 		// A decoder (built-in or user-supplied via config.types) can throw; capture it
 		// as the task error so the query rejects on ReadyForQuery — never an uncaught crash.
 		try {
-			if (p) {
-				const s = performance.now();
-				row = t.mapper ? t.mapper(body) : makeRow(parseDataRow(body), body, t.mode, t.fields ?? [], this.cfg.decoders);
-				p.decodeMs += performance.now() - s;
-			} else {row = t.mapper
-					? t.mapper(body)
-					: makeRow(parseDataRow(body), body, t.mode, t.fields ?? [], this.cfg.decoders);}
+			if (t.mapper) row = t.mapper(buf, start);
+			else {
+				const body = buf.subarray(start, end);
+				row = makeRow(parseDataRow(body), body, t.mode, t.fields ?? [], this.cfg.decoders);
+			}
 		} catch (e) {
 			t.error = e as Error;
 			return;
 		}
+		if (p) p.decodeMs += performance.now() - s;
 		if (t.onRow) t.onRow(row);
 		else t.rows.push(row);
 	}

@@ -7,10 +7,13 @@
 import { addBrand } from './brand.ts';
 import { type CodegenCol, compileRow } from './decode.ts';
 import { pickDecoder } from './decode.ts';
+import { parseRowDescription } from './protocol.ts';
 import type { CustomTypeDef } from './registry.ts';
-import type { Decoder } from './types.ts';
+import type { Decoder, Field } from './types.ts';
 
-export type RowMapper = (body: Buffer) => unknown;
+/** Decodes one DataRow body. `start` is where the body begins in `body` (default 0): the wire transports
+ *  pass the socket chunk and an offset, so no view is made per row. */
+export type RowMapper = (body: Buffer, start?: number) => unknown;
 export type RowMapperFactory = (cols: CodegenCol[], mode: 'array' | 'object', map: Map<number, Decoder>) => RowMapper;
 
 // A definition has no id of its own. This copy of the module numbers the ones it sees, and the cache
@@ -114,8 +117,8 @@ function interpretedMapper(cols: CodegenCol[], mode: 'array' | 'object', map: Ma
 	if (mode === 'object') {
 		if (!cols.some((c) => c.path || c.xform)) { // fast flat path — no Collect / Transform
 			const names = cols.map((c) => c.name);
-			return (b) => {
-				let o = 2; // skip the Int16 column count
+			return (b, s) => {
+				let o = (s! | 0) + 2; // skip the Int16 column count
 				const row: Record<string, unknown> = {};
 				for (let i = 0; i < n; i++) {
 					const l = (b[o]! << 24) | (b[o + 1]! << 16) | (b[o + 2]! << 8) | b[o + 3]!;
@@ -132,8 +135,8 @@ function interpretedMapper(cols: CodegenCol[], mode: 'array' | 'object', map: Ma
 		}
 		// Collect/Transform: decode into a flat vals[], then assemble the nested object (auto-null groups, xform per leaf)
 		const tree = buildObjTree(cols);
-		return (b) => {
-			let o = 2;
+		return (b, s) => {
+			let o = (s! | 0) + 2;
 			const vals = new Array<unknown>(n);
 			for (let i = 0; i < n; i++) {
 				const l = (b[o]! << 24) | (b[o + 1]! << 16) | (b[o + 2]! << 8) | b[o + 3]!;
@@ -147,8 +150,8 @@ function interpretedMapper(cols: CodegenCol[], mode: 'array' | 'object', map: Ma
 			return assembleObj(tree, vals);
 		};
 	}
-	return (b) => {
-		let o = 2;
+	return (b, s) => {
+		let o = (s! | 0) + 2;
 		const r = new Array(n);
 		for (let i = 0; i < n; i++) {
 			const l = (b[o]! << 24) | (b[o + 1]! << 16) | (b[o + 2]! << 8) | b[o + 3]!;
@@ -301,6 +304,7 @@ addBrand(RowArena, 'RowArena');
  *  extension type, enum, domain) has a different OID. Lookups, cheapest first:
  *    plan    — a declared shape object -> its plan (identity, no key)
  *    forDesc — a RowDescription's raw bytes -> mapper (one map per text/binary × mode)
+ *    fieldsFor — a RowDescription's raw bytes -> its parsed fields
  *    forCols — resolved columns -> mapper (one map per mode); the only place mappers are compiled
  *  (Named statement re-executions skip all of these: their mappers sit in slots on the connection's
  *  prepared-statement entries.) */
@@ -318,6 +322,8 @@ export class RowMappers {
 		binary: { object: new SeenBytes(), array: new SeenBytes() },
 	};
 
+	private readonly seenFields = new SeenBytes<Field[]>();
+
 	constructor(
 		decode: 'auto' | 'jit' | 'interpreted' | undefined,
 		private readonly decoders: Map<number, Decoder>,
@@ -331,6 +337,18 @@ export class RowMappers {
 		const map = this.byCols[mode];
 		const key = colsKey(cols, mode === 'object');
 		return map.get(key) ?? remember(map, key, this.build(cols, mode, this.decoders));
+	}
+
+	/** The parsed fields of a RowDescription body. A description seen before returns the array parsed
+	 *  the first time, so every result with that layout shares one array. It is frozen for that reason. */
+	fieldsFor(desc: Buffer): Field[] {
+		const hit = this.seenFields.find(desc, 0, desc.length);
+		if (hit) return hit.value;
+		const fields = parseRowDescription(desc);
+		for (let i = 0; i < fields.length; i++) Object.freeze(fields[i]);
+		Object.freeze(fields);
+		this.seenFields.add(desc, 0, desc.length, fields);
+		return fields;
 	}
 
 	/** Mapper for a RowDescription body. `cols` resolves its columns, called only on a miss. */
