@@ -1,6 +1,64 @@
+import Docker from 'dockerode';
+import getPort from 'get-port';
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { createConnection } from 'mysql2/promise';
+import { v4 as uuid } from 'uuid';
 import { test as brotest } from '@drizzle-team/brocli';
 import { assert, expect, test } from 'vitest';
 import { migrate } from '../src/cli/schema';
+import { connectToMySQL } from '../src/cli/connections';
+
+async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
+	const docker = new Docker();
+	const port = await getPort({ port: 3306 });
+	const image = 'mysql:8';
+
+	const pullStream = await docker.pull(image);
+	await new Promise((resolve, reject) =>
+		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err))),
+	);
+
+	const container = await docker.createContainer({
+		Image: image,
+		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
+		name: `drizzle-kit-mysql-cuid-${uuid()}`,
+		HostConfig: {
+			AutoRemove: true,
+			PortBindings: {
+				'3306/tcp': [{ HostPort: `${port}` }],
+			},
+		},
+	});
+
+	await container.start();
+
+	return {
+		connectionString: `mysql://root:mysql@127.0.0.1:${port}/drizzle`,
+		container,
+	};
+}
+
+async function waitForMySQL(connectionString: string) {
+	const maxAttempts = 20;
+	const delay = 1000;
+	let lastError: unknown;
+
+	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+		try {
+			const connection = await createConnection(connectionString);
+			await connection.connect();
+			await connection.end();
+			return;
+		} catch (error) {
+			lastError = error;
+			await new Promise((resolve) => setTimeout(resolve, delay));
+		}
+	}
+
+	throw lastError;
+}
 
 // good:
 // #1 drizzle-kit generate
@@ -94,6 +152,49 @@ test('migrate #5', async (t) => {
 		schema: 'custom', // drizzle migrations table schema
 		table: 'custom', // drizzle migrations table name
 	});
+});
+
+test('mysql migrate should throw when a SQL migration contains CUID()', async () => {
+	const { connectionString, container } = await createDockerDB();
+	try {
+		await waitForMySQL(connectionString);
+
+		const tempFolder = await fs.mkdtemp(join(tmpdir(), 'drizzle-mysql-cuid-'));
+		const metaFolder = join(tempFolder, 'meta');
+		await fs.mkdir(metaFolder, { recursive: true });
+
+		await fs.writeFile(
+			join(metaFolder, '_journal.json'),
+			JSON.stringify({
+				version: '1',
+				dialect: 'mysql',
+				entries: [
+					{
+						idx: 0,
+						version: '1',
+						when: Date.now(),
+						tag: '0000_cuid',
+						breakpoints: false,
+					},
+				],
+			}, null, 2),
+		);
+
+		await fs.writeFile(
+			join(tempFolder, '0000_cuid.sql'),
+			'CREATE TABLE `users` (\n' +
+				'`id` varchar(255) NOT NULL DEFAULT (CUID()),\n' +
+				'`name` varchar(255) NOT NULL,\n' +
+				'PRIMARY KEY (`id`)\n' +
+			');\n',
+		);
+
+		const { migrate } = await connectToMySQL({ url: connectionString });
+
+		await expect(migrate({ migrationsFolder: tempFolder })).rejects.toThrow();
+	} finally {
+		await container.stop().catch(() => undefined);
+	}
 });
 
 // --- errors ---
