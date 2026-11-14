@@ -46,6 +46,37 @@ export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBu
 	TRuntimeConfig
 >;
 
+export type ColumnSelectMapper = (
+	column: SQL,
+	decoder: DriverValueMapper<any, any>,
+) => SQL | SQL.Aliased;
+
+export type ColumnWithSelectMapper = Column & {
+	selectFromDb?: ColumnSelectMapper;
+};
+
+export function mapColumnSelection(column: Column, columnSql: SQL): SQL | SQL.Aliased {
+	const selectFromDb = (column as ColumnWithSelectMapper).selectFromDb;
+	if (typeof selectFromDb !== 'function') {
+		return columnSql;
+	}
+	const columnName = column.name;
+	const columnIdentifier = Object.assign(new String(columnName), {
+		[entityKind]: 'SQL',
+		queryChunks: columnSql.queryChunks,
+		getSQL: () => columnSql,
+		shouldOmitSQLParens: () => true,
+		name: columnName,
+		toString() {
+			return columnName;
+		},
+		[Symbol.toPrimitive]() {
+			return columnName;
+		},
+	});
+	return selectFromDb(columnIdentifier as any, column);
+}
+
 export interface Column<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars

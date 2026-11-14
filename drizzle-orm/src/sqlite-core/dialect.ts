@@ -1,7 +1,7 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import type { AnyColumn } from '~/column.ts';
-import { Column } from '~/column.ts';
+import { Column, mapColumnSelection } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
@@ -30,7 +30,13 @@ import type {
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import {
+	type Casing,
+	mapColumnsToIdentifiers,
+	orderSelectedFields,
+	replaceIdentifierWithField,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
 	SelectedFieldsOrdered,
@@ -209,22 +215,38 @@ export abstract class SQLiteDialect {
 				}
 			} else if (is(field, Column)) {
 				const tableName = field.table[Table.Symbol.Name];
-				if (field.columnType === 'SQLiteNumericBigInt') {
+				const columnName = this.casing.getColumnCasing(field);
+				const columnSql = isSingleTable
+					? sql`${sql.identifier(columnName)}`
+					: sql`${sql.identifier(tableName)}.${sql.identifier(columnName)}`;
+				const selectionSql = mapColumnSelection(field, columnSql);
+
+				if (selectionSql !== columnSql) {
+					let query = is(selectionSql, SQL.Aliased) ? selectionSql.sql : selectionSql;
+					if (isSingleTable) {
+						query = mapColumnsToIdentifiers(query, this.casing);
+					} else {
+						query = replaceIdentifierWithField(query, columnName, field);
+					}
+					chunk.push(query);
+					const alias = is(selectionSql, SQL.Aliased) ? selectionSql.fieldAlias : columnName;
+					chunk.push(sql` as ${sql.identifier(alias)}`);
+				} else if (field.columnType === 'SQLiteNumericBigInt') {
 					if (isSingleTable) {
 						chunk.push(
-							sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							sql`cast(${sql.identifier(columnName)} as text)`,
 						);
 					} else {
 						chunk.push(
-							sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							sql`cast(${sql.identifier(tableName)}.${sql.identifier(columnName)} as text)`,
 						);
 					}
 				} else {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+						chunk.push(sql.identifier(columnName));
 					} else {
 						chunk.push(
-							sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`,
+							sql`${sql.identifier(tableName)}.${sql.identifier(columnName)}`,
 						);
 					}
 				}
@@ -837,13 +859,19 @@ export abstract class SQLiteDialect {
 		if (nestedQueryRelation) {
 			let field = sql`json_array(${
 				sql.join(
-					selection.map(({ field }) =>
-						is(field, SQLiteColumn)
-							? sql.identifier(this.casing.getColumnCasing(field))
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
+					selection.map(({ field }) => {
+						if (is(field, SQLiteColumn)) {
+							const columnSql = sql`${sql.identifier(this.casing.getColumnCasing(field))}`;
+							const selectionSql = mapColumnSelection(field, columnSql);
+							if (selectionSql !== columnSql) {
+								let query = is(selectionSql, SQL.Aliased) ? selectionSql.sql : selectionSql;
+								query = mapColumnsToIdentifiers(query, this.casing);
+								return query;
+							}
+							return sql.identifier(this.casing.getColumnCasing(field));
+						}
+						return is(field, SQL.Aliased) ? field.sql : field;
+					}),
 					sql`, `,
 				)
 			})`;

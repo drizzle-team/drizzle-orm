@@ -1,6 +1,6 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
-import { Column } from '~/column.ts';
+import { Column, mapColumnSelection } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
@@ -50,7 +50,13 @@ import {
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import {
+	type Casing,
+	mapColumnsToIdentifiers,
+	orderSelectedFields,
+	replaceIdentifierWithField,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';
@@ -242,8 +248,24 @@ export class PgDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+					const columnName = this.casing.getColumnCasing(field);
+					const columnSql = isSingleTable
+						? sql`${sql.identifier(columnName)}`
+						: field.getSQL();
+					const selectionSql = mapColumnSelection(field, columnSql);
+
+					if (selectionSql !== columnSql) {
+						let query = is(selectionSql, SQL.Aliased) ? selectionSql.sql : selectionSql;
+						if (isSingleTable) {
+							query = mapColumnsToIdentifiers(query, this.casing);
+						} else {
+							query = replaceIdentifierWithField(query, columnName, field);
+						}
+						chunk.push(query);
+						const alias = is(selectionSql, SQL.Aliased) ? selectionSql.fieldAlias : columnName;
+						chunk.push(sql` as ${sql.identifier(alias)}`);
+					} else if (isSingleTable) {
+						chunk.push(sql.identifier(columnName));
 					} else {
 						chunk.push(field);
 					}
@@ -1355,13 +1377,24 @@ export class PgDialect {
 		if (nestedQueryRelation) {
 			let field = sql`json_build_array(${
 				sql.join(
-					selection.map(({ field, tsKey, isJson }) =>
-						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
+					selection.map(({ field, tsKey, isJson }) => {
+						if (isJson) {
+							return sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`;
+						}
+						if (is(field, SQL.Aliased)) {
+							return field.sql;
+						}
+						if (is(field, Column)) {
+							const columnSql = field.getSQL();
+							const selectionSql = mapColumnSelection(field, columnSql);
+							if (selectionSql !== columnSql) {
+								let query = is(selectionSql, SQL.Aliased) ? selectionSql.sql : selectionSql;
+								query = replaceIdentifierWithField(query, this.casing.getColumnCasing(field), field);
+								return query;
+							}
+						}
+						return field;
+					}),
 					sql`, `,
 				)
 			})`;
