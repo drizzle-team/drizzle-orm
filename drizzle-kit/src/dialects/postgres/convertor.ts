@@ -516,7 +516,6 @@ const createIndexConvertor = convertor('create_index', (st) => {
 		name,
 		columns,
 		isUnique,
-		concurrently,
 		with: w,
 		method,
 		where,
@@ -544,11 +543,10 @@ const createIndexConvertor = convertor('create_index', (st) => {
 		? `"${schema}"."${table}"`
 		: `"${table}"`;
 
-	const concur = concurrently ? ' CONCURRENTLY' : '';
 	const withClause = w ? ` WITH (${w})` : '';
 	const whereClause = where ? ` WHERE ${where}` : '';
 	const using = method !== defaults.index.method ? ` USING ${method}` : '';
-	return `CREATE ${indexPart}${concur} "${name}" ON ${key}${using} (${value})${withClause}${whereClause};`;
+	return `CREATE ${indexPart} "${name}" ON ${key}${using} (${value})${withClause}${whereClause};`;
 });
 
 const dropIndexConvertor = convertor('drop_index', (st) => {

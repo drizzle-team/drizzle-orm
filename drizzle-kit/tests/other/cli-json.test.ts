@@ -16,6 +16,7 @@ import {
 	type PreparedPostgresSchema,
 	SchemaSource as PgSchemaSource,
 } from '../../src/dialects/postgres/drizzle';
+import { latestVersion } from '../../src/dialects/postgres/versions';
 import {
 	fromExports as sqliteFromExports,
 	SchemaSource as SqliteSchemaSource,
@@ -1158,7 +1159,7 @@ describe('check --output', () => {
 		// Correct version but a structurally invalid body trips the `malformed` validator status.
 		writeSnapshot(out, '0000_init', {
 			type: 'base',
-			version: '9',
+			version: latestVersion,
 			dialect: 'postgres',
 			id: 'p1',
 			prevIds: [ORIGIN],
@@ -1408,7 +1409,7 @@ describe('pull json envelopes', () => {
 			snapshotPath,
 			JSON.stringify({
 				type: 'base',
-				version: '9',
+				version: latestVersion,
 				dialect: 'postgres',
 				id: tag,
 				prevIds: [],
