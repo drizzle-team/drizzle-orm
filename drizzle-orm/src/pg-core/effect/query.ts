@@ -31,24 +31,33 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 		name?: string,
 		generateName = false,
 	): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
+		const { dialect } = this;
+		const isFirst = this.mode === 'first';
 		const { query, builtQuery, usedTables } = this._toSQL();
+		const shape = this.shape ??= dialect.shapeGenerator?.(
+			{ type: 'relational', fields: query.selection },
+			undefined,
+		);
 
-		const mapper = this.dialect.mapperGenerators.relationalRows({
-			isFirst: this.mode === 'first',
-			parseJson: this.parseJson,
-			parseJsonIfString: false,
-			rootJsonMappers: false,
-			selection: query.selection,
-			arrayModeRoot: true,
-		});
+		const mapper = shape
+			? (isFirst ? (rows: any[]) => rows[0] : undefined)
+			: dialect.mapperGenerators.relationalRows({
+				isFirst,
+				parseJson: this.parseJson,
+				parseJsonIfString: false,
+				rootJsonMappers: false,
+				selection: query.selection,
+				arrayModeRoot: true,
+			});
 
 		return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 			builtQuery,
-			'arrays',
+			shape ? 'objects' : 'arrays',
 			name ?? generateName,
 			mapper,
 			relationalQueryCacheMetadata(this.config, query.sql, usedTables, this),
 			relationalQueryCacheConfig(this.config),
+			shape,
 		);
 	}
 

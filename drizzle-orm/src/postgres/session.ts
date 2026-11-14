@@ -337,77 +337,10 @@ export class PostgresSession<
 	): Promise<PostgresBulkResult> {
 		if (rows.length === 0) return { rows: [], columns: [], rowCount: 0, command: 'INSERT' };
 
-		const codecs = this.dialect.codecs;
-		const tableColumns = table[Table.Symbol.Columns] as Record<string, PgColumn>;
-		const entries = Object.entries(tableColumns).filter(([, col]) => !col.shouldDisableInsert());
-		const width = entries.length;
-		const rowCount = rows.length;
-
-		for (let c = 0; c < width; ++c) {
-			const col = entries[c]![1];
-			if (codecs.codecsOf(col).castParam) {
-				throw new Error(
-					`\`bulkInsert\`: column "${col.name}" requires a parameter cast, which bulk operations can't apply`,
-				);
-			}
-		}
-
-		const cells: unknown[][] = new Array(rowCount);
-		const definedCount: number[] = new Array(width).fill(0);
-		for (let r = 0; r < rowCount; ++r) {
-			const source = rows[r]!;
-			const row: unknown[] = new Array(width);
-			for (let c = 0; c < width; ++c) {
-				const [key, col] = entries[c]!;
-				let value = source[key];
-				if (value === undefined) {
-					if (col.defaultFn !== undefined) value = col.defaultFn();
-					else if (!col.default && col.onUpdateFn !== undefined) value = col.onUpdateFn();
-				}
-				if (value === undefined) continue;
-
-				++definedCount[c]!;
-				row[c] = bulkParam('bulkInsert', value, col, codecs);
-			}
-			cells[r] = row;
-		}
-
-		// Columns left to the database default in every row are dropped
-		const included: number[] = [];
-		let uniform = true;
-		for (let c = 0; c < width; ++c) {
-			const count = definedCount[c]!;
-			if (count === 0) continue;
-			included.push(c);
-			if (count !== rowCount) uniform = false;
-		}
-		// Every cell is left to the database default - `values (default, ...)` on every column
-		if (included.length === 0) {
-			uniform = false;
-			for (let c = 0; c < width; ++c) included.push(c);
-		}
-
-		const columns: Record<string, PgType> = {};
-		let unnest = uniform;
-		for (const c of included) {
-			const col = entries[c]![1];
-			const type = bulkType(col);
-			if (type === undefined) unnest = false;
-			// Only used by the `unnest` path - the `values` one infers parameter types from the target columns
-			columns[col.name] = type ?? 'text';
-		}
-
-		const driverRows: unknown[][] = new Array(rowCount);
-		for (let r = 0; r < rowCount; ++r) {
-			const row: unknown[] = new Array(included.length);
-			const source = cells[r]!;
-			for (let i = 0; i < included.length; ++i) row[i] = source[included[i]!];
-			driverRows[r] = row;
-		}
-
-		const result = await this.client.bulkInsert(bulkTableName('bulkInsert', table), columns, driverRows, {
+		const bulk = buildBulkInsert(this.dialect, table, rows);
+		const result = await this.client.bulkInsert(bulk.table, bulk.columns, bulk.rows, {
 			...options,
-			defaults: !unnest,
+			defaults: bulk.defaults,
 		});
 		if (!is(this.cache, NoopCache)) await this.cache.onMutate({ tables: usedTablesOf(table) });
 
@@ -421,79 +354,10 @@ export class PostgresSession<
 	): Promise<PostgresBulkResult> {
 		if (rows.length === 0) return { rows: [], columns: [], rowCount: 0, command: 'UPDATE' };
 
-		const codecs = this.dialect.codecs;
-		const tableColumns = table[Table.Symbol.Columns] as Record<string, PgColumn>;
-		const tableEntries = Object.entries(tableColumns);
-		const rowCount = rows.length;
-
-		const byColumns: readonly PgColumn[] = Array.isArray(options.by) ? options.by : [options.by as PgColumn];
-		if (byColumns.length === 0) throw new Error('`bulkUpdate`: `by` must contain at least one column');
-		const keyEntries: [string, PgColumn][] = new Array(byColumns.length);
-		for (let i = 0; i < byColumns.length; ++i) {
-			const byColumn = byColumns[i]!;
-			const entry = tableEntries.find(([, col]) => col === byColumn)
-				?? tableEntries.find(([, col]) => col.name === byColumn.name);
-			if (!entry) throw new Error(`\`bulkUpdate\`: \`by\` column "${byColumn.name}" doesn't belong to the table`);
-			keyEntries[i] = entry;
-		}
-		const keyNames = keyEntries.map(([, col]) => col.name);
-
-		const setEntries = tableEntries.filter(([key, col]) => {
-			if (keyNames.includes(col.name)) return false;
-			if (col.onUpdateFn !== undefined) return true;
-			for (let r = 0; r < rowCount; ++r) if (rows[r]![key] !== undefined) return true;
-			return false;
-		});
-		if (setEntries.length === 0) throw new Error('No values to set');
-
-		const entries = [...keyEntries, ...setEntries];
-		const width = entries.length;
-		const columns: Record<string, PgType> = {};
-		for (let c = 0; c < width; ++c) {
-			const col = entries[c]![1];
-			const type = bulkType(col);
-			if (type === undefined) {
-				throw new Error(
-					`\`bulkUpdate\`: column "${col.name}" of type "${col.getSQLType()}${
-						'[]'.repeat((<any> col).dimensions ?? 0)
-					}" can't be sent as an \`unnest\` array`,
-				);
-			}
-			if (codecs.codecsOf(col).castParam) {
-				throw new Error(
-					`\`bulkUpdate\`: column "${col.name}" requires a parameter cast, which bulk operations can't apply`,
-				);
-			}
-			columns[col.name] = type;
-		}
-
-		const driverRows: unknown[][] = new Array(rowCount);
-		for (let r = 0; r < rowCount; ++r) {
-			const source = rows[r]!;
-			const row: unknown[] = new Array(width);
-			for (let c = 0; c < width; ++c) {
-				const [key, col] = entries[c]!;
-				let value = source[key];
-				if (value === undefined) {
-					if (c < keyEntries.length) {
-						throw new Error(`\`bulkUpdate\`: row ${r} is missing key column "${col.name}"`);
-					}
-					if (col.onUpdateFn === undefined) {
-						throw new Error(
-							`\`bulkUpdate\`: row ${r} doesn't set column "${col.name}", which other rows set - every row must set the same columns`,
-						);
-					}
-					value = col.onUpdateFn();
-				}
-
-				row[c] = bulkParam('bulkUpdate', value, col, codecs);
-			}
-			driverRows[r] = row;
-		}
-
-		const result = await this.client.bulkUpdate(bulkTableName('bulkUpdate', table), columns, driverRows, {
+		const bulk = buildBulkUpdate(this.dialect, table, rows, options.by);
+		const result = await this.client.bulkUpdate(bulk.table, bulk.columns, bulk.rows, {
 			...options,
-			by: keyNames,
+			by: bulk.by,
 		});
 		if (!is(this.cache, NoopCache)) await this.cache.onMutate({ tables: usedTablesOf(table) });
 
@@ -571,11 +435,15 @@ export class PostgresSession<
 }
 
 function bulkType(col: PgColumn): PgType | undefined {
-	if ((<any> col).dimensions) return;
+	if (col.dimensions) return;
 	const codec = col.codec;
 	if (codec === undefined) return;
 	const sep = codec.indexOf(':');
 	return bulkTypes[sep === -1 ? codec : codec.slice(0, sep)];
+}
+
+function isColumnList(by: PgColumn | readonly PgColumn[]): by is readonly PgColumn[] {
+	return Array.isArray(by);
 }
 
 function bulkTableName(method: string, table: PgTable): string {
@@ -604,9 +472,162 @@ function bulkParam(method: string, value: unknown, col: PgColumn, codecs: PgDial
 	}
 
 	const normalize = codecs.codecsOf(col).normalizeParam;
-	if (normalize) mapped = normalize(mapped, (<any> col).dimensions);
+	if (normalize) mapped = normalize(mapped, col.dimensions);
 
 	return mapped;
+}
+
+/** @internal */
+export function buildBulkInsert(dialect: PgDialect, table: PgTable, rows: readonly Record<string, unknown>[]) {
+	const codecs = dialect.codecs;
+	const tableColumns = table[Table.Symbol.Columns];
+	const entries = Object.entries(tableColumns).filter(([, col]) => !col.shouldDisableInsert());
+	const width = entries.length;
+	const rowCount = rows.length;
+
+	for (let c = 0; c < width; ++c) {
+		const col = entries[c]![1];
+		if (codecs.codecsOf(col).castParam) {
+			throw new Error(
+				`\`bulkInsert\`: column "${col.name}" requires a parameter cast, which bulk operations can't apply`,
+			);
+		}
+	}
+
+	const cells: unknown[][] = new Array(rowCount);
+	const definedCount: number[] = new Array(width).fill(0);
+	for (let r = 0; r < rowCount; ++r) {
+		const source = rows[r]!;
+		const row: unknown[] = new Array(width);
+		for (let c = 0; c < width; ++c) {
+			const [key, col] = entries[c]!;
+			let value = source[key];
+			if (value === undefined) {
+				if (col.defaultFn !== undefined) value = col.defaultFn();
+				else if (!col.default && col.onUpdateFn !== undefined) value = col.onUpdateFn();
+			}
+			if (value === undefined) continue;
+
+			++definedCount[c]!;
+			row[c] = bulkParam('bulkInsert', value, col, codecs);
+		}
+		cells[r] = row;
+	}
+
+	// Columns left to the database default in every row are dropped
+	const included: number[] = [];
+	let uniform = true;
+	for (let c = 0; c < width; ++c) {
+		const count = definedCount[c]!;
+		if (count === 0) continue;
+		included.push(c);
+		if (count !== rowCount) uniform = false;
+	}
+	// Every cell is left to the database default - `values (default, ...)` on every column
+	if (included.length === 0) {
+		uniform = false;
+		for (let c = 0; c < width; ++c) included.push(c);
+	}
+
+	const columns: Record<string, PgType> = {};
+	let unnest = uniform;
+	for (const c of included) {
+		const col = entries[c]![1];
+		const type = bulkType(col);
+		if (type === undefined) unnest = false;
+		// Only used by the `unnest` path - the `values` one infers parameter types from the target columns
+		columns[col.name] = type ?? 'text';
+	}
+
+	const driverRows: unknown[][] = new Array(rowCount);
+	for (let r = 0; r < rowCount; ++r) {
+		const row: unknown[] = new Array(included.length);
+		const source = cells[r]!;
+		for (let i = 0; i < included.length; ++i) row[i] = source[included[i]!];
+		driverRows[r] = row;
+	}
+
+	return { table: bulkTableName('bulkInsert', table), columns, rows: driverRows, defaults: !unnest };
+}
+
+/** @internal */
+export function buildBulkUpdate(
+	dialect: PgDialect,
+	table: PgTable,
+	rows: readonly Record<string, unknown>[],
+	by: PgColumn | readonly PgColumn[],
+) {
+	const codecs = dialect.codecs;
+	const tableColumns = table[Table.Symbol.Columns];
+	const tableEntries = Object.entries(tableColumns);
+	const rowCount = rows.length;
+
+	const byColumns = isColumnList(by) ? by : [by];
+	if (byColumns.length === 0) throw new Error('`bulkUpdate`: `by` must contain at least one column');
+	const keyEntries: [string, PgColumn][] = new Array(byColumns.length);
+	for (let i = 0; i < byColumns.length; ++i) {
+		const byColumn = byColumns[i]!;
+		const entry = tableEntries.find(([, col]) => col === byColumn)
+			?? tableEntries.find(([, col]) => col.name === byColumn.name);
+		if (!entry) throw new Error(`\`bulkUpdate\`: \`by\` column "${byColumn.name}" doesn't belong to the table`);
+		keyEntries[i] = entry;
+	}
+	const keyNames = keyEntries.map(([, col]) => col.name);
+
+	const setEntries = tableEntries.filter(([key, col]) => {
+		if (keyNames.includes(col.name)) return false;
+		if (col.onUpdateFn !== undefined) return true;
+		for (let r = 0; r < rowCount; ++r) if (rows[r]![key] !== undefined) return true;
+		return false;
+	});
+	if (setEntries.length === 0) throw new Error('No values to set');
+
+	const entries = [...keyEntries, ...setEntries];
+	const width = entries.length;
+	const columns: Record<string, PgType> = {};
+	for (let c = 0; c < width; ++c) {
+		const col = entries[c]![1];
+		const type = bulkType(col);
+		if (type === undefined) {
+			throw new Error(
+				`\`bulkUpdate\`: column "${col.name}" of type "${col.getSQLType()}${
+					'[]'.repeat(col.dimensions ?? 0)
+				}" can't be sent as an \`unnest\` array`,
+			);
+		}
+		if (codecs.codecsOf(col).castParam) {
+			throw new Error(
+				`\`bulkUpdate\`: column "${col.name}" requires a parameter cast, which bulk operations can't apply`,
+			);
+		}
+		columns[col.name] = type;
+	}
+
+	const driverRows: unknown[][] = new Array(rowCount);
+	for (let r = 0; r < rowCount; ++r) {
+		const source = rows[r]!;
+		const row: unknown[] = new Array(width);
+		for (let c = 0; c < width; ++c) {
+			const [key, col] = entries[c]!;
+			let value = source[key];
+			if (value === undefined) {
+				if (c < keyEntries.length) {
+					throw new Error(`\`bulkUpdate\`: row ${r} is missing key column "${col.name}"`);
+				}
+				if (col.onUpdateFn === undefined) {
+					throw new Error(
+						`\`bulkUpdate\`: row ${r} doesn't set column "${col.name}", which other rows set - every row must set the same columns`,
+					);
+				}
+				value = col.onUpdateFn();
+			}
+
+			row[c] = bulkParam('bulkUpdate', value, col, codecs);
+		}
+		driverRows[r] = row;
+	}
+
+	return { table: bulkTableName('bulkUpdate', table), columns, rows: driverRows, by: keyNames };
 }
 
 export class PostgresTransaction<

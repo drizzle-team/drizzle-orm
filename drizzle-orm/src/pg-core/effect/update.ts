@@ -120,17 +120,24 @@ export class PgEffectUpdateBase<
 		const { session, config, dialect, joinsNotNullableMap } = this;
 		const { returning: fields } = config;
 
-		const query = dialect.sqlToQuery(this.getSQL(true));
-		const mapper = fields
-			? this.dialect.mapperGenerators.rows(fields, resolveNullableObjectPaths(fields, joinsNotNullableMap))
+		const nullableObjectPaths = fields ? resolveNullableObjectPaths(fields, joinsNotNullableMap) : undefined;
+		const shape = fields
+			? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, nullableObjectPaths)
 			: undefined;
+
+		const query = dialect.sqlToQuery(this.getSQL(true));
+		const mapper = shape || !fields
+			? undefined
+			: dialect.mapperGenerators.rows(fields, nullableObjectPaths);
 
 		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 			query,
-			fields ? 'arrays' : 'raw',
+			shape ? 'objects' : fields ? 'arrays' : 'raw',
 			name ?? generateName,
 			mapper,
 			{ type: 'update', tables: () => usedTablesOf(this.config.table) },
+			undefined,
+			shape,
 		);
 
 		return preparedQuery;

@@ -58,12 +58,14 @@ export interface DrizzlePostgresClient extends Client.SqlClient {
 	/** Runs one Drizzle Postgres query with Drizzle Postgres's options. The result type follows `mode`, as in the async entry
 	 *  point. Inside withTransaction it runs on the transaction's connection. */
 	readonly query: PostgresQuery;
-	/** Runs the Effects as a Batch: one transaction, every statement pipelined on its connection, all or nothing. */
-	readonly batch: <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) => Effect.Effect<Array<A>, E | SqlError, R>;
+	/** Runs the Effects as a Batch: one transaction, every statement pipelined on its connection, all or nothing.
+	 *  A tuple of Effects gives a tuple of results, as in Effect.all. */
+	readonly batch: <const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) => BatchResult<Arg>;
 	/** Runs the Effects as a Pipeline: concurrently on one connection, without a transaction, so each
 	 *  statement commits on its own. An interrupted statement that waits behind another one still runs
-	 *  on the server. Inside withTransaction it uses the transaction's connection. */
-	readonly pipeline: <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) => Effect.Effect<Array<A>, E | SqlError, R>;
+	 *  on the server. Inside withTransaction it uses the transaction's connection. A tuple of Effects gives a
+	 *  tuple of results, as in Effect.all. */
+	readonly pipeline: <const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) => BatchResult<Arg>;
 	/** Connection.bulkInsert as an Effect. Inside withTransaction or a Pipeline it uses that connection. */
 	readonly bulkInsert: (...args: Parameters<Connection['bulkInsert']>) => Effect.Effect<QueryResult<never>, SqlError>;
 	/** Connection.bulkUpdate as an Effect. Inside withTransaction or a Pipeline it uses that connection. */
@@ -82,6 +84,17 @@ export interface DrizzlePostgresClient extends Client.SqlClient {
 	/** A server-side cursor on a dedicated connection, as a Stream of row batches of up to `fetchSize` rows. */
 	readonly cursor: <Row = Record<string, unknown>>(options: CursorOptions) => Stream.Stream<Row[], SqlError>;
 }
+
+/** The result of `batch` and `pipeline`: the results in the order of the Effects, or the first failure. */
+export type BatchResult<Arg extends Iterable<Effect.Effect<any, any, any>>> = Effect.All.Return<Arg, {}> extends
+	Effect.Effect<infer A, infer E, infer R> ? Effect.Effect<A, E | SqlError, R> : never;
+
+/** `true` while an Effect runs inside `batch` or `pipeline`. The statements there share one connection and
+ *  reach it in the order that they are sent. Code that runs before a statement must not wait for async work,
+ *  or the statement can reach the connection after a statement that started later. */
+export const Pipelined = Context.Reference<boolean>('@drizzle/postgres/DrizzlePostgresClient/Pipelined', {
+	defaultValue: () => false,
+});
 
 /** Drizzle Postgres query options without the ones that Effect replaces: interrupt the Effect to cancel it. */
 export type QueryOptions = Omit<PostgresQueryOptions, 'signal' | 'timeout' | 'trace'>;
@@ -107,6 +120,11 @@ export interface PostgresQuery {
 		params?: Params,
 		options?: QueryOptions & { mode?: 'array' },
 	): Effect.Effect<QueryResult<unknown[]>, SqlError>;
+	(
+		sql: string,
+		params: Params,
+		options: QueryOptions & { mode: 'array' | 'object' },
+	): Effect.Effect<QueryResult<unknown[] | Record<string, unknown>>, SqlError>;
 }
 
 export interface TransactionOptions {
@@ -378,14 +396,18 @@ export const fromPool = Effect.fnUntraced(
 			})).pipe(Stream.withSpan(spanName, spanOptions('cursor', options.sql)));
 
 		const all = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) =>
-			Effect.all(effects, { concurrency: 'unbounded' });
+			Effect.provideService(Effect.all(effects, { concurrency: 'unbounded' }), Pipelined, true);
 		const batch = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) => withTransaction(all(effects));
 		// Effect.all interrupts the other statements when one fails, and an interrupt cancels the running one
 		// on the server. Each pipeline statement commits on its own, so all of them run to the end, and the
 		// first failure in statement order is the result.
 		const allSettled = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) =>
 			Effect.flatMap(
-				Effect.all(Array.from(effects, (effect) => Effect.exit(effect)), { concurrency: 'unbounded' }),
+				Effect.provideService(
+					Effect.all(Array.from(effects, (effect) => Effect.exit(effect)), { concurrency: 'unbounded' }),
+					Pipelined,
+					true,
+				),
 				(exits) => Effect.all(exits),
 			);
 		const pipeline = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) =>

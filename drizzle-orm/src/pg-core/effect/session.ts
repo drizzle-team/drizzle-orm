@@ -76,6 +76,15 @@ export class PgEffectPreparedQuery<
 		});
 	}
 
+	/**
+	 * `true` makes the query skip the cache lookup. The lookup can be async, so on a connection that pipelines
+	 * statements it can let a statement that started later reach the connection first.
+	 * A mutation still invalidates the cache after it runs.
+	 *
+	 * @internal
+	 */
+	protected skipCacheLookup: Effect.Effect<boolean> = Effect.succeed(false);
+
 	/** @internal */
 	protected queryWithCache<A, E, R>(
 		queryString: string,
@@ -85,6 +94,15 @@ export class PgEffectPreparedQuery<
 		return Effect.gen({ self: this }, function*() {
 			const { cacheConfig, queryMetadata } = this;
 			const cache = yield* EffectCache;
+			const hasCache = cache && !(cache.cache && is(cache.cache, NoopCache));
+
+			if (hasCache && (yield* this.skipCacheLookup)) {
+				const result = yield* query;
+				const tables = queryMetadata && queryMetadata.type !== 'select' ? queryMetadata.tables() : [];
+				if (tables.length > 0) yield* cache.onMutate({ tables });
+
+				return result;
+			}
 
 			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !(cache.cache && is(cache.cache, NoopCache))
 				? yield* Effect.tryPromise(
@@ -161,6 +179,7 @@ export abstract class PgEffectSession<
 		mapper?: (rows: any[]) => any,
 		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
+		shape?: unknown,
 	): PgEffectPreparedQuery<T, TEffectHKT>;
 
 	override execute<T>(query: SQL) {
