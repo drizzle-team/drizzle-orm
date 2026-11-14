@@ -2,6 +2,7 @@ import { assert, expect, expectTypeOf, it, vi, Vitest } from '@effect/vitest';
 import {
 	and,
 	asc,
+	desc,
 	eq,
 	getColumns,
 	gt,
@@ -1776,6 +1777,83 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				]);
 			}));
 
+		it.effect('select distinct ordered by cast columns', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = pgTable('distinct_cast_order', {
+					id: integer('id').notNull(),
+					createdAt: timestamp('created_at', { mode: 'date', precision: 3 }).notNull(),
+					amount: numeric('amount', { mode: 'number' }).notNull(),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table).values([
+					{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+					{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+					{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+					{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+				]);
+
+				const byDate = yield* db
+					.selectDistinct({ id: table.id, createdAt: table.createdAt, amount: table.amount })
+					.from(table)
+					.orderBy(desc(table.createdAt));
+				const byAmount = yield* db
+					.selectDistinct({ id: table.id, amount: table.amount })
+					.from(table)
+					.orderBy(desc(table.amount));
+
+				expect(byDate).toEqual([
+					{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+					{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+					{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+				]);
+				expect(byAmount).toEqual([
+					{ id: 2, amount: 100 },
+					{ id: 3, amount: 10 },
+					{ id: 1, amount: 9 },
+				]);
+			}));
+
+		it.effect('order by aliased cast columns', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = pgTable('alias_cast_order', {
+					id: integer('id').notNull(),
+					amount: numeric('amount', { mode: 'number' }).notNull(),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table).values([
+					{ id: 1, amount: 9 },
+					{ id: 2, amount: 100 },
+					{ id: 3, amount: 10 },
+				]);
+
+				const amountAlias = table.amount.as('amount_alias');
+				const amountSql = sql<number>`${table.amount}`.mapWith(table.amount).as('amount_sql');
+
+				const byColumnAlias = yield* db.select({ id: table.id, amount: amountAlias }).from(table).orderBy(
+					desc(amountAlias),
+				);
+				const bySqlAlias = yield* db.select({ id: table.id, amount: amountSql }).from(table).orderBy(desc(amountSql));
+				const byDistinctAlias = yield* db
+					.selectDistinct({ id: table.id, amount: amountAlias })
+					.from(table)
+					.orderBy(desc(amountAlias));
+
+				const expected = [
+					{ id: 2, amount: 100 },
+					{ id: 3, amount: 10 },
+					{ id: 1, amount: 9 },
+				];
+				expect(byColumnAlias).toEqual(expected);
+				expect(bySqlAlias).toEqual(expected);
+				expect(byDistinctAlias).toEqual(expected);
+			}));
+
 		it.effect('update with returning all fields', () =>
 			Effect.gen(function*() {
 				const users = pgTable('users_9', {
@@ -2863,7 +2941,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					yield* db.insert(allTypesTable).values(allTypesData);
 					const session = (<any> db).session as PgEffectSession;
 
-					const queryRes = yield* session.arrays<unknown[]>(db.select().from(allTypesTable).getSQL(true))
+					const queryRes = yield* session.arrays<unknown[]>(db.select().from(allTypesTable).getSQL())
 						.pipe(
 							Effect.map((e) =>
 								normalizeDataWithDbCodecs({

@@ -112,7 +112,7 @@ export class PgAsyncSelectBase<
 				nullableObjectPaths,
 			);
 
-			const sequel = this.getSQL(true);
+			const sequel = this.getSQL();
 			const query = config.tagged ? dialect._sqlToQuery(sequel) : dialect.sqlToQuery(sequel);
 			const mapper = shape
 				? undefined

@@ -1,4 +1,9 @@
-import { castToText, refineGenericMsSqlCodecs } from '~/mssql-core/codecs.ts';
+import { bigintFromIntegerValue, unsupportedCodec } from '~/codecs.ts';
+import { refineGenericMsSqlCodecs } from '~/mssql-core/codecs.ts';
+
+const driver = 'mssql';
+const decimalReason = 'the driver decodes `decimal`, `numeric` values to numbers, losing precision, '
+	+ "and has no option to return them as text; use `mode: 'number'`";
 
 export const nodeMssqlCodecs = refineGenericMsSqlCodecs({
 	bigint: {
@@ -8,25 +13,21 @@ export const nodeMssqlCodecs = refineGenericMsSqlCodecs({
 		normalize: Number,
 	},
 	decimal: {
-		cast: castToText,
+		normalize: unsupportedCodec('decimal', driver, decimalReason),
 	},
 	'decimal:number': {
-		cast: castToText,
 		normalize: Number,
 	},
 	'decimal:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: bigintFromIntegerValue('decimal', driver),
 	},
 	numeric: {
-		cast: castToText,
+		normalize: unsupportedCodec('numeric', driver, decimalReason),
 	},
 	'numeric:number': {
-		cast: castToText,
 		normalize: Number,
 	},
 	'numeric:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: bigintFromIntegerValue('numeric', driver),
 	},
 });

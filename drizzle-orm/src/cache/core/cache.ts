@@ -1,6 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
 import type { Table } from '~/table.ts';
-import { encodeUtf8 } from './encoding.ts';
+import { encodeUtf8 } from '~/utils.ts';
 import type { CacheConfig, QueryMetadata, WithCacheConfig } from './types.ts';
 
 export abstract class Cache {

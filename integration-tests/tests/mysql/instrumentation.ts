@@ -19,6 +19,7 @@ import type { MySqlAsyncDatabase, MySqlSchema, MySqlTable, MySqlView } from 'dri
 import { drizzle as proxyDrizzle, RemoteCallback } from 'drizzle-orm/mysql-proxy';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle as mysql2Drizzle } from 'drizzle-orm/mysql2';
+import { makeMySql2RawTextTypeCast } from 'drizzle-orm/mysql2';
 import { mysql2Codecs } from 'drizzle-orm/mysql2/codecs';
 import { drizzle as psDrizzle } from 'drizzle-orm/planetscale-serverless';
 import { drizzle as drizzleTidb } from 'drizzle-orm/tidb-serverless';
@@ -91,6 +92,8 @@ export class TestCache extends Cache {
 	}
 }
 
+const rawTextTypeCast = makeMySql2RawTextTypeCast();
+
 class ServerSimulator {
 	constructor(private db: mysql.Connection) {}
 
@@ -101,6 +104,8 @@ class ServerSimulator {
 					sql,
 					values: params,
 					rowsAsArray: true,
+					// `all` serves queries drizzle decodes with codecs, which decode these column types from text
+					typeCast: rawTextTypeCast,
 				});
 
 				return { data: result[0] as any };

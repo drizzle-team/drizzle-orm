@@ -9,6 +9,7 @@ import { proxyTest } from '../instrumentation';
 import { proxyTest as test } from '../instrumentation';
 import { tests } from '../mysql-common';
 import { usersMigratorTable } from '../schema2';
+import { allTypesWithReplacementsSkips, allTypesWithReplacementsTests } from '../unsupported-types';
 
 const omit = new Set([
 	'nested transaction rollback',
@@ -32,7 +33,11 @@ const omit = new Set([
 	'RQB v2 transaction find many - placeholders',
 ]);
 
+// MySQL rounds `float` to 6 significant digits in the text protocol the server simulator uses with `mysql2`, with no per-query alternative
+// (a driver quirk): all-types tests are redefined with a `float` value that rounds to itself
+for (const name of allTypesWithReplacementsSkips) omit.add(name);
 tests(proxyTest, omit);
+allTypesWithReplacementsTests(proxyTest, { float: 1.0486 });
 
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as MySqlRemoteDatabase;

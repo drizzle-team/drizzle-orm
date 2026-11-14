@@ -234,9 +234,8 @@ export class MySqlDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false, ignoreCastCodecs = false, table }: {
+		{ isSingleTable = false, table }: {
 			isSingleTable?: boolean;
-			ignoreCastCodecs?: boolean;
 			table?: MySqlTable | MySqlViewBase | SQL | Subquery;
 		} = {},
 	): SQL {
@@ -252,8 +251,7 @@ export class MySqlDialect {
 			: undefined;
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field, codecOverride, column, fieldType } = fields[i]!;
-			const override = codecOverride as MySqlType | undefined;
+			const { field, fieldType } = fields[i]!;
 
 			switch (fieldType) {
 				case 'Column': {
@@ -266,8 +264,7 @@ export class MySqlDialect {
 						name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 					}
 
-					const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
-					chunks.push(field.isAlias ? sql`${casted} as ${field}` : casted);
+					chunks.push(field.isAlias ? sql`${name} as ${field}` : name);
 
 					break;
 				}
@@ -276,8 +273,7 @@ export class MySqlDialect {
 						const query = !isSingleTable && field.origin !== undefined
 							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
 							: sql.identifier(field.fieldAlias);
-						if (column && !ignoreCastCodecs) chunks.push(this.codecs.apply(column, 'cast', query, override));
-						else chunks.push(query);
+						chunks.push(query);
 					} else {
 						if (isSingleTable && tableName !== undefined) {
 							const { queryChunks } = field.sql;
@@ -304,19 +300,19 @@ export class MySqlDialect {
 
 							if (abort) {
 								chunks.push(
-									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+									field.sql,
 								);
 							} else {
 								const newSql = new SQL(newChunks);
 
 								if (field.sql.shouldInlineParams) newSql.inlineParams();
 								chunks.push(
-									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql,
+									newSql,
 								);
 							}
 						} else {
 							chunks.push(
-								column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+								field.sql,
 							);
 						}
 
@@ -350,13 +346,13 @@ export class MySqlDialect {
 						}
 
 						if (abort) {
-							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+							chunks.push(field);
 						} else {
 							const newSql = new SQL(newChunks);
 							if (field.shouldInlineParams) newSql.inlineParams();
-							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
+							chunks.push(newSql);
 						}
-					} else chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+					} else chunks.push(field);
 
 					break;
 				}
@@ -364,12 +360,10 @@ export class MySqlDialect {
 					if (!field._.isWith) {
 						const inner = sql`(${field._.sql})`;
 						chunks.push(
-							sql`${column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', inner, override) : inner} ${
-								sql.identifier(field._.alias)
-							}`,
+							sql`${inner} ${sql.identifier(field._.alias)}`,
 						);
 					} else {
-						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+						chunks.push(field);
 					}
 
 					break;
@@ -430,7 +424,6 @@ export class MySqlDialect {
 		forceIndex,
 		ignoreIndex,
 		comment,
-		useSelectionCastCodecs,
 	}: MySqlSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -477,7 +470,6 @@ export class MySqlDialect {
 
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
-			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 			table,
 		});
 
@@ -598,7 +590,7 @@ export class MySqlDialect {
 			}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, fieldsList, useSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, fieldsList, setOperators);
 		}
 
 		return finalQuery;
@@ -607,7 +599,6 @@ export class MySqlDialect {
 	buildSetOperations(
 		leftSelect: SQL,
 		leftSelection: SelectedFieldsOrdered,
-		useSelectionCastCodecs: boolean | undefined,
 		setOperators: MySqlSelectConfig['setOperators'],
 	): SQL {
 		const outputSelection = leftSelection;
@@ -640,32 +631,7 @@ export class MySqlDialect {
 				: out.codec;
 		}
 
-		return !useSelectionCastCodecs ? leftSelect : sql`select ${
-			this.buildSelection(
-				outputSelection.map((field) => {
-					if (field.fieldType === 'SQL.Aliased') {
-						const ref = field.field.clone();
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					if (field.fieldType === 'Column' && field.field.isAlias) {
-						const ref = new SQL.Aliased(sql`${sql.identifier(field.field.name)}`, field.field.name);
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					if (field.fieldType === 'Subquery') {
-						const ref = new SQL.Aliased(sql`${field.field.getSQL()}`, field.field._.alias);
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					return field;
-				}),
-				{
-					isSingleTable: true,
-					ignoreCastCodecs: !useSelectionCastCodecs,
-				},
-			)
-		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
+		return leftSelect;
 	}
 
 	buildSetOperationQuery({

@@ -46,6 +46,7 @@ import {
 import { drizzle as drizzleBetterSqlite3 } from 'drizzle-orm/better-sqlite3';
 import { betterSQLite3Codecs } from 'drizzle-orm/better-sqlite3/codecs';
 import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
+import { binarySerializer } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1';
 import { drizzle as drizzleLibSQL, type LibSQLDatabase } from 'drizzle-orm/libsql';
@@ -69,11 +70,17 @@ import { test as base } from 'vitest';
 import relations from './relations';
 import sqliteRelations from './sqlite.relations';
 
+// raw rows hold bigints with drivers reading integers as bigints on decoded queries, which JSON can't store
+const bigintSafeKeyvOptions = {
+	serialize: binarySerializer.serialize,
+	deserialize: binarySerializer.deserialize,
+} as any;
+
 export class TestCache extends Cache {
 	private globalTtl: number = 1000;
 	private usedTablesPerKey: Record<string, string[]> = {};
 
-	constructor(private readonly strat: 'explicit' | 'all', private kv: Keyv = new Keyv()) {
+	constructor(private readonly strat: 'explicit' | 'all', private kv: Keyv = new Keyv(bigintSafeKeyvOptions)) {
 		super();
 	}
 
@@ -135,9 +142,15 @@ export class TestCache extends Cache {
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
 
-	async query(sql: string, params: any[], method: 'run' | 'all' | 'get', rowMode: 'array' | 'object' = 'object') {
+	async query(
+		sql: string,
+		params: any[],
+		method: 'run' | 'all' | 'get',
+		rowMode: 'array' | 'object' = 'object',
+	) {
 		try {
 			const statement = this.db.prepare(sql);
+			if (method !== 'run') statement.safeIntegers(true);
 
 			switch (method) {
 				case 'run': {
@@ -334,7 +347,8 @@ export const prepareTursoDatabaseServerlessClient = (url: string, authToken: str
 };
 
 export const prepareLibSQLClient = async (url: string, authToken?: string) => {
-	const client = createClient({ url, authToken });
+	// `intMode: 'number'` (the default) throws a `RangeError` on integers outside of the safe integer range
+	const client = createClient({ url, authToken, intMode: 'bigint' });
 	// TODO revise: should I add here do-while loop for client creation?
 
 	// client = await retry(async () => {
@@ -375,7 +389,7 @@ export const prepareLibSQLClient = async (url: string, authToken?: string) => {
 };
 
 export const prepareLibSQLWsClient = async (url: string, authToken?: string) => {
-	const client = createWsClient({ url, authToken });
+	const client = createWsClient({ url, authToken, intMode: 'bigint' });
 
 	const all = async (sql: string, params: any[] = []) => {
 		const stmt: WsInStatement = { sql, args: params as WsInArgs };
@@ -401,7 +415,7 @@ export const prepareLibSQLWsClient = async (url: string, authToken?: string) => 
 };
 
 export const prepareLibSQLSqlite3Client = (url: string = ':memory:') => {
-	const client = createSqlite3Client({ url });
+	const client = createSqlite3Client({ url, intMode: 'bigint' });
 
 	const all = async (sql: string, params: any[] = []) => {
 		const stmt: Sqlite3InStatement = { sql, args: params as Sqlite3InArgs };
@@ -427,7 +441,7 @@ export const prepareLibSQLSqlite3Client = (url: string = ':memory:') => {
 };
 
 export const prepareLibSQLNodeClient = async (url: string, authToken?: string) => {
-	const client = createNodeClient({ url, authToken });
+	const client = createNodeClient({ url, authToken, intMode: 'bigint' });
 
 	const all = async (sql: string, params: any[] = []) => {
 		const stmt: NodeInStatement = { sql, args: params as NodeInArgs };
@@ -453,7 +467,7 @@ export const prepareLibSQLNodeClient = async (url: string, authToken?: string) =
 };
 
 export const prepareLibSQLHttpClient = async (url: string, authToken?: string) => {
-	const client = createHttpClient({ url, authToken });
+	const client = createHttpClient({ url, authToken, intMode: 'bigint' });
 
 	const all = async (sql: string, params: any[] = []) => {
 		const stmt: HttpInStatement = { sql, args: params as HttpInArgs };

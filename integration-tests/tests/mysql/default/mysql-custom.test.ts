@@ -358,8 +358,7 @@ test('build query', async ({ db }) => {
 		.toSQL();
 
 	expect(query).toEqual({
-		sql:
-			`select cast(\`id\` as char), \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
+		sql: `select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
 		params: [],
 	});
 });

@@ -132,7 +132,7 @@
 		"oxc-parser": "^0.157.0",
 		"pg": "^8.11.5",
 		"pluralize": "^8.0.0",
-		"postgres": "^3.4.4",
+		"postgres": "^4.1.1",
 		"prettier": "^3.5.3",
 		"semver": "^7.7.2",
 		"tsx": "^4.20.6",

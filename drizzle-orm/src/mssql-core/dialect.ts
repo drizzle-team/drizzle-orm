@@ -246,11 +246,9 @@ export class MsSqlDialect {
 		return new SQL(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, output, useSelectionCastCodecs }: MsSqlDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, output }: MsSqlDeleteConfig): SQL {
 		const outputSql = output
-			? sql` output ${
-				this.buildSelectionOutput(output, { type: 'DELETED', ignoreCastCodecs: !useSelectionCastCodecs })
-			}`
+			? sql` output ${this.buildSelectionOutput(output, { type: 'DELETED' })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -304,7 +302,7 @@ export class MsSqlDialect {
 		// );
 	}
 
-	buildUpdateQuery({ table, set, where, output, useSelectionCastCodecs }: MsSqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, output }: MsSqlUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const outputSql = sql``;
@@ -316,7 +314,6 @@ export class MsSqlDialect {
 				outputSql.append(
 					this.buildSelectionOutput(output.inserted, {
 						type: 'INSERTED',
-						ignoreCastCodecs: !useSelectionCastCodecs,
 					}),
 				);
 			}
@@ -326,7 +323,6 @@ export class MsSqlDialect {
 				outputSql.append(
 					this.buildSelectionOutput(output.deleted, {
 						type: 'DELETED',
-						ignoreCastCodecs: !useSelectionCastCodecs,
 					}),
 				);
 			}
@@ -350,9 +346,8 @@ export class MsSqlDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false, ignoreCastCodecs = false, table }: {
+		{ isSingleTable = false, table }: {
 			isSingleTable?: boolean;
-			ignoreCastCodecs?: boolean;
 			table?: MsSqlTable | MsSqlViewBase | SQL | Subquery;
 		} = {},
 	): SQL {
@@ -368,8 +363,7 @@ export class MsSqlDialect {
 			: undefined;
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field, codecOverride, column, fieldType } = fields[i]!;
-			const override = codecOverride as MsSqlType | undefined;
+			const { field, fieldType } = fields[i]!;
 
 			switch (fieldType) {
 				case 'Column': {
@@ -382,8 +376,7 @@ export class MsSqlDialect {
 						name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 					}
 
-					const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
-					chunks.push(field.isAlias ? sql`${casted} as ${field}` : casted);
+					chunks.push(field.isAlias ? sql`${name} as ${field}` : name);
 
 					break;
 				}
@@ -392,8 +385,7 @@ export class MsSqlDialect {
 						const query = !isSingleTable && field.origin !== undefined
 							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
 							: sql.identifier(field.fieldAlias);
-						if (column && !ignoreCastCodecs) chunks.push(this.codecs.apply(column, 'cast', query, override));
-						else chunks.push(query);
+						chunks.push(query);
 					} else {
 						if (isSingleTable && tableName !== undefined) {
 							const { queryChunks } = field.sql;
@@ -420,19 +412,19 @@ export class MsSqlDialect {
 
 							if (abort) {
 								chunks.push(
-									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+									field.sql,
 								);
 							} else {
 								const newSql = new SQL(newChunks);
 
 								if (field.sql.shouldInlineParams) newSql.inlineParams();
 								chunks.push(
-									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql,
+									newSql,
 								);
 							}
 						} else {
 							chunks.push(
-								column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+								field.sql,
 							);
 						}
 
@@ -466,13 +458,13 @@ export class MsSqlDialect {
 						}
 
 						if (abort) {
-							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+							chunks.push(field);
 						} else {
 							const newSql = new SQL(newChunks);
 							if (field.shouldInlineParams) newSql.inlineParams();
-							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
+							chunks.push(newSql);
 						}
-					} else chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+					} else chunks.push(field);
 
 					break;
 				}
@@ -480,12 +472,10 @@ export class MsSqlDialect {
 					if (!field._.isWith) {
 						const inner = sql`(${field._.sql})`;
 						chunks.push(
-							sql`${column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', inner, override) : inner} ${
-								sql.identifier(field._.alias)
-							}`,
+							sql`${inner} ${sql.identifier(field._.alias)}`,
 						);
 					} else {
-						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+						chunks.push(field);
 					}
 
 					break;
@@ -502,23 +492,20 @@ export class MsSqlDialect {
 
 	private buildSelectionOutput(
 		fields: SelectedFieldsOrdered,
-		{ type, ignoreCastCodecs = false }: { type: 'INSERTED' | 'DELETED'; ignoreCastCodecs?: boolean },
+		{ type }: { type: 'INSERTED' | 'DELETED' },
 	): SQL {
 		const { length: columnsLen } = fields;
 		const chunks: SQLChunk[] = [];
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field, fieldType, column, codecOverride } = fields[i]!;
-			const override = codecOverride as MsSqlType | undefined;
+			const { field, fieldType } = fields[i]!;
 
 			switch (fieldType) {
 				case 'Column': {
 					const name = sql`${new StringChunk(`${type}.`)}${
 						sql.identifier(field.isAlias ? getOriginalColumnFromAlias(field).name : field.name)
 					}`;
-					const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
-
-					chunks.push(field.isAlias ? sql`${casted} as ${field}` : casted);
+					chunks.push(field.isAlias ? sql`${name} as ${field}` : name);
 
 					break;
 				}
@@ -526,8 +513,7 @@ export class MsSqlDialect {
 					if (field.isSelectionField) {
 						const query = sql`${new StringChunk(`${type}.`)}${sql.identifier(field.fieldAlias)}`;
 
-						if (column && !ignoreCastCodecs) chunks.push(this.codecs.apply(column, 'cast', query, override));
-						else chunks.push(query);
+						chunks.push(query);
 					} else {
 						const query = field.sql;
 
@@ -594,7 +580,6 @@ export class MsSqlDialect {
 		offset,
 		distinct,
 		setOperators,
-		useSelectionCastCodecs,
 	}: MsSqlSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -644,7 +629,6 @@ export class MsSqlDialect {
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
 			table,
-			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 		});
 
 		const tableSql = (() => {
@@ -755,7 +739,7 @@ export class MsSqlDialect {
 			sql`${withSql}select${distinctSql}${topSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${offsetSql}${fetchSql}${forSQL}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, fieldsList, useSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, setOperators);
 		}
 
 		return finalQuery;
@@ -763,47 +747,13 @@ export class MsSqlDialect {
 
 	buildSetOperations(
 		leftSelect: SQL,
-		outputSelection: SelectedFieldsOrdered,
-		useSelectionCastCodecs: boolean | undefined,
 		setOperators: MsSqlSelectConfig['setOperators'],
 	): SQL {
-		const lastIdx = setOperators.length - 1;
-		let tailSql: SQL | undefined;
-
-		for (let i = 0; i <= lastIdx; ++i) {
-			const setOperator = setOperators[i]!;
-
-			const hoistTail = useSelectionCastCodecs && i === lastIdx;
-			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator, omitTail: hoistTail });
-			if (hoistTail) tailSql = this.buildSetOperationTail(setOperator);
+		for (let i = 0; i < setOperators.length; ++i) {
+			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator: setOperators[i]! });
 		}
 
-		return !useSelectionCastCodecs ? leftSelect : sql`select ${
-			this.buildSelection(
-				outputSelection.map((field) => {
-					if (field.fieldType === 'SQL.Aliased') {
-						const ref = field.field.clone();
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					if (field.fieldType === 'Column' && field.field.isAlias) {
-						const ref = new SQL.Aliased(sql`${sql.identifier(field.field.name)}`, field.field.name);
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					if (field.fieldType === 'Subquery') {
-						const ref = new SQL.Aliased(sql`${field.field.getSQL()}`, field.field._.alias);
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					return field;
-				}),
-				{
-					isSingleTable: true,
-					ignoreCastCodecs: !useSelectionCastCodecs,
-				},
-			)
-		} from (${leftSelect}) ${sql.identifier('drizzle_union')}${tailSql}`;
+		return leftSelect;
 	}
 
 	buildSetOperationTail(
@@ -840,24 +790,22 @@ export class MsSqlDialect {
 	buildSetOperationQuery({
 		leftSelect,
 		setOperator,
-		omitTail,
 	}: {
 		leftSelect: SQL;
 		setOperator: MsSqlSelectConfig['setOperators'][number];
-		omitTail?: boolean;
 	}): SQL {
 		const { type, isAll, rightSelect } = setOperator;
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
 		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
-		const tailSql = omitTail ? undefined : this.buildSetOperationTail(setOperator);
+		const tailSql = this.buildSetOperationTail(setOperator);
 
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${tailSql}`;
 	}
 
 	buildInsertQuery(
-		{ table, values: valuesOrSelect, output, columnList, select, useSelectionCastCodecs }: MsSqlInsertConfig,
+		{ table, values: valuesOrSelect, output, columnList, select }: MsSqlInsertConfig,
 	): SQL {
 		const columns: Record<string, MsSqlColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, MsSqlColumn][] = select && !is(valuesOrSelect, SQL)
@@ -924,9 +872,7 @@ export class MsSqlDialect {
 		}
 
 		const outputSql = output
-			? sql` output ${
-				this.buildSelectionOutput(output, { type: 'INSERTED', ignoreCastCodecs: !useSelectionCastCodecs })
-			}`
+			? sql` output ${this.buildSelectionOutput(output, { type: 'INSERTED' })}`
 			: undefined;
 
 		if (select) {

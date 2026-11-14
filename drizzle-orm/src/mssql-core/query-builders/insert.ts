@@ -27,7 +27,6 @@ export interface MsSqlInsertConfig<TTable extends MsSqlTable = MsSqlTable> {
 	output?: SelectedFieldsOrdered;
 	select?: boolean;
 	columnList?: string[];
-	useSelectionCastCodecs?: boolean;
 }
 
 export type MsSqlInsertValue<
@@ -310,21 +309,19 @@ export class MsSqlInsertBase<
 		this.config = { table, values: values as any, output, columnList, select };
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildInsertQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	prepare(): MsSqlInsertPrepare<this> {
 		const fields = this.config.output;
 
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL(true)),
+			this.dialect.sqlToQuery(this.getSQL()),
 			fields ? 'arrays' : 'raw',
 			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 		) as MsSqlInsertPrepare<this>;

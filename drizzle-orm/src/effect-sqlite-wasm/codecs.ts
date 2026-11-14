@@ -1,9 +1,10 @@
 import {
+	bigintFromBlob,
 	booleanFromInteger,
 	bufferFromBytesIfAvailable,
-	castToText,
 	dateFromStoredMilliseconds,
 	dateFromStoredSeconds,
+	jsonFromBlob,
 	refineSqliteCodecs,
 } from '~/sqlite-core/codecs.ts';
 
@@ -27,22 +28,18 @@ export const effectSQLiteWasmCodecs = refineSqliteCodecs({
 		normalize: bufferFromBytesIfAvailable,
 	},
 	'blob:json': {
-		cast: castToText,
-		normalize: JSON.parse,
+		normalize: jsonFromBlob,
 	},
 	'blob:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: bigintFromBlob,
 	},
 	numeric: {
-		cast: castToText,
 		normalize: String,
 	},
 	'numeric:number': {
 		normalize: Number,
 	},
 	'numeric:bigint': {
-		cast: castToText,
 		normalize: BigInt,
 	},
 });

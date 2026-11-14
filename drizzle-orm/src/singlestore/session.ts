@@ -1,4 +1,4 @@
-import type { Connection as CallbackConnection } from 'mysql2';
+import type { Connection as CallbackConnection, TypeCast } from 'mysql2';
 import type { Connection, FieldPacket, Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
@@ -21,6 +21,61 @@ import {
 import type { Query } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
+
+/**
+ * `bigint` as a number in the safe integer range (as `mysql2` returns it by default, e.g. for `count(*)`), exact text
+ * outside of it - `supportBigNumbers` and `bigNumberStrings` don't apply
+ */
+const safeIntegerOrText = (value: string | null) => {
+	if (value === null) return null;
+	const number = Number(value);
+	return Number.isSafeInteger(number) ? number : value;
+};
+
+const parseJsonField = (value: string | null) => value === null ? null : JSON.parse(value);
+
+/** Field types returned as text for codecs to decode: their default decoding depends on client options and loses data */
+const rawTextFieldTypes: ReadonlySet<string> = new Set([
+	'DECIMAL',
+	'NEWDECIMAL',
+	'DATE',
+	'DATETIME',
+	'DATETIME2',
+	'TIMESTAMP',
+	'TIMESTAMP2',
+]);
+
+type TypeCastFunction = Exclude<TypeCast, boolean>;
+
+/** Client's own `typeCast`, which a per-query `typeCast` replaces */
+const clientTypeCast = (client: unknown): TypeCastFunction | undefined => {
+	const c = client as {
+		pool?: { config?: { connectionConfig?: { typeCast?: unknown } } };
+		connection?: { config?: { typeCast?: unknown } };
+	};
+	const typeCast = c.pool?.config?.connectionConfig?.typeCast ?? c.connection?.config?.typeCast;
+	return typeof typeCast === 'function' ? typeCast as TypeCastFunction : undefined;
+};
+
+/**
+ * Per-query `typeCast` returning `rawTextFieldTypes` as text and `JSON` parsed whatever `jsonStrings` is set to
+ * (relational queries' nested results are `JSON` values), other fields decoded by the client's own `typeCast`.
+ * Applied to queries decoded by codecs (queries with a mapper), proxy servers apply it to such queries as well
+ * @param client - client whose own `typeCast` decodes the remaining fields; without it, the driver's default decoding does
+ */
+export const makeSingleStoreRawTextTypeCast = (client?: unknown): TypeCastFunction => {
+	const own = client === undefined ? undefined : clientTypeCast(client);
+	return (field, next) =>
+		rawTextFieldTypes.has(field.type)
+			? field.string()
+			: field.type === 'LONGLONG'
+			? safeIntegerOrText(field.string())
+			: field.type === 'JSON'
+			? parseJsonField(field.string('utf8'))
+			: own
+			? own(field, next)
+			: next();
+};
 
 export type SingleStoreDriverClient = Pool | Connection;
 
@@ -47,6 +102,7 @@ export class SingleStoreDriverSession<
 
 	private logger: Logger;
 	private cache: Cache;
+	private rawTextTypeCast: TypeCastFunction;
 
 	constructor(
 		private client: SingleStoreDriverClient,
@@ -57,6 +113,7 @@ export class SingleStoreDriverSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.rawTextTypeCast = makeSingleStoreRawTextTypeCast(client);
 	}
 
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
@@ -67,11 +124,13 @@ export class SingleStoreDriverSession<
 		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T> {
 		const { client } = this;
+		const rawTextTypeCast = mapper ? this.rawTextTypeCast : undefined;
 
 		const executor = async (params: unknown[] = []) => {
 			const raw = client.query<any[]>({
 				sql: query.sql,
 				rowsAsArray: mode === 'arrays',
+				...(rawTextTypeCast ? { typeCast: rawTextTypeCast } : undefined),
 			}, params);
 			if (mode !== 'raw') return raw.then((data) => data[0]);
 			if (!mapper) return raw;
@@ -89,6 +148,7 @@ export class SingleStoreDriverSession<
 			const driverQuery = conn.query({
 				sql: query.sql,
 				rowsAsArray: mode === 'arrays',
+				...(rawTextTypeCast ? { typeCast: rawTextTypeCast } : undefined),
 			}, params);
 			const stream = driverQuery.stream();
 			// mysql2 reports a connection lost mid-stream on the connection only, stream would never end

@@ -111,7 +111,7 @@ export class PgAsyncUpdateBase<
 				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, nullableObjectPaths)
 				: undefined;
 
-			const query = dialect.sqlToQuery(this.getSQL(true));
+			const query = dialect.sqlToQuery(this.getSQL());
 			const mapper = shape || !fields
 				? undefined
 				: this.dialect.mapperGenerators.rows(fields, nullableObjectPaths);

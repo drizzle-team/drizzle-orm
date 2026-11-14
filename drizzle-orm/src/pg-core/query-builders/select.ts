@@ -1132,15 +1132,13 @@ export class PgSelectBase<
 		return config.setFieldsFlat ?? fieldsFlat;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
+	getSQL(): SQL {
 		this._resolveSelection();
-		return this.dialect.buildSelectQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 	as<TAlias extends string>(
 		alias: TAlias,

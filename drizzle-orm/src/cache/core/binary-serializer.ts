@@ -1,5 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
-import { decodeBase64, decodeUtf8, encodeBase64, encodeUtf8, encodeUtf8Into, getBuffer } from '../core/encoding.ts';
+import { decodeUtf8, encodeUtf8, encodeUtf8Into } from '~/utils.ts';
+import { decodeBase64, encodeBase64, getBuffer } from './encoding.ts';
 
 export const PAYLOAD_PREFIX = 'dzb1:';
 
@@ -494,7 +495,7 @@ export function deserializeBinary(bytes: Uint8Array): unknown {
 	return value;
 }
 
-/** Serializes a value into a prefixed base64 string, safe to store in Upstash */
+/** Serializes a value into a prefixed base64 string, safe to store in caches that only hold text or JSON */
 export function serialize(value: unknown): string {
 	return PAYLOAD_PREFIX + encodeBase64(serializeBinary(value));
 }
@@ -515,26 +516,22 @@ export function deserialize(value: unknown): unknown {
 	}
 }
 
-export interface UpstashCacheSerializer<TRaw = unknown, TEncoded = unknown> {
-	/**
-	 * Converts a query response into a value stored in Upstash.
-	 *
-	 * Non-string values are passed to `@upstash/redis` as is, which stores them as JSON
-	 */
+export interface CacheSerializer<TRaw = unknown, TEncoded = unknown> {
+	/** Converts a query response into a value stored in the cache */
 	serialize(value: TRaw): TEncoded;
 	/**
-	 * Restores a query response from a value stored in Upstash.
-	 *
-	 * Receives the value as returned by `@upstash/redis`: strings that are valid JSON are already parsed,
-	 * unless `automaticDeserialization` is disabled on the client.
+	 * Restores a query response from a value stored in the cache.
 	 *
 	 * Return `undefined` to treat the entry as a cache miss
 	 */
 	deserialize(value: TEncoded): TRaw | undefined;
 }
 
-/** Default serializer: preserves non-JSON-safe values */
-export const binarySerializer: UpstashCacheSerializer = {
+/**
+ * Serializer into drizzle's binary format, encoded as prefixed base64 text: preserves values JSON can't represent
+ * (`bigint`, `Date`, `Buffer` and typed arrays, `Map`, `Set`, `undefined`, ...)
+ */
+export const binarySerializer: CacheSerializer<unknown, string> = {
 	serialize,
 	deserialize,
 };

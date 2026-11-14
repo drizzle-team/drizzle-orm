@@ -1531,7 +1531,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
 
 		const query = db.select().from(sub);
-		expect(query.toSQL(false).sql).toStrictEqual(
+		expect(query.toSQL().sql).toStrictEqual(
 			'select `id`, `name`, `location_id`, `tag_id`, `tag_created_at` from `production_job_with_location` `p`',
 		);
 	});
@@ -1725,11 +1725,12 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		const session = (<any> db).session as MySqlAsyncSession;
 
-		const queryRes = await session.objects<AllTypes>(
-			db.select(
-				Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
-			).from(allTypesTable).getSQL(true),
-		).then((e) =>
+		// query-path raw values come from a mapped prepared query, so that per-query parser overrides apply as for regular selects
+		const queryRes = await session.prepareQuery<any>(
+			(<any> db).dialect.sqlToQuery(db.select().from(allTypesTable).getSQL()),
+			'arrays',
+			(rows: unknown[][]) => rows,
+		).execute().then((e) =>
 			normalizeDataWithDbCodecs({
 				db,
 				columns: getColumns(allTypesTable),

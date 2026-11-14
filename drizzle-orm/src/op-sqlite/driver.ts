@@ -15,6 +15,10 @@ export class OPSQLiteDatabase<TRelations extends AnyRelations = EmptyRelations>
 	static override readonly [entityKind]: string = 'OPSQLiteDatabase';
 }
 
+/**
+ * Driver quirks:
+ * - Integers past the safe integer range are read as numbers: `numeric` columns throw on them
+ */
 export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	client: DB,
 	config: DrizzleSQLiteConfig<TRelations> = {},

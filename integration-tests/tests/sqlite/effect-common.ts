@@ -2,6 +2,7 @@ import { assert, expect, expectTypeOf, it, vi, Vitest } from '@effect/vitest';
 import {
 	and,
 	asc,
+	desc,
 	eq,
 	gt,
 	gte,
@@ -186,6 +187,8 @@ const runDeepNullification = (db: SQLiteEffectDatabase<any, any, any>) =>
 	});
 
 export interface RunCommonEffectSQLiteTestsOptions {
+	/** How the client returns integers of rows that aren't decoded (no selection, no `.mapWith()`) */
+	rawIntegers?: 'number' | 'bigint';
 	testLayer: Layer.Layer<DB | SqlClient, SqlError | ConfigError, never>;
 	SQLiteDrizzle: {
 		// Methods: parameters checked bivariantly, so drivers requiring config (`effect-d1`) fit
@@ -216,7 +219,8 @@ export interface RunCommonEffectSQLiteTestsOptions {
 }
 
 export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptions): void => {
-	const { testLayer, SQLiteDrizzle, createDB, addTests, skipTests = [] } = opts;
+	const { testLayer, SQLiteDrizzle, createDB, addTests, skipTests = [], rawIntegers = 'number' } = opts;
+	const rawInt = (value: number) => rawIntegers === 'bigint' ? BigInt(value) : value;
 
 	it.layer(testLayer)('common', (it) => {
 		it.beforeEach(({ task, skip }) => {
@@ -228,7 +232,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				const db = yield* DB;
 				const res = yield* db.all<{ '1': 1 }>(sql`SELECT 1 as "1"`);
 
-				expect(res).toStrictEqual([{ '1': 1 }]);
+				expect(res).toStrictEqual([{ '1': rawInt(1) }]);
 			}));
 
 		it.effect('execute - get', () =>
@@ -236,7 +240,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				const db = yield* DB;
 				const res = yield* db.get<{ '1': 1 }>(sql`SELECT 1 as "1"`);
 
-				expect(res).toStrictEqual({ '1': 1 });
+				expect(res).toStrictEqual({ '1': rawInt(1) });
 			}));
 
 		it.effect('execute - values', () =>
@@ -244,7 +248,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				const db = yield* DB;
 				const res = yield* db.values<[number]>(sql`SELECT 1 as "1"`);
 
-				expect(res).toStrictEqual([[1]]);
+				expect(res).toStrictEqual([[rawInt(1)]]);
 			}));
 
 		it.effect('all types', () =>
@@ -1506,6 +1510,73 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 					{ id: 1, name: 'John', age: 24 },
 					{ id: 2, name: 'John', age: 25 },
 				]);
+			}));
+
+		it.effect('select distinct ordered by cast columns', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = sqliteTable('distinct_cast_order', {
+					id: integer('id').notNull(),
+					amount: numeric('amount', { mode: 'bigint' }).notNull(),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table).values([
+					{ id: 1, amount: 9n },
+					{ id: 2, amount: 100n },
+					{ id: 2, amount: 100n },
+					{ id: 3, amount: 10n },
+				]);
+
+				const byAmount = yield* db
+					.selectDistinct({ id: table.id, amount: table.amount })
+					.from(table)
+					.orderBy(desc(table.amount));
+
+				expect(byAmount).toEqual([
+					{ id: 2, amount: 100n },
+					{ id: 3, amount: 10n },
+					{ id: 1, amount: 9n },
+				]);
+			}));
+
+		it.effect('order by aliased cast columns', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = sqliteTable('alias_cast_order', {
+					id: integer('id').notNull(),
+					amount: numeric('amount', { mode: 'bigint' }).notNull(),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table).values([
+					{ id: 1, amount: 9n },
+					{ id: 2, amount: 100n },
+					{ id: 3, amount: 10n },
+				]);
+
+				const amountAlias = table.amount.as('amount_alias');
+				const amountSql = sql<bigint>`${table.amount}`.mapWith(table.amount).as('amount_sql');
+
+				const byColumnAlias = yield* db.select({ id: table.id, amount: amountAlias }).from(table).orderBy(
+					desc(amountAlias),
+				);
+				const bySqlAlias = yield* db.select({ id: table.id, amount: amountSql }).from(table).orderBy(desc(amountSql));
+				const byDistinctAlias = yield* db
+					.selectDistinct({ id: table.id, amount: amountAlias })
+					.from(table)
+					.orderBy(desc(amountAlias));
+
+				const expected = [
+					{ id: 2, amount: 100n },
+					{ id: 3, amount: 10n },
+					{ id: 1, amount: 9n },
+				];
+				expect(byColumnAlias).toEqual(expected);
+				expect(bySqlAlias).toEqual(expected);
+				expect(byDistinctAlias).toEqual(expected);
 			}));
 
 		it.effect('update with returning all fields', () =>

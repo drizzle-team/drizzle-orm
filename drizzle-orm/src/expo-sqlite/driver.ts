@@ -15,6 +15,10 @@ export class ExpoSQLiteDatabase<TRelations extends AnyRelations = EmptyRelations
 	static override readonly [entityKind]: string = 'ExpoSQLiteDatabase';
 }
 
+/**
+ * Driver quirks:
+ * - Integers past the safe integer range are read as numbers: `numeric` columns throw on them
+ */
 export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	client: SQLiteDatabase,
 	config: DrizzleSQLiteConfig<TRelations> = {},

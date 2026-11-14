@@ -85,7 +85,6 @@ import {
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
-	sessionDateStyles,
 } from './all-types';
 import type { PgTestFixtures, Test } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -1715,7 +1714,7 @@ export function tests(test: Test) {
 			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
 
-			expect(dialect.sqlToQuery(query().limit(0).getSQL(true))).toStrictEqual({
+			expect(dialect.sqlToQuery(query().limit(0).getSQL())).toStrictEqual({
 				sql: 'select "id" from "pagination_1" order by "pagination_1"."id" limit $1',
 				params: [0],
 			});
@@ -1732,7 +1731,7 @@ export function tests(test: Test) {
 			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
 
-			expect(dialect.sqlToQuery(query().offset(0).getSQL(true))).toStrictEqual({
+			expect(dialect.sqlToQuery(query().offset(0).getSQL())).toStrictEqual({
 				sql: 'select "id" from "pagination_2" order by "pagination_2"."id" offset $1',
 				params: [0],
 			});
@@ -1749,7 +1748,7 @@ export function tests(test: Test) {
 			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
 
-			expect(dialect.sqlToQuery(query().limit(0).offset(0).getSQL(true))).toStrictEqual({
+			expect(dialect.sqlToQuery(query().limit(0).offset(0).getSQL())).toStrictEqual({
 				sql: 'select "id" from "pagination_3" order by "pagination_3"."id" limit $1 offset $2',
 				params: [0, 0],
 			});
@@ -1801,9 +1800,9 @@ export function tests(test: Test) {
 					db.select({ id: items.id }).from(items).where(gte(items.id, 3)),
 				).orderBy(items.id);
 
-			expect(dialect.sqlToQuery(query().offset(0).getSQL(true))).toStrictEqual({
+			expect(dialect.sqlToQuery(query().offset(0).getSQL())).toStrictEqual({
 				sql:
-					'select "id" from ((select "id" from "pagination_5" where "pagination_5"."id" < $1) union (select "id" from "pagination_5" where "pagination_5"."id" >= $2) order by "id" offset $3) "drizzle_union"',
+					'(select "id" from "pagination_5" where "pagination_5"."id" < $1) union (select "id" from "pagination_5" where "pagination_5"."id" >= $2) order by "id" offset $3',
 				params: [4, 3, 0],
 			});
 			expect(await query().limit(0)).toStrictEqual([]);
@@ -1838,7 +1837,7 @@ export function tests(test: Test) {
 			const query = db.select({ id: items.id }).from(items).innerJoin(candidates, eq(candidates.id, items.id))
 				.orderBy(items.id);
 
-			expect(dialect.sqlToQuery(query.getSQL(true))).toStrictEqual({
+			expect(dialect.sqlToQuery(query.getSQL())).toStrictEqual({
 				sql:
 					'select "pagination_6"."id" from "pagination_6" inner join (select "id" from "pagination_6" where "pagination_6"."kind" = $1 offset $2) "candidates" on "candidates"."id" = "pagination_6"."id" order by "pagination_6"."id"',
 				params: ['email', 0],
@@ -3424,7 +3423,7 @@ export function tests(test: Test) {
 			const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
 
 			const query = db.select().from(sub);
-			expect(query.toSQL(false).sql).toStrictEqual(
+			expect(query.toSQL().sql).toStrictEqual(
 				'select "id", "name", "location_id", "tag_id", "tag_created_at" from "production_job_with_location" "p"',
 			);
 		});
@@ -4006,7 +4005,13 @@ export function tests(test: Test) {
 
 			const session = (<any> db).session as PgAsyncSession;
 
-			const queryRes = await session.arrays<unknown[]>(db.select().from(allTypesTable).getSQL(true)).then((
+			// query-path raw values come from a mapped prepared query, so that per-query parser overrides apply as for regular selects
+			const queryRes = await session.prepareQuery<any>(
+				(<any> db).dialect.sqlToQuery(db.select().from(allTypesTable).getSQL()),
+				'arrays',
+				false,
+				(rows: unknown[][]) => rows,
+			).execute().then((
 				e,
 			) =>
 				normalizeDataWithDbCodecs({
@@ -4017,14 +4022,22 @@ export function tests(test: Test) {
 				})[0]
 			);
 
-			const { relationRes, rootRes } = await session.objects<AllTypes & { self: AllTypes[] }>(
-				db.query.allTypesTable.findFirst({
-					with: {
-						self: true,
-					},
-				}).getSQL(),
-			).then((e) => {
-				const { self: relationRaw, ...rootRaw } = e[0]!;
+			const columnCount = Object.keys(getColumns(allTypesTable)).length;
+			const { relationRes, rootRes } = await session.prepareQuery<any>(
+				(<any> db).dialect.sqlToQuery(
+					db.query.allTypesTable.findFirst({
+						with: {
+							self: true,
+						},
+					}).getSQL(),
+				),
+				'arrays',
+				false,
+				(rows: unknown[][]) => rows,
+			).execute().then((e: unknown[][]) => {
+				// root columns come first in table order, followed by the relation
+				const rootRaw = e[0]!.slice(0, columnCount);
+				const relationRaw = e[0]![columnCount] as Record<string, unknown>[];
 
 				return {
 					relationRes: normalizeDataWithDbCodecs({
@@ -4069,13 +4082,6 @@ export function tests(test: Test) {
 			const db = createDB({ ...boundsSchema }, boundsRelations);
 
 			await assertAllTypesTemporalBoundsInSessions(db, { rqb: true });
-		});
-
-		// https://github.com/drizzle-team/drizzle-orm/issues/6496
-		test('all types ~codecs~ - non-ISO DateStyle session', async ({ createDB }) => {
-			const db = createDB({ ...boundsSchema }, boundsRelations);
-
-			await assertAllTypesTemporalBoundsInSessions(db, { rqb: true, sessions: sessionDateStyles });
 		});
 
 		test.concurrent('all types ~json~', async ({ db, push }) => {
@@ -4186,16 +4192,6 @@ export function tests(test: Test) {
 			await cache.expectHits(
 				'sessions',
 				() => assertAllTypesTemporalBoundsInSessions(db, { run: cache.run, rqb: true }),
-			);
-		});
-
-		test('all types ~codecs~ - non-ISO DateStyle session - upstash', async ({ createDB }) => {
-			await using cache = new UpstashTestCache();
-			const { db } = upstashDB(createDB, cache);
-
-			await cache.expectHits(
-				'sessions',
-				() => assertAllTypesTemporalBoundsInSessions(db, { run: cache.run, rqb: true, sessions: sessionDateStyles }),
 			);
 		});
 

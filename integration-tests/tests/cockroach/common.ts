@@ -9,6 +9,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	desc,
 	DrizzleQueryError,
 	eq,
 	Equal,
@@ -64,6 +65,7 @@ import {
 	cockroachView,
 	customType,
 	date,
+	decimal,
 	doublePrecision,
 	except,
 	exceptAll,
@@ -947,6 +949,83 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				{ id: 1, name: 'Jane', age: 26 },
 				{ id: 2, name: 'John', age: 25 },
 			]);
+		});
+
+		test('select distinct ordered by cast columns', async ({ cockroach: { db } }) => {
+			const table = cockroachTable('distinct_cast_order', {
+				id: int4('id').notNull(),
+				createdAt: timestamp('created_at', { mode: 'date', precision: 3 }).notNull(),
+				amount: decimal('amount', { mode: 'number' }).notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id int4 not null, created_at timestamp(3) not null, amount decimal not null)`,
+			);
+
+			await db.insert(table).values([
+				{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+				{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+				{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+				{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+			]);
+
+			const byDate = await db
+				.selectDistinct({ id: table.id, createdAt: table.createdAt, amount: table.amount })
+				.from(table)
+				.orderBy(desc(table.createdAt));
+			const byAmount = await db
+				.selectDistinct({ id: table.id, amount: table.amount })
+				.from(table)
+				.orderBy(desc(table.amount));
+
+			expect(byDate).toEqual([
+				{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+				{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+				{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+			]);
+			expect(byAmount).toEqual([
+				{ id: 2, amount: 100 },
+				{ id: 3, amount: 10 },
+				{ id: 1, amount: 9 },
+			]);
+		});
+
+		test('order by aliased cast columns', async ({ cockroach: { db } }) => {
+			const table = cockroachTable('alias_cast_order', {
+				id: int4('id').notNull(),
+				amount: decimal('amount', { mode: 'number' }).notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(sql`create table ${table} (id int4 not null, amount decimal not null)`);
+
+			await db.insert(table).values([
+				{ id: 1, amount: 9 },
+				{ id: 2, amount: 100 },
+				{ id: 3, amount: 10 },
+			]);
+
+			const amountAlias = table.amount.as('amount_alias');
+			const amountSql = sql<number>`${table.amount}`.mapWith(table.amount).as('amount_sql');
+
+			const byColumnAlias = await db.select({ id: table.id, amount: amountAlias }).from(table).orderBy(
+				desc(amountAlias),
+			);
+			const bySqlAlias = await db.select({ id: table.id, amount: amountSql }).from(table).orderBy(desc(amountSql));
+			const byDistinctAlias = await db
+				.selectDistinct({ id: table.id, amount: amountAlias })
+				.from(table)
+				.orderBy(desc(amountAlias));
+
+			const expected = [
+				{ id: 2, amount: 100 },
+				{ id: 3, amount: 10 },
+				{ id: 1, amount: 9 },
+			];
+			expect(byColumnAlias).toEqual(expected);
+			expect(bySqlAlias).toEqual(expected);
+			expect(byDistinctAlias).toEqual(expected);
 		});
 
 		test('insert returning sql', async ({ cockroach: { db } }) => {
@@ -5956,7 +6035,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 
 			expect(query().offset(0).toSQL()).toStrictEqual({
 				sql:
-					'select "id" from ((select "id" from "pagination_5" where "pagination_5"."id" < $1) union (select "id" from "pagination_5" where "pagination_5"."id" >= $2)) "drizzle_union" order by "id" offset $3',
+					'(select "id" from "pagination_5" where "pagination_5"."id" < $1) union (select "id" from "pagination_5" where "pagination_5"."id" >= $2) order by "id" offset $3',
 				params: [4, 3, 0],
 			});
 			expect(await query().limit(0)).toStrictEqual([]);
@@ -7985,7 +8064,13 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 
 			const session = (<any> db).session as CockroachSession;
 
-			const queryRes = await session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true)).then((
+			// query-path raw values come from a mapped prepared query, so that per-query parser overrides apply as for regular selects
+			const queryRes = await session.prepareQuery<any>(
+				(<any> db).dialect.sqlToQuery(db.select().from(allTypesTable).getSQL()),
+				'arrays',
+				false,
+				(rows: unknown[][]) => rows,
+			).execute().then((
 				e,
 			) =>
 				normalizeDataWithDbCodecs({
@@ -7996,14 +8081,22 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				})[0]
 			);
 
-			const { relationRes, rootRes } = await session.objects<AllTypes & { self: AllTypes[] }>(
-				db.query.allTypesTable.findFirst({
-					with: {
-						self: true,
-					},
-				}).getSQL(),
-			).then((e) => {
-				const { self: relationRaw, ...rootRaw } = e[0]!;
+			const columnCount = Object.keys(getColumns(allTypesTable)).length;
+			const { relationRes, rootRes } = await session.prepareQuery<any>(
+				(<any> db).dialect.sqlToQuery(
+					db.query.allTypesTable.findFirst({
+						with: {
+							self: true,
+						},
+					}).getSQL(),
+				),
+				'arrays',
+				false,
+				(rows: unknown[][]) => rows,
+			).execute().then((e: unknown[][]) => {
+				// root columns come first in table order, followed by the relation
+				const rootRaw = e[0]!.slice(0, columnCount);
+				const relationRaw = e[0]![columnCount] as Record<string, unknown>[];
 
 				return {
 					relationRes: normalizeDataWithDbCodecs({

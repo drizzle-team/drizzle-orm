@@ -1,4 +1,4 @@
-import type { Client, PoolClient, QueryResult, QueryResultRow } from 'pg';
+import type { Client, CustomTypesConfig, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
@@ -6,6 +6,7 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery } from '~/pg-core/async/session.ts';
 import { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import { pgRawTextOids } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PreparedQueryConfig } from '~/pg-core/session.ts';
@@ -14,7 +15,16 @@ import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
-const { Pool } = pg;
+const { Pool, types } = pg;
+
+const rawText = (value: string) => value;
+
+export const nodePgRawTextTypes: CustomTypesConfig = {
+	getTypeParser:
+		<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
+			pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format)),
+};
+
 export type NodePgClient = pg.Pool | PoolClient | Client;
 
 export interface NodePgSessionOptions {
@@ -44,7 +54,7 @@ export class NodePgSession<
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
@@ -61,6 +71,7 @@ export class NodePgSession<
 				name: queryName,
 				rowMode: mode === 'arrays' ? 'array' : undefined as any,
 				text: query.sql,
+				types: mapper && mode !== 'call' ? nodePgRawTextTypes : undefined,
 			}, params).then((r) => mode === 'raw' ? r : r.rows);
 		};
 

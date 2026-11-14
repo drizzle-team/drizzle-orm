@@ -7,9 +7,13 @@ import { expect, expectTypeOf } from 'vitest';
 import { tests } from './common';
 import { tests as cacheTests } from './common-cache';
 import { singleStoreTest } from './instrumentation';
+import { floatReplacedSkips, floatReplacedTests } from './unsupported-types';
 
 cacheTests(singleStoreTest);
-tests(singleStoreTest);
+// SingleStore rounds `float` to 6 significant digits in the text protocol the driver uses, with no per-query
+// alternative (a driver quirk): all-types tests are redefined with a `float` value that rounds to itself
+tests(singleStoreTest, floatReplacedSkips);
+floatReplacedTests(singleStoreTest);
 
 singleStoreTest('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as SingleStoreDriverDatabase;

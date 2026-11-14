@@ -15,17 +15,28 @@ import * as MySqlDrizzle from 'drizzle-orm/effect-mysql2';
 import { migrate } from 'drizzle-orm/effect-mysql2/migrator';
 import { getTableConfig, int, mysqlTable, text } from 'drizzle-orm/mysql-core';
 import { Redacted } from 'effect';
+import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import type { ResultSetHeader } from 'mysql2/promise';
 import { expectTypeOf } from 'vitest';
 import { DB, runCommonEffectMySqlTests } from '../effect-common';
+import {
+	allTypesWithReplacementsSkips,
+	allTypesWithReplacementsTests,
+	unpaddedFractionSkips,
+	unpaddedFractionTests,
+} from '../effect-unsupported-types';
 import relations from '../relations';
 import { usersMigratorTable } from '../schema2';
 
+// `@effect/sql-mysql2` decodes temporal values to `Date`s in the connection's time zone and accepts no per-query type
+// casts: its codecs require the client to return them as strings (`dateStrings`), mysql2 reads it from the url
+const withDateStrings = (url: string) => `${url}${url.includes('?') ? '&' : '?'}dateStrings=true`;
+
 const MySqlClientLive = MysqlClient.layer({
-	url: Redacted.make(requireEnv('MYSQL_CONNECTION_STRING')),
+	url: Redacted.make(withDateStrings(requireEnv('MYSQL_CONNECTION_STRING'))),
 });
 
 const dbEffect = MySqlDrizzle.make({ relations }).pipe(Effect.provide(MySqlDrizzle.DefaultServices));
@@ -51,7 +62,7 @@ const onDatabase = <A, E, R>(
 	MySqlDrizzle.make({ relations }).pipe(
 		Effect.flatMap(use),
 		Effect.provide(MySqlDrizzle.DefaultServices),
-		Effect.provide(MysqlClient.layer({ url: Redacted.make(connectionStringFor(database)) })),
+		Effect.provide(MysqlClient.layer({ url: Redacted.make(withDateStrings(connectionStringFor(database))) })),
 	);
 
 const createDB = <
@@ -75,7 +86,31 @@ runCommonEffectMySqlTests({
 	testLayer: TestLive,
 	MySqlDrizzle: MySqlDrizzle,
 	createDB,
+	// the binary protocol drops zero fractional digits of temporal text, tests holding such values are redefined below
+	skipTests: [...allTypesWithReplacementsSkips, ...unpaddedFractionSkips],
 	addTests: (it) => {
+		unpaddedFractionTests(it, createDB);
+
+		it.effect('rejects pool options that lose data', () =>
+			Effect.gen(function*() {
+				const url = process.env['MYSQL_CONNECTION_STRING']!;
+				const make = (layer: ReturnType<typeof MysqlClient.layer>) =>
+					Effect.exit(MySqlDrizzle.make().pipe(Effect.provide(MySqlDrizzle.DefaultServices), Effect.provide(layer)));
+
+				const withoutDateStrings = yield* make(MysqlClient.layer({ url: Redacted.make(url) }));
+				expect(String(Cause.squash((withoutDateStrings as any).cause))).toContain('dateStrings: true');
+
+				const decimalNumbers = yield* make(
+					MysqlClient.layer({ url: Redacted.make(`${withDateStrings(url)}&decimalNumbers=true`) }),
+				);
+				expect(String(Cause.squash((decimalNumbers as any).cause))).toContain('decimalNumbers: true');
+
+				const lossless = yield* make(MysqlClient.layer({ url: Redacted.make(withDateStrings(url)) }));
+				expect(lossless._tag).toStrictEqual('Success');
+			}));
+		// nested relations are decoded from JSON, whose temporal text keeps the column's fractional digits
+		allTypesWithReplacementsTests(it, createDB, { time: '04:13:22.12' }, {});
+
 		it.effect(
 			'raw db.execute type matches returned data',
 			() =>
@@ -116,7 +151,7 @@ runCommonEffectMySqlTests({
 				}).pipe(
 					Effect.provide(MySqlDrizzle.DefaultServices),
 					Effect.provide(MysqlClient.layer({
-						url: Redacted.make(process.env['MYSQL_CONNECTION_STRING']!),
+						url: Redacted.make(withDateStrings(process.env['MYSQL_CONNECTION_STRING']!)),
 						disablePreparedStatements: true,
 					})),
 				),

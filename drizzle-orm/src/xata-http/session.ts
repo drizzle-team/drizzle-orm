@@ -49,7 +49,7 @@ export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSes
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
@@ -57,7 +57,7 @@ export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSes
 	) {
 		const executor = async (params?: unknown[]) => {
 			if (mode === 'raw') return this.client.sql<Record<string, any>>({ statement: query.sql, params });
-			if (mode === 'objects') {
+			if (mode === 'objects' || mode === 'call') {
 				return this.client.sql<Record<string, any>>({
 					statement: query.sql,
 					params,

@@ -18,7 +18,6 @@ export interface SQLiteDeleteConfig {
 	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	useSelectionCastCodecs?: boolean;
 }
 
 export interface SQLiteDeleteHKTBase {
@@ -271,14 +270,12 @@ export class SQLiteDeleteBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildDeleteQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	$dynamic(): SQLiteDeleteDynamic<this> {

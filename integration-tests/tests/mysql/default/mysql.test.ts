@@ -9,14 +9,18 @@ import { createPool as createCallbackPool } from 'mysql2';
 import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
 import { createConnection, createPool } from 'mysql2/promise';
 import { describe, expect, expectTypeOf } from 'vitest';
-import { allTypesData, makeAllTypes } from '../all-types';
+import { allTypesDataWith, makeAllTypes } from '../all-types';
 import { mysqlTest as test } from '../instrumentation';
 import { tests } from '../mysql-common';
 import { runTests } from '../mysql-common-cache';
 import { usersMigratorTable } from '../schema2';
+import { allTypesWithReplacementsSkips, allTypesWithReplacementsTests } from '../unsupported-types';
 
 runTests('mysql', test);
-tests(test);
+// MySQL rounds `float` to 6 significant digits in the text protocol the driver uses, with no per-query alternative
+// (a driver quirk): all-types tests are redefined with a `float` value that rounds to itself
+tests(test, new Set(allTypesWithReplacementsSkips));
+allTypesWithReplacementsTests(test, { float: 1.0486 });
 
 test('all types - client with custom type options', async ({ push, client: { database } }) => {
 	const client = createPool({
@@ -29,6 +33,7 @@ test('all types - client with custom type options', async ({ push, client: { dat
 	const db = drizzle({ client });
 
 	const table = makeAllTypes('all_types_client_options');
+	const allTypesData = allTypesDataWith({ float: 1.0486 });
 	await push({ table });
 
 	const originalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;

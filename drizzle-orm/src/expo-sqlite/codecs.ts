@@ -1,11 +1,16 @@
 import {
+	bigintFromBlob,
 	booleanFromInteger,
 	bufferFromBinaryIfAvailable,
-	castToText,
 	dateFromStoredMilliseconds,
 	dateFromStoredSeconds,
+	jsonFromBlob,
+	numericBigintFromValue,
+	numericTextFromValue,
 	refineSqliteCodecs,
 } from '~/sqlite-core/codecs.ts';
+
+const driver = 'expo-sqlite';
 
 export const expoSQLiteCodecs = refineSqliteCodecs({
 	integer: {
@@ -27,22 +32,18 @@ export const expoSQLiteCodecs = refineSqliteCodecs({
 		normalize: bufferFromBinaryIfAvailable,
 	},
 	'blob:json': {
-		cast: castToText,
-		normalize: JSON.parse,
+		normalize: jsonFromBlob,
 	},
 	'blob:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: bigintFromBlob,
 	},
 	numeric: {
-		cast: castToText,
-		normalize: String,
+		normalize: numericTextFromValue(driver),
 	},
 	'numeric:number': {
 		normalize: Number,
 	},
 	'numeric:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: numericBigintFromValue(driver),
 	},
 });

@@ -1,6 +1,6 @@
-import type { Column } from 'drizzle-orm';
+import type { Column, SQL } from 'drizzle-orm';
 import type { CodecsCollection } from 'drizzle-orm/codecs';
-import type { SQLiteAsyncDatabase, SQLiteDialect } from 'drizzle-orm/sqlite-core';
+import type { SQLiteAsyncDatabase, SQLiteDialect, SQLiteSession } from 'drizzle-orm/sqlite-core';
 
 export function normalizeDataWithDbCodecs(
 	cfg: {
@@ -33,4 +33,21 @@ export function normalizeDataWithDbCodecs(
 	}
 
 	return res;
+}
+
+/**
+ * Raw rows of a query fetched the way drizzle fetches the queries it decodes (with a mapper): clients reading integers
+ * as bigints per statement do so only for such queries
+ */
+export function fetchDecodedQueryRows<T = Record<string, unknown>>(
+	db: SQLiteAsyncDatabase<any, any, any>,
+	query: SQL,
+): Promise<T[]> {
+	const { session, dialect } = db as unknown as {
+		session: SQLiteSession<any, any>;
+		dialect: SQLiteDialect;
+	};
+	return Promise.resolve(
+		(<any> session).prepareQuery(dialect.sqlToQuery(query), 'objects', false, 'all', (rows: T[]) => rows).all(),
+	);
 }

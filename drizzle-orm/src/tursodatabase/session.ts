@@ -54,33 +54,39 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<T & { run: TursoDatabaseRunResult }> {
 		let stmt: StatementPromise;
+
+		const prepareStatement = async () => {
+			const statement = await this.client.prepare(query.sql);
+			if (mapper) statement.safeIntegers(true);
+			return statement;
+		};
 		const executors: SQLiteQueryExecutors<'async'> = prepare
 			? {
 				all: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
+					stmt ??= await prepareStatement();
 					return stmt.raw(mode === 'arrays').all(...params);
 				},
 				get: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
+					stmt ??= await prepareStatement();
 					return stmt.raw(mode === 'arrays').get(...params);
 				},
 				run: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
+					stmt ??= await prepareStatement();
 					return stmt.run(...params);
 				},
 			}
 			: {
 				all: async (params) => {
-					if (stmt || mode === 'arrays') {
-						stmt ??= await this.client.prepare(query.sql);
+					if (stmt || mode === 'arrays' || mapper) {
+						stmt ??= await prepareStatement();
 						return stmt.raw(mode === 'arrays').all(...params);
 					}
 
 					return this.client.all(query.sql, ...params);
 				},
 				get: async (params) => {
-					if (stmt || mode === 'arrays') {
-						stmt ??= await this.client.prepare(query.sql);
+					if (stmt || mode === 'arrays' || mapper) {
+						stmt ??= await prepareStatement();
 						return stmt.raw(mode === 'arrays').get(...params);
 					}
 

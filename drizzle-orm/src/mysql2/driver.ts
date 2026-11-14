@@ -77,6 +77,10 @@ function isCallbackClient(client: any): client is CallbackClient {
 
 export type AnyMySql2Connection = Pool | Connection | CallbackPool | CallbackConnection;
 
+/**
+ * Driver quirks:
+ * - `float` values are rounded to 6 significant digits by MySQL's text protocol
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AnyMySql2Connection = Pool,

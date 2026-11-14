@@ -87,7 +87,6 @@ export interface MySqlSelectConfig {
 	forceIndex?: string[];
 	ignoreIndex?: string[];
 	comment?: SQL;
-	useSelectionCastCodecs?: boolean;
 }
 
 export type MySqlJoin<

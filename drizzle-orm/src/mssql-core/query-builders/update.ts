@@ -28,7 +28,6 @@ export interface MsSqlUpdateConfig {
 		inserted?: SelectedFieldsOrdered;
 		deleted?: SelectedFieldsOrdered;
 	};
-	useSelectionCastCodecs?: boolean;
 }
 
 export type MsSqlUpdateSetSource<TTable extends MsSqlTable> =
@@ -297,14 +296,12 @@ export class MsSqlUpdateBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildUpdateQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	prepare(): MsSqlUpdatePrepare<this> {
@@ -312,7 +309,7 @@ export class MsSqlUpdateBase<
 		const fields = output.length ? output : undefined;
 
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL(true)),
+			this.dialect.sqlToQuery(this.getSQL()),
 			fields ? 'arrays' : 'raw',
 			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 		) as MsSqlUpdatePrepare<this>;

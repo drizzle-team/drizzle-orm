@@ -51,7 +51,6 @@ export interface CockroachDeleteConfig {
 	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	useSelectionCastCodecs?: boolean;
 }
 
 export type CockroachDeleteReturningAll<
@@ -238,21 +237,19 @@ export class CockroachDeleteBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildDeleteQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): CockroachDeletePrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { returning: fields } = this.config;
-			const query = this.dialect.sqlToQuery(this.getSQL(true));
+			const query = this.dialect.sqlToQuery(this.getSQL());
 
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {

@@ -17,6 +17,10 @@ export class DrizzleSqliteDODatabase<TRelations extends AnyRelations = EmptyRela
 	declare readonly session: SQLiteDOSession<TRelations>;
 }
 
+/**
+ * Driver quirks:
+ * - Integers past the safe integer range are read as numbers: `numeric` columns throw on them
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends DurableObjectStorage = DurableObjectStorage,

@@ -23,7 +23,6 @@ export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	returning?: SelectedFieldsOrdered;
 	select?: boolean;
 	columnList?: string[];
-	useSelectionCastCodecs?: boolean;
 }
 
 export type SQLiteInsertValue<
@@ -521,14 +520,12 @@ export class SQLiteInsertBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildInsertQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	$dynamic(): SQLiteInsertDynamic<this> {

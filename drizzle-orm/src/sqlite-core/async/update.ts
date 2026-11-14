@@ -122,7 +122,7 @@ export class SQLiteAsyncUpdateBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteAsyncUpdatePrepare<this> {
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL(true)),
+			this.dialect.sqlToQuery(this.getSQL()),
 			'arrays',
 			prepare,
 			this.config.returning ? 'all' : 'run',
