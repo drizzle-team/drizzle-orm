@@ -63,6 +63,7 @@ export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private mapSelect?: (identifier: SQL) => SQL;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
@@ -72,10 +73,16 @@ export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.mapSelect = config.customTypeParams.selectFromDb;
 	}
 
 	getSQLType(): string {
 		return this.sqlName;
+	}
+
+	/** @internal */
+	getSelectSQL(identifier: SQL): SQL | undefined {
+		return typeof this.mapSelect === 'function' ? this.mapSelect(identifier) : undefined;
 	}
 
 	override mapFromDriverValue(value: T['driverParam']): T['data'] {
@@ -195,6 +202,26 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional selection function, that wraps the column reference in every `select` and `returning`
+	 * clause, for types that cannot be read in their on-disk representation
+	 *
+	 * The received `identifier` is the already qualified column reference, so it is safe to use in
+	 * joins as well. Return the wrapping expression only - the alias is added by the dialect, which
+	 * keeps the selected field name equal to the column name.
+	 *
+	 * `fromDriver` is still applied to the returned value, so there is no need to decode here.
+	 *
+	 * @example
+	 * For example, PostGIS `geometry` has to be read as text
+	 * ```
+	 * selectFromDb(identifier) {
+	 * 	return sql`st_astext(${identifier})`;
+	 * },
+	 * ```
+	 */
+	selectFromDb?: (identifier: SQL) => SQL;
 }
 
 /**
