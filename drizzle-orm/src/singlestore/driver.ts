@@ -24,6 +24,7 @@ import { SingleStoreDriverSession } from './session.ts';
 export interface SingleStoreDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (err: import('~/errors.ts').DrizzleQueryError) => void;
 }
 
 export class SingleStoreDriverDriver {
@@ -42,6 +43,7 @@ export class SingleStoreDriverDriver {
 		return new SingleStoreDriverSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			onError: this.options.onError,
 		});
 	}
 }
@@ -93,6 +95,7 @@ function construct<
 	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, {
 		logger,
 		cache: config.cache,
+		onError: config.onError,
 	});
 	const session = driver.createSession(schema);
 	const db = new SingleStoreDriverDatabase(dialect, session, schema as any) as SingleStoreDriverDatabase<TSchema>;

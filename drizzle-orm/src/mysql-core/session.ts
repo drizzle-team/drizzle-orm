@@ -56,6 +56,7 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 		} | undefined,
 		// config that was passed through $withCache
 		private cacheConfig?: WithCacheConfig,
+		private onError?: (err: DrizzleQueryError) => void,
 	) {
 		// it means that no $withCache options were passed and it should be just enabled
 		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
@@ -76,7 +77,9 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				const error = new DrizzleQueryError(queryString, params, e as Error);
+				if (this.onError) this.onError(error);
+				throw error;
 			}
 		}
 
@@ -85,7 +88,9 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				const error = new DrizzleQueryError(queryString, params, e as Error);
+				if (this.onError) this.onError(error);
+				throw error;
 			}
 		}
 
@@ -103,7 +108,9 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 				]);
 				return res;
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				const error = new DrizzleQueryError(queryString, params, e as Error);
+				if (this.onError) this.onError(error);
+				throw error;
 			}
 		}
 
@@ -112,7 +119,9 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				const error = new DrizzleQueryError(queryString, params, e as Error);
+				if (this.onError) this.onError(error);
+				throw error;
 			}
 		}
 
@@ -128,7 +137,9 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 				try {
 					result = await query();
 				} catch (e) {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+					const error = new DrizzleQueryError(queryString, params, e as Error);
+					if (this.onError) this.onError(error);
+					throw error;
 				}
 
 				// put actual key
@@ -149,7 +160,9 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 		try {
 			return await query();
 		} catch (e) {
-			throw new DrizzleQueryError(queryString, params, e as Error);
+			const error = new DrizzleQueryError(queryString, params, e as Error);
+			if (this.onError) this.onError(error);
+			throw error;
 		}
 	}
 

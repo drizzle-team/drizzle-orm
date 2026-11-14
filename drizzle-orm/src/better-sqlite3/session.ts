@@ -21,6 +21,7 @@ import { mapResultRow } from '~/utils.ts';
 export interface BetterSQLiteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (err: import('~/errors.ts').DrizzleQueryError) => void;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -33,6 +34,7 @@ export class BetterSQLiteSession<
 
 	private logger: Logger;
 	private cache: Cache;
+	private onError?: (err: import('~/errors.ts').DrizzleQueryError) => void;
 
 	constructor(
 		private client: Database,
@@ -43,6 +45,7 @@ export class BetterSQLiteSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -69,6 +72,7 @@ export class BetterSQLiteSession<
 			executeMethod,
 			isResponseInArrayMode,
 			customResultMapper,
+			this.onError,
 		);
 	}
 
@@ -122,8 +126,9 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => unknown,
+		onError?: (err: import('~/errors.ts').DrizzleQueryError) => void,
 	) {
-		super('sync', executeMethod, query, cache, queryMetadata, cacheConfig);
+		super('sync', executeMethod, query, cache, queryMetadata, cacheConfig, onError);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): RunResult {
