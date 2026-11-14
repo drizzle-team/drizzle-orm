@@ -2,6 +2,7 @@ import type { Database, RunResult, Statement } from 'better-sqlite3';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import { DrizzleQueryError, mapSQLiteConstraintError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -126,10 +127,24 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		super('sync', executeMethod, query, cache, queryMetadata, cacheConfig);
 	}
 
+	/** Wraps raw driver errors in `DrizzleQueryError`, mapping constraint violations to typed errors */
+	private mapError(error: unknown): Error {
+		if (error instanceof DrizzleQueryError) return error;
+		return new DrizzleQueryError(
+			this.query.sql,
+			this.query.params,
+			mapSQLiteConstraintError(error) ?? (error as Error),
+		);
+	}
+
 	run(placeholderValues?: Record<string, unknown>): RunResult {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return this.stmt.run(...params);
+		try {
+			return this.stmt.run(...params);
+		} catch (e) {
+			throw this.mapError(e);
+		}
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
@@ -137,7 +152,11 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
 			logger.logQuery(query.sql, params);
-			return stmt.all(...params);
+			try {
+				return stmt.all(...params);
+			} catch (e) {
+				throw this.mapError(e);
+			}
 		}
 
 		const rows = this.values(placeholderValues) as unknown[][];
@@ -153,26 +172,38 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 
 		const { fields, stmt, joinsNotNullableMap, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
-			return stmt.get(...params);
+			try {
+				return stmt.get(...params);
+			} catch (e) {
+				throw this.mapError(e);
+			}
 		}
 
-		const row = stmt.raw().get(...params) as unknown[];
+		try {
+			const row = stmt.raw().get(...params) as unknown[];
 
-		if (!row) {
-			return undefined;
+			if (!row) {
+				return undefined;
+			}
+
+			if (customResultMapper) {
+				return customResultMapper([row]) as T['get'];
+			}
+
+			return mapResultRow(fields!, row, joinsNotNullableMap);
+		} catch (e) {
+			throw this.mapError(e);
 		}
-
-		if (customResultMapper) {
-			return customResultMapper([row]) as T['get'];
-		}
-
-		return mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return this.stmt.raw().all(...params) as T['values'];
+		try {
+			return this.stmt.raw().all(...params) as T['values'];
+		} catch (e) {
+			throw this.mapError(e);
+		}
 	}
 
 	/** @internal */
