@@ -18,7 +18,8 @@ export function mapResultRow<TResult>(
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
 	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
-	const nullifyMap: Record<string, string | false> = {};
+	// New format: { tableName: string, hasNonNullValue: boolean } | string | false
+	const nullifyMap: Record<string, { tableName: string; hasNonNullValue: boolean } | string | false> = {};
 
 	const result = columns.reduce<Record<string, any>>(
 		(result, { path, field }, columnIndex) => {
@@ -45,11 +46,24 @@ export function mapResultRow<TResult>(
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
+						const tableName = getTableName(field.table);
+						
+						// Initialize tracking for this object if not exists
 						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
+							// Track all columns in this nested object
+							nullifyMap[objectName] = {
+								tableName,
+								hasNonNullValue: value !== null,
+							};
+						} else if (typeof nullifyMap[objectName] === 'object' && nullifyMap[objectName] !== null) {
+							// Update if we find any non-null value
+							if (value !== null) {
+								nullifyMap[objectName].hasNonNullValue = true;
+							}
 						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
+							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== tableName
 						) {
+							// Legacy: different table with same object name
 							nullifyMap[objectName] = false;
 						}
 					}
@@ -62,8 +76,15 @@ export function mapResultRow<TResult>(
 
 	// Nullify all nested objects from nullifyMap that are nullable
 	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
-		for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-			if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
+		for (const [objectName, tracking] of Object.entries(nullifyMap)) {
+			// Handle new object tracking format
+			if (typeof tracking === 'object' && tracking !== null && 'hasNonNullValue' in tracking) {
+				// Only nullify if ALL values were null AND the join is nullable
+				if (!tracking.hasNonNullValue && !joinsNotNullableMap[tracking.tableName]) {
+					result[objectName] = null;
+				}
+			} else if (typeof tracking === 'string' && !joinsNotNullableMap[tracking]) {
+				// Legacy format handling
 				result[objectName] = null;
 			}
 		}
