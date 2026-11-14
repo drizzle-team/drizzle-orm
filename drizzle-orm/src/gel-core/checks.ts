@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/index.ts';
-import type { GelTable } from './table.ts';
+import type { GelTable } from './table-common.ts';
 
 export class CheckBuilder {
 	static readonly [entityKind]: string = 'GelCheckBuilder';

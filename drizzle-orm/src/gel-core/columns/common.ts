@@ -15,7 +15,7 @@ import type { Simplify, Update } from '~/utils.ts';
 
 import type { ForeignKey, UpdateDeleteAction } from '~/gel-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/gel-core/foreign-keys.ts';
-import type { AnyGelTable, GelTable } from '~/gel-core/table.ts';
+import type { AnyGelTable, GelTable } from '~/gel-core/table-common.ts';
 import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
 import type { GelIndexOpClass } from '../indexes.ts';

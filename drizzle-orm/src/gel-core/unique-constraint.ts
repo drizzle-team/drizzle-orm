@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import { TableName } from '~/table.utils.ts';
-import type { GelColumn } from './columns/index.ts';
-import type { GelTable } from './table.ts';
+import type { GelColumn } from './columns/common.ts';
+import type { GelTable } from './table-common.ts';
 
 export function unique(name?: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);

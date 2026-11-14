@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { GelRole } from './roles.ts';
-import type { GelTable } from './table.ts';
+import type { GelTable } from './table-common.ts';
 
 export type GelPolicyToOption =
 	| 'public'
