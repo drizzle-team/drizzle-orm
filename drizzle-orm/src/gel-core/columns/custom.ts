@@ -63,6 +63,7 @@ export class GelCustomColumn<T extends ColumnBaseConfig<'custom', 'GelCustomColu
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private mapSelect?: (columnRef: SQL) => SQL;
 
 	constructor(
 		table: AnyGelTable<{ name: T['tableName'] }>,
@@ -72,10 +73,16 @@ export class GelCustomColumn<T extends ColumnBaseConfig<'custom', 'GelCustomColu
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.mapSelect = config.customTypeParams.selectFromDb;
 	}
 
 	getSQLType(): string {
 		return this.sqlName;
+	}
+
+	/** @internal */
+	sqlForSelect(columnRef: SQL): SQL | undefined {
+		return this.mapSelect?.(columnRef);
 	}
 
 	override mapFromDriverValue(value: T['driverParam']): T['data'] {
@@ -195,6 +202,14 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional SQL transform applied whenever this custom column is selected.
+	 * The provided reference is already qualified for the current query context.
+	 * Return the expression only; Drizzle aliases it back to the column name and
+	 * continues to decode the result with `fromDriver`.
+	 */
+	selectFromDb?: (columnRef: SQL) => SQL;
 }
 
 /**
