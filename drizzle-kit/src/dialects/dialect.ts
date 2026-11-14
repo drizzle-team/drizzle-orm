@@ -158,7 +158,7 @@ export function isEqual(a: any, b: any): boolean {
 	return false;
 }
 
-function matches(row: Row, where: Row): boolean {
+export function matches(row: Row, where: Row): boolean {
 	for (const [k, v] of Object.entries(where)) {
 		if (v === undefined) continue;
 		if (v && typeof v === 'object' && (v as any).CONTAINS !== undefined) {
