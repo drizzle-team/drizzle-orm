@@ -5,7 +5,6 @@ import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~
 import type { PgTable } from '~/pg-core/table.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import type { Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
@@ -88,30 +87,8 @@ export class PgEffectInsertBase<
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
-	_prepare(name?: string, generateName = false): PgInsertPrepare<this, TEffectHKT> {
-		const { session, config, dialect } = this;
-		const { returning: fields } = config;
-
-		const shape = fields
-			? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, undefined)
-			: undefined;
-
-		const query = dialect.sqlToQuery(this.getSQL(true));
-		const mapper = shape || !fields
-			? undefined
-			: dialect.mapperGenerators.rows(fields, undefined);
-
-		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
-			query,
-			shape ? 'objects' : fields ? 'arrays' : 'raw',
-			name ?? generateName,
-			mapper,
-			{ type: 'insert', tables: () => usedTablesOf(this.config.table) },
-			undefined,
-			shape,
-		);
-
-		return preparedQuery;
+	override _prepare(name?: string, generateName = false): PgInsertPrepare<this, TEffectHKT> {
+		return super._prepare(name, generateName) as PgInsertPrepare<this, TEffectHKT>;
 	}
 
 	prepare(name?: string): PgInsertPrepare<this, TEffectHKT> {

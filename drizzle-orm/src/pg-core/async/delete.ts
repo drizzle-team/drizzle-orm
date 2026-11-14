@@ -6,7 +6,6 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
@@ -73,32 +72,8 @@ export class PgAsyncDeleteBase<
 	declare protected session: PgAsyncSession;
 
 	/** @internal */
-	_prepare(name?: string, generateName = false): PgAsyncDeletePrepare<this> {
-		const { session, config, dialect } = this;
-		const { returning: fields } = config;
-
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const shape = fields
-				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, undefined)
-				: undefined;
-
-			const query = dialect.sqlToQuery(this.getSQL(true));
-			const mapper = shape || !fields
-				? undefined
-				: this.dialect.mapperGenerators.rows(fields, undefined);
-
-			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
-				query,
-				shape ? 'objects' : fields ? 'arrays' : 'raw',
-				name ?? generateName,
-				mapper,
-				{ type: 'delete', tables: () => usedTablesOf(this.config.table) },
-				undefined,
-				shape,
-			);
-
-			return preparedQuery;
-		});
+	override _prepare(name?: string, generateName = false): PgAsyncDeletePrepare<this> {
+		return super._prepare(name, generateName) as PgAsyncDeletePrepare<this>;
 	}
 
 	prepare(name?: string): PgAsyncDeletePrepare<this> {

@@ -1,4 +1,5 @@
-import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
+import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import { cachedQuery, type CacheOps } from '~/cache/core/flow.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { is } from '~/entity.ts';
@@ -6,12 +7,12 @@ import { TransactionRollbackError } from '~/errors.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { run } from '~/runtime/async.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { hasTelemetry, tracer } from '~/tracing.ts';
-import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
-import { assertUnreachable } from '~/utils.ts';
+import { migrate as migrateProgram } from '~/up-migrations/pg-program.ts';
+import { pgMigrationRunner } from '~/up-migrations/pg.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '../session.ts';
 import { PgBasePreparedQuery, PgSession } from '../session.ts';
@@ -148,63 +149,32 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 		});
 	}
 
-	/** @internal */
-	protected async queryWithCache<T>(
+	/**
+	 * Runs the shared cache flow (`cachedQuery`) with Promises. A failed query, and a failed invalidation after a
+	 * mutation, reject with a `DrizzleQueryError`; a failed cache read or write rejects with the cache's own error
+	 *
+	 * @internal
+	 */
+	protected queryWithCache<T>(
 		queryString: string,
 		params: any[],
 		query: () => Promise<T>,
 	): Promise<T> {
-		const cacheStrat = this.cache !== undefined && !is(this.cache, NoopCache)
-			? await strategyFor(queryString, params, this.queryMetadata, this.cacheConfig)
-			: { type: 'skip' as const };
-
-		if (cacheStrat.type === 'skip') {
-			return query().catch((e) => {
-				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-			});
-		}
-
-		const cache = this.cache!;
-
-		if (cacheStrat.type === 'invalidate') {
-			return query().then(async (res) => {
-				await cache.onMutate({ tables: cacheStrat.tables });
-				return res;
-			}).catch((e) => {
-				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-			});
-		}
-
-		if (cacheStrat.type === 'try') {
-			const { tables, key, isTag, autoInvalidate, config } = cacheStrat;
-			const fromCache = await cache.get(
-				key,
-				tables,
-				isTag,
-				autoInvalidate,
-			);
-
-			if (fromCache === undefined) {
-				const result = await query().catch((e) => {
-					throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-				});
-				// put actual key
-				await cache.put(
-					key,
-					result,
-					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
-					autoInvalidate ? tables : [],
-					isTag,
-					config,
-				);
-				// put flag if we should invalidate or not
-				return result;
+		const asQueryError = (e: unknown): never => {
+			throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
+		};
+		const { cache } = this;
+		const ops: CacheOps | undefined = cache !== undefined && !is(cache, NoopCache)
+			? {
+				get: (key, tables, isTag, isAutoInvalidate) => cache.get(key, tables, isTag, isAutoInvalidate),
+				put: (key, response, tables, isTag, config) => cache.put(key, response, tables, isTag, config),
+				onMutate: (mutation) => cache.onMutate(mutation).catch(asQueryError),
 			}
+			: undefined;
 
-			return fromCache as unknown as T;
-		}
-
-		assertUnreachable(cacheStrat);
+		return run(
+			cachedQuery<T>(ops, queryString, params, this.queryMetadata, this.cacheConfig, () => query().catch(asQueryError)),
+		);
 	}
 }
 
@@ -337,74 +307,11 @@ export abstract class PgAsyncTransaction<
 	): Promise<T>;
 }
 
-export async function migrate(
+/** Runs the shared Postgres migrator (`up-migrations/pg-program.ts`) with Promises */
+export function migrate(
 	migrations: MigrationMeta[],
 	db: PgAsyncDatabase<PgQueryResultHKT, any>,
 	config: string | MigrationConfig,
 ): Promise<void | MigratorInitFailResponse> {
-	const migrationsTable = typeof config === 'string'
-		? '__drizzle_migrations'
-		: config.migrationsTable ?? '__drizzle_migrations';
-	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
-
-	await db.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
-
-	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, db, migrations);
-
-	// Create table with latest schema (version 1) if this is a new database
-	if (newDb) {
-		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash text NOT NULL,
-				created_at bigint,
-				name text,
-				applied_at timestamp with time zone DEFAULT now()
-			)
-		`;
-		await db.execute(migrationTableCreate);
-	}
-
-	const dbMigrations = await db.session.objects<{ id: number; hash: string; created_at: string; name: string }>(
-		sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
-	);
-
-	if (typeof config === 'object' && config.init) {
-		if (dbMigrations.length) {
-			return { exitCode: 'databaseMigrations' as const };
-		}
-
-		if (migrations.length > 1) {
-			return { exitCode: 'localMigrations' as const };
-		}
-
-		const [migration] = migrations;
-
-		if (!migration) return;
-
-		await db.execute(
-			sql`insert into ${sql.identifier(migrationsSchema)}.${
-				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name ?? null})`,
-		);
-
-		return;
-	}
-
-	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
-	await db.transaction(async (tx) => {
-		for (const migration of migrationsToRun) {
-			for (const stmt of migration.sql) {
-				await tx.execute(sql.raw(stmt));
-			}
-			await tx.execute(
-				sql`insert into ${sql.identifier(migrationsSchema)}.${
-					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${
-					migration.name ?? null
-				})`,
-			);
-		}
-	});
+	return run(migrateProgram(migrations, pgMigrationRunner(db), config));
 }

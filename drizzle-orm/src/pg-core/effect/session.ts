@@ -1,20 +1,21 @@
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
-import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
+import type { EffectCacheError, EffectCacheShape } from '~/cache/core/cache-effect.ts';
+import { NoopCache } from '~/cache/core/cache.ts';
+import { cachedQuery } from '~/cache/core/flow.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { MigratorInitError } from '~/effect-core/errors.ts';
 import { EffectDrizzleQueryError, EffectTransactionRollbackError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { fromProgram } from '~/runtime/effect.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { upgradeIfNeeded } from '~/up-migrations/effect-pg.ts';
-import { assertUnreachable } from '~/utils.ts';
+import { pgEffectMigrationRunner } from '~/up-migrations/effect-pg.ts';
+import { migrate as migrateProgram } from '~/up-migrations/pg-program.ts';
 import type { PgDialect } from '../dialect.ts';
 import {
 	PgBasePreparedQuery,
@@ -91,63 +92,22 @@ export class PgEffectPreparedQuery<
 		params: any[],
 		query: Effect.Effect<A, E, R>,
 	) {
-		return Effect.gen({ self: this }, function*() {
-			const { cacheConfig, queryMetadata } = this;
-			const cache = yield* EffectCache;
-			const hasCache = cache && !(cache.cache && is(cache.cache, NoopCache));
+		const { cache, cacheConfig, queryMetadata } = this;
+		const hasCache = cache && !(cache.cache && is(cache.cache, NoopCache));
 
-			if (hasCache && (yield* this.skipCacheLookup)) {
-				const result = yield* query;
-				const tables = queryMetadata && queryMetadata.type !== 'select' ? queryMetadata.tables() : [];
-				if (tables.length > 0) yield* cache.onMutate({ tables });
+		// The shared cache flow (`cachedQuery`), run natively by Effect: the cache's methods and `query` are Effects
+		const flow = fromProgram<A, E | EffectCacheError, R>(() =>
+			cachedQuery<A>(hasCache ? cache : undefined, queryString, params, queryMetadata, cacheConfig, () => query)
+		);
 
-				return result;
-			}
+		const guarded = !hasCache ? flow : Effect.flatMap(this.skipCacheLookup, (skip) => {
+			if (!skip) return flow;
 
-			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !(cache.cache && is(cache.cache, NoopCache))
-				? yield* Effect.tryPromise(
-					() => strategyFor(queryString, params, queryMetadata, cacheConfig),
-				)
-				: { type: 'skip' as const };
+			const tables = queryMetadata && queryMetadata.type !== 'select' ? queryMetadata.tables() : [];
+			return tables.length > 0 ? Effect.tap(query, () => cache.onMutate({ tables })) : query;
+		});
 
-			if (cacheStrat.type === 'skip') {
-				return yield* query;
-			}
-
-			if (cacheStrat.type === 'invalidate') {
-				const result = yield* query;
-				yield* cache!.onMutate({ tables: cacheStrat.tables });
-
-				return result;
-			}
-
-			if (cacheStrat.type === 'try') {
-				const { tables, key, isTag, autoInvalidate, config } = cacheStrat;
-				const fromCache: any[] | undefined = yield* cache!.get(
-					key,
-					tables,
-					isTag,
-					autoInvalidate,
-				);
-
-				if (typeof fromCache !== 'undefined') return fromCache as unknown as A;
-
-				const result = yield* query;
-
-				yield* cache!.put(
-					key,
-					result,
-					autoInvalidate ? tables : [],
-					isTag,
-					config,
-				);
-
-				return result;
-			}
-
-			assertUnreachable(cacheStrat);
-		}).pipe(
-			Effect.provideService(EffectCache, this.cache),
+		return guarded.pipe(
 			Effect.catch((e) => {
 				return Effect.fail(
 					new EffectDrizzleQueryError({
@@ -307,69 +267,13 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 	session: PgEffectSession<TEffectHKT>,
 	config: string | MigrationConfig,
 ) {
-	const migrationsTable = typeof config === 'string'
-		? '__drizzle_migrations'
-		: config.migrationsTable ?? '__drizzle_migrations';
-	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
+	// The shared Postgres migrator (`up-migrations/pg-program.ts`), run natively by Effect. What the async API
+	// returns as an init failure is a typed failure here
+	const initFailure = yield* fromProgram<
+		void | MigratorInitFailResponse,
+		TEffectHKT['error'] | SqlError,
+		TEffectHKT['context']
+	>(() => migrateProgram(migrations, pgEffectMigrationRunner(session), config));
 
-	yield* session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
-
-	const { newDb } = yield* upgradeIfNeeded(migrationsSchema, migrationsTable, session, migrations);
-
-	if (newDb) {
-		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash text NOT NULL,
-				created_at bigint,
-				name text,
-				applied_at timestamp with time zone DEFAULT now()
-			)
-		`;
-
-		yield* session.execute(migrationTableCreate);
-	}
-
-	const dbMigrations = yield* session.objects<{ id: number; hash: string; created_at: string; name: string | null }>(
-		sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
-	);
-
-	if (typeof config === 'object' && config.init) {
-		if (dbMigrations.length) {
-			return yield* new MigratorInitError({ exitCode: 'databaseMigrations' });
-		}
-
-		if (migrations.length > 1) {
-			return yield* new MigratorInitError({ exitCode: 'localMigrations' });
-		}
-
-		const [migration] = migrations;
-
-		if (!migration) return;
-
-		yield* session.execute(
-			sql`insert into ${sql.identifier(migrationsSchema)}.${
-				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-		);
-
-		return;
-	}
-
-	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
-
-	yield* session.transaction((tx) =>
-		Effect.gen(function*() {
-			for (const migration of migrationsToRun) {
-				for (const stmt of migration.sql) {
-					yield* tx.execute(sql.raw(stmt));
-				}
-				yield* tx.execute(
-					sql`insert into ${sql.identifier(migrationsSchema)}.${
-						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-				);
-			}
-		})
-	);
+	if (initFailure) return yield* new MigratorInitError({ exitCode: initFailure.exitCode });
 });

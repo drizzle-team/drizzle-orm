@@ -8,7 +8,7 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { type Assume, resolveNullableObjectPaths } from '~/utils.ts';
+import type { Assume } from '~/utils.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -107,31 +107,8 @@ export class PgEffectSelectBase<
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
-	_prepare(name?: string, generateName = false): PgEffectSelectPrepare<this, TEffectHKT> {
-		const { session, cacheConfig, config, dialect } = this;
-
-		const fieldsList = this._resolveSelection();
-		const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
-		const shape = config.shape ??= dialect.shapeGenerator?.(
-			{ type: 'plain', fields: fieldsList },
-			nullableObjectPaths,
-		);
-
-		const sequel = this.getSQL(true);
-		const query = dialect.sqlToQuery(sequel);
-		const mapper = shape ? undefined : dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths);
-
-		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
-			query,
-			shape ? 'objects' : 'arrays',
-			name ?? generateName,
-			mapper,
-			{ type: 'select', tables: () => this.getUsedTables(sequel) },
-			cacheConfig,
-			shape,
-		);
-
-		return preparedQuery;
+	override _prepare(name?: string, generateName = false): PgEffectSelectPrepare<this, TEffectHKT> {
+		return super._prepare(name, generateName) as PgEffectSelectPrepare<this, TEffectHKT>;
 	}
 
 	/**

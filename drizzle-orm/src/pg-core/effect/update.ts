@@ -7,8 +7,7 @@ import type { JoinNullability } from '~/query-builders/select.types.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { usedTablesOf } from '~/used-tables.ts';
-import { type Assume, resolveNullableObjectPaths } from '~/utils.ts';
+import type { Assume } from '~/utils.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
@@ -116,31 +115,8 @@ export class PgEffectUpdateBase<
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
-	_prepare(name?: string, generateName = false): PgEffectUpdatePrepare<this, TEffectHKT> {
-		const { session, config, dialect, joinsNotNullableMap } = this;
-		const { returning: fields } = config;
-
-		const nullableObjectPaths = fields ? resolveNullableObjectPaths(fields, joinsNotNullableMap) : undefined;
-		const shape = fields
-			? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, nullableObjectPaths)
-			: undefined;
-
-		const query = dialect.sqlToQuery(this.getSQL(true));
-		const mapper = shape || !fields
-			? undefined
-			: dialect.mapperGenerators.rows(fields, nullableObjectPaths);
-
-		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
-			query,
-			shape ? 'objects' : fields ? 'arrays' : 'raw',
-			name ?? generateName,
-			mapper,
-			{ type: 'update', tables: () => usedTablesOf(this.config.table) },
-			undefined,
-			shape,
-		);
-
-		return preparedQuery;
+	override _prepare(name?: string, generateName = false): PgEffectUpdatePrepare<this, TEffectHKT> {
+		return super._prepare(name, generateName) as PgEffectUpdatePrepare<this, TEffectHKT>;
 	}
 
 	prepare(name?: string): PgEffectUpdatePrepare<this, TEffectHKT> {

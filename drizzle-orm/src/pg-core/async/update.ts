@@ -6,9 +6,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { tracer } from '~/tracing.ts';
-import { usedTablesOf } from '~/used-tables.ts';
-import { applyMixins, type Assume, resolveNullableObjectPaths } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
@@ -101,33 +99,8 @@ export class PgAsyncUpdateBase<
 	declare protected session: PgAsyncSession;
 
 	/** @internal */
-	_prepare(name?: string, generateName = false): PgAsyncUpdatePrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap } = this;
-		const { returning: fields } = config;
-
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const nullableObjectPaths = fields ? resolveNullableObjectPaths(fields, joinsNotNullableMap) : undefined;
-			const shape = fields
-				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, nullableObjectPaths)
-				: undefined;
-
-			const query = dialect.sqlToQuery(this.getSQL(true));
-			const mapper = shape || !fields
-				? undefined
-				: this.dialect.mapperGenerators.rows(fields, nullableObjectPaths);
-
-			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
-				query,
-				shape ? 'objects' : fields ? 'arrays' : 'raw',
-				name ?? generateName,
-				mapper,
-				{ type: 'update', tables: () => usedTablesOf(this.config.table) },
-				undefined,
-				shape,
-			);
-
-			return preparedQuery;
-		});
+	override _prepare(name?: string, generateName = false): PgAsyncUpdatePrepare<this> {
+		return super._prepare(name, generateName) as PgAsyncUpdatePrepare<this>;
 	}
 
 	prepare(name?: string): PgAsyncUpdatePrepare<this> {

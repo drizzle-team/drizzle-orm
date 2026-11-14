@@ -6,7 +6,6 @@ import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import type { Assume } from '~/utils.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
@@ -93,30 +92,8 @@ export class PgEffectDeleteBase<
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
-	_prepare(name?: string, generateName = false): PgEffectDeletePrepare<this, TEffectHKT> {
-		const { session, config, dialect } = this;
-		const { returning: fields } = config;
-
-		const shape = fields
-			? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, undefined)
-			: undefined;
-
-		const query = dialect.sqlToQuery(this.getSQL(true));
-		const mapper = shape || !fields
-			? undefined
-			: dialect.mapperGenerators.rows(fields, undefined);
-
-		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
-			query,
-			shape ? 'objects' : fields ? 'arrays' : 'raw',
-			name ?? generateName,
-			mapper,
-			{ type: 'delete', tables: () => usedTablesOf(this.config.table) },
-			undefined,
-			shape,
-		);
-
-		return preparedQuery;
+	override _prepare(name?: string, generateName = false): PgEffectDeletePrepare<this, TEffectHKT> {
+		return super._prepare(name, generateName) as PgEffectDeletePrepare<this, TEffectHKT>;
 	}
 
 	prepare(name?: string): PgEffectDeletePrepare<this, TEffectHKT> {
