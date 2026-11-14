@@ -1,5 +1,12 @@
 import type { TSESTree } from '@typescript-eslint/utils';
 
+const getPropertyName = (node: TSESTree.MemberExpression) => {
+	if (node.computed) {
+		return undefined;
+	}
+	return node.property.type === 'PrivateIdentifier' ? `#${node.property.name}` : node.property.name;
+};
+
 export const resolveMemberExpressionPath = (node: TSESTree.MemberExpression) => {
 	let objectExpression = node.object;
 	let fullName = '';
@@ -11,16 +18,18 @@ export const resolveMemberExpressionPath = (node: TSESTree.MemberExpression) => 
 
 	while (objectExpression) {
 		if (objectExpression.type === 'MemberExpression') {
-			if (objectExpression.property.type === 'Identifier') {
-				addToFullName(objectExpression.property.name);
+			const propertyName = getPropertyName(objectExpression);
+			if (propertyName) {
+				addToFullName(propertyName);
 			}
 			objectExpression = objectExpression.object;
 		} else if (objectExpression.type === 'CallExpression' && objectExpression.callee.type === 'Identifier') {
 			addToFullName(`${objectExpression.callee.name}(...)`);
 			break;
 		} else if (objectExpression.type === 'CallExpression' && objectExpression.callee.type === 'MemberExpression') {
-			if (objectExpression.callee.property.type === 'Identifier') {
-				addToFullName(`${objectExpression.callee.property.name}(...)`);
+			const propertyName = getPropertyName(objectExpression.callee);
+			if (propertyName) {
+				addToFullName(`${propertyName}(...)`);
 			}
 			objectExpression = objectExpression.callee.object;
 		} else if (objectExpression.type === 'Identifier') {
