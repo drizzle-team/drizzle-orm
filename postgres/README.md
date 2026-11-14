@@ -147,8 +147,10 @@ PGlite is one Postgres backend with one session, and the entry adapts to that:
 ## Effect
 
 `@drizzle-team/postgres/effect` implements Effect's `SqlClient` on top of the Drizzle Postgres pool, and its layers
-include the transport of each runtime. See [src/effect/README.md](src/effect/README.md) for
-setup, runtimes and examples.
+include the transport of each runtime. `/effect/neon-ws` and `/effect/pglite` provide the same client over Neon's
+WebSocket proxy and PGlite, `/effect/aurora` is a `SqlClient` over the Aurora Data API, and `/effect/http` and
+`/effect/neon-http` run statements and one-request transactions over HTTP. See
+[src/effect/README.md](src/effect/README.md) for setup, runtimes and examples.
 
 ## Kysely
 

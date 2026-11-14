@@ -67,10 +67,10 @@ export class EffectPostgresDatabase<TRelations extends AnyRelations = EmptyRelat
 	 * yield* db.bulkInsert(users, [{ name: 'John' }, { name: 'Jane' }]);
 	 * ```
 	 */
-	bulkInsert<TTable extends PgTable>(
+	bulkInsert<TTable extends PgTable, R = never>(
 		table: TTable,
 		rows: readonly PostgresBulkInsertValue<TTable>[],
-		options?: EffectPostgresBulkInsertOptions,
+		options?: EffectPostgresBulkInsertOptions<R>,
 	) {
 		return this.session.bulkInsert(table, rows, options);
 	}
@@ -95,10 +95,11 @@ export class EffectPostgresDatabase<TRelations extends AnyRelations = EmptyRelat
 				TTable['_']['columns'][keyof TTable['_']['columns']],
 				...TTable['_']['columns'][keyof TTable['_']['columns']][],
 			],
+		R = never,
 	>(
 		table: TTable,
 		rows: readonly PostgresBulkUpdateValue<TTable, TBy>[],
-		options: EffectPostgresBulkUpdateOptions<TBy>,
+		options: EffectPostgresBulkUpdateOptions<TBy, R>,
 	) {
 		return this.session.bulkUpdate(table, rows, options);
 	}

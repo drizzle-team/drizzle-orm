@@ -1,42 +1,35 @@
 // Effect's SqlClient contract implemented over the Drizzle Postgres pool and connections. This part is the same
 // for every entry point; core-client.ts and the runtime client modules add make, layer and layerConfig.
 import * as Arr from 'effect/Array';
+import type * as Cause from 'effect/Cause';
 import * as Context from 'effect/Context';
+import * as Data from 'effect/Data';
 import type * as Duration from 'effect/Duration';
 import * as Effect from 'effect/Effect';
+import * as Fiber from 'effect/Fiber';
 import * as Layer from 'effect/Layer';
 import * as Option from 'effect/Option';
+import * as Queue from 'effect/Queue';
 import * as Reactivity from 'effect/reactivity/Reactivity';
 import type * as Redacted from 'effect/Redacted';
 import type * as Scope from 'effect/Scope';
 import * as Client from 'effect/sql/SqlClient';
 import type { Connection as SqlConnection } from 'effect/sql/SqlConnection';
-import {
-	AuthenticationError,
-	AuthorizationError,
-	ConnectionError,
-	ConstraintError,
-	DeadlockError,
-	LockTimeoutError,
-	SerializationError,
-	SqlError,
-	SqlSyntaxError,
-	StatementTimeoutError,
-	UniqueViolation,
-	UnknownError,
-} from 'effect/sql/SqlError';
+import { ConnectionError, SqlError, SqlSyntaxError, UnknownError } from 'effect/sql/SqlError';
 import type { Custom, Fragment } from 'effect/sql/Statement';
 import * as Statement from 'effect/sql/Statement';
 import * as Stream from 'effect/Stream';
 import type { ConnectionOptions } from 'node:tls';
 import { addBrand } from '../brand.ts';
-import type { Connection } from '../connection.ts';
+import { bulkIsChunked, type BulkProgress, type Connection } from '../connection.ts';
 import { Cursor, type CursorOptions } from '../cursor.ts';
 import type { RawParams } from '../encode.ts';
 import { PgError } from '../errors.ts';
 import { metricAttributes } from '../plugin.ts';
 import type { Pool } from '../pool.ts';
+import type { PgType } from '../spec.ts';
 import type { ConnectConfig, QueryOptions as PostgresQueryOptions, QueryResult } from '../types.ts';
+import { classifySqlState, setTransaction, type TransactionOptions } from './shared.ts';
 
 export const TypeId = '~@drizzle/postgres/DrizzlePostgresClient';
 export type TypeId = typeof TypeId;
@@ -66,12 +59,29 @@ export interface DrizzlePostgresClient extends Client.SqlClient {
 	 *  on the server. Inside withTransaction it uses the transaction's connection. A tuple of Effects gives a
 	 *  tuple of results, as in Effect.all. */
 	readonly pipeline: <const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) => BatchResult<Arg>;
-	/** Connection.bulkInsert as an Effect. Inside withTransaction or a Pipeline it uses that connection. */
-	readonly bulkInsert: (...args: Parameters<Connection['bulkInsert']>) => Effect.Effect<QueryResult<never>, SqlError>;
-	/** Connection.bulkUpdate as an Effect. Inside withTransaction or a Pipeline it uses that connection. */
-	readonly bulkUpdate: (...args: Parameters<Connection['bulkUpdate']>) => Effect.Effect<QueryResult<never>, SqlError>;
-	/** Connection.copyMany as an Effect. Inside withTransaction or a Pipeline it uses that connection. */
-	readonly copyMany: (...args: Parameters<Connection['copyMany']>) => Effect.Effect<QueryResult<never>, SqlError>;
+	/** Connection.bulkInsert as an Effect. Inside withTransaction it uses the transaction's connection, and inside a
+	 *  Pipeline the Pipeline's one. A call whose rows go out in more than one chunk with `atomic` (the default)
+	 *  outside a transaction runs them in a transaction of its own, which the Pipeline's other statements stay out of. */
+	readonly bulkInsert: <R = never>(
+		table: string,
+		columns: BulkColumns,
+		rows: BulkRows,
+		options?: BulkInsertOptions<R>,
+	) => Effect.Effect<QueryResult<never>, BulkError, R>;
+	/** Connection.bulkUpdate as an Effect, with the connection and transaction rules of bulkInsert. */
+	readonly bulkUpdate: <R = never>(
+		table: string,
+		columns: BulkColumns,
+		rows: BulkRows,
+		options: BulkUpdateOptions<R>,
+	) => Effect.Effect<QueryResult<never>, BulkError, R>;
+	/** Connection.copyMany as an Effect, with the connection and transaction rules of bulkInsert. */
+	readonly copyMany: <R = never>(
+		table: string,
+		columns: BulkColumns,
+		rows: BulkRows,
+		options?: CopyManyOptions<R>,
+	) => Effect.Effect<QueryResult<never>, BulkError, R>;
 	/** COPY … FROM STDIN with the COPY payload read from a Stream. An interrupt or a failed source sends
 	 *  CopyFail, so no rows from the COPY remain. */
 	readonly copyFrom: <E, R>(
@@ -95,6 +105,42 @@ export type BatchResult<Arg extends Iterable<Effect.Effect<any, any, any>>> = Ef
 export const Pipelined = Context.Reference<boolean>('@drizzle/postgres/DrizzlePostgresClient/Pipelined', {
 	defaultValue: () => false,
 });
+
+export type BulkColumns = Readonly<Record<string, PgType>>;
+export type BulkRows = readonly (readonly unknown[] | Readonly<Record<string, unknown>>)[];
+
+/** A bulk call's options without the ones that Effect replaces (interrupt the Effect to cancel it), and with
+ *  `onProgress` as an Effect. */
+type EffectBulkOptions<O, R> = Omit<O, 'signal' | 'timeout' | 'onProgress'> & {
+	/** Runs after each chunk is confirmed, one at a time and in chunk order. The call returns after the last one. */
+	readonly onProgress?: ((progress: BulkProgress) => Effect.Effect<void, never, R>) | undefined;
+};
+export type BulkInsertOptions<R = never> = EffectBulkOptions<NonNullable<Parameters<Connection['bulkInsert']>[3]>, R>;
+export type BulkUpdateOptions<R = never> = EffectBulkOptions<Parameters<Connection['bulkUpdate']>[3], R>;
+export type CopyManyOptions<R = never> = EffectBulkOptions<NonNullable<Parameters<Connection['copyMany']>[3]>, R>;
+export type { BulkProgress };
+
+/** Input that a bulk call rejects before the server sees it: empty columns, a `by` column that is not in
+ *  `columns`, a value that can't be encoded as its column's type, or `atomic: false` inside a transaction. */
+export class BulkInputError extends Data.TaggedError('BulkInputError')<{
+	readonly operation: string;
+	readonly message: string;
+	readonly cause?: unknown;
+}> {}
+
+/** A failed chunk of a bulk call with `atomic: false` whose rows went out in more than one chunk. The chunks
+ *  before it committed on their own: `committedRows` of the input rows stay written. */
+export class BulkPartialError extends Data.TaggedError('BulkPartialError')<{
+	readonly operation: string;
+	readonly message: string;
+	readonly committedRows: number;
+	readonly error: SqlError | BulkInputError;
+}> {}
+
+addBrand(BulkInputError, 'BulkInputError');
+addBrand(BulkPartialError, 'BulkPartialError');
+
+export type BulkError = SqlError | BulkInputError | BulkPartialError;
 
 /** Drizzle Postgres query options without the ones that Effect replaces: interrupt the Effect to cancel it. */
 export type QueryOptions = Omit<PostgresQueryOptions, 'signal' | 'timeout' | 'trace'>;
@@ -127,28 +173,7 @@ export interface PostgresQuery {
 	): Effect.Effect<QueryResult<unknown[] | Record<string, unknown>>, SqlError>;
 }
 
-export interface TransactionOptions {
-	readonly isolation?: 'serializable' | 'repeatable read' | 'read committed' | 'read uncommitted' | undefined;
-	readonly readOnly?: boolean | undefined;
-	readonly deferrable?: boolean | undefined;
-}
-
-const ISOLATION_LEVELS = new Set(['serializable', 'repeatable read', 'read committed', 'read uncommitted']);
-
-const setTransaction = (options: TransactionOptions) => {
-	const parts: string[] = [];
-	if (options.isolation !== undefined) {
-		if (!ISOLATION_LEVELS.has(options.isolation)) {
-			throw new Error(
-				`DrizzlePostgresClient: the isolation level "${options.isolation}" is unknown. Use serializable, repeatable read, read committed or read uncommitted.`,
-			);
-		}
-		parts.push(`isolation level ${options.isolation}`);
-	}
-	if (options.readOnly !== undefined) parts.push(options.readOnly ? 'read only' : 'read write');
-	if (options.deferrable !== undefined) parts.push(options.deferrable ? 'deferrable' : 'not deferrable');
-	return parts.length ? 'set transaction ' + parts.join(' ') : undefined;
-};
+export type { TransactionOptions };
 
 export const DrizzlePostgresClient = Context.Service<DrizzlePostgresClient>(
 	'@drizzle/postgres/DrizzlePostgresClient',
@@ -309,30 +334,94 @@ export const fromPool = Effect.fnUntraced(
 						: plainWithTransaction(Effect.andThen(client.unsafe(set), self)));
 			});
 
-		const bulk = <O extends object>(
-			operation: 'bulkInsert' | 'bulkUpdate' | 'copyMany',
+		// A bulk call whose rows go out in more than one chunk with `atomic` runs them in a transaction: the open one, or
+		// its own, which the driver queues in one piece, so a Pipeline's other statements stay out of it.
+		const bulk = <O extends { readonly chunk?: number; readonly atomic?: boolean }, R>(
+			operation: BulkOperation,
 			table: string,
-			f: (conn: Connection, options: O & { signal: AbortSignal; metrics: boolean }) => Promise<QueryResult<never>>,
-			options: O,
-		) =>
-			traced(
+			columns: BulkColumns,
+			rows: BulkRows,
+			options: EffectBulkOptions<O, R>,
+			send: (
+				conn: Connection,
+				options: Omit<EffectBulkOptions<O, R>, 'onProgress'> & {
+					signal: AbortSignal;
+					metrics: boolean;
+					onProgress?: (progress: BulkProgress) => void;
+				},
+			) => Promise<QueryResult<never>>,
+		): Effect.Effect<QueryResult<never>, BulkError, R> => {
+			const { onProgress, ...driverOptions } = options;
+			const atomic = driverOptions.atomic !== false;
+			const chunked = bulkIsChunked(operation, Object.keys(columns), rows, driverOptions.chunk);
+			const run = withProgress(onProgress, (report) =>
+				withConnection((conn) =>
+					annotateMetrics(Effect.tryPromise({
+						try: (signal) => send(conn, { metrics, ...driverOptions, onProgress: report, signal }),
+						catch: (e) => toBulkError(e, operation, conn, !atomic && chunked),
+					}))
+				));
+			return traced(
 				operation,
 				table,
-				withConnection((conn) =>
-					annotateMetrics(
-						Effect.tryPromise({
-							try: (signal) => f(conn, { metrics, ...options, signal }),
-							catch: (e) => toSqlError(e, operation, conn),
+				Effect.flatMap(Effect.serviceOption(client.transactionService), (tx): Effect.Effect<
+					QueryResult<never>,
+					BulkError,
+					R
+				> => {
+					if (Option.isNone(tx) || atomic || !chunked) return run;
+					return Effect.fail(
+						new BulkInputError({
+							operation,
+							message:
+								`${operation}: atomic: false inside a transaction has no effect, because its chunks can't commit on their own. Leave atomic on, or run the call outside the transaction.`,
 						}),
-					)
-				),
+					);
+				}),
 			);
-		const bulkInsert = (...[table, columns, rows, options]: Parameters<Connection['bulkInsert']>) =>
-			bulk('bulkInsert', table, (conn, withSignal) => conn.bulkInsert(table, columns, rows, withSignal), options ?? {});
-		const bulkUpdate = (...[table, columns, rows, options]: Parameters<Connection['bulkUpdate']>) =>
-			bulk('bulkUpdate', table, (conn, withSignal) => conn.bulkUpdate(table, columns, rows, withSignal), options);
-		const copyMany = (...[table, columns, rows, options]: Parameters<Connection['copyMany']>) =>
-			bulk('copyMany', table, (conn, withSignal) => conn.copyMany(table, columns, rows, withSignal), options ?? {});
+		};
+		const bulkInsert = <R = never>(
+			table: string,
+			columns: BulkColumns,
+			rows: BulkRows,
+			options: BulkInsertOptions<R> = {},
+		) =>
+			bulk<NonNullable<Parameters<Connection['bulkInsert']>[3]>, R>(
+				'bulkInsert',
+				table,
+				columns,
+				rows,
+				options,
+				(conn, o) => conn.bulkInsert(table, columns, rows, o),
+			);
+		const bulkUpdate = <R = never>(
+			table: string,
+			columns: BulkColumns,
+			rows: BulkRows,
+			options: BulkUpdateOptions<R>,
+		) =>
+			bulk<Parameters<Connection['bulkUpdate']>[3], R>(
+				'bulkUpdate',
+				table,
+				columns,
+				rows,
+				options,
+				(conn, o) => conn.bulkUpdate(table, columns, rows, o),
+			);
+		const copyMany = <R = never>(
+			table: string,
+			columns: BulkColumns,
+			rows: BulkRows,
+			options: CopyManyOptions<R> = {},
+		) =>
+			bulk<NonNullable<Parameters<Connection['copyMany']>[3]>, R>(
+				'copyMany',
+				table,
+				columns,
+				rows,
+				options,
+				(conn, o) => conn.copyMany(table, columns, rows, o),
+			);
 
 		const copyFrom = <E, R>(sql: string, source: Stream.Stream<Uint8Array | string, E, R>) =>
 			traced(
@@ -525,6 +614,41 @@ const annotateMetrics = <A extends QueryResult<unknown> | Uint8Array[], E>(effec
 				: Effect.void,
 	);
 
+type BulkOperation = 'bulkInsert' | 'bulkUpdate' | 'copyMany';
+
+/** Runs `run` with a progress callback that queues each report for `onProgress`. The reports run one at a time, in
+ *  order, in this fiber's context, and the result waits for the last one, also when the call fails. */
+const withProgress = <A, E, R>(
+	onProgress: ((progress: BulkProgress) => Effect.Effect<void, never, R>) | undefined,
+	run: (report: ((progress: BulkProgress) => void) | undefined) => Effect.Effect<A, E>,
+): Effect.Effect<A, E, R> =>
+	onProgress === undefined ? run(undefined) : Effect.gen(function*() {
+		const reports = yield* Queue.unbounded<BulkProgress, Cause.Done>();
+		const consumer = yield* Effect.forkChild(Stream.runForEach(Stream.fromQueue(reports), onProgress));
+		const exit = yield* Effect.exit(run((progress) => void Queue.offerUnsafe(reports, progress)));
+		yield* Queue.end(reports);
+		yield* Fiber.join(consumer);
+		return yield* exit;
+	});
+
+/** A driver error that is no PgError and leaves the connection usable came from the input. With `atomic: false` and
+ *  more than one chunk, the driver reports how many rows the chunks before the failed one committed. */
+const toBulkError = (cause: unknown, operation: BulkOperation, conn: Connection, partial: boolean): BulkError => {
+	const sqlError = toSqlError(cause, operation, conn);
+	const error = !(cause instanceof PgError) && sqlError.reason._tag === 'UnknownError'
+		? new BulkInputError({ operation, message: sqlError.reason.message, cause })
+		: sqlError;
+	if (!partial) return error;
+	const counted = cause as { insertedRows?: number; updatedRows?: number };
+	const committedRows = counted.insertedRows ?? counted.updatedRows ?? 0;
+	return new BulkPartialError({
+		operation,
+		message: `${operation}: ${committedRows} rows committed before a chunk failed: ${error.message}`,
+		committedRows,
+		error,
+	});
+};
+
 class SourceFailure {
 	constructor(readonly error: unknown) {}
 }
@@ -547,7 +671,7 @@ const commit = (conn: SqlConnection) =>
 			: Effect.void);
 
 /** Maps a Drizzle Postgres failure to a SqlError. A failure that leaves the connection closed is a ConnectionError. */
-export const toSqlError = (cause: unknown, operation: string, conn?: Connection) => {
+export const toSqlError = (cause: unknown, operation: string, conn?: { readonly state: string }) => {
 	const isConnectionLost = conn !== undefined && conn.state !== 'ready';
 	const message = cause instanceof Error ? cause.message : String(cause);
 	if (cause instanceof PgError && !isConnectionLost) {
@@ -566,30 +690,6 @@ export const toSqlError = (cause: unknown, operation: string, conn?: Connection)
 	const props = { cause, message, operation };
 	if (isConnectionLost || conn === undefined) return new SqlError({ reason: new ConnectionError(props) });
 	return new SqlError({ reason: new UnknownError(props) });
-};
-
-// The same SQLSTATE table as @effect/sql-pg.
-const classifySqlState = (
-	code: string | undefined,
-	constraint: unknown,
-	props: { cause: unknown; message: string; operation: string },
-) => {
-	if (code !== undefined) {
-		if (code.startsWith('08')) return new ConnectionError(props);
-		if (code.startsWith('28')) return new AuthenticationError(props);
-		if (code === '42501') return new AuthorizationError(props);
-		if (code.startsWith('42')) return new SqlSyntaxError(props);
-		if (code === '23505') {
-			const name = typeof constraint === 'string' && constraint.trim() !== '' ? constraint.trim() : 'unknown';
-			return new UniqueViolation({ ...props, constraint: name });
-		}
-		if (code.startsWith('23')) return new ConstraintError(props);
-		if (code === '40P01') return new DeadlockError(props);
-		if (code === '40001') return new SerializationError(props);
-		if (code === '55P03') return new LockTimeoutError(props);
-		if (code === '57014') return new StatementTimeoutError(props);
-	}
-	return new UnknownError(props);
 };
 
 export const layerFrom = <E, R>(

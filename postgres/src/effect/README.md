@@ -4,6 +4,10 @@
 core then gives you statement spans, transactions, savepoints and typed `SqlError`s. It needs
 `effect` 4.0.x as a peer dependency.
 
+The same `DrizzlePostgresClient` runs over Neon's WebSocket proxy and an in-process PGlite, the Aurora Data API
+has a `SqlClient` of its own, and the HTTP endpoints have a client for their one-request transactions. See
+[Other transports](#other-transports).
+
 ## Quick start
 
 ```ts
@@ -95,6 +99,112 @@ await Effect.runPromise(Effect.gen(function* () {
 ```
 
 You can also use `DrizzlePostgresClient.layerFromPool` to reuse an existing pool - see [Reusing an existing pool](#reusing-an-existing-pool) below.
+
+## Other transports
+
+| Entry | Service | Talks to |
+|---|---|---|
+| `/effect/neon-ws` | `DrizzlePostgresClient` | Neon over its WebSocket proxy |
+| `/effect/pglite` | `DrizzlePostgresClient` | an in-process [PGlite](https://pglite.dev) |
+| `/effect/aurora` | `DrizzleAuroraClient`, a `SqlClient` | the Aurora Data API |
+| `/effect/http` | `DrizzlePostgresHttpClient` | the httpostgres gateway |
+| `/effect/neon-http` | `DrizzlePostgresHttpClient` | Neon's SQL-over-HTTP endpoint |
+
+Each entry's namespace has `make`, `layer` and `layerConfig`, like the TCP one.
+
+### Neon WebSocket and PGlite
+
+Both speak the Postgres protocol, so their `DrizzlePostgresClient` is the one on this page: `SqlClient`,
+transactions, `batch`, `pipeline`, bulk writes, COPY and cursors work unchanged. Only the layer differs. Neon's
+takes the TCP settings without `ssl` (the WebSocket carries TLS) plus the
+[neon-ws options](../../README.md#runtimes):
+
+```ts no-run
+import { Redacted } from 'effect'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect/neon-ws'
+
+const Database = DrizzlePostgresClient.layer({ url: Redacted.make(process.env.DATABASE_URL!) })
+```
+
+PGlite's layer takes the instance and leaves it open when its scope closes. Its pool has one connection, and
+interrupting a statement closes that connection, because PGlite can't cancel one; see
+[PGlite](../../README.md#pglite) for the session rules:
+
+```ts
+import { PGlite } from '@electric-sql/pglite'
+import { Effect } from 'effect'
+import { SqlClient } from 'effect/sql/SqlClient'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect/pglite'
+
+const pg = await PGlite.create()
+
+const rows = await Effect.runPromise(Effect.gen(function* () {
+  const sql = yield* SqlClient
+  yield* sql`create table notes (id int primary key, body text)`
+  yield* sql.withTransaction(sql`insert into notes values (1, 'kept')`)
+  return yield* sql`select id, body from notes`
+}).pipe(Effect.provide(DrizzlePostgresClient.layer(pg))))
+
+console.log(rows) // [{ id: 1, body: 'kept' }]
+await pg.close()
+```
+
+### Aurora Data API
+
+`DrizzleAuroraClient` is a `SqlClient` whose transactions are Data API transactions: `withTransaction` calls
+BeginTransaction, its statements carry the transaction's id, and it ends with CommitTransaction or
+RollbackTransaction. A nested `withTransaction` is a savepoint. It also has `query` with the Aurora client's
+options, `batch` (one transaction, statements in turn), `pipeline` (no transaction) and `batchExecute` (one
+statement over many parameter sets). Parameters are `:p1`, `:p2`, … as in `@drizzle-team/postgres/aurora`:
+
+```ts no-run
+import { Effect, Redacted } from 'effect'
+import { SqlClient } from 'effect/sql/SqlClient'
+import { DrizzleAuroraClient } from '@drizzle-team/postgres/effect/aurora'
+
+const Database = DrizzleAuroraClient.layer({
+  resourceArn: process.env.AURORA_RESOURCE_ARN!,
+  secretArn: process.env.AURORA_SECRET_ARN!,
+  database: 'app',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: Redacted.make(process.env.AWS_SECRET_ACCESS_KEY!),
+  },
+})
+
+await Effect.runPromise(Effect.gen(function* () {
+  const sql = yield* SqlClient
+  yield* sql.withTransaction(sql`update accounts set balance = balance - ${10} where id = ${1}`)
+}).pipe(Effect.provide(Database)))
+```
+
+The Data API returns a statement's rows in one response, so `sql.stream` emits them from it. Its errors carry no
+SQLSTATE, so most of them are `UnknownError`s.
+
+### HTTP: the gateway and Neon
+
+An HTTP request holds no session, so there are no transactions written as code, and `DrizzlePostgresHttpClient`
+is no `SqlClient`. It has `query`, `batch`, which runs statements as one transaction in one request, and
+`pipeline`, which runs them without one and gives each statement's outcome as a `Result`. The gateway's and
+Neon's layers provide the same service:
+
+```ts no-run
+import { Effect, Redacted } from 'effect'
+import { DrizzlePostgresHttpClient } from '@drizzle-team/postgres/effect/neon-http'
+
+const Database = DrizzlePostgresHttpClient.layer({ url: Redacted.make(process.env.DATABASE_URL!) })
+
+const [moved, total] = await Effect.runPromise(Effect.gen(function* () {
+  const client = yield* DrizzlePostgresHttpClient.DrizzlePostgresHttpClient
+  return yield* client.batch([
+    { sql: 'update accounts set balance = balance - $1 where id = $2', params: [10, 1] },
+    { sql: 'select sum(balance)::int as total from accounts', mode: 'object' },
+  ])
+}).pipe(Effect.provide(Database)))
+```
+
+`@drizzle-team/postgres/effect/http` takes the gateway client's settings, with `token` as `Redacted`. For
+transactions written as code, use the TCP, Neon WebSocket or Aurora clients.
 
 ## Settings from Effect Config
 
@@ -288,6 +398,47 @@ const rows = await Effect.runPromise(Effect.gen(function* () {
 console.log(rows)
 ```
 
+Large calls go out in chunks: `bulkInsert` and `bulkUpdate` size them to the rows, and `copyMany` splits only when
+you set `chunk`. With `atomic` (the default), the chunks run in one transaction: the open one, or one of their own,
+which goes out in one piece, so the other statements of a `pipeline` stay out of it. With `atomic: false`, each
+chunk commits on its own; inside a transaction that can't work, so it fails at once.
+
+`onProgress` is an Effect that runs after each chunk, one at a time and in order, and the call returns after the
+last one. Failures are typed:
+
+- `SqlError`: the statement failed on the server.
+- `BulkInputError`: the call was refused before anything ran, such as a `by` column that is not in the columns.
+- `BulkPartialError`: a chunk failed with `atomic: false`. `committedRows` of the rows before it stay written,
+  and `error` is the chunk's failure.
+
+```ts
+import { Effect, Redacted } from 'effect'
+import { SqlClient } from 'effect/sql/SqlClient'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect'
+
+const Database = DrizzlePostgresClient.layer({ url: Redacted.make('postgres://postgres:postgres@127.0.0.1:54329/testdb') })
+const columns = { id: 'int4', name: 'text' } as const
+const rows = Array.from({ length: 300 }, (_, i) => [i, `item ${i}`])
+
+const committed = await Effect.runPromise(Effect.gen(function* () {
+  const sql = yield* SqlClient
+  const client = yield* DrizzlePostgresClient.DrizzlePostgresClient
+  yield* sql`create table if not exists bulk_demo (id int4 primary key, name text)`
+  yield* sql`truncate bulk_demo`
+  yield* client.bulkInsert('bulk_demo', columns, rows, {
+    chunk: 100,
+    onProgress: (p) => Effect.log(`${p.rows} of ${p.totalRows} rows`),
+  })
+  // Rows 300-349 commit chunk by chunk; the chunk with the duplicate id 7 fails.
+  const again = [...Array.from({ length: 50 }, (_, i) => [300 + i, 'new']), [7, 'duplicate']]
+  const failure = yield* client.bulkInsert('bulk_demo', columns, again, { chunk: 25, atomic: false }).pipe(Effect.flip)
+  yield* sql`drop table bulk_demo`
+  return failure._tag === 'BulkPartialError' ? failure.committedRows : -1
+}).pipe(Effect.provide(Database)))
+
+console.log(committed) // 50
+```
+
 ## Streams, cursors and COPY
 
 `sql.stream` streams rows with backpressure. `DrizzlePostgresClient` also has `cursor`, which returns row
@@ -404,5 +555,5 @@ Code written against `SqlClient` moves by swapping one layer:
 |---|---|---|
 | `LISTEN` and `NOTIFY` | `listen` and `notify` | Not available |
 | `interval` columns | An interval object | The Postgres text, such as `'1 day 02:00:00'` |
-| Runtimes | Node, through `pg` | Node, Bun, Deno and Cloudflare Workers |
+| Runtimes | Node, through `pg` | Node, Bun, Deno and Cloudflare Workers, plus Neon, PGlite, Aurora and HTTP entries |
 | Extras | | `query` with Drizzle Postgres's modes, `batch`, `pipeline`, `bulkInsert`, `bulkUpdate`, `copyMany`, `copyFrom`, `copyTo`, `cursor`, and `metrics` on spans |

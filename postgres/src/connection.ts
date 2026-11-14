@@ -217,6 +217,18 @@ function defaultChunk(
 	return Math.max(16, Math.min(64, Math.floor(32768 / b)));
 }
 
+/** @internal Whether bulkInsert/bulkUpdate (`chunk` defaults to the adaptive size) or copyMany (`chunk` defaults to
+ *  one COPY) sends the rows as more than one statement. Only then does `atomic` need a transaction. */
+export function bulkIsChunked(
+	operation: 'bulkInsert' | 'bulkUpdate' | 'copyMany',
+	names: readonly string[],
+	rows: readonly (readonly unknown[] | Readonly<Record<string, unknown>>)[],
+	chunk: number | undefined,
+): boolean {
+	if (operation === 'copyMany') return chunk !== undefined && chunk > 0 && rows.length > chunk;
+	return rows.length > Math.max(1, chunk ?? defaultChunk(names, rows));
+}
+
 // build the $n::type[] cast list + array OIDs for a bulk statement (aliases are validated by
 // paramTypeOid, so splicing them into SQL is safe)
 function bulkCasts(
@@ -2624,7 +2636,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			})();
 		}
 		// atomic (default): chunks PIPELINE inside ONE transaction (the caller's, or our own)
-		const runAll = async (): Promise<QueryResult<never>> => {
+		const issueAll = (): Promise<QueryResult<never>>[] => {
 			const ps: Promise<QueryResult<never>>[] = [];
 			for (let i = 0; i < rows.length; i += chunk) {
 				const hi = Math.min(i + chunk, rows.length);
@@ -2638,9 +2650,13 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 						: p,
 				); // FIFO resolution -> monotone progress
 			}
-			return mergeResults(await Promise.all(ps));
+			return ps;
 		};
-		return this.inTransaction ? runAll() : this.begin(runAll);
+		// Our own transaction is a pipelinedTransaction: BEGIN, every chunk and COMMIT are queued in this one tick, so
+		// statements that other callers pipeline on this connection meanwhile can't land inside it.
+		return (this.inTransaction ? Promise.all(issueAll()) : this.pipelinedTransaction(undefined, issueAll)).then(
+			mergeResults,
+		);
 	}
 
 	/** COPY FROM STDIN. `sql` must be a `COPY … FROM STDIN` statement; `source` yields raw
@@ -2665,6 +2681,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				timeout: opts.timeout,
 				signal: opts.signal,
 				copySource: source,
+				group: this.batchGroup, // inside a pipelinedTransaction (chunked copyMany), as query() tags its tasks
 			};
 			this.beginPerf(task, [], opts.metrics);
 			if (this.armSignal(task)) return;
@@ -2741,6 +2758,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				: p;
 		}
 		const nChunks = Math.ceil(rows.length / chunk);
+		// a chunk's COPY payload, encoded when its COPY runs, not when it is queued
+		const lazy = (part: typeof rows): CopySource => ({ [Symbol.iterator]: () => enc(part)[Symbol.iterator]() });
 		// Chunked COPY: one COPY statement per chunk, SEQUENTIAL (COPY runs solo anyway).
 		const runSeq = async (): Promise<QueryResult<never>> => {
 			const rs: QueryResult<never>[] = [];
@@ -2769,7 +2788,25 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			}
 			return runSeq();
 		}
-		return this.inTransaction ? runSeq() : this.begin(runSeq);
+		if (this.inTransaction) return runSeq();
+		// Our own transaction is a pipelinedTransaction, as in runBulk: every chunk's COPY is queued in this one tick,
+		// between BEGIN and COMMIT, so statements that other callers pipeline on this connection can't land inside it.
+		return this.pipelinedTransaction(undefined, (conn) => {
+			const ps: Promise<QueryResult<never>>[] = [];
+			for (let i = 0; i < rows.length; i += chunk) {
+				const part = rows.slice(i, i + chunk);
+				const p = (conn as Connection).copyFrom(sql, lazy(part), cOpts);
+				ps.push(
+					onProgress
+						? p.then((r) => {
+							report(part.length, r, nChunks);
+							return r;
+						})
+						: p,
+				);
+			}
+			return ps;
+		}).then(mergeResults);
 	}
 
 	/** Server-side cursor over a SELECT on THIS connection — created synchronously, opened

@@ -35,12 +35,14 @@ export interface EffectPostgresQueryResultHKT extends PgQueryResultHKT {
 	type: Simplify<Omit<QueryResult<PgRawRow<this['row']>>, 'metrics' | 'debug'>>;
 }
 
-export type EffectPostgresBulkInsertOptions = Omit<PostgresBulkInsertOptions, 'timeout' | 'signal'>;
+/** The async options without the ones that Effect replaces, with `onProgress` as an Effect that needs `R` */
+export type EffectPostgresBulkInsertOptions<R = never> =
+	& Omit<PostgresBulkInsertOptions, 'timeout' | 'signal' | 'onProgress'>
+	& Pick<Client.BulkInsertOptions<R>, 'onProgress'>;
 
-export type EffectPostgresBulkUpdateOptions<TBy = PgColumn | readonly [PgColumn, ...PgColumn[]]> = Omit<
-	PostgresBulkUpdateOptions<TBy>,
-	'timeout' | 'signal'
->;
+export type EffectPostgresBulkUpdateOptions<TBy = PgColumn | readonly [PgColumn, ...PgColumn[]], R = never> =
+	& Omit<PostgresBulkUpdateOptions<TBy>, 'timeout' | 'signal' | 'onProgress'>
+	& Pick<Client.BulkUpdateOptions<R>, 'onProgress'>;
 
 export class EffectPostgresPreparedQuery<T extends PreparedQueryConfig>
 	extends PgEffectPreparedQuery<T, EffectPostgresQueryEffectHKT>
@@ -137,10 +139,10 @@ export class EffectPostgresSession<
 		return this.client.pipeline(effects);
 	}
 
-	bulkInsert(
+	bulkInsert<R = never>(
 		table: PgTable,
 		rows: readonly Record<string, unknown>[],
-		options: EffectPostgresBulkInsertOptions = {},
+		options: EffectPostgresBulkInsertOptions<R> = {},
 	) {
 		return Effect.suspend(() => {
 			if (rows.length === 0) {
@@ -154,10 +156,10 @@ export class EffectPostgresSession<
 		});
 	}
 
-	bulkUpdate(
+	bulkUpdate<R = never>(
 		table: PgTable,
 		rows: readonly Record<string, unknown>[],
-		options: EffectPostgresBulkUpdateOptions,
+		options: EffectPostgresBulkUpdateOptions<PgColumn | readonly [PgColumn, ...PgColumn[]], R>,
 	) {
 		return Effect.suspend(() => {
 			if (rows.length === 0) {
