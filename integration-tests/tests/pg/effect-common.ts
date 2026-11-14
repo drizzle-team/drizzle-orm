@@ -52,7 +52,9 @@ import {
 	Schema,
 } from 'drizzle-orm/relations';
 import * as Context from 'effect/Context';
+import * as Deferred from 'effect/Deferred';
 import * as Effect from 'effect/Effect';
+import * as Fiber from 'effect/Fiber';
 import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
 import * as Ref from 'effect/Ref';
@@ -1309,6 +1311,80 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				const result = yield* db.select().from(users);
 
 				expect(result).toEqual([{ id: 1, balance: 100 }]);
+			}));
+
+		it.effect('transaction: an interrupt in the body rolls back, and the database stays usable', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+
+				const users = pgTable('users_transactions_interrupt', {
+					id: serial('id').primaryKey(),
+					balance: integer('balance').notNull(),
+				});
+
+				yield* push(db, { users });
+
+				const inserted = yield* Deferred.make<void>();
+				const fiber = yield* Effect.forkChild(
+					db.transaction((tx) =>
+						Effect.gen(function*() {
+							yield* tx.insert(users).values({ balance: 100 });
+							yield* Deferred.succeed(inserted, undefined);
+							yield* Effect.never;
+						})
+					),
+				);
+				yield* Deferred.await(inserted);
+				yield* Fiber.interrupt(fiber);
+
+				// The row was never committed, and the connection the transaction held serves queries again
+				expect(yield* db.select().from(users)).toEqual([]);
+				yield* db.insert(users).values({ balance: 200 });
+				expect(yield* db.select({ balance: users.balance }).from(users)).toEqual([{ balance: 200 }]);
+			}));
+
+		it.effect('transaction: the body runs in the caller fiber and sees its services', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+
+				const users = pgTable('users_transactions_services', {
+					id: serial('id').primaryKey(),
+					balance: integer('balance').notNull(),
+				});
+
+				yield* push(db, { users });
+
+				class Tenant extends Context.Service<Tenant, { readonly balance: number }>()('TransactionTestTenant') {}
+
+				const inTransaction = db.transaction((tx) =>
+					Effect.gen(function*() {
+						const tenant = yield* Tenant;
+						return yield* tx.insert(users).values({ balance: tenant.balance }).returning({ balance: users.balance });
+					})
+				);
+
+				expect(yield* Effect.provideService(inTransaction, Tenant, { balance: 42 })).toEqual([{ balance: 42 }]);
+			}));
+
+		it.effect('a query is an Effect that runs again every time it is run', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+
+				const users = pgTable('users_query_reruns', {
+					id: serial('id').primaryKey(),
+					balance: integer('balance').notNull(),
+				});
+
+				yield* push(db, { users });
+
+				const insert = db.insert(users).values({ balance: 1 });
+				yield* insert;
+				yield* insert;
+
+				const count = db.$count(users);
+				expect(yield* count).toBe(2);
+				yield* insert;
+				expect(yield* count).toBe(3);
 			}));
 
 		it.effect('mySchema :: materialized view', () =>
