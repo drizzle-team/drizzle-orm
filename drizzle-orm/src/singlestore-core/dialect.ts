@@ -1,6 +1,6 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
-import { Column } from '~/column.ts';
+import { Column, mapColumnSelection } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
@@ -213,7 +213,15 @@ export class SingleStoreDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		{ isSingleTable = false, materializedSources }: {
+			isSingleTable?: boolean;
+			/**
+			 * Aliases of sources (subqueries/CTEs) whose output columns are already materialized.
+			 * `selectFromDb` is not applied to columns referencing them — their values were
+			 * already transformed inside the subquery.
+			 */
+			materializedSources?: Set<string>;
+		} = {},
 	): SQL {
 		const columnsLen = fields.length;
 
@@ -244,10 +252,15 @@ export class SingleStoreDialect {
 					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, Column)) {
-				if (isSingleTable) {
-					chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-				} else {
-					chunk.push(field);
+				const columnSql = isSingleTable
+					? sql`${sql.identifier(this.casing.getColumnCasing(field))}`
+					: field.getSQL();
+				const selectionSql = materializedSources?.has(field.table[Table.Symbol.Name])
+					? columnSql
+					: mapColumnSelection(field, columnSql);
+				chunk.push(selectionSql);
+				if (selectionSql !== columnSql) {
+					chunk.push(sql` as ${sql.identifier(this.casing.getColumnCasing(field))}`);
 				}
 			} else if (is(field, Subquery)) {
 				const entries = Object.entries(field._.selectedFields) as [
@@ -350,7 +363,21 @@ export class SingleStoreDialect {
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		// Columns read through a subquery/CTE reference its materialized output —
+		// `selectFromDb` was already applied inside it and must not be re-applied here.
+		const materializedSources = new Set<string>();
+		if (is(table, Subquery)) {
+			materializedSources.add(table._.alias);
+		}
+		if (joins) {
+			for (const join of joins) {
+				if (is(join.table, Subquery)) {
+					materializedSources.add(join.table._.alias);
+				}
+			}
+		}
+
+		const selection = this.buildSelection(fieldsList, { isSingleTable, materializedSources });
 
 		const tableSql = (() => {
 			if (is(table, Table) && table[Table.Symbol.IsAlias]) {
@@ -848,6 +875,8 @@ export class SingleStoreDialect {
 							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
 							? field.sql
+							: is(field, Column)
+							? mapColumnSelection(field, field.getSQL())
 							: field
 					),
 					sql`, `,

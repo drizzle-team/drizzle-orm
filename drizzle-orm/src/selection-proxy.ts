@@ -38,6 +38,13 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 		 * @default false
 		 */
 		replaceOriginalName?: boolean;
+
+		/**
+		 * Whether the columns are the output of a query (e.g. a query-built view), meaning
+		 * their values were already read through the column's `selectFromDb` mapper
+		 * @default false
+		 */
+		isSelectionField?: boolean;
 	};
 
 	constructor(config: SelectionProxyHandler<T>['config']) {
@@ -106,8 +113,12 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 							value.table,
 							new TableAliasProxyHandler(this.config.alias, this.config.replaceOriginalName ?? false),
 						),
+						this.config.isSelectionField,
 					),
 				);
+			}
+			if (this.config.isSelectionField) {
+				return new Proxy(value, new ColumnAliasProxyHandler(value.table, true));
 			}
 			return value;
 		}

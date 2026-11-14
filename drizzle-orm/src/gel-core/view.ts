@@ -55,6 +55,7 @@ export class ViewBuilder<TName extends string = string> extends DefaultViewBuild
 			sqlBehavior: 'error',
 			sqlAliasedBehavior: 'alias',
 			replaceOriginalName: true,
+			isSelectionField: true,
 		});
 		const aliasedSelection = new Proxy(qb.getSelectedFields(), selectionProxy);
 		return new Proxy(
@@ -208,6 +209,7 @@ export class MaterializedViewBuilder<TName extends string = string>
 			sqlBehavior: 'error',
 			sqlAliasedBehavior: 'alias',
 			replaceOriginalName: true,
+			isSelectionField: true,
 		});
 		const aliasedSelection = new Proxy(qb.getSelectedFields(), selectionProxy);
 		return new Proxy(
