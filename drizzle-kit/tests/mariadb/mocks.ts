@@ -398,7 +398,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 
 	const db = {
 		query: async (sql: string, params: any[]) => {
-			const [res] = await client.query(sql).catch((e: Error) => {
+			const [res] = await (params?.length ? client.execute(sql, params) : client.query(sql)).catch((e: Error) => {
 				const error = new Error(`query error: ${sql}\n\n${e.message}`);
 				throw error;
 			});

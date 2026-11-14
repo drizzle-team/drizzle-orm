@@ -47,7 +47,7 @@ export const handle = async (
 	const filter = prepareEntityFilter('mysql', filters, []);
 	let schema: Awaited<ReturnType<typeof fromDatabaseForDrizzle>>;
 	if (text) {
-		const progress = new IntrospectProgress();
+		const progress = new IntrospectProgress({ pks: true });
 		({ schema } = await introspect({
 			db: db.db,
 			database: db.database,

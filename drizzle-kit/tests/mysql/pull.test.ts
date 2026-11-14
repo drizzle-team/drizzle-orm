@@ -39,7 +39,7 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
-import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
+import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -188,6 +188,86 @@ test('Default value of empty string column: enum, char, varchar, text, tinytext,
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/1402
+// A cursor holds the last name of a batch. With NO_BACKSLASH_ESCAPES a `\\` in a string literal stays as two characters,
+// so an escaped cursor would compare against another name and the next batch would skip or repeat rows.
+const introspectNamesWithBackslashAndQuote = async () => {
+	await db.query(String.raw`CREATE TABLE ${'`a\\a`'} (id int PRIMARY KEY, ${'`c\\1`'} int, ${'`c\\2`'} int)`);
+	await db.query(String.raw`CREATE INDEX ${'`i\\1`'} ON ${'`a\\a`'} (${'`c\\1`'}, ${'`c\\2`'})`);
+	await db.query(String.raw`CREATE INDEX ${'`i\\2`'} ON ${'`a\\a`'} (${'`c\\2`'})`);
+	await db.query(String.raw`CREATE TABLE ${'`a\\b`'} (id int PRIMARY KEY, a int)`);
+	await db.query("CREATE TABLE `q'q` (id int PRIMARY KEY)");
+	await db.query(
+		String.raw`ALTER TABLE ${'`a\\b`'} ADD CONSTRAINT ${'`f\\1`'} FOREIGN KEY (a) REFERENCES ${'`a\\a`'} (id)`,
+	);
+	await db.query(
+		String.raw`ALTER TABLE ${'`a\\b`'} ADD CONSTRAINT ${'`f\\2`'} FOREIGN KEY (a) REFERENCES ${'`a\\a`'} (id)`,
+	);
+	await db.query(String.raw`CREATE VIEW ${'`v\\1`'} AS SELECT 1 AS id`);
+	await db.query(String.raw`CREATE VIEW ${'`v\\2`'} AS SELECT 2 AS id`);
+
+	const res = await fromDatabase(db, 'drizzle', () => true, () => {}, () => {}, {
+		tables: 1,
+		views: 1,
+		columns: 1,
+		indexes: 1,
+		pks: 1,
+		fks: 1,
+	});
+
+	const names = (rows: { name: string }[]) => rows.map((it) => it.name).sort();
+	expect(names(res.tables)).toStrictEqual(['a\\a', 'a\\b', "q'q"]);
+	expect(res.columns.map((it) => `${it.table}.${it.name}`).sort()).toStrictEqual([
+		'a\\a.c\\1',
+		'a\\a.c\\2',
+		'a\\a.id',
+		'a\\b.a',
+		'a\\b.id',
+		"q'q.id",
+	]);
+	expect(res.indexes.filter((it) => it.name.startsWith('i\\')).map((it) => [it.name, it.columns.length]).sort())
+		.toStrictEqual([['i\\1', 2], ['i\\2', 1]]);
+	expect(res.pks.map((it) => it.table).sort()).toStrictEqual(['a\\a', 'a\\b', "q'q"]);
+	expect(names(res.fks)).toStrictEqual(['f\\1', 'f\\2']);
+	expect(names(res.views)).toStrictEqual(['v\\1', 'v\\2']);
+};
+
+test('introspect in batches of one row with a backslash and a quote in names', async () => {
+	await introspectNamesWithBackslashAndQuote();
+});
+
+test('introspect in batches of one row with a backslash and a quote in names and NO_BACKSLASH_ESCAPES', async () => {
+	const [{ mode }] = await db.query<{ mode: string }>('SELECT @@SESSION.sql_mode AS mode');
+	await db.query(`SET SESSION sql_mode = CONCAT(@@SESSION.sql_mode, ',NO_BACKSLASH_ESCAPES')`);
+	try {
+		await introspectNamesWithBackslashAndQuote();
+	} finally {
+		await db.query(`SET SESSION sql_mode = '${mode}'`);
+	}
+});
+
+test('introspect in batches of one row with table names that differ only by case', async () => {
+	const [{ lowerCase }] = await db.query<{ lowerCase: number | string }>(
+		'SELECT @@lower_case_table_names AS lowerCase',
+	);
+	if (Number(lowerCase) !== 0) return;
+
+	await db.query('CREATE TABLE `CASE` (id int)');
+	await db.query('CREATE TABLE `Case` (id int)');
+	await db.query('CREATE TABLE `case` (id int)');
+
+	const { tables, columns } = await fromDatabase(db, 'drizzle', () => true, () => {}, () => {}, {
+		tables: 1,
+		views: 1,
+		columns: 100,
+		indexes: 1,
+		pks: 1,
+		fks: 1,
+	});
+
+	expect(tables.map((it) => it.name).sort()).toStrictEqual(['CASE', 'Case', 'case']);
+	expect(columns.map((it) => it.table).sort()).toStrictEqual(['CASE', 'Case', 'case']);
+});
+
 test('introspect default with expression', async () => {
 	const table1 = mysqlTable('table1', {
 		id: int().primaryKey(),
