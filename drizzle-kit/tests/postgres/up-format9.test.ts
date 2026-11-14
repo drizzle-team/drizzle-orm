@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import {
 	boolean,
 	index,
@@ -264,6 +264,67 @@ test('up refuses a journal entry that has no SQL file and changes no file', asyn
 	);
 	expect(flow.files('main')).toStrictEqual(before);
 });
+
+test.each(['missing snapshot', 'ambiguous SQL'])(
+	'up recovers from %s without changing SQL bytes or hashes',
+	async (fault) => {
+		const flow = createFolderFlow();
+		flow.seed('main', join(fixtures, 'format-7'));
+		const originalSql = flow.files('main').filter(([path]) => path.endsWith('.sql')).map(([path, sql]) => ({
+			path,
+			sql: `${sql}\r\n-- preserved: 遷移資料\r\n`,
+		}));
+		for (const { path, sql } of originalSql) flow.overwriteFile('main', path, sql);
+		const missingSnapshot = join('meta', '0001_snapshot.json');
+		if (fault === 'missing snapshot') {
+			flow.deleteFolder('main', missingSnapshot);
+		} else {
+			flow.renameFolder('main', '0001_posts.sql', '0001_left.sql');
+			flow.overwriteFile('main', '0001_right.sql', originalSql[1].sql);
+		}
+		const before = flow.files('main');
+		const beforeFolders = flow.folders('main');
+		const expectedError = fault === 'missing snapshot'
+			? {
+				status: 'error',
+				error: { code: 'migration_snapshot_not_found_error', snapshotPath: expect.stringContaining(missingSnapshot) },
+			}
+			: { status: 'error', error: { code: 'migration_sql_files_conflict_error', prefix: '0001' } };
+
+		for (let attempt = 0; attempt < 2; attempt++) {
+			const error = await flow.up('main').catch((e: unknown) => e);
+			expect(errorToEnvelope(error)).toStrictEqual(expectedError);
+			expect(flow.files('main')).toStrictEqual(before);
+			expect(flow.folders('main')).toStrictEqual(beforeFolders);
+		}
+
+		if (fault === 'missing snapshot') {
+			flow.overwriteFile('main', missingSnapshot, readFileSync(join(fixtures, 'format-7', missingSnapshot), 'utf8'));
+		} else {
+			flow.deleteFolder('main', '0001_right.sql');
+			flow.renameFolder('main', '0001_left.sql', '0001_posts.sql');
+		}
+		expect(await flow.up('main')).toHaveLength(originalSql.length);
+		const folders = flow.folders('main');
+		expect(folders).toHaveLength(originalSql.length);
+		expect(flow.files('main').map(([path]) => path)).toStrictEqual(
+			folders.flatMap((folder) => [join(folder, 'migration.sql'), join(folder, 'snapshot.json')]),
+		);
+		for (const [index, folder] of folders.entries()) {
+			const original = originalSql[index];
+			expect(folder.endsWith(`_${original.path.slice(5, -4)}`)).toBe(true);
+			const sql = Buffer.from(flow.sql('main', folder));
+			const originalBytes = Buffer.from(original.sql);
+			expect(sql).toStrictEqual(originalBytes);
+			expect(createHash('sha256').update(sql).digest('hex'))
+				.toBe(createHash('sha256').update(originalBytes).digest('hex'));
+		}
+		const converted = flow.files('main');
+		expect(await flow.up('main')).toStrictEqual([]);
+		expect(flow.files('main')).toStrictEqual(converted);
+		expect(flow.folders('main')).toStrictEqual(folders);
+	},
+);
 
 test('up refuses a format 8 folder that sorts before its parent, with the error kind order', async () => {
 	const { flow } = seedFormat8('format-8-linear');
