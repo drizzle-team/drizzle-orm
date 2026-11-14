@@ -6,6 +6,7 @@ import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
 	PgColumn,
+	PgCustomColumn,
 	PgDate,
 	PgDateString,
 	PgJson,
@@ -242,8 +243,17 @@ export class PgDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+					const columnName = sql.identifier(this.casing.getColumnCasing(field));
+					const columnRef = isSingleTable ? sql`${columnName}` : sql`${field}`;
+					const customSelect = is(field, PgCustomColumn) ? field.sqlForSelect(columnRef) : undefined;
+
+					if (customSelect) {
+						// Alias back to the column name so mapResultRow + fromDriver keep working
+						// (e.g. st_astext("coords") as "coords").
+						chunk.push(customSelect);
+						chunk.push(sql` as ${columnName}`);
+					} else if (isSingleTable) {
+						chunk.push(columnName);
 					} else {
 						chunk.push(field);
 					}
@@ -1355,13 +1365,23 @@ export class PgDialect {
 		if (nestedQueryRelation) {
 			let field = sql`json_build_array(${
 				sql.join(
-					selection.map(({ field, tsKey, isJson }) =>
-						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
+					selection.map(({ field, tsKey, isJson }) => {
+						if (isJson) {
+							return sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`;
+						}
+						if (is(field, SQL.Aliased)) {
+							return field.sql;
+						}
+						// Relational json_build_array embeds columns directly (not via buildSelection),
+						// so apply customType.selectFromDb here as well.
+						if (is(field, PgCustomColumn)) {
+							const wrapped = field.sqlForSelect(sql`${field}`);
+							if (wrapped) {
+								return wrapped;
+							}
+						}
+						return field;
+					}),
 					sql`, `,
 				)
 			})`;

@@ -295,3 +295,62 @@ export interface CustomTypeParams<T extends Partial<CustomTypeValues>> {
   fromDriver?: (value: T['driverData']) => T['data'];
 }
 ````
+
+## Selecting custom columns with SQL transforms (`selectFromDb`)
+
+Some database types cannot be read in their on-disk form. The classic example is
+PostGIS `geometry`: drivers often return EWKB hex that is awkward to parse, so
+you want every select to use `ST_AsText(column)` (or `ST_AsGeoJSON`) instead.
+
+Without framework support you must wrap the column at every call site, and
+relational queries (`db.query.*.findMany`) cannot express a custom SQL fragment
+in `columns`.
+
+Add an optional `selectFromDb` callback to `customType`. When present, Drizzle
+applies it automatically for `select`, `returning`, and relational queries, then
+aliases the expression back to the column name so `fromDriver` still runs.
+
+### PostGIS `geometry(Point)` example (PostgreSQL)
+
+```typescript
+import { customType, pgTable, integer, text } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+
+export type Point = { lat: number; lng: number };
+
+export const point = customType<{ data: Point; driverData: string }>({
+  dataType() {
+    return 'geometry(Point,4326)';
+  },
+  toDriver(value) {
+    return `SRID=4326;POINT(${value.lng} ${value.lat})`;
+  },
+  fromDriver(value) {
+    const match = value.match(/POINT\((?<lng>[-\d.]+)\s+(?<lat>[-\d.]+)\)/i);
+    const { lat, lng } = match?.groups ?? {};
+    return { lat: Number(lat), lng: Number(lng) };
+  },
+  // Always select ST_AsText(column) AS column — no per-query wrapper needed
+  selectFromDb(columnRef) {
+    return sql`st_astext(${columnRef})`;
+  },
+});
+
+export const location = pgTable('location', {
+  id: integer('id').primaryKey(),
+  name: text('name'),
+  coords: point('coords'),
+});
+
+// Works with default select, joins, returning(), and relational queries:
+// db.select().from(location)
+//   -> select "id", "name", st_astext("coords") as "coords" from "location"
+```
+
+`columnRef` is already table-/alias-qualified when needed (joins, aliases), so
+you should not re-wrap it with `sql.identifier(...)`. Return only the wrapping
+expression — do **not** call `.as()` or `.mapWith()`; the dialect aliases the
+result and `fromDriver` still decodes the driver value.
+
+The same `selectFromDb` hook is available on MySQL and SQLite `customType`
+factories (for example `lower(${columnRef})` or dialect-specific casts).

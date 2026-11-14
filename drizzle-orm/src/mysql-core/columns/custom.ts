@@ -63,6 +63,7 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustom
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private mapSelect?: (columnRef: SQL) => SQL;
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
@@ -72,10 +73,19 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustom
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.mapSelect = config.customTypeParams.selectFromDb;
 	}
 
 	getSQLType(): string {
 		return this.sqlName;
+	}
+
+	/**
+	 * @internal Apply optional `selectFromDb` wrap for SELECT / RETURNING.
+	 * Returns `undefined` when the custom type does not define a selector.
+	 */
+	sqlForSelect(columnRef: SQL): SQL | undefined {
+		return typeof this.mapSelect === 'function' ? this.mapSelect(columnRef) : undefined;
 	}
 
 	override mapFromDriverValue(value: T['driverParam']): T['data'] {
@@ -195,6 +205,25 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional SQL transform applied automatically whenever this column is selected
+	 * (`select`, `returning`, relational queries). Use for types whose on-disk form
+	 * cannot be read as-is (e.g. wrapping with a SQL function on every select).
+	 *
+	 * `columnRef` is already the correctly qualified column reference (including
+	 * table / alias qualification in joins). Return only the wrapping expression —
+	 * the dialect aliases it back to the column name so `mapResultRow` / `fromDriver`
+	 * keep working. Do not call `.as()` or `.mapWith()` here.
+	 *
+	 * @example
+	 * ```ts
+	 * selectFromDb(columnRef) {
+	 *   return sql`lower(${columnRef})`;
+	 * }
+	 * ```
+	 */
+	selectFromDb?: (columnRef: SQL) => SQL;
 }
 
 /**
