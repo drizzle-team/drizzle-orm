@@ -918,7 +918,7 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 
 		return new Proxy(
 			new Subquery(this.getSQL(), this.config.fields, alias, false, [...new Set(usedTables)]),
-			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error', isSelectionField: true }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
 
@@ -926,7 +926,12 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 	override getSelectedFields(): this['_']['selectedFields'] {
 		return new Proxy(
 			this.config.fields,
-			new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+			new SelectionProxyHandler({
+				alias: this.tableName,
+				sqlAliasedBehavior: 'alias',
+				sqlBehavior: 'error',
+				isSelectionField: true,
+			}),
 		) as this['_']['selectedFields'];
 	}
 

@@ -613,6 +613,7 @@ export class PgUpdateBase<
 						alias: getTableName(this.config.table),
 						sqlAliasedBehavior: 'alias',
 						sqlBehavior: 'error',
+						isSelectionField: true,
 					}),
 				)
 				: undefined

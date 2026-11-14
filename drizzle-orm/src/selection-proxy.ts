@@ -38,6 +38,8 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 		 * @default false
 		 */
 		replaceOriginalName?: boolean;
+		/** Whether these columns refer to values already selected by a query. */
+		isSelectionField?: boolean;
 	};
 
 	constructor(config: SelectionProxyHandler<T>['config']) {
@@ -98,14 +100,17 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 		}
 
 		if (is(value, Column)) {
-			if (this.config.alias) {
+			if (this.config.alias || this.config.isSelectionField) {
 				return new Proxy(
 					value,
 					new ColumnAliasProxyHandler(
-						new Proxy(
-							value.table,
-							new TableAliasProxyHandler(this.config.alias, this.config.replaceOriginalName ?? false),
-						),
+						this.config.alias
+							? new Proxy(
+								value.table,
+								new TableAliasProxyHandler(this.config.alias, this.config.replaceOriginalName ?? false),
+							)
+							: value.table,
+						this.config.isSelectionField,
 					),
 				);
 			}
