@@ -2,6 +2,7 @@ import { Name, param, sql } from 'drizzle-orm';
 import { refineCodecs } from 'drizzle-orm/codecs';
 import {
 	arrayCompatNormalize,
+	arrayCompatNormalizeInput,
 	boolean,
 	customType,
 	getTableConfig,
@@ -72,6 +73,7 @@ test('custom codecs for client with custom types (changelog example)', async ({ 
 		},
 	});
 	const toABC = ([a, b, c]: Line) => ({ a, b, c });
+	const toLine = (value: string) => value.slice(1, -1).split(',').map(Number) as Line;
 	const db = drizzle({
 		client,
 		codecs: refineCodecs(postgresJsCodecs(client), {
@@ -81,8 +83,11 @@ test('custom codecs for client with custom types (changelog example)', async ({ 
 			line: {
 				normalize: toABC,
 				normalizeArray: arrayCompatNormalize(toABC),
-				// drizzle encodes `{ a, b, c }` to `{a,b,c}` text - array params stay array literals, which `postgres.js` sends as is
-				normalizeParam: (value: string) => value.slice(1, -1).split(',').map(Number) as Line,
+				// drizzle encodes `{ a, b, c }` to `{a,b,c}` text
+				normalizeParam: toLine,
+				// `postgres.js` 4 serializes array params element by element, with the type's `serialize` - elements are typed,
+				// or it would read the tuples as nested arrays
+				normalizeParamArray: arrayCompatNormalizeInput((value: string) => client.typed(toLine(value) as any, 628)),
 			},
 		}),
 	});

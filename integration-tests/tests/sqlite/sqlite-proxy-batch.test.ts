@@ -2,6 +2,7 @@ import type BetterSqlite3 from 'better-sqlite3';
 import Database from 'better-sqlite3';
 import { defineRelations, eq, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
+import { betterSQLite3Codecs } from 'drizzle-orm/better-sqlite3/codecs';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { SqliteProxyBatchItem, SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
@@ -148,6 +149,7 @@ class ServerSimulator {
 					const { method, sql, params, rowMode } = query;
 
 					const statement = this.db.prepare(sql);
+					if (method !== 'run') statement.safeIntegers(true);
 
 					switch (method) {
 						case 'run': {
@@ -172,9 +174,15 @@ class ServerSimulator {
 		}
 	}
 
-	async query(sql: string, params: any[], method: 'run' | 'all' | 'get', rowMode: 'array' | 'object' = 'object') {
+	async query(
+		sql: string,
+		params: any[],
+		method: 'run' | 'all' | 'get',
+		rowMode: 'array' | 'object' = 'object',
+	) {
 		try {
 			const statement = this.db.prepare(sql);
+			if (method !== 'run') statement.safeIntegers(true);
 
 			switch (method) {
 				case 'run': {
@@ -249,7 +257,8 @@ beforeAll(async () => {
 				return result.data!;
 			},
 		},
-		{ relations: relationsV2 },
+		// the server reads integers as bigints on decoded queries, as `better-sqlite3`'s codecs expect
+		{ relations: relationsV2, codecs: betterSQLite3Codecs },
 	);
 });
 
@@ -531,24 +540,24 @@ test('insert + db.all + db.get + db.values + db.run', async () => {
 	expect(batchResponse[1]).toEqual({ changes: 1, lastInsertRowid: 2 });
 
 	expect(batchResponse[2]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invited_by: null },
-		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
+		{ id: 1n, name: 'John', verified: 0n, invited_by: null },
+		{ id: 2n, name: 'Dan', verified: 0n, invited_by: null },
 	]);
 
 	expect(batchResponse[3]).toEqual([
-		[1, 'John', 0, null],
-		[2, 'Dan', 0, null],
+		[1n, 'John', 0n, null],
+		[2n, 'Dan', 0n, null],
 	]);
 
 	expect(batchResponse[4]).toEqual(
-		{ id: 1, name: 'John', verified: 0, invited_by: null },
+		{ id: 1n, name: 'John', verified: 0n, invited_by: null },
 	);
 	expect(batchResponse[5]).toEqual([
-		[1, 'John', 0, null],
-		[2, 'Dan', 0, null],
+		[1n, 'John', 0n, null],
+		[2n, 'Dan', 0n, null],
 	]);
 
-	expect(batchResponse[6]).toEqual([1, 'John', 0, null]);
+	expect(batchResponse[6]).toEqual([1n, 'John', 0n, null]);
 });
 
 // batch api combined rqb + raw call
@@ -588,8 +597,8 @@ test('insert + findManyWith + db.all', async () => {
 	]);
 
 	expect(batchResponse[3]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invited_by: null },
-		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
+		{ id: 1n, name: 'John', verified: 0n, invited_by: null },
+		{ id: 2n, name: 'Dan', verified: 0n, invited_by: null },
 	]);
 });
 

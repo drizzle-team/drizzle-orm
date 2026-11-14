@@ -1,5 +1,12 @@
-import { type CastCodec, type Codecs, refineCodecs } from '~/codecs.ts';
+import {
+	bigintFromIntegerValue,
+	type CastCodec,
+	type Codecs,
+	refineCodecs,
+	unsupportedColumnTypeError,
+} from '~/codecs.ts';
 import { sql } from '~/sql/sql.ts';
+import { decodeUtf8, encodeUtf8 } from '~/utils.ts';
 import type { PartialWithUndefined } from '~/utils.ts';
 
 export type SQLiteType =
@@ -78,9 +85,8 @@ export const bufferFromBinaryIfAvailable = typeof Buffer === 'undefined'
 	? (value: ArrayBuffer | ArrayLike<number>): Uint8Array => new Uint8Array(value as ArrayBuffer)
 	: bufferFromBinary;
 
-const utf8Encoder = typeof Buffer === 'undefined' ? new TextEncoder() : undefined;
-export const bytesFromUtf8 = utf8Encoder
-	? (value: string): Buffer => utf8Encoder.encode(value) as Buffer
+export const bytesFromUtf8 = typeof Buffer === 'undefined'
+	? (value: string): Buffer => encodeUtf8(value) as Buffer
 	: (value: string): Buffer => Buffer.from(value);
 
 export const dateFromSeconds = (value: number): Date => new Date(value * 1000);
@@ -96,6 +102,38 @@ export const dateFromStoredSeconds = (value: number | bigint | string): Date =>
 export const dateFromStoredMilliseconds = (value: number | bigint | string): Date =>
 	isStoredText(value) ? new Date(value.replaceAll('"', '')) : new Date(Number(value));
 export const booleanFromInteger = (value: number | bigint | string): boolean => Number(value) === 1;
+
+/**
+ * Text of a `blob` column value as clients hand it over (`Buffer`, `Uint8Array`, `ArrayBuffer`, an array of bytes),
+ * or of text stored in it
+ */
+const textFromBlob = (value: string | ArrayBuffer | ArrayBufferView | ArrayLike<number>): string =>
+	typeof value === 'string'
+		? value
+		: value instanceof ArrayBuffer
+		? decodeUtf8(new Uint8Array(value))
+		: ArrayBuffer.isView(value)
+		? decodeUtf8(new Uint8Array(value.buffer, value.byteOffset, value.byteLength))
+		: decodeUtf8(Uint8Array.from(value));
+export const jsonFromBlob = (value: string | ArrayBuffer | ArrayBufferView | ArrayLike<number>): unknown =>
+	JSON.parse(textFromBlob(value));
+export const bigintFromBlob = (value: string | ArrayBuffer | ArrayBufferView | ArrayLike<number>): bigint =>
+	BigInt(textFromBlob(value));
+
+const unsafeNumericReason = 'the driver returned an integer outside of the safe integer range as a number, which has '
+	+ "already lost precision; configure the client to return integers as bigints (`safeIntegers`, `intMode: 'bigint'`)";
+
+/**
+ * Text of a `numeric` column value - `number`, `bigint` (safe integers modes) or text, depending on the storage class
+ * sqlite picked for the row and client options
+ */
+export const numericTextFromValue = (driver: string) => (value: number | bigint | string): string => {
+	if (typeof value === 'number' && Number.isInteger(value) && !Number.isSafeInteger(value)) {
+		throw unsupportedColumnTypeError('numeric', driver, unsafeNumericReason);
+	}
+	return String(value);
+};
+export const numericBigintFromValue = (driver: string) => bigintFromIntegerValue('numeric', driver);
 
 export const genericSQLiteCodecs = {
 	integer: {

@@ -72,6 +72,10 @@ const db = drizzle({ client });
 	return db as any;
 }
 
+/**
+ * Driver quirks:
+ * - `float` values are rounded to 6 significant digits by MySQL's text protocol
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends Client = Client,

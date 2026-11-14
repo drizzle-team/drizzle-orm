@@ -58,7 +58,6 @@ export interface PgUpdateConfig {
 	shape?: any;
 	withList?: Subquery[];
 	comment?: SQL;
-	useSelectionCastCodecs?: boolean;
 }
 
 export type PgUpdateSetSource<
@@ -672,14 +671,12 @@ export class PgUpdateBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildUpdateQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
@@ -717,7 +714,7 @@ export class PgUpdateBase<
 			session,
 			dialect,
 			config,
-			() => this.getSQL(true),
+			() => this.getSQL(),
 			nullableObjectPaths,
 			name ?? generateName,
 		);

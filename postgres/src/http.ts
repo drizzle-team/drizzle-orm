@@ -19,7 +19,7 @@ import { buildDecoders, type CodegenCol, INSTANT_OIDS, tagArrayCol } from './dec
 import { encodeJsonParams, setTransactionSnapshotSql } from './encode.ts';
 import { parseErrorFields, PgError } from './errors.ts';
 import { type RowMapper, RowMappers } from './mapper.ts';
-import { parseCommandComplete, Parser, parseRowDescription, type RawMessage } from './protocol.ts';
+import { parseCommandComplete, Parser, type RawMessage } from './protocol.ts';
 import type { ShapeMapper } from './shape.ts';
 import { mergeUnknownCols, type ParamType, resolveParamTypes, type ShapeSpec, shapeTextCols } from './spec.ts';
 import type { BatchOptions, Decoder, Field, QueryResult, ResultMode } from './types.ts';
@@ -191,7 +191,7 @@ export class HttpClient {
 		for (const m of msgs) {
 			switch (m.type) {
 				case 'T': {
-					cur.fields = parseRowDescription(m.body);
+					cur.fields = this.rowMappers.fieldsFor(m.body);
 					cur.desc = m.body;
 					// harvest for desc elision + T-less decode; frame = header (5B, contiguous below body) + body.
 					// The same description as last time for this statement: its hash and its copy still hold.

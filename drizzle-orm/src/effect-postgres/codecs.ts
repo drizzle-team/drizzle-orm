@@ -1,25 +1,17 @@
+import { unsupportedCodec } from '~/codecs.ts';
 import { makePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
-	castToEpochMs,
-	castToJsonText,
-	castToText,
 	castToTextArr,
-	epochMsToDate,
 	genericPgCodecs,
 	makeBoxArray,
 	makeGeometryArray,
-	parseGeometryTuple,
-	parseGeometryXY,
-	parseLineABC,
-	parseLineTuple,
-	parsePgVector,
-	parsePointTuple,
-	parsePointXY,
+	pgTimestampTextFromUtcDate,
 	refineGenericPgCodecs,
-	textToDateArray,
-	textToDateWithTzArray,
+	shortestFloat32,
+	shortestFloat32Array,
+	textToDate,
 } from '~/pg-core/codecs.ts';
 import { pgHexToUint8Array } from '~/utils.ts';
 
@@ -29,321 +21,242 @@ const bytesToPgHex = (value: Uint8Array): string => {
 	return hex;
 };
 
+const driver = '@effect/sql-pg';
+const binaryReason = 'the driver decodes the binary format of this type as text, corrupting it, '
+	+ 'and its `Effect` client accepts no per-query result formats';
+const timeZoneReason = 'the driver decodes `timestamptz` values to `Date`s, dropping the offset the server formats in '
+	+ "the session's time zone, and its `Effect` client accepts no per-query result formats";
+const timestampText = pgTimestampTextFromUtcDate(false);
+
+/** PostgreSQL's `date` text from the driver's ISO 8601 date: ISO year `0` is 1 BC, `-1` is 2 BC (`-0043-03-15` -> `0044-03-15 BC`) */
+const pgDateText = (value: string): string => {
+	if (value === 'infinity' || value === '-infinity') return value;
+	const yearEnd = value.indexOf('-', 1);
+	const year = +value.slice(0, yearEnd);
+	return year > 0 ? value : `${String(1 - year).padStart(4, '0')}${value.slice(yearEnd)} BC`;
+};
+const dateFromIsoText = (value: string): Date => textToDate(pgDateText(value));
+
+/** PostgreSQL's `time` text from the driver's microseconds since midnight */
+const pgTimeFromMicroseconds = (value: bigint | number): string => {
+	const micros = BigInt(value);
+	const seconds = micros / 1_000_000n;
+	const fraction = micros % 1_000_000n;
+	const hms = `${String(seconds / 3600n).padStart(2, '0')}:${String((seconds / 60n) % 60n).padStart(2, '0')}:${
+		String(seconds % 60n).padStart(2, '0')
+	}`;
+	return fraction === 0n ? hms : `${hms}.${String(fraction).padStart(6, '0').replace(/0+$/, '')}`;
+};
+
+/** PostgreSQL's `timetz` text omits zero offset minutes: `12:00:00+05:00` -> `12:00:00+05` */
+const pgTimeTzText = (value: string): string =>
+	value.endsWith(':00') && value.charCodeAt(value.length - 6) !== 58 /* : */
+		? value.slice(0, -3)
+		: value;
+
 export const effectPgCodecs = refineGenericPgCodecs({
 	bit: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	date: {
-		cast: castToEpochMs,
-		castArray: castToJsonText,
-		normalize: epochMsToDate,
-		normalizeArray: textToDateArray,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: dateFromIsoText,
+		normalizeArray: arrayCompatNormalize(dateFromIsoText),
 	},
 	'date:string': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: pgDateText,
+		normalizeArray: arrayCompatNormalize(pgDateText),
 	},
 	'geometry(point)': {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: parseGeometryXY,
-		normalizeArray: arrayCompatNormalize(parseGeometryXY),
+		normalize: unsupportedCodec('geometry(point)', driver, binaryReason),
+		normalizeArray: unsupportedCodec('geometry(point)', driver, binaryReason),
 	},
 	'geometry(point):tuple': {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: parseGeometryTuple,
-		normalizeArray: arrayCompatNormalize(parseGeometryTuple),
+		normalize: unsupportedCodec('geometry(point)', driver, binaryReason),
+		normalizeArray: unsupportedCodec('geometry(point)', driver, binaryReason),
 	},
 	'geometry(polygon)': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	interval: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	line: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: parseLineABC,
-		normalizeArray: arrayCompatNormalize(parseLineABC),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'line:tuple': {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: parseLineTuple,
-		normalizeArray: arrayCompatNormalize(parseLineTuple),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	macaddr: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: unsupportedCodec('macaddr', driver, binaryReason),
+		normalizeArray: unsupportedCodec('macaddr', driver, binaryReason),
 	},
 	macaddr8: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castArrayInJson: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: unsupportedCodec('macaddr8', driver, binaryReason),
+		normalizeArray: unsupportedCodec('macaddr8', driver, binaryReason),
 	},
 	point: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: parsePointXY,
-		normalizeArray: arrayCompatNormalize(parsePointXY),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'point:tuple': {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: parsePointTuple,
-		normalizeArray: arrayCompatNormalize(parsePointTuple),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	timestamp: {
-		cast: castToEpochMs,
-		castArray: castToJsonText,
-		normalize: epochMsToDate,
-		normalizeArray: textToDateWithTzArray,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	timestamptz: {
-		cast: castToEpochMs,
-		castArray: castToJsonText,
-		normalize: epochMsToDate,
-		normalizeArray: textToDateArray,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'timestamp:string': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: timestampText,
+		normalizeArray: arrayCompatNormalize(timestampText),
 	},
 	'timestamptz:string': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: unsupportedCodec('timestamp with time zone', driver, timeZoneReason),
+		normalizeArray: unsupportedCodec('timestamp with time zone', driver, timeZoneReason),
 	},
 	json: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: JSON.parse,
-		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: JSON.parse,
-		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	box: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: makeBoxArray,
 	},
 	box2d: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	box3d: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	cidr: { normalizeParamArray: (v) => makePgArray(v) },
+	cidr: {
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	circle: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	datemultirange: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	daterange: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'geography(point)': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: makeGeometryArray,
 	},
 	'geography(point):tuple': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: makeGeometryArray,
 	},
-	inet: { normalizeParamArray: (v) => makePgArray(v) },
+	inet: {
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	int4multirange: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	int4range: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	int8multirange: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	int8range: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	lseg: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	money: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	nummultirange: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	numrange: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	oid: { normalizeParamArray: (v) => makePgArray(v) },
+	oid: {
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	path: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	polygon: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	raster: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	regclass: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	regconfig: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	regdictionary: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	regnamespace: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	regoper: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	regoperator: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	regproc: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	regprocedure: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	regrole: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	regtype: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	time: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: pgTimeFromMicroseconds,
+		normalizeArray: arrayCompatNormalize(pgTimeFromMicroseconds),
 	},
 	timetz: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: pgTimeTzText,
+		normalizeArray: arrayCompatNormalize(pgTimeTzText),
 	},
 	tsmultirange: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	tsquery: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	tsrange: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	tstzmultirange: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	tstzrange: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	tsvector: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	varbit: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	xml: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	bytea: {
@@ -360,91 +273,70 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: arrayCompatNormalizeInput(bytesToPgHex, true),
 	},
 	enum: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalizeArray: unsupportedCodec('enum[]', driver, binaryReason),
 	},
 	numeric: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'numeric:number': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'numeric:bigint': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigint:number': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigint:string': {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
 		normalize: String,
 		normalizeArray: arrayCompatNormalize(String),
-		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigserial:number': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	// Binary `float4` is widened to float64
 	float4: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: Number,
-		normalizeArray: arrayCompatNormalize(Number),
+		normalizeParamArray: (v) => makePgArray(v),
+		normalize: shortestFloat32,
+		normalizeArray: shortestFloat32Array,
+	},
+	uuid: {
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	uuid: { normalizeParamArray: (v) => makePgArray(v) },
 	halfvec: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: parsePgVector,
-		normalizeArray: arrayCompatNormalize(parsePgVector),
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: unsupportedCodec('halfvec', driver, binaryReason),
+		normalizeArray: unsupportedCodec('halfvec', driver, binaryReason),
 	},
 	sparsevec: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: unsupportedCodec('sparsevec', driver, binaryReason),
+		normalizeArray: unsupportedCodec('sparsevec', driver, binaryReason),
 	},
 	vector: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: parsePgVector,
-		normalizeArray: arrayCompatNormalize(parsePgVector),
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: unsupportedCodec('vector', driver, binaryReason),
+		normalizeArray: unsupportedCodec('vector', driver, binaryReason),
 	},
 	bigint: {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
-		normalizeParamArray: (v) => makePgArray(v),
 	},
 	bigserial: {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
-		normalizeParamArray: (v) => makePgArray(v),
 	},
 	// `@effect/sql-pg` can't infer an element type for an empty JS array - array literals are typed by the server
 	bool: { normalizeParamArray: (v) => makePgArray(v) },

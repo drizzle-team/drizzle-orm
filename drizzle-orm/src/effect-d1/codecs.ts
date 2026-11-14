@@ -1,13 +1,18 @@
 import {
+	bigintFromBlob,
 	booleanFromInteger,
 	bufferFromBinaryIfAvailable,
-	castToText,
 	dateFromStoredMilliseconds,
 	dateFromStoredSeconds,
+	jsonFromBlob,
+	numericBigintFromValue,
+	numericTextFromValue,
 	refineSqliteCodecs,
 } from '~/sqlite-core/codecs.ts';
 
 // D1 returns blobs as `ArrayBuffer` on workerd and as a plain byte array on miniflare
+const driver = 'effect-d1';
+
 export const effectD1Codecs = refineSqliteCodecs({
 	integer: {
 		normalize: Number,
@@ -28,22 +33,18 @@ export const effectD1Codecs = refineSqliteCodecs({
 		normalize: bufferFromBinaryIfAvailable,
 	},
 	'blob:json': {
-		cast: castToText,
-		normalize: JSON.parse,
+		normalize: jsonFromBlob,
 	},
 	'blob:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: bigintFromBlob,
 	},
 	numeric: {
-		cast: castToText,
-		normalize: String,
+		normalize: numericTextFromValue(driver),
 	},
 	'numeric:number': {
 		normalize: Number,
 	},
 	'numeric:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: numericBigintFromValue(driver),
 	},
 });

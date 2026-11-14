@@ -823,7 +823,7 @@ function rowLiteral(cols: CodegenCol[], mode: 'array' | 'object', xforms: Array<
 	return buildObjectLiteral(cols, xforms);
 }
 
-export type RowBuilder = ((body: Buffer) => unknown) & { source: string };
+export type RowBuilder = ((body: Buffer, start?: number) => unknown) & { source: string };
 
 export function rowBuilderSource(
 	cols: CodegenCol[],
@@ -833,10 +833,14 @@ export function rowBuilderSource(
 	const helperCols: CodegenCol[] = [];
 	const xforms: Array<(v: unknown) => unknown> = [];
 	const { header, plan } = jsonPrep(cols);
-	const lines = ['  let o = 2, l;'];
+	const lines = ['  let o = (s | 0) + 2, l;'];
 	for (let i = 0; i < cols.length; i++) columnLines(lines, cols[i]!, i, '  ', helperCols, plan, custom, xforms);
 	const ret = '  return ' + rowLiteral(cols, mode, xforms) + ';';
-	return { source: `function row(b) {\n  "use strict";${header}\n${lines.join('\n')}\n${ret}\n}`, helperCols, xforms };
+	return {
+		source: `function row(b, s) {\n  "use strict";${header}\n${lines.join('\n')}\n${ret}\n}`,
+		helperCols,
+		xforms,
+	};
 }
 
 export function resultSetSource(

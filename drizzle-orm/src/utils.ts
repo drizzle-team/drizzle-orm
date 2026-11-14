@@ -757,7 +757,154 @@ export function isConfig(data: any): boolean {
 
 export type NeonAuthToken = string | (() => string | Promise<string>);
 
-export const textDecoder = typeof TextDecoder === 'undefined' ? null : new TextDecoder();
+let textEncoder: TextEncoder | null | undefined;
+
+const getTextEncoder = (): TextEncoder | null => {
+	if (textEncoder !== undefined) return textEncoder;
+	return (textEncoder = typeof TextEncoder === 'function' ? new TextEncoder() : null);
+};
+
+/**
+ * Writes UTF-8 bytes of `value` into `dest` starting at `offset`, returns the number of written bytes.
+ *
+ * `dest` must have at least `value.length * 3` bytes of space after `offset`.
+ *
+ * Lone surrogates are written as U+FFFD, identical to `TextEncoder`.
+ */
+function encodeUtf8IntoJs(value: string, dest: Uint8Array, offset: number): number {
+	let pos = offset;
+	for (let i = 0; i < value.length; ++i) {
+		let code = value.charCodeAt(i);
+
+		if (code < 0x80) {
+			dest[pos++] = code;
+			continue;
+		}
+
+		if (code < 0x800) {
+			dest[pos++] = 0xc0 | (code >> 6);
+			dest[pos++] = 0x80 | (code & 0x3f);
+			continue;
+		}
+
+		if (code >= 0xd800 && code <= 0xdfff) {
+			const next = i + 1 < value.length ? value.charCodeAt(i + 1) : 0;
+			if (code <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) {
+				code = 0x10000 + ((code - 0xd800) << 10) + (next - 0xdc00);
+				++i;
+				dest[pos++] = 0xf0 | (code >> 18);
+				dest[pos++] = 0x80 | ((code >> 12) & 0x3f);
+				dest[pos++] = 0x80 | ((code >> 6) & 0x3f);
+				dest[pos++] = 0x80 | (code & 0x3f);
+				continue;
+			}
+			code = 0xfffd;
+		}
+
+		dest[pos++] = 0xe0 | (code >> 12);
+		dest[pos++] = 0x80 | ((code >> 6) & 0x3f);
+		dest[pos++] = 0x80 | (code & 0x3f);
+	}
+	return pos - offset;
+}
+
+/**
+ * Writes UTF-8 bytes of `value` into `dest` starting at `offset`, returns the number of written bytes.
+ *
+ * `dest` must have at least `value.length * 3` bytes of space after `offset`.
+ *
+ * Lone surrogates are written as U+FFFD, identical to `TextEncoder`.
+ */
+export function encodeUtf8Into(value: string, dest: Uint8Array, offset: number): number {
+	const encoder = getTextEncoder();
+	if (encoder && typeof encoder.encodeInto === 'function') {
+		return encoder.encodeInto(value, dest.subarray(offset)).written;
+	}
+	return encodeUtf8IntoJs(value, dest, offset);
+}
+
+export function encodeUtf8(value: string): Uint8Array<ArrayBuffer> {
+	const encoder = getTextEncoder();
+	if (encoder) return encoder.encode(value);
+
+	const dest = new Uint8Array(value.length * 3);
+	return dest.subarray(0, encodeUtf8IntoJs(value, dest, 0));
+}
+
+const textDecoder: TextDecoder | null = typeof TextDecoder === 'function' ? new TextDecoder() : null;
+
+/**
+ * Decodes UTF-8, replacing malformed sequences with U+FFFD.
+ *
+ * Fallback follows the WHATWG UTF-8 decoder algorithm, so output is identical to `TextDecoder`'s
+ */
+export function decodeUtf8(bytes: Uint8Array): string {
+	if (textDecoder) return textDecoder.decode(bytes);
+
+	let out = '';
+	let units: number[] = [];
+	const emit = (code: number) => {
+		if (code > 0xffff) {
+			code -= 0x10000;
+			units.push(0xd800 + (code >> 10), 0xdc00 + (code & 0x3ff));
+		} else units.push(code);
+
+		if (units.length >= 8192) {
+			out += String.fromCharCode.apply(null, units);
+			units = [];
+		}
+	};
+
+	let codePoint = 0;
+	let needed = 0;
+	let seen = 0;
+	let lower = 0x80;
+	let upper = 0xbf;
+
+	for (let i = 0; i < bytes.length; ++i) {
+		const byte = bytes[i]!;
+
+		if (needed === 0) {
+			if (byte <= 0x7f) emit(byte);
+			else if (byte >= 0xc2 && byte <= 0xdf) {
+				needed = 1;
+				codePoint = byte & 0x1f;
+			} else if (byte >= 0xe0 && byte <= 0xef) {
+				if (byte === 0xe0) lower = 0xa0;
+				if (byte === 0xed) upper = 0x9f;
+				needed = 2;
+				codePoint = byte & 0x0f;
+			} else if (byte >= 0xf0 && byte <= 0xf4) {
+				if (byte === 0xf0) lower = 0x90;
+				if (byte === 0xf4) upper = 0x8f;
+				needed = 3;
+				codePoint = byte & 0x07;
+			} else emit(0xfffd);
+			continue;
+		}
+
+		if (byte < lower || byte > upper) {
+			// Ill-formed sequence: replace what was consumed so far, then reprocess this byte
+			codePoint = needed = seen = 0;
+			lower = 0x80;
+			upper = 0xbf;
+			emit(0xfffd);
+			--i;
+			continue;
+		}
+
+		lower = 0x80;
+		upper = 0xbf;
+		codePoint = (codePoint << 6) | (byte & 0x3f);
+		if (++seen === needed) {
+			emit(codePoint);
+			codePoint = needed = seen = 0;
+		}
+	}
+	if (needed !== 0) emit(0xfffd);
+
+	return out + String.fromCharCode.apply(null, units);
+}
 
 export function memoizeEscape(escape: (name: string) => string, limit = 4096): (name: string) => string {
 	const cache = new Map<string, string>();

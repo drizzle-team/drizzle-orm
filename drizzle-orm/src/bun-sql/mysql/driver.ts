@@ -55,6 +55,12 @@ function construct<
 	return db as any;
 }
 
+/**
+ * Driver quirks:
+ * - `float` values are rounded to 6 significant digits in queries without bound parameters, which Bun sends through
+ *   MySQL's text protocol; queries with parameters use prepared statements, which keep the full value
+ * - `datetime`, `timestamp` in `string` mode lose microseconds
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends SQL = SQL,

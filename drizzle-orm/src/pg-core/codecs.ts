@@ -6,6 +6,7 @@ import {
 	type NormalizeCodec,
 	refineCodecs,
 } from '~/codecs.ts';
+import { DrizzleError } from '~/errors.ts';
 import { type Name, sql, type SQLChunk } from '~/sql/sql.ts';
 import type { PartialWithUndefined } from '~/utils.ts';
 import { makePgArray, parsePgArray } from './array.ts';
@@ -1056,7 +1057,13 @@ const temporalTextRe =
 
 const parseTemporalText = (v: string): Date => {
 	const m = temporalTextRe.exec(v);
-	if (m === null) return new Date(v);
+	if (m === null) {
+		if (v === 'infinity' || v === '-infinity') return new Date(Number.NaN);
+		throw new DrizzleError({
+			message:
+				`Unable to decode date/time value "${v}": only ISO output is supported, set the session's \`DateStyle\` to \`ISO\``,
+		});
+	}
 
 	const year = m[12] === undefined ? +m[1]! : 1 - +m[1]!;
 	const fraction = m[7];
@@ -1092,6 +1099,94 @@ const isEngineParsable = (v: string): boolean => {
 
 export const textToDate = (v: string): Date => isEngineParsable(v) ? new Date(v) : parseTemporalText(v);
 export const textToDateWithTz = (v: string): Date => isEngineParsable(v) ? new Date(v + '+0000') : parseTemporalText(v);
+
+/** `date`, `timestamptz` array literal (`{2026-10-03,...}`) to `Date[]` */
+export const textToDatePgArray = parsePgArrayAndNormalize(textToDate);
+/** `timestamp` array literal to `Date[]`, values read as UTC */
+export const textToDateWithTzPgArray = parsePgArrayAndNormalize(textToDateWithTz);
+/** Array literal to `string[]` */
+export const parsePgArrayOfStrings: NormalizeArrayCodec = (v: string) => parsePgArray(v);
+
+/**
+ * `YYYY-MM-DD` text of a `date` the driver decoded to UTC midnight. Drivers that can't decode BC dates return
+ * `Invalid Date`s for them (a driver quirk), whose text is `'Invalid Date'`
+ */
+export const pgDateTextFromUtcDate = (value: Date): string => {
+	const year = value.getUTCFullYear();
+	if (Number.isNaN(year)) return String(value);
+	const monthDay = `-${String(value.getUTCMonth() + 1).padStart(2, '0')}-${
+		String(value.getUTCDate()).padStart(2, '0')
+	}`;
+	// year 0 is 1 BC
+	return year > 0
+		? `${String(year).padStart(4, '0')}${monthDay}`
+		: `${String(1 - year).padStart(4, '0')}${monthDay} BC`;
+};
+
+const pad2 = (value: number) => String(value).padStart(2, '0');
+
+/**
+ * PostgreSQL's text of a `timestamp` the driver decoded to a `Date` at its UTC wall-clock time (`timestamptz` in UTC with
+ * `withTz`): fractional seconds are cut to the `Date`'s milliseconds, trailing zeros trimmed as PostgreSQL does.
+ * `Infinity` / `-Infinity` (`bun`) map to `infinity` / `-infinity`
+ */
+export const pgTimestampTextFromUtcDate = (withTz: boolean) => (value: Date | number): string => {
+	if (value === Infinity) return 'infinity';
+	if (value === -Infinity) return '-infinity';
+	const date = value as Date;
+	const year = date.getUTCFullYear();
+	const ms = date.getUTCMilliseconds();
+	const text = `${String(year > 0 ? year : 1 - year).padStart(4, '0')}-${pad2(date.getUTCMonth() + 1)}-${
+		pad2(date.getUTCDate())
+	} ${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}:${pad2(date.getUTCSeconds())}${
+		ms ? `.${String(ms).padStart(3, '0').replace(/0+$/, '')}` : ''
+	}${withTz ? '+00' : ''}`;
+	// year 0 is 1 BC
+	return year > 0 ? text : `${text} BC`;
+};
+
+/**
+ * Shortest decimal that rounds to the same `float4` - matches PostgreSQL's text output of `real` values that a driver
+ * decoded from the binary protocol as the exact single-precision value (`1.2345678` -> `1.2345677614212036`)
+ */
+export const shortestFloat32 = (value: number): number => {
+	const exact = Math.fround(value);
+	// keeps `-0`, `NaN`, `Infinity`
+	if (exact === 0 || !Number.isFinite(exact)) return exact;
+	for (let precision = 1; precision <= 9; ++precision) {
+		const candidate = +exact.toPrecision(precision);
+		if (Math.fround(candidate) === exact) return candidate;
+	}
+	return exact;
+};
+
+/** `real[]` of any dimensions whose innermost level a driver may hand over as a `Float32Array` */
+export const shortestFloat32Array: NormalizeArrayCodec = (value, arrayDimensions) => {
+	const loop = (level: any, depth: number): any => {
+		// an empty array of any dimensions comes as an empty `Float32Array`
+		if (level instanceof Float32Array) return Array.from(level, (item) => shortestFloat32(item));
+		if (depth > 1) {
+			for (let i = 0; i < level.length; ++i) level[i] = loop(level[i], depth - 1);
+			return level;
+		}
+		const out = level;
+		for (let i = 0; i < out.length; ++i) out[i] = out[i] === null ? null : shortestFloat32(out[i]);
+		return out;
+	};
+	return loop(value, arrayDimensions);
+};
+
+export const pgRawTextOids: ReadonlySet<number> = new Set([
+	1231, // numeric[]
+	1082, // date
+	1182, // date[]
+	1114, // timestamp
+	1115, // timestamp[]
+	1184, // timestamptz
+	1185, // timestamptz[]
+	1186, // interval
+	1187, // interval[]
+]);
 
 export const castToEpochMs: CastCodec = (name) => sql`floor(extract(epoch from ${name}) * 1000)`;
 export const epochMsToDate = (v: string | number): Date => new Date(+v);

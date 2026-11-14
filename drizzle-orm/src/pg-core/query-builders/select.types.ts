@@ -91,7 +91,6 @@ export interface PgSelectConfig {
 	shape?: any;
 	mapper?: (raw: any) => any;
 	comment?: SQL;
-	useSelectionCastCodecs?: boolean;
 	tagged?: boolean;
 }
 

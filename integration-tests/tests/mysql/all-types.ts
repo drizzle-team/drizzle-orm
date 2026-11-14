@@ -42,8 +42,12 @@ import { expect, expectTypeOf } from 'vitest';
 export type RunQuery = (query: any) => Promise<any>;
 const awaitQuery: RunQuery = (query) => query;
 
-export const makeAllTypes = <TTable extends string>(tableName: TTable) =>
-	mysqlTable(tableName, {
+/**
+ * All-types columns: `.notNull()` in types (pins result types, lets unions take operands in any order), but nullable in
+ * the database, so drivers that can't decode some column types can store `null`s there, which never reach a decoder
+ */
+export const makeAllTypesColumns = () =>
+	nullableInDb({
 		serial: serial('serial'),
 		bigint53: bigint('bigint53', {
 			mode: 'number',
@@ -121,6 +125,8 @@ export const makeAllTypes = <TTable extends string>(tableName: TTable) =>
 		stringmediumblob: mediumblob('stringmediumblob', { mode: 'string' }).notNull(),
 		stringlongblob: longblob('stringlongblob', { mode: 'string' }).notNull(),
 	});
+
+export const makeAllTypes = <TTable extends string>(tableName: TTable) => mysqlTable(tableName, makeAllTypesColumns());
 
 export const allTypesTable = makeAllTypes('all_types_codecs');
 
@@ -219,6 +225,38 @@ export const allTypesData: AllTypes = {
 	stringmediumblob: 'string',
 	stringtinyblob: 'string',
 };
+
+/** Replacements of {@link allTypesData} values for drivers that can't decode some of them: `null` or decodable values */
+export type AllTypesReplacements = { [K in keyof AllTypes]?: AllTypes[K] | null };
+
+/** {@link allTypesData} with the given replacements */
+export const allTypesDataWith = (replacements: AllTypesReplacements, data: AllTypes = allTypesData): AllTypes =>
+	({ ...data, ...replacements }) as AllTypes;
+
+/** Round trip of {@link allTypesData} with the given replacements: select and relational query */
+export async function assertAllTypesWithReplacements(
+	db: MySqlAsyncDatabase<any, any>,
+	table: AllTypesTable,
+	replacements: AllTypesReplacements,
+	{ run = awaitQuery, rqb = false, nested = replacements }: {
+		run?: RunQuery;
+		rqb?: boolean;
+		/** Replacements of values of relations nested in relational queries, which are decoded from JSON */
+		nested?: AllTypesReplacements;
+	} = {},
+) {
+	const data = allTypesDataWith(replacements);
+
+	await run(db.delete(table));
+	await run(db.insert(table).values(data));
+	expect(await run(db.select().from(table))).toStrictEqual([data]);
+	if (rqb) {
+		expect(await run((<any> db).query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+			...data,
+			self: [allTypesDataWith(nested)],
+		});
+	}
+}
 
 export async function assertAllTypesUnions(
 	db: MySqlAsyncDatabase<any, any>,
@@ -2451,22 +2489,27 @@ export const temporalBoundsData: TemporalBoundsRow[] = [
 
 export async function assertAllTypesTemporalBounds(
 	db: MySqlAsyncDatabase<any, any>,
-	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+	{ run = awaitQuery, rqb = false, data = temporalBoundsData }: {
+		run?: RunQuery;
+		rqb?: boolean;
+		/** Replaces {@link temporalBoundsData} for drivers that can't decode some of its values */
+		data?: TemporalBoundsRow[];
+	} = {},
 ) {
 	await run(db.execute(sql.raw(dropTemporalBounds())));
 	await run(db.execute(sql.raw(createTemporalBounds())));
 
 	try {
-		await run(db.insert(temporalBoundsTable).values(temporalBoundsData));
+		await run(db.insert(temporalBoundsTable).values(data));
 
 		const query = db.select().from(temporalBoundsTable).orderBy(temporalBoundsTable.id);
 		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<TemporalBoundsRow[]>();
 
-		expect(await run(query)).toStrictEqual(temporalBoundsData);
+		expect(await run(query)).toStrictEqual(data);
 		if (rqb) {
 			expect(
 				await run((<any> db).query.temporalBoundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
-			).toStrictEqual(temporalBoundsData.map((row) => ({ ...row, self: [row] })));
+			).toStrictEqual(data.map((row) => ({ ...row, self: [row] })));
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropTemporalBounds())));
@@ -2483,3 +2526,9 @@ export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({
 		self: r.many.temporalBoundsTable({ from: r.temporalBoundsTable.id, to: r.temporalBoundsTable.id }),
 	},
 });
+
+/** Drops `NOT NULL` from the columns' DDL, keeping their `.notNull()` types */
+function nullableInDb<TColumns extends Record<string, unknown>>(columns: TColumns): TColumns {
+	for (const column of Object.values(columns)) (column as { config: { notNull: boolean } }).config.notNull = false;
+	return columns;
+}

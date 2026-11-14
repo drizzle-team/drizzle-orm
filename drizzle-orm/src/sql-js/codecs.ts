@@ -1,11 +1,16 @@
 import {
+	bigintFromBlob,
 	booleanFromInteger,
 	bufferFromBytesIfAvailable,
-	castToText,
 	dateFromStoredMilliseconds,
 	dateFromStoredSeconds,
+	jsonFromBlob,
+	numericBigintFromValue,
+	numericTextFromValue,
 	refineSqliteCodecs,
 } from '~/sqlite-core/codecs.ts';
+
+const driver = 'sql-js';
 
 export const sqlJsCodecs = refineSqliteCodecs({
 	integer: {
@@ -27,22 +32,18 @@ export const sqlJsCodecs = refineSqliteCodecs({
 		normalize: bufferFromBytesIfAvailable,
 	},
 	'blob:json': {
-		cast: castToText,
-		normalize: JSON.parse,
+		normalize: jsonFromBlob,
 	},
 	'blob:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: bigintFromBlob,
 	},
 	numeric: {
-		cast: castToText,
-		normalize: String,
+		normalize: numericTextFromValue(driver),
 	},
 	'numeric:number': {
 		normalize: Number,
 	},
 	'numeric:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: numericBigintFromValue(driver),
 	},
 });

@@ -1,4 +1,4 @@
-import type { Client, PoolClient, QueryResult, QueryResultRow } from 'pg';
+import type { Client, CustomTypesConfig, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
 import type { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import { CockroachTransaction } from '~/cockroach-core/index.ts';
@@ -10,12 +10,21 @@ import type {
 import { CockroachPreparedQuery, CockroachSession } from '~/cockroach-core/session.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
+import { pgRawTextOids } from '~/pg-core/codecs.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
-const { Pool } = pg;
+const rawText = (value: string) => value;
+
+export const nodeCockroachRawTextTypes: CustomTypesConfig = {
+	getTypeParser:
+		<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
+			pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format as any)),
+};
+
+const { Pool, types } = pg;
 
 export type NodeCockroachClient = pg.Pool | PoolClient | Client;
 
@@ -58,6 +67,7 @@ export class NodeCockroachSession<
 				name: queryName,
 				rowMode: mode === 'arrays' ? 'array' : undefined as any,
 				text: query.sql,
+				types: mapper ? nodeCockroachRawTextTypes : undefined,
 			}, params).then((r) => mode === 'raw' ? r : r.rows);
 		};
 

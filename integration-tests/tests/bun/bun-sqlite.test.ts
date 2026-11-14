@@ -35,6 +35,7 @@ import { migrate } from 'drizzle-orm/bun-sql/migrator';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sql/sqlite';
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
+import { binarySerializer } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import {
 	alias,
@@ -76,6 +77,12 @@ import {
 	dropAllTypes,
 	makeAllTypes,
 } from '../sqlite/all-types';
+
+// raw rows hold bigints with drivers reading integers as bigints on decoded queries, which JSON can't store
+const bigintSafeKeyvOptions = {
+	serialize: binarySerializer.serialize,
+	deserialize: binarySerializer.deserialize,
+} as any;
 
 export const rqbUser = sqliteTable('user_rqb_test', {
 	id: integer().primaryKey().notNull(),
@@ -249,10 +256,22 @@ let client: SQL;
 
 beforeAll(async () => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
-	client = new SQL(dbPath);
+	// `bun`'s `SQL` has no per-query integer mode: drizzle requires `safeIntegers` for lossless integers
+	client = new SQL(dbPath, { safeIntegers: true });
 	db = drizzle.sqlite({ client, logger: ENABLE_LOGGING, relations });
 	cachedDb = drizzle.sqlite({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle.sqlite({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+});
+
+test('rejects clients returning integers as numbers', () => {
+	const numbersClient = new SQL(':memory:');
+	try {
+		expect(() => drizzle.sqlite({ client: numbersClient })).toThrow('safeIntegers: true');
+		// clients drizzle creates itself read integers losslessly
+		expect(drizzle.sqlite(':memory:').$client.options.safeIntegers).toStrictEqual(true);
+	} finally {
+		numbersClient.close();
+	}
 });
 
 afterAll(async () => {
@@ -1304,33 +1323,33 @@ describe('common', () => {
 	test('insert via db.run + select via db.all', async () => {
 		await db.run(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
-		const result = await db.all<{ id: number; name: string }>(sql`select id, name from "users"`);
-		expect(result).toStrictEqual([{ id: 1, name: 'John' }]);
+		const result = await db.all<{ id: bigint; name: string }>(sql`select id, name from "users"`);
+		expect(result).toStrictEqual([{ id: 1n, name: 'John' }]);
 	});
 
 	test('insert via db.get', async () => {
-		const inserted = await db.get<{ id: number; name: string }>(
+		const inserted = await db.get<{ id: bigint; name: string }>(
 			sql`insert into ${usersTable} (${new Name(
 				usersTable.name.name,
 			)}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 		);
-		expect(inserted).toStrictEqual({ id: 1, name: 'John' });
+		expect(inserted).toStrictEqual({ id: 1n, name: 'John' });
 	});
 
 	test('insert via db.run + select via db.get', async () => {
 		await db.run(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
-		const result = await db.get<{ id: number; name: string }>(
+		const result = await db.get<{ id: bigint; name: string }>(
 			sql`select ${usersTable.id}, ${usersTable.name} from ${usersTable}`,
 		);
-		expect(result).toStrictEqual({ id: 1, name: 'John' });
+		expect(result).toStrictEqual({ id: 1n, name: 'John' });
 	});
 
 	test('insert via db.get w/ query builder', async () => {
-		const inserted = await db.get<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
+		const inserted = await db.get<{ id: bigint; name: string }>(
 			db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 		);
-		expect(inserted).toStrictEqual({ id: 1, name: 'John' });
+		expect(inserted).toStrictEqual({ id: 1n, name: 'John' });
 	});
 
 	test('join subquery', async () => {
@@ -1394,7 +1413,7 @@ describe('common', () => {
 				db
 					.select({
 						region: orders.region,
-						totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
+						totalSales: sql<bigint>`sum(${orders.amount})`.mapWith(Number).as('total_sales'),
 					})
 					.from(orders)
 					.groupBy(orders.region),
@@ -1421,8 +1440,8 @@ describe('common', () => {
 			.select({
 				region: orders.region,
 				product: orders.product,
-				productUnits: sql<number>`cast(sum(${orders.quantity}) as int)`,
-				productSales: sql<number>`cast(sum(${orders.amount}) as int)`,
+				productUnits: sql<number>`cast(sum(${orders.quantity}) as int)`.mapWith(Number),
+				productSales: sql<number>`cast(sum(${orders.amount}) as int)`.mapWith(Number),
 			})
 			.from(orders)
 			.where(inArray(orders.region, db.select({ region: topRegions.region }).from(topRegions)))
@@ -1605,7 +1624,7 @@ describe('common', () => {
 	test('select count()', async () => {
 		await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]).run();
 
-		const res = await db.select({ count: sql`count(*)` }).from(usersTable).all();
+		const res = await db.select({ count: sql`count(*)`.mapWith(Number) }).from(usersTable).all();
 
 		expect(res).toStrictEqual([{ count: 2 }]);
 	});
@@ -1623,7 +1642,7 @@ describe('common', () => {
 			.select({
 				id: citiesTable.id,
 				name: sql<string>`upper(${citiesTable.name})`.as('upper_name'),
-				usersCount: sql<number>`count(${users2Table.id})`.as('users_count'),
+				usersCount: sql<number>`count(${users2Table.id})`.mapWith(Number).as('users_count'),
 			})
 			.from(citiesTable)
 			.leftJoin(users2Table, eq(users2Table.cityId, citiesTable.id))
@@ -1724,7 +1743,7 @@ describe('common', () => {
 
 	test('select from raw sql', async () => {
 		const result = await db.select({
-			id: sql<number>`id`,
+			id: sql<number>`id`.mapWith(Number),
 			name: sql<string>`name`,
 		}).from(sql`(select 1 as id, 'John' as name) as users`).all();
 
@@ -1738,7 +1757,7 @@ describe('common', () => {
 	test('select from raw sql with joins', async () => {
 		const result = await db
 			.select({
-				id: sql<number>`users.id`,
+				id: sql<number>`users.id`.mapWith(Number),
 				name: sql<string>`users.name`.as('userName'),
 				userCity: sql<string>`users.city`,
 				cityName: sql<string>`cities.name`.as('cityName'),
@@ -1757,10 +1776,10 @@ describe('common', () => {
 	test('join on aliased sql from select', async () => {
 		const result = await db
 			.select({
-				userId: sql<number>`users.id`.as('userId'),
+				userId: sql<number>`users.id`.mapWith(Number).as('userId'),
 				name: sql<string>`users.name`.as('userName'),
 				userCity: sql<string>`users.city`,
-				cityId: sql<number>`cities.id`.as('cityId'),
+				cityId: sql<number>`cities.id`.mapWith(Number).as('cityId'),
 				cityName: sql<string>`cities.name`.as('cityName'),
 			})
 			.from(sql`(select 1 as id, 'John' as name, 'New York' as city) as users`)
@@ -1779,7 +1798,7 @@ describe('common', () => {
 	test('join on aliased sql from with clause', async () => {
 		const users = db.$with('users').as(
 			db.select({
-				id: sql<number>`id`.as('userId'),
+				id: sql<number>`id`.mapWith(Number).as('userId'),
 				name: sql<string>`name`.as('userName'),
 				city: sql<string>`city`.as('city'),
 			}).from(
@@ -1789,7 +1808,7 @@ describe('common', () => {
 
 		const cities = db.$with('cities').as(
 			db.select({
-				id: sql<number>`id`.as('cityId'),
+				id: sql<number>`id`.mapWith(Number).as('cityId'),
 				name: sql<string>`name`.as('cityName'),
 			}).from(
 				sql`(select 1 as id, 'Paris' as name) as cities`,
@@ -4351,7 +4370,7 @@ export class TestGlobalCache extends Cache {
 	private globalTtl: number = 1000;
 	private usedTablesPerKey: Record<string, string[]> = {};
 
-	constructor(private kv: Keyv = new Keyv()) {
+	constructor(private kv: Keyv = new Keyv(bigintSafeKeyvOptions)) {
 		super();
 	}
 

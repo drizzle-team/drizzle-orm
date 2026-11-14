@@ -19,7 +19,7 @@ const skip = [
 	'all types ~codecs~',
 ];
 cacheTests(test, skip);
-tests(test, skip);
+tests(test, skip, { rawIntegers: 'bigint' });
 
 test.beforeEach(async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersTable}`);

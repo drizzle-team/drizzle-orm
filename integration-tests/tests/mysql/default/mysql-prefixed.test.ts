@@ -446,9 +446,9 @@ test.concurrent('build query', async ({ db, push }) => {
 		.toSQL();
 
 	expect(query).toEqual({
-		sql: `select cast(\`id\` as char), \`name\` from \`${getTableName(users)}\` group by \`${
+		sql: `select \`id\`, \`name\` from \`${getTableName(users)}\` group by \`${getTableName(users)}\`.\`id\`, \`${
 			getTableName(users)
-		}\`.\`id\`, \`${getTableName(users)}\`.\`name\``,
+		}\`.\`name\``,
 		params: [],
 	});
 });

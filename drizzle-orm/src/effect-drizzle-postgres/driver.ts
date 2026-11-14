@@ -8,7 +8,7 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { EffectDrizzlePgConfig } from '~/pg-core/effect/utils.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { postgresShapeCodecs } from '~/postgres/codecs.ts';
+import { postgresCodecs } from '~/postgres/codecs.ts';
 import type { PostgresBulkInsertValue, PostgresBulkUpdateValue } from '~/postgres/session.ts';
 import { createShapeGenerator } from '~/postgres/shape.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -130,7 +130,7 @@ export const make = Effect.fn('PostgresDrizzle.make')(
 		const cache = yield* EffectCache;
 		const logger = yield* EffectLogger;
 
-		const codecs = config.codecs ?? postgresShapeCodecs;
+		const codecs = config.codecs ?? postgresCodecs;
 		const dialect = new PgDialect({
 			codecs,
 			useJitMappers: jitCompatCheck(config.jit),

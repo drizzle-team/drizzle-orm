@@ -7,6 +7,7 @@ import { expect } from 'vitest';
 import { sqlJsTest as test } from './instrumentation';
 import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
+import { unsafeNumericSkips, unsafeNumericTests } from './unsupported-types';
 
 test('migrator', async ({ db }) => {
 	db.run(sql`drop table if exists another_users`);
@@ -197,6 +198,11 @@ const skip = [
 	// Driver doesn't support caching
 	'all types - upstash',
 	'all types ~codecs~ - upstash',
+	'all types - upstash (safe integers)',
+	'all types ~codecs~ - upstash (safe integers)',
 	'all types ~json~ - upstash',
 ];
-tests(test, skip);
+// the driver returns integers as numbers: integer `numeric` values outside of the safe integer range have already lost
+// precision and throw an unsupported column type error, tests holding them are redefined with safe values
+tests(test, [...skip, ...unsafeNumericSkips]);
+unsafeNumericTests(test);

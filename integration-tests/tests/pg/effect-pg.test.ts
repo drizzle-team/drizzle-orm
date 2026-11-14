@@ -28,18 +28,54 @@ import { randomString } from '~/utils';
 import {
 	AllTypes,
 	allTypesData,
+	allTypesDataWith,
+	type AllTypesReplacements,
 	assertAllTypesBounds,
 	assertAllTypesTemporalBounds,
-	assertAllTypesUnions,
 	boundsRelations,
 	boundsSchema,
 	makeAllTypesColumns,
+	temporalBoundsData,
 	withEmptyArrays,
 } from './all-types';
 import { DB, push, runCommonEffectPgTests } from './effect-common';
 import { relations } from './relations';
 import { usersMigratorTable } from './schema';
 import { normalizeDataWithDbCodecs } from './utils';
+
+// `@effect/sql-pg` reads results in binary format with no per-query alternative: it fails to decode `interval`, `line`,
+// `point` (driver error), returns `macaddr`, `macaddr8`, `enum[]` corrupted and string-mode `timestamptz`s without the
+// offset the server formats in the session's time zone (unsupported column type errors) - those columns are filled with
+// `null`s, which never reach a decoder
+const unsupportedReplacements = {
+	interval: null,
+	arrinterval: null,
+	line: null,
+	linetuple: null,
+	arrline: null,
+	arrlinetuple: null,
+	point: null,
+	pointtuple: null,
+	arrpoint: null,
+	arrpointtuple: null,
+	macaddr: null,
+	macaddr8: null,
+	arrmacaddr: null,
+	arrmacaddr8: null,
+	arrenum: null,
+	timestampTzstr: null,
+	arrtimestampTzstr: null,
+} satisfies AllTypesReplacements;
+/**
+ * Temporal bounds without `timestamp`s holding microseconds: the driver decodes them to `Date`s (a driver quirk), rounding
+ * sub-millisecond fractions (`+999µs` in the fixture) to the nearest millisecond
+ */
+const temporalBoundsDataNoStrings = temporalBoundsData.map((row) => ({
+	...row,
+	timestampStr: null,
+	timestampTzStr: null,
+	timestampTz: null,
+}));
 
 const makeAllTypesNoMtx = <TTable extends string, TEnum extends string>(tableName: TTable, enumName: TEnum) => {
 	const en = pgEnum(enumName, ['enVal1', 'enVal2']);
@@ -48,7 +84,9 @@ const makeAllTypesNoMtx = <TTable extends string, TEnum extends string>(tableNam
 	return { en, allTypesTable };
 };
 type AllTypesNoMtx = Omit<AllTypes, 'mtxbytea'>;
-const { mtxbytea: _, ...allTypesDataNoMtx } = allTypesData;
+const { mtxbytea: _, ...allTypesDataNoMtx } = allTypesDataWith(unsupportedReplacements);
+/** Empty arrays, except for array columns the driver can't decode */
+const emptyArraysNoMtx = allTypesDataWith(unsupportedReplacements, withEmptyArrays(allTypesDataNoMtx as AllTypes));
 
 const connectionStr = Redacted.make(
 	process.env['PG_CONNECTION_STRING'] ?? 'postgres://postgres:postgres@localhost:55433/drizzle',
@@ -90,7 +128,18 @@ runCommonEffectPgTests({
 	createDB: createDB as any,
 	usedSchema,
 	// @effect/sql-pg can't decode multidimensional arrays
-	skipTests: ['all types', 'all types ~codecs~', 'all types - upstash', 'all types ~codecs~ - upstash'],
+	skipTests: [
+		'all types',
+		'all types ~codecs~',
+		'all types - upstash',
+		'all types ~codecs~ - upstash',
+		// `@effect/sql-pg` decodes `timestamp`s to `Date`s, dropping microseconds of string modes, with no per-query
+		// alternative: these only check `timestamp` values, nothing left to redefine with `null`s
+		'Column as decoder applies codecs',
+		'Column as decoder applies codecs - Jit mappers',
+		'time zones are preserved',
+		'time zones are preserved - non-UTC session',
+	],
 	addTests: (it) => {
 		// https://github.com/drizzle-team/drizzle-orm/issues/6566
 		it.effect('empty array params and bigint mode with int8 decoded as text', () =>
@@ -206,7 +255,7 @@ runCommonEffectPgTests({
 				const session = (<any> db).session as PgEffectSession;
 
 				const queryRes = yield* session.arrays<unknown[]>(
-					db.select().from(allTypesTable).getSQL(true),
+					db.select().from(allTypesTable).getSQL(),
 				).pipe(
 					Effect.map((e) =>
 						normalizeDataWithDbCodecs({
@@ -258,9 +307,7 @@ runCommonEffectPgTests({
 				expect(rootRes).toStrictEqual(allTypesDataNoMtx);
 
 				const context = yield* Effect.context<never>();
-				yield* Effect.promise(() =>
-					assertAllTypesUnions(relDb as any, allTypesTable as any, (query) => Effect.runPromiseWith(context)(query))
-				);
+				// unions expect the full all-types data, which holds values of column types the driver can't decode
 				yield* Effect.promise(() =>
 					assertAllTypesBounds(relDb as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
 				);
@@ -268,10 +315,11 @@ runCommonEffectPgTests({
 					assertAllTypesTemporalBounds(relDb as any, {
 						run: (query) => Effect.runPromiseWith(context)(query),
 						rqb: true,
+						data: temporalBoundsDataNoStrings,
 					})
 				);
 
-				const emptyArrays = withEmptyArrays(allTypesDataNoMtx);
+				const emptyArrays = emptyArraysNoMtx;
 				yield* db.delete(allTypesTable);
 				yield* db.insert(allTypesTable).values(emptyArrays);
 				expect(yield* db.select().from(allTypesTable)).toStrictEqual([emptyArrays]);
@@ -329,14 +377,14 @@ runCommonEffectPgTests({
 								self: [allTypesDataNoMtx],
 							});
 						});
-						await cache.expectHits('unions', () => assertAllTypesUnions(db as any, allTypesTable as any, run));
+						// unions expect the full all-types data, which holds values of column types the driver can't decode
 						await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run, rqb: true }));
 						await cache.expectHits(
 							'temporal bounds',
-							() => assertAllTypesTemporalBounds(db as any, { run, rqb: true }),
+							() => assertAllTypesTemporalBounds(db as any, { run, rqb: true, data: temporalBoundsDataNoStrings }),
 						);
 
-						const emptyArrays = withEmptyArrays(allTypesDataNoMtx);
+						const emptyArrays = emptyArraysNoMtx;
 						await cache.expectHits('empty arrays', async () => {
 							await run(db.delete(allTypesTable));
 							await run(db.insert(allTypesTable).values(emptyArrays));

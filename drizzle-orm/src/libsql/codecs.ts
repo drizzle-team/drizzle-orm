@@ -1,11 +1,16 @@
 import {
+	bigintFromBlob,
 	booleanFromInteger,
 	bufferFromBinaryIfAvailable,
-	castToText,
 	dateFromStoredMilliseconds,
 	dateFromStoredSeconds,
+	jsonFromBlob,
+	numericBigintFromValue,
+	numericTextFromValue,
 	refineSqliteCodecs,
 } from '~/sqlite-core/codecs.ts';
+
+const driver = 'libsql';
 
 export const libsqlCodecs = refineSqliteCodecs({
 	integer: {
@@ -20,6 +25,10 @@ export const libsqlCodecs = refineSqliteCodecs({
 	'integer:timestamp_ms': {
 		normalize: dateFromStoredMilliseconds,
 	},
+	// integers of union branches decoded as `real` arrive as bigints with `intMode: 'bigint'`
+	real: {
+		normalize: Number,
+	},
 	'text:json': {
 		normalize: JSON.parse,
 	},
@@ -27,22 +36,18 @@ export const libsqlCodecs = refineSqliteCodecs({
 		normalize: bufferFromBinaryIfAvailable,
 	},
 	'blob:json': {
-		cast: castToText,
-		normalize: JSON.parse,
+		normalize: jsonFromBlob,
 	},
 	'blob:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: bigintFromBlob,
 	},
 	numeric: {
-		cast: castToText,
-		normalize: String,
+		normalize: numericTextFromValue(driver),
 	},
 	'numeric:number': {
 		normalize: Number,
 	},
 	'numeric:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: numericBigintFromValue(driver),
 	},
 });

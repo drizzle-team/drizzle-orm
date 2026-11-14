@@ -53,6 +53,14 @@ function construct<
 	return db as any;
 }
 
+/**
+ * Driver quirks:
+ * - `timestamp` in `string` mode loses microseconds
+ * - Dates of sessions with a non-ISO `DateStyle` are read as `null`s
+ *
+ * Unsupported column types (throw on non-null values):
+ * - `timestamptz` in `string` mode (offset dropped)
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends SQL = SQL,

@@ -55,7 +55,7 @@ export class EffectPostgresPreparedQuery<T extends PreparedQueryConfig>
 		executor: (params?: unknown[]) => Effect.Effect<unknown, unknown, unknown>,
 		query: Query,
 		mapper: ((rows: any[]) => any) | undefined,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		logger: EffectLoggerShape,
 		cache: EffectCacheShape,
 		queryMetadata: QueryMetadata | undefined,
@@ -88,7 +88,7 @@ export class EffectPostgresSession<
 
 	override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper?: (rows: any[]) => any,
 		queryMetadata?: QueryMetadata,
@@ -124,7 +124,7 @@ export class EffectPostgresSession<
 	private query(
 		sql: string,
 		params: unknown[],
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		shape: ShapeSpec | undefined,
 		name?: string,
 	) {

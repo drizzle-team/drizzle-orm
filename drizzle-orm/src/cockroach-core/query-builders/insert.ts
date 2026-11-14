@@ -27,7 +27,6 @@ import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.t
 import type { CockroachUpdateSetSource } from './update.ts';
 
 export interface CockroachInsertConfig<TTable extends CockroachTable = CockroachTable> {
-	useSelectionCastCodecs?: boolean;
 	table: TTable;
 	values: Record<string, unknown>[] | TypedQueryBuilder<CockroachInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
@@ -458,21 +457,19 @@ export class CockroachInsertBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildInsertQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): CockroachInsertPrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { returning: fields } = this.config;
-			const query = this.dialect.sqlToQuery(this.getSQL(true));
+			const query = this.dialect.sqlToQuery(this.getSQL());
 
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {

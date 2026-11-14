@@ -375,22 +375,71 @@ export interface RawMessage {
 	body: Buffer;
 }
 
-/** Incremental parser: feed socket chunks, get back complete messages. */
+const NO_BYTES = Buffer.alloc(0);
+
+/** One complete message, in place: its type byte and where its body sits in `buf`. `buf` is the chunk
+ *  that carried it (or the one buffer a cut message was joined into), so `start - 5` is the frame start. */
+export type MessageSink = (type: number, buf: Buffer, start: number, end: number) => void;
+
+/** Incremental parser: feed socket chunks, get complete messages. */
 export class Parser {
-	private buf: Buffer = Buffer.alloc(0);
-	push(chunk: Buffer): RawMessage[] {
-		this.buf = this.buf.length ? Buffer.concat([this.buf, chunk]) : chunk;
-		const out: RawMessage[] = [];
+	// A header cut short: fewer than 5 bytes, so the message length is not known yet.
+	private buf: Buffer = NO_BYTES;
+	// A message cut short: its pieces so far, as views into the chunks that carried them. They are joined
+	// once, when the last piece arrives. Joining on every chunk instead copies the message again each
+	// time, so a message spread over n chunks would cost n² (a 64 MB row: about a second).
+	private parts: Buffer[] | null = null;
+	private have = 0;
+	private total = 0;
+
+	/** Calls `sink` for each complete message, in order. Nothing is made per message: no object and no
+	 *  view, which is most of what parsing a small row costs. The caller makes a view when it needs one. */
+	feed(chunk: Buffer, sink: MessageSink): void {
+		let buf = chunk;
+		if (this.parts !== null) {
+			const need = this.total - this.have;
+			if (chunk.length < need) {
+				this.parts.push(chunk);
+				this.have += chunk.length;
+				return;
+			}
+			this.parts.push(chunk.length === need ? chunk : chunk.subarray(0, need));
+			// its own buffer, header included
+			const whole = Buffer.concat(this.parts, this.total);
+			this.parts = null;
+			sink(whole[0]!, whole, 5, whole.length);
+			buf = chunk.subarray(need); // the rest of the chunk is parsed in place
+		} else if (this.buf.length !== 0) {
+			buf = Buffer.concat([this.buf, chunk]);
+			this.buf = NO_BYTES;
+		}
+		const n = buf.length;
 		let off = 0;
-		while (this.buf.length - off >= 5) {
-			const len = this.buf.readInt32BE(off + 1);
+		while (n - off >= 5) {
+			const len = buf.readInt32BE(off + 1);
 			if (len < 4) throw new Error(`invalid backend message length: ${len}`); // guard: avoid non-advancing offset / infinite loop
 			const total = len + 1;
-			if (this.buf.length - off < total) break;
-			out.push({ type: String.fromCharCode(this.buf[off]!), body: this.buf.subarray(off + 5, off + total) });
+			const left = n - off;
+			if (left < total) {
+				this.parts = [buf.subarray(off)];
+				this.have = left;
+				this.total = total;
+				return;
+			}
+			// the position is saved first: a sink that throws must not see this message again
+			const start = off + 5;
 			off += total;
+			sink(buf[start - 5]!, buf, start, off);
 		}
-		this.buf = off === this.buf.length ? Buffer.alloc(0) : this.buf.subarray(off);
+		if (off !== n) this.buf = buf.subarray(off);
+	}
+
+	/** The same, as a list of messages with a view per body. For callers that keep the messages. */
+	push(chunk: Buffer): RawMessage[] {
+		const out: RawMessage[] = [];
+		this.feed(chunk, (type, buf, start, end) => {
+			out.push({ type: String.fromCharCode(type), body: buf.subarray(start, end) });
+		});
 		return out;
 	}
 }

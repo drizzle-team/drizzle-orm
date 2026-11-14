@@ -907,11 +907,9 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
+	getSQL(): SQL {
 		this.config.fieldsFlat ??= this._resolveSelection();
-		return this.dialect.buildSelectQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+		return this.dialect.buildSelectQuery(this.config);
 	}
 
 	/** @internal */
@@ -951,8 +949,8 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		return setSelection;
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	as<TAlias extends string>(
@@ -1034,7 +1032,7 @@ export class SingleStoreSelectBase<
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 		// Build query before accessing `fieldsFlat` - build mutates it
-		const sequel = this.getSQL(true);
+		const sequel = this.getSQL();
 		const query = this.dialect.sqlToQuery(sequel);
 		const fieldsList = this.config.fieldsFlat!;
 		const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);

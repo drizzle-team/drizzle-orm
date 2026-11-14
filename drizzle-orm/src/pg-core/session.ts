@@ -52,7 +52,11 @@ export abstract class PgSession {
 
 	abstract prepareQuery(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		/**
+		 * `call` - `objects` rows of `db.call`: its mapper only picks the row, no codecs run, so drivers must not apply
+		 * the typecasts they do for codec-decoded (mapped) queries
+		 */
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: unknown[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,

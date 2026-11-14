@@ -103,7 +103,7 @@ export class MySqlAsyncSelectBase<
 
 	prepare(): MySqlAsyncSelectPrepare<this> {
 		// Build query before accessing `fieldsFlat` - build mutates it
-		const sequel = this.getSQL(true);
+		const sequel = this.getSQL();
 		const query = this.dialect.sqlToQuery(sequel);
 		const fieldsList = this.config.fieldsFlat!;
 		const mapper = this.config.mapper ??= this.dialect.mapperGenerators.rows(

@@ -25,6 +25,12 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { randomString } from '~/utils';
 import { push } from './effect-common';
 import { DB, runCommonEffectPgTests } from './effect-common';
+import {
+	allTypesWithReplacementsSkips,
+	allTypesWithReplacementsTests,
+	nullTimestampSkips,
+	nullTimestampTests,
+} from './effect-unsupported-types';
 import { relations } from './relations';
 import { usersMigratorTable } from './schema';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -70,7 +76,29 @@ runCommonEffectPgTests({
 	PgDrizzle: PgDrizzle,
 	createDB,
 	usedSchema,
+	skipTests: [
+		// `@effect/sql-pglite` decodes `timestamp` in process-local time and `timestamptz` to `Date`s, dropping the session's
+		// offset of string modes, with no per-query parsers: `timestamp`, string-mode `timestamptz` columns throw an
+		// unsupported column type error, tests holding their values are redefined with `null`s below
+		...nullTimestampSkips,
+		...allTypesWithReplacementsSkips,
+		// only check `timestamp` values, nothing left to redefine with `null`s
+		'Column as decoder applies codecs',
+		'Column as decoder applies codecs - Jit mappers',
+		'time zones are preserved',
+		'time zones are preserved - non-UTC session',
+	],
 	addTests: (it) => {
+		nullTimestampTests(it, createDB);
+		allTypesWithReplacementsTests(it, createDB, {
+			timestamp: null,
+			timestampstr: null,
+			timestampTzstr: null,
+			arrtimestamp: null,
+			arrtimestampstr: null,
+			arrtimestampTzstr: null,
+		});
+
 		it.effect('raw db.execute type matches returned data', () =>
 			Effect.gen(function*() {
 				const db = yield* PgDrizzle.make().pipe(Effect.provide(PgDrizzle.DefaultServices));

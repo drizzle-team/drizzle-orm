@@ -1,5 +1,5 @@
-import type { FullQueryResults, NeonQueryPromise, Pool, PoolClient } from '@neondatabase/serverless';
-import { neonConfig } from '@neondatabase/serverless';
+import type { CustomTypesConfig, FullQueryResults, NeonQueryPromise, Pool, PoolClient } from '@neondatabase/serverless';
+import { neonConfig, types } from '@neondatabase/serverless';
 import type { BatchItem } from '~/batch.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
@@ -7,15 +7,28 @@ import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { NeonHttpClient, NeonHttpQueryResultHKT, NeonHttpSessionOptions } from '~/neon-http/session.ts';
+import {
+	type NeonHttpClient,
+	type NeonHttpQueryResultHKT,
+	neonHttpRawTextTypes,
+	type NeonHttpSessionOptions,
+} from '~/neon-http/session.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
-import type { PgCodecs } from '~/pg-core/codecs.ts';
+import { type PgCodecs, pgRawTextOids } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
+
+const rawText = (value: string) => value;
+
+export const netlifyDbRawTextTypes: CustomTypesConfig = {
+	getTypeParser:
+		<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
+			pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format as any)),
+};
 
 /**
  * Ensures a WebSocket implementation is available for Neon's
@@ -68,7 +81,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
@@ -89,6 +102,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 				arrayMode: mode === 'arrays',
 				fullResults: true,
 				authToken: this.options.authToken,
+				...(mapper && mode !== 'call' ? neonHttpRawTextTypes : undefined),
 			}).then((it: any) => it.rows);
 		};
 
@@ -118,6 +132,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 				q(builtQuery.sql, builtQuery.params, {
 					fullResults: true,
 					arrayMode: preparedQuery.mode === 'arrays',
+					...(preparedQuery.mode === 'arrays' && preparedQuery.mapper ? neonHttpRawTextTypes : undefined),
 				}),
 			);
 		}
@@ -236,7 +251,7 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
@@ -253,6 +268,7 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 				name: queryName,
 				rowMode: mode === 'arrays' ? 'array' : undefined as any,
 				text: query.sql,
+				types: mapper && mode !== 'call' ? netlifyDbRawTextTypes : undefined,
 			}, params).then((r) => mode === 'raw' ? r : r.rows);
 		};
 

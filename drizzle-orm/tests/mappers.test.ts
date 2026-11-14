@@ -41,8 +41,7 @@ function createDB<S extends Record<string, unknown>, TConfig extends AnyRelation
 
 const testDate = new Date('2024-01-02T03:04:05.678Z');
 const testDateText = '2024-01-02 03:04:05.678+00';
-// query-path temporal values are selected as epoch milliseconds, `numeric` comes back as text
-const testDateEpoch = String(testDate.getTime());
+const testDateQueryText = testDateText;
 
 const users = pgTable('users', (t) => ({
 	id: t.bigint('id', { mode: 'number' }).primaryKey(),
@@ -108,7 +107,7 @@ function returningCase(
 
 test('Query mapper: flat select decodes each column through its codec', () => {
 	expect(selectCase(db.select().from(users), {
-		rawInput: [[1, 'First', testDateEpoch, true], [2, 'Second', testDateEpoch, null]],
+		rawInput: [[1, 'First', testDateQueryText, true], [2, 'Second', testDateQueryText, null]],
 		expectedOutput: [
 			{ id: 1, name: 'First', createdAt: testDate, isBanned: true },
 			{ id: 2, name: 'Second', createdAt: testDate, isBanned: null },
@@ -181,7 +180,7 @@ test('Query mapper: select - nothing to decode - boolean, null', () => {
 });
 
 test('Query mapper: insert/select/update/delete returning', () => {
-	const rows = [[1, 'First', testDateEpoch, true]];
+	const rows = [[1, 'First', testDateQueryText, true]];
 	const out = [{ id: 1, name: 'First', createdAt: testDate, isBanned: true }];
 
 	expect(returningCase(db.insert(users).values([{ id: 1, name: 'First', createdAt: testDate }]).returning(), {
@@ -278,7 +277,15 @@ test('Query mapper: insert/select/update/delete returning', () => {
 
 test("Query mapper: leftJoin nullifies joined group, innerJoin doesn't", () => {
 	expect(selectCase(db.select({ user: users, post: posts }).from(users).leftJoin(posts, eq(users.id, posts.authorId)), {
-		rawInput: [[1, 'First', testDateEpoch, true, 10, 1, 'hello'], [2, 'Second', testDateEpoch, null, null, null, null]],
+		rawInput: [[1, 'First', testDateQueryText, true, 10, 1, 'hello'], [
+			2,
+			'Second',
+			testDateQueryText,
+			null,
+			null,
+			null,
+			null,
+		]],
 		expectedOutput: [
 			{
 				user: { id: 1, name: 'First', createdAt: testDate, isBanned: true },
@@ -318,7 +325,7 @@ test("Query mapper: leftJoin nullifies joined group, innerJoin doesn't", () => {
 
 	expect(
 		selectCase(db.select({ user: users, post: posts }).from(users).innerJoin(posts, eq(users.id, posts.authorId)), {
-			rawInput: [[2, 'Second', testDateEpoch, null, 10, 2, 'hi']],
+			rawInput: [[2, 'Second', testDateQueryText, null, 10, 2, 'hi']],
 			expectedOutput: [{
 				user: { id: 2, name: 'Second', createdAt: testDate, isBanned: null },
 				post: { id: 10, authorId: 2, content: 'hi' },
@@ -364,7 +371,7 @@ test('Query mapper: custom flat selection', () => {
 		content: posts.content,
 		createdAt: users.createdAt,
 	};
-	const rows = [[1, 10, 'First', true, 'hello', testDateEpoch]];
+	const rows = [[1, 10, 'First', true, 'hello', testDateQueryText]];
 	const out = [{ userId: 1, postId: 10, name: 'First', isBanned: true, content: 'hello', createdAt: testDate }];
 	expect(
 		selectCase(db.select(sel).from(users).leftJoin(posts, eq(users.id, posts.authorId)), {
@@ -432,10 +439,10 @@ test("Query mapper: don't nullify group with non-null extra sql field", () => {
 		post: { ...getTableColumns(posts), extra: sql`1`.mapWith(Number).as('extra_1') },
 	}).from(users).leftJoin(posts, eq(users.id, posts.authorId));
 	expect(selectCase(qb, {
-		rawInput: [[1, 'First', testDateEpoch, true, 1, 10, 1, 'hello', 1], [
+		rawInput: [[1, 'First', testDateQueryText, true, 1, 10, 1, 'hello', 1], [
 			2,
 			'Second',
-			testDateEpoch,
+			testDateQueryText,
 			null,
 			1,
 			null,
@@ -488,7 +495,7 @@ test("Query mapper: don't nullify group with non-null extra sql field", () => {
 test('Query mapper: nullify group witn nested objects', () => {
 	const subq = db.select().from(internalStaff).leftJoin(users, eq(internalStaff.userId, users.id)).as('internal_staff');
 	expect(selectCase(db.select().from(ticket).leftJoin(subq, eq(subq.internal_staff_jqm1.userId, ticket.staffId)), {
-		rawInput: [[1, 5, 100, 'U', testDateEpoch, false], [2, null, null, null, null, null], [
+		rawInput: [[1, 5, 100, 'U', testDateQueryText, false], [2, null, null, null, null, null], [
 			3,
 			6,
 			null,
@@ -874,7 +881,12 @@ function rqbArrayCase(query: any, isFirst: boolean, rawInput: unknown[], expecte
 
 test('RQB object mode: empty config', () => {
 	expect(
-		rqbObjectCase(db.query.users.findFirst(), true, [{ id: 1, name: 'a', createdAt: testDateEpoch, isBanned: true }], {
+		rqbObjectCase(db.query.users.findFirst(), true, [{
+			id: 1,
+			name: 'a',
+			createdAt: testDateQueryText,
+			isBanned: true,
+		}], {
 			id: 1,
 			name: 'a',
 			createdAt: testDate,
@@ -895,8 +907,8 @@ test('RQB object mode: empty config', () => {
 		}"
 	`);
 	expect(rqbObjectCase(db.query.users.findMany(), false, [
-		{ id: 1, name: 'a', createdAt: testDateEpoch, isBanned: true },
-		{ id: 2, name: 'b', createdAt: testDateEpoch, isBanned: null },
+		{ id: 1, name: 'a', createdAt: testDateQueryText, isBanned: true },
+		{ id: 2, name: 'b', createdAt: testDateQueryText, isBanned: null },
 	], [
 		{ id: 1, name: 'a', createdAt: testDate, isBanned: true },
 		{ id: 2, name: 'b', createdAt: testDate, isBanned: null },
@@ -942,7 +954,7 @@ test('RQB object mode: extras', () => {
 		rqbObjectCase(query, true, [{
 			id: 1,
 			name: 'a',
-			createdAt: testDateEpoch,
+			createdAt: testDateQueryText,
 			isBanned: true,
 			sql: '1',
 			sqlWrapper: '2',
@@ -978,7 +990,7 @@ test('RQB object mode: with relations', () => {
 		{
 			id: 1,
 			name: 'a',
-			createdAt: testDateEpoch,
+			createdAt: testDateQueryText,
 			isBanned: true,
 			post: { id: 7, authorId: 1, content: 'hi' },
 			posts: null,
@@ -986,7 +998,7 @@ test('RQB object mode: with relations', () => {
 		{
 			id: 2,
 			name: 'b',
-			createdAt: testDateEpoch,
+			createdAt: testDateQueryText,
 			isBanned: null,
 			post: null,
 			posts: { id: 8, authorId: 2, content: 'yo' },
@@ -1025,7 +1037,7 @@ test('RQB object mode: with relations', () => {
 });
 
 test('RQB array mode: empty config', () => {
-	expect(rqbArrayCase(db.query.users.findFirst(), true, [[1, 'a', testDateEpoch, true]], {
+	expect(rqbArrayCase(db.query.users.findFirst(), true, [[1, 'a', testDateQueryText, true]], {
 		id: 1,
 		name: 'a',
 		createdAt: testDate,
@@ -1044,7 +1056,12 @@ test('RQB array mode: empty config', () => {
 		}"
 	`);
 	expect(
-		rqbArrayCase(db.query.users.findMany(), false, [[1, 'a', testDateEpoch, true], [2, 'b', testDateEpoch, null]], [
+		rqbArrayCase(db.query.users.findMany(), false, [[1, 'a', testDateQueryText, true], [
+			2,
+			'b',
+			testDateQueryText,
+			null,
+		]], [
 			{ id: 1, name: 'a', createdAt: testDate, isBanned: true },
 			{ id: 2, name: 'b', createdAt: testDate, isBanned: null },
 		]),
@@ -1074,7 +1091,7 @@ test('RQB array mode: extras', () => {
 			sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
 		},
 	});
-	expect(rqbArrayCase(query, false, [[1, 'a', testDateEpoch, true, '1', '2']], [
+	expect(rqbArrayCase(query, false, [[1, 'a', testDateQueryText, true, '1', '2']], [
 		{ id: 1, name: 'a', createdAt: testDate, isBanned: true, sql: 1, sqlWrapper: 2 },
 	])).toMatchInlineSnapshot(`
 		"function jitRqbMapper (rows) {
@@ -1108,14 +1125,14 @@ test('RQB array mode: a nested relation is a json object/array column', () => {
 		extras: { sql: sql`SELECT 1`.mapWith(Number) },
 	});
 	const rows = [
-		[1, 'a', testDateEpoch, true, '1', {
+		[1, 'a', testDateQueryText, true, '1', {
 			id: 7,
 			authorId: 1,
 			content: 'hi',
 			sql: '1',
 			authors: [{ id: 2, name: 'b', createdAt: testDateText, isBanned: null, sql: '1' }],
 		}],
-		[3, 'c', testDateEpoch, false, '1', null],
+		[3, 'c', testDateQueryText, false, '1', null],
 	];
 	expect(rqbArrayCase(query, false, rows, [
 		{

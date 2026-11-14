@@ -1,15 +1,20 @@
-import type { PGlite, Results, Row, Transaction } from '@electric-sql/pglite';
+import type { ParserOptions, PGlite, Results, Row, Transaction } from '@electric-sql/pglite';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession } from '~/pg-core/async/session.ts';
 import { PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import { pgRawTextOids } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
+
+const rawText = (value: string) => value;
+
+export const pgliteRawTextParsers: ParserOptions = Object.fromEntries([...pgRawTextOids].map((oid) => [oid, rawText]));
 
 export type PgliteClient = PGlite;
 
@@ -38,7 +43,7 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
@@ -47,6 +52,7 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 		const executor = async (params?: unknown[]) => {
 			return this.client.query(query.sql, params, {
 				rowMode: mode === 'arrays' ? 'array' : 'object',
+				parsers: mapper && mode !== 'call' ? pgliteRawTextParsers : undefined,
 			}).then((r) => mode === 'raw' ? r : r.rows);
 		};
 

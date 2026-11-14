@@ -1,5 +1,12 @@
-import type { CastArrayCodec, CastCodec, Codecs, NormalizeArrayCodec, NormalizeCodec } from '~/codecs.ts';
-import { refineCodecs } from '~/codecs.ts';
+import {
+	type CastArrayCodec,
+	type CastCodec,
+	type Codecs,
+	type NormalizeArrayCodec,
+	type NormalizeCodec,
+	refineCodecs,
+} from '~/codecs.ts';
+import { DrizzleError } from '~/errors.ts';
 import { sql } from '~/sql/sql.ts';
 import type { PartialWithUndefined } from '~/utils.ts';
 import { makeCockroachArray, parseCockroachArray } from './array.ts';
@@ -131,7 +138,13 @@ const temporalTextRe =
 
 const parseTemporalText = (v: string): Date => {
 	const m = temporalTextRe.exec(v);
-	if (m === null) return new Date(v);
+	if (m === null) {
+		if (v === 'infinity' || v === '-infinity') return new Date(Number.NaN);
+		throw new DrizzleError({
+			message:
+				`Unable to decode date/time value "${v}": only ISO output is supported, set the session's \`DateStyle\` to \`ISO\``,
+		});
+	}
 
 	const year = m[12] === undefined ? +m[1]! : 1 - +m[1]!;
 	const fraction = m[7];
@@ -166,6 +179,11 @@ const isEngineParsable = (v: string): boolean => {
 
 export const textToDate = (v: string): Date => isEngineParsable(v) ? new Date(v) : parseTemporalText(v);
 export const textToDateWithTz = (v: string): Date => isEngineParsable(v) ? new Date(v + '+0000') : parseTemporalText(v);
+
+/** `date`, `timestamptz` array literal to `Date[]` */
+export const textToDateArray = parseArrayAndNormalize(textToDate);
+/** `timestamp` array literal to `Date[]`, values read as UTC */
+export const textToDateWithTzArray = parseArrayAndNormalize(textToDateWithTz);
 
 export const genericCockroachCodecs = {
 	int2: {

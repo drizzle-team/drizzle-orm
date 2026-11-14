@@ -34,9 +34,10 @@ export const makeAllTypes = <TTable extends string>(tableName: TTable) =>
 		bigintCol: bigint('bigint_col', { mode: 'bigint' }).notNull(),
 		bigintNumber: bigint('bigint_number', { mode: 'number' }).notNull(),
 		bigintString: bigint('bigint_string', { mode: 'string' }).notNull(),
-		decimalCol: decimal('decimal_col', { precision: 38, scale: 9 }).notNull(),
+		// string-mode `decimal`, `numeric` throw an unsupported column type error - `mssql` decodes them to numbers
+		decimalCol: decimal('decimal_col', { precision: 38, scale: 9 }),
 		decimalNumber: decimal('decimal_number', { precision: 18, scale: 2, mode: 'number' }).notNull(),
-		numericCol: numeric('numeric_col', { precision: 38, scale: 9 }).notNull(),
+		numericCol: numeric('numeric_col', { precision: 38, scale: 9 }),
 		floatCol: float('float_col').notNull(),
 		realCol: real('real_col').notNull(),
 		bitCol: bit('bit_col').notNull(),
@@ -74,9 +75,9 @@ export type AllTypes = {
 	bigintCol: bigint;
 	bigintNumber: number;
 	bigintString: string;
-	decimalCol: string;
+	decimalCol: string | null;
 	decimalNumber: number;
-	numericCol: string;
+	numericCol: string | null;
 	floatCol: number;
 	realCol: number;
 	bitCol: boolean;
@@ -101,9 +102,11 @@ export const allTypesData: AllTypes = {
 	bigintCol: 5044565289845416380n,
 	bigintNumber: 9007199254740991,
 	bigintString: '5044565289845416380',
-	decimalCol: '123456789.987654321',
+	// `mssql` decodes `decimal`, `numeric` to numbers, losing precision: string modes throw an unsupported column type
+	// error, `null`s never reach a decoder
+	decimalCol: null,
 	decimalNumber: 1234.56,
-	numericCol: '987654321.123456789',
+	numericCol: null,
 	floatCol: 15.35325689124218,
 	realCol: 1.5,
 	bitCol: true,
@@ -125,8 +128,8 @@ export const createAllTypes = (tableName: string) => `
 	create table [${tableName}] (
 		[tinyint_col] tinyint not null, [smallint_col] smallint not null, [int_col] int not null,
 		[bigint_col] bigint not null, [bigint_number] bigint not null, [bigint_string] bigint not null,
-		[decimal_col] decimal(38,9) not null, [decimal_number] decimal(18,2) not null,
-		[numeric_col] numeric(38,9) not null,
+		[decimal_col] decimal(38,9), [decimal_number] decimal(18,2) not null,
+		[numeric_col] numeric(38,9),
 		[float_col] float not null, [real_col] real not null, [bit_col] bit not null,
 		[char_col] char(5) not null, [varchar_col] varchar(50) not null, [text_col] text not null,
 		[binary_col] binary(5) not null, [varbinary_col] varbinary(50) not null,
@@ -249,18 +252,18 @@ export async function assertAllTypesUnions(
 		{
 			'bigintString ∪ bigintString': '5044565289845416380',
 			'bigintCol ∪ bigintCol': 5044565289845416380n,
-			'decimalCol ∪ decimalCol': '123456789.987654321',
-			'decimalCol ∪ numericCol': '123456789.987654321',
-			'numericCol ∪ decimalCol': '987654321.123456789',
+			'decimalCol ∪ decimalCol': null,
+			'decimalCol ∪ numericCol': null,
+			'numericCol ∪ decimalCol': null,
 			'decimalNumber ∪ decimalNumber': 1234.56,
 			'decimalNumber ∪ intCol': 1234.56,
 		},
 		{
 			'bigintString ∪ bigintString': '5044565289845416380',
 			'bigintCol ∪ bigintCol': 5044565289845416380n,
-			'decimalCol ∪ decimalCol': '123456789.987654321',
-			'decimalCol ∪ numericCol': '987654321.123456789',
-			'numericCol ∪ decimalCol': '123456789.987654321',
+			'decimalCol ∪ decimalCol': null,
+			'decimalCol ∪ numericCol': null,
+			'numericCol ∪ decimalCol': null,
 			'decimalNumber ∪ decimalNumber': 1234.56,
 			'decimalNumber ∪ intCol': 2000000000,
 		},
@@ -427,6 +430,8 @@ export const createBounds = (tableName: string = TABLE) =>
 	)`;
 
 export const dropBounds = (tableName: string = TABLE) => `drop table if exists [${tableName}]`;
+// `mssql` decodes `decimal`, `numeric` to numbers: string modes throw an unsupported column type error, `bigint` modes
+// throw on values outside of the safe integer range, which have already lost precision - those are `null`s
 export const boundsData: BoundsRow[] = [
 	{
 		id: 1,
@@ -434,10 +439,10 @@ export const boundsData: BoundsRow[] = [
 		bigintStr: '1',
 		bigintNum: 1,
 		decimalBig: 1n,
-		decimalStr: '1',
+		decimalStr: null,
 		decimalNum: 1,
 		numericBig: 1n,
-		numericStr: '1',
+		numericStr: null,
 	},
 	{
 		id: 2,
@@ -445,65 +450,65 @@ export const boundsData: BoundsRow[] = [
 		bigintStr: '9007199254740991',
 		bigintNum: 9007199254740991,
 		decimalBig: 9007199254740991n,
-		decimalStr: '9007199254740991',
+		decimalStr: null,
 		decimalNum: 9007199254740991,
 		numericBig: 9007199254740991n,
-		numericStr: '9007199254740991',
+		numericStr: null,
 	},
 	{
 		id: 3,
 		bigintBig: 9007199254740993n,
 		bigintStr: '9007199254740993',
 		bigintNum: -9007199254740991,
-		decimalBig: 9007199254740993n,
-		decimalStr: '9007199254740993',
+		decimalBig: null,
+		decimalStr: null,
 		decimalNum: -9007199254740991,
-		numericBig: 9007199254740993n,
-		numericStr: '9007199254740993',
+		numericBig: null,
+		numericStr: null,
 	},
 	{
 		id: 4,
 		bigintBig: 5044565289845416380n,
 		bigintStr: '5044565289845416380',
 		bigintNum: 0,
-		decimalBig: 5044565289845416380n,
-		decimalStr: '5044565289845416380',
+		decimalBig: null,
+		decimalStr: null,
 		decimalNum: 0,
-		numericBig: 5044565289845416380n,
-		numericStr: '5044565289845416380',
+		numericBig: null,
+		numericStr: null,
 	},
 	{
 		id: 5,
 		bigintBig: -9007199254740993n,
 		bigintStr: '-9007199254740993',
 		bigintNum: -1,
-		decimalBig: -9007199254740993n,
-		decimalStr: '-9007199254740993',
+		decimalBig: null,
+		decimalStr: null,
 		decimalNum: -1,
-		numericBig: -9007199254740993n,
-		numericStr: '-9007199254740993',
+		numericBig: null,
+		numericStr: null,
 	},
 	{
 		id: 6,
 		bigintBig: 9223372036854775807n,
 		bigintStr: '9223372036854775807',
 		bigintNum: 123456789,
-		decimalBig: 99999999999999999999999999999999999999n,
-		decimalStr: '99999999999999999999999999999999999999',
+		decimalBig: null,
+		decimalStr: null,
 		decimalNum: 123456789,
-		numericBig: 99999999999999999999999999999999999999n,
-		numericStr: '99999999999999999999999999999999999999',
+		numericBig: null,
+		numericStr: null,
 	},
 	{
 		id: 7,
 		bigintBig: -9223372036854775808n,
 		bigintStr: '-9223372036854775808',
 		bigintNum: -123456789,
-		decimalBig: -99999999999999999999999999999999999999n,
-		decimalStr: '-99999999999999999999999999999999999999',
+		decimalBig: null,
+		decimalStr: null,
 		decimalNum: -123456789,
-		numericBig: -99999999999999999999999999999999999999n,
-		numericStr: '-99999999999999999999999999999999999999',
+		numericBig: null,
+		numericStr: null,
 	},
 	{
 		id: 8,

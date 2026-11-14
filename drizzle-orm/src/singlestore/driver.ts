@@ -114,6 +114,10 @@ const CONNECTION_ATTRS: PoolOptions['connectAttributes'] = {
 	_connector_version: npmVersion,
 };
 
+/**
+ * Driver quirks:
+ * - `float` values are rounded to 6 significant digits by MySQL's text protocol
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AnySingleStoreDriverConnection = CallbackPool,

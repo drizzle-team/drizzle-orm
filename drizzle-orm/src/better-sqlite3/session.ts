@@ -54,6 +54,8 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 		let stmt: Statement;
 		try {
 			stmt = this.client.prepare(query.sql);
+
+			if (mapper) stmt.safeIntegers(true);
 		} catch (e) {
 			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}

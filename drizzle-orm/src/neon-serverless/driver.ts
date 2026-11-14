@@ -60,6 +60,10 @@ function construct<
 	return db as any;
 }
 
+/**
+ * Requirements:
+ * - Sessions must use the ISO `DateStyle` (the default): temporal values of other `DateStyle`s throw
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NeonClient = Pool,

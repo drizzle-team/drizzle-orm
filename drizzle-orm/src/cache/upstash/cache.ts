@@ -3,8 +3,8 @@ import type { MutationOption } from '~/cache/core/index.ts';
 import { Cache } from '~/cache/core/index.ts';
 import { entityKind, is } from '~/entity.ts';
 import { getCacheKey, Table } from '~/table.ts';
+import { binarySerializer, type CacheSerializer } from '../core/binary-serializer.ts';
 import type { CacheConfig } from '../core/types.ts';
-import { binarySerializer, type UpstashCacheSerializer } from './serializer.ts';
 
 const getByTagScript = `
 local tagsMapKey = KEYS[1] -- tags map key
@@ -105,7 +105,7 @@ export class UpstashCache extends Cache {
 		public redis: Redis,
 		config?: CacheConfig,
 		protected useGlobally?: boolean,
-		protected serializer: UpstashCacheSerializer = binarySerializer,
+		protected serializer: CacheSerializer = binarySerializer,
 	) {
 		super();
 		this.internalConfig = this.toInternalConfig(config);
@@ -219,7 +219,7 @@ export function upstashCache(
 		 *
 		 * Defaults to a binary serializer that preserves `Date`, `bigint`, binary data and other non-JSON-safe values
 		 */
-		serializer?: UpstashCacheSerializer;
+		serializer?: CacheSerializer;
 	},
 ): UpstashCache {
 	const redis = new Redis({

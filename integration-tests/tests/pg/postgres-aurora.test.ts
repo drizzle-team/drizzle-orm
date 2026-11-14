@@ -30,11 +30,13 @@ import {
 	allTypesData,
 	allTypesEnum,
 	allTypesRelations,
+	type AllTypesReplacements,
 	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
 	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	assertAllTypesWithReplacements,
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
@@ -47,6 +49,7 @@ import {
 	assertSnapshotIdNotInjectable,
 	assertSnapshotIsolatesTransaction,
 } from './snapshot';
+import { allTypesWithReplacementsSkips, allTypesWithReplacementsTests } from './unsupported-types';
 
 const skips = [
 	// Data API dialect uses `:pN` placeholders instead of `$N`, redefined below
@@ -61,14 +64,20 @@ const skips = [
 	// Default client has no codecs, uses shapes instead
 	'all types ~codecs~',
 	'all types ~codecs~ - upstash',
-	// Data API's JDBC driver rejects `DateStyle`s that don't begin with ISO, so it never reads non-ISO text
-	'all types ~codecs~ - non-ISO DateStyle session',
-	'all types ~codecs~ - non-ISO DateStyle session - upstash',
 	// Data API has no representation for `null` array elements
 	'all types ~codecs~ - null array elements',
 	'all types ~codecs~ - null array elements - upstash',
 	'all types ~codecs~ - custom type null array elements',
 	'all types ~codecs~ - custom type null array elements - upstash',
+	// string-mode `timestamptz` and `bytea[]` throw an unsupported column type error with Data API, tests holding their
+	// values are redefined with `null`s below
+	...allTypesWithReplacementsSkips,
+	// local-data-api fails (HTTP 500) reading `timestamptz` arrays in non-UTC sessions and `timetz` arrays; these tests also
+	// hold `timetz`, string-mode `timestamptz` values, which throw an unsupported column type error
+	'time zones are preserved',
+	'time zones are preserved - non-UTC session',
+	'all types ~codecs~ - non-UTC session',
+	'all types ~codecs~ - non-UTC session - upstash',
 ];
 
 const stringTemporalDb = (database: string) =>
@@ -83,6 +92,14 @@ const stringTemporalDb = (database: string) =>
 
 describe('postgres/aurora', () => {
 	tests(test, skips);
+	allTypesWithReplacementsTests(test, {
+		// Data API converts `timestamptz` to UTC dropping the session's offset
+		// and has no binary arrays: those column types throw an unsupported column type error, `null`s never reach a decoder
+		timestampTzstr: null,
+		arrtimestampTzstr: null,
+		arrbytea: null,
+		mtxbytea: null,
+	});
 
 	test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 		const db = fixtureDb as unknown as PostgresAuroraDatabase;
@@ -472,7 +489,7 @@ describe('postgres/aurora', () => {
 			expect(recordsQuery).toStrictEqual({
 				params: ['CANCELED', 'CLOSED'],
 				sql:
-					'select "d0"."id" as "id", "d0"."created_on"::text as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in (:p1, :p2)))))) as "activeJobs" from "candidates" as "d0"',
+					'select "d0"."id" as "id", "d0"."created_on" as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in (:p1, :p2)))))) as "activeJobs" from "candidates" as "d0"',
 			});
 		});
 	});
@@ -872,11 +889,16 @@ describe('postgres/aurora', () => {
 				{ timestamp: timestampString },
 			]);
 
-			// 2. Select date in string format and check that the values are the same
-			const result = await db.select().from(table);
-
-			// 2.1 Notice that postgres will return the date in UTC, but it is exactly the same
-			expect(result).toEqual([{ id: 1, timestamp: '2022-01-01 02:00:00.123456+00' }]);
+			// 2. Data API converts `timestamptz` to UTC, dropping the offset the server formats in the session's time zone,
+			// with no per-query alternative - selecting string-mode values throws
+			// shapes decode inside the driver call, the error is the failed query's cause
+			await expect(db.select().from(table)).rejects.toMatchObject({
+				cause: expect.objectContaining({
+					message: expect.stringContaining(
+						'Column type "timestamp with time zone" is not supported with the postgres/aurora driver',
+					),
+				}),
+			});
 
 			// 3. Select as raw query and checke that values are the same
 			const result2 = await db.execute<{
@@ -1015,11 +1037,16 @@ describe('postgres/aurora', () => {
 				{ timestamp: timestampString },
 			]);
 
-			// 2. Select date in string format and check that the values are the same
-			const result = await db.select().from(table);
-
-			// 2.1 Notice that postgres will return the date in UTC, but it is exactly the same
-			expect(result).toEqual([{ id: 1, timestamp: '2022-01-01 02:00:00.123456+00' }]);
+			// 2. Data API converts `timestamptz` to UTC, dropping the offset the server formats in the session's time zone,
+			// with no per-query alternative - selecting string-mode values throws
+			// shapes decode inside the driver call, the error is the failed query's cause
+			await expect(db.select().from(table)).rejects.toMatchObject({
+				cause: expect.objectContaining({
+					message: expect.stringContaining(
+						'Column type "timestamp with time zone" is not supported with the postgres/aurora driver',
+					),
+				}),
+			});
 
 			// 3. Select as raw query and checke that values are the same
 			const result2 = await db.execute<{
@@ -1064,10 +1091,16 @@ describe('postgres/aurora', () => {
 					{ timestamp: timestampString },
 				]);
 
-				// 2. Select date in string format and check that the values are the same
-				const result = await tx.select().from(table);
-
-				expect(result).toEqual([{ id: 1, timestamp: '2022-01-01 00:00:00.123456-10' }]);
+				// 2. Data API converts `timestamptz` to UTC, dropping the offset the server formats in the session's time zone,
+				// with no per-query alternative - selecting string-mode values throws
+				// shapes decode inside the driver call, the error is the failed query's cause
+				await expect(tx.select().from(table)).rejects.toMatchObject({
+					cause: expect.objectContaining({
+						message: expect.stringContaining(
+							'Column type "timestamp with time zone" is not supported with the postgres/aurora driver',
+						),
+					}),
+				});
 
 				// 3. Select as raw query and checke that values are the same
 				const result2 = await tx.execute<{
@@ -1101,7 +1134,18 @@ describe('postgres/aurora', () => {
 			};
 			await shaped.insert(times).values(value);
 
-			expect(await shaped.select().from(times)).toStrictEqual([value]);
+			// Data API can't return uncast `timetz` arrays (HTTP 500) and converts `timetz` scalars to UTC dropping the offset
+			// (an unsupported column type error) - with no per-query alternative, selecting them fails
+			await expect(shaped.select().from(times)).rejects.toMatchObject({
+				cause: expect.objectContaining({ message: expect.stringContaining('HTTP 500') }),
+			});
+			await expect(shaped.select({ id: times.id, time: times.time }).from(times)).rejects.toMatchObject({
+				cause: expect.objectContaining({
+					message: expect.stringContaining(
+						'Column type "time with time zone" is not supported with the postgres/aurora driver',
+					),
+				}),
+			});
 		});
 
 		// Can't test shapes via generic codecs test
@@ -1111,19 +1155,21 @@ describe('postgres/aurora', () => {
 				...boundsRelations(r),
 			}));
 			await push({ en: allTypesEnum, allTypesTable });
-			await db.insert(allTypesTable).values(allTypesData);
+			// Data API converts `timestamptz` to UTC dropping the session's offset
+			// and has no binary arrays: those column types throw an unsupported column type error and are filled with `null`s, which never reach a decoder.
+			// Unions and temporal bounds select those types
+			const replacements = {
+				timestampTzstr: null,
+				arrtimestampTzstr: null,
+				arrbytea: null,
+				mtxbytea: null,
+			} satisfies AllTypesReplacements;
+			const { en, allTypesTable: table } = makeAllTypes('all_types_shapes', 'en_shapes');
+			const shaped = createDB({ allTypesTable: table }, allTypesRelations as any);
+			await push({ en, table });
 
-			const [flat] = await db.select().from(allTypesTable);
-			expect(flat).toStrictEqual(allTypesData);
-
-			const nested = await db.query.allTypesTable.findFirst({ with: { self: true } });
-			expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
-
-			await assertAllTypesUnions(db);
+			await assertAllTypesWithReplacements(shaped, table as any, replacements, { rqb: true });
 			await assertAllTypesBounds(db, { rqb: true });
-			await assertAllTypesTemporalBounds(db, { rqb: true });
-
-			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 		});
 	});
 

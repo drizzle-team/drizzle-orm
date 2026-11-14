@@ -2622,13 +2622,9 @@ export function relationExtrasToSQL(
 		const subq = extra.getSQL();
 		const column = codecs ? getColumnFromDecoder(subq) : undefined;
 		// Codec bypass for custom columns with enabled legacy JSON api
-		const query = column && (!inJson || !(<any> column).jsonSelectIdentifier)
+		const query = column && inJson && !(<any> column).jsonSelectIdentifier
 			? new SQL([
-				codecs!.apply(
-					column,
-					inJson ? 'castInJson' : 'cast',
-					new SQL([commonStringChunks['('], subq, commonStringChunks[')']]),
-				),
+				codecs!.apply(column, 'castInJson', new SQL([commonStringChunks['('], subq, commonStringChunks[')']])),
 				commonStringChunks[' as '],
 				sql.identifier(key),
 			])
@@ -2806,13 +2802,9 @@ function collectRqbFieldSelection(
 	decoderColumn: Column | undefined,
 	inJson: boolean,
 ): void {
-	if (decoderColumn) {
+	if (decoderColumn && inJson) {
 		collectTo.push(
-			codecs.apply(
-				decoderColumn,
-				inJson ? 'castInJson' : 'cast',
-				new SQL([tableRef, commonStringChunks['.'], sql.identifier(name)]),
-			),
+			codecs.apply(decoderColumn, 'castInJson', new SQL([tableRef, commonStringChunks['.'], sql.identifier(name)])),
 		);
 	} else {
 		collectTo.push(tableRef, commonStringChunks['.'], sql.identifier(name));
@@ -2844,7 +2836,9 @@ export function buildRqbColumn(
 		const { jsonSelectIdentifier, dimensions } = field as Column & RqbCustomColumn;
 		const cast = inJson && jsonSelectIdentifier
 			? undefined
-			: codecs.codecsOf(field)[inJson ? 'castInJson' : 'cast'];
+			: inJson
+			? codecs.codecsOf(field).castInJson
+			: undefined;
 		if (cast || (inJson && jsonSelectIdentifier)) {
 			const name = new SQL([tableRef, commonStringChunks['.'], sql.identifier(field.name)]);
 			const casted = cast

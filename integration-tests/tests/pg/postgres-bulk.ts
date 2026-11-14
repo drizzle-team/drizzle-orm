@@ -12,7 +12,7 @@ import {
 	text,
 	timestamp,
 } from 'drizzle-orm/pg-core';
-import { type PostgresDatabase, postgresShapeCodecs } from 'drizzle-orm/postgres';
+import { postgresCodecs, type PostgresDatabase } from 'drizzle-orm/postgres';
 import { describe, expect, type TestContext } from 'vitest';
 import { allTypesData, makeAllTypes, makeAllTypesColumns } from './all-types';
 import type { PgTestFixtures, Test } from './instrumentation';
@@ -961,7 +961,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 			test.concurrent('codecs with parameter casts', async ({ kit, push, onTestFinished }) => {
 				const users = pgTable(`${p}_err_cast`, { id: integer().primaryKey(), name: text() });
 				const { db, insertCalls, updateCalls } = await setup({ kit, push, onTestFinished }, { users }, {
-					codecs: { ...postgresShapeCodecs, text: { castParam: (param) => `${param}::text` } },
+					codecs: { ...postgresCodecs, text: { castParam: (param) => `${param}::text` } },
 				});
 
 				const insert = await rejection(db.bulkInsert(users, [{ id: 1 }]));

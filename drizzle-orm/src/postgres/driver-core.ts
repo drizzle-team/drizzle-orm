@@ -8,7 +8,7 @@ import type { PgTable } from '~/pg-core/table.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { postgresShapeCodecs } from './codecs.ts';
+import { postgresCodecs } from './codecs.ts';
 import type {
 	PostgresBatchItem,
 	PostgresBatchOptions,
@@ -158,7 +158,7 @@ export function construct<
 ): PostgresDatabase<TRelations> & {
 	$client: PostgresClient extends TClient ? Pool : TClient;
 } {
-	const codecs = config.codecs ?? postgresShapeCodecs;
+	const codecs = config.codecs ?? postgresCodecs;
 	const dialect = new PgDialect({
 		codecs,
 		useJitMappers: jitCompatCheck(config.jit),

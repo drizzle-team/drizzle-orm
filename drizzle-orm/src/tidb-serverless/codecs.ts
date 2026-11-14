@@ -1,5 +1,5 @@
-import { castToText, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
-import { textDecoder } from '~/utils.ts';
+import { refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
+import { decodeUtf8 } from '~/utils.ts';
 
 const bitStringFromBytes = (value: Uint8Array): string => {
 	const str: string[] = new Array(value.length);
@@ -11,41 +11,33 @@ const bitStringFromBytes = (value: Uint8Array): string => {
 
 export const tidbCodecs = refineGenericMySqlCodecs({
 	serial: {
-		cast: castToText,
 		normalize: Number,
 	},
 	bigint: {
-		cast: castToText,
 		normalize: BigInt,
 	},
 	'bigint:number': {
-		cast: castToText,
 		normalize: Number,
 	},
 	'bigint:string': {
-		cast: castToText,
+		normalize: String,
 	},
 	boolean: {
 		normalize: (value: number) => value === 1,
 	},
 	date: {
-		cast: castToText,
 		normalize: (value: string) => new Date(value),
 	},
 	datetime: {
-		cast: castToText,
 		normalize: (value: string) => new Date(value.replace(' ', 'T') + 'Z'),
 	},
 	timestamp: {
-		cast: castToText,
 		normalize: (value: string) => new Date(value + '+0000'),
 	},
 	'decimal:number': {
-		cast: castToText,
 		normalize: Number,
 	},
 	'decimal:bigint': {
-		cast: castToText,
 		normalize: BigInt,
 	},
 	binary: {
@@ -56,22 +48,22 @@ export const tidbCodecs = refineGenericMySqlCodecs({
 	},
 	blob: {
 		normalize: typeof Buffer === 'undefined'
-			? textDecoder ? ((value: Uint8Array) => textDecoder!.decode(value)) : undefined
+			? decodeUtf8
 			: (value: Uint8Array) => Buffer.from(value).toString('utf8'),
 	},
 	tinyblob: {
 		normalize: typeof Buffer === 'undefined'
-			? textDecoder ? ((value: Uint8Array) => textDecoder!.decode(value)) : undefined
+			? decodeUtf8
 			: (value: Uint8Array) => Buffer.from(value).toString('utf8'),
 	},
 	mediumblob: {
 		normalize: typeof Buffer === 'undefined'
-			? textDecoder ? ((value: Uint8Array) => textDecoder!.decode(value)) : undefined
+			? decodeUtf8
 			: (value: Uint8Array) => Buffer.from(value).toString('utf8'),
 	},
 	longblob: {
 		normalize: typeof Buffer === 'undefined'
-			? textDecoder ? ((value: Uint8Array) => textDecoder!.decode(value)) : undefined
+			? decodeUtf8
 			: (value: Uint8Array) => Buffer.from(value).toString('utf8'),
 	},
 	'blob:buffer': {
@@ -85,24 +77,5 @@ export const tidbCodecs = refineGenericMySqlCodecs({
 	},
 	'longblob:buffer': {
 		normalize: typeof Buffer === 'undefined' ? undefined : (value: Uint8Array) => Buffer.from(value),
-	},
-	decimal: {
-		cast: castToText,
-	},
-	'date:string': {
-		cast: castToText,
-	},
-	'datetime:string': {
-		cast: castToText,
-	},
-	'timestamp:string': {
-		cast: castToText,
-	},
-	time: {
-		cast: castToText,
-	},
-	json: {
-		cast: castToText,
-		normalize: JSON.parse,
 	},
 });

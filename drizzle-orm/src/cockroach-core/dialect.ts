@@ -226,14 +226,11 @@ export class CockroachDialect {
 		where,
 		returning,
 		withList,
-		useSelectionCastCodecs,
 	}: CockroachDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
-			}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -281,7 +278,6 @@ export class CockroachDialect {
 		withList,
 		from,
 		joins,
-		useSelectionCastCodecs,
 	}: CockroachUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
@@ -302,9 +298,7 @@ export class CockroachDialect {
 		const joinsSql = this.buildJoins(joins);
 
 		const returningSql = returning
-			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: !from, ignoreCastCodecs: !useSelectionCastCodecs, table })
-			}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: !from, table })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -325,9 +319,8 @@ export class CockroachDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false, ignoreCastCodecs = false, table }: {
+		{ isSingleTable = false, table }: {
 			isSingleTable?: boolean;
-			ignoreCastCodecs?: boolean;
 			table?: CockroachTable | CockroachViewBase | SQL | Subquery;
 		} = {},
 	): SQL {
@@ -343,8 +336,7 @@ export class CockroachDialect {
 			: undefined;
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field, codecOverride, column, fieldType } = fields[i]!;
-			const override = codecOverride as CockroachType | undefined;
+			const { field, fieldType } = fields[i]!;
 
 			switch (fieldType) {
 				case 'Column': {
@@ -357,8 +349,7 @@ export class CockroachDialect {
 						name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 					}
 
-					const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
-					chunks.push(field.isAlias ? sql`${casted} as ${field}` : casted);
+					chunks.push(field.isAlias ? sql`${name} as ${field}` : name);
 
 					break;
 				}
@@ -367,8 +358,7 @@ export class CockroachDialect {
 						const query = !isSingleTable && field.origin !== undefined
 							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
 							: sql.identifier(field.fieldAlias);
-						if (column && !ignoreCastCodecs) chunks.push(this.codecs.apply(column, 'cast', query, override));
-						else chunks.push(query);
+						chunks.push(query);
 					} else {
 						if (isSingleTable && tableName !== undefined) {
 							const { queryChunks } = field.sql;
@@ -395,19 +385,19 @@ export class CockroachDialect {
 
 							if (abort) {
 								chunks.push(
-									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+									field.sql,
 								);
 							} else {
 								const newSql = new SQL(newChunks);
 
 								if (field.sql.shouldInlineParams) newSql.inlineParams();
 								chunks.push(
-									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql,
+									newSql,
 								);
 							}
 						} else {
 							chunks.push(
-								column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+								field.sql,
 							);
 						}
 
@@ -441,13 +431,13 @@ export class CockroachDialect {
 						}
 
 						if (abort) {
-							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+							chunks.push(field);
 						} else {
 							const newSql = new SQL(newChunks);
 							if (field.shouldInlineParams) newSql.inlineParams();
-							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
+							chunks.push(newSql);
 						}
-					} else chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+					} else chunks.push(field);
 
 					break;
 				}
@@ -455,12 +445,10 @@ export class CockroachDialect {
 					if (!field._.isWith) {
 						const inner = sql`(${field._.sql})`;
 						chunks.push(
-							sql`${column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', inner, override) : inner} ${
-								sql.identifier(field._.alias)
-							}`,
+							sql`${inner} ${sql.identifier(field._.alias)}`,
 						);
 					} else {
-						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+						chunks.push(field);
 					}
 
 					break;
@@ -561,8 +549,6 @@ export class CockroachDialect {
 		lockingClause,
 		distinct,
 		setOperators,
-		setFieldsFlat: setSelection,
-		useSelectionCastCodecs,
 	}: CockroachSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -615,7 +601,6 @@ export class CockroachDialect {
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
 			table,
-			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 		});
 
 		const tableSql = this.buildFromTable(table);
@@ -668,7 +653,7 @@ export class CockroachDialect {
 			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, setSelection!, useSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, setOperators);
 		}
 
 		return finalQuery;
@@ -676,64 +661,28 @@ export class CockroachDialect {
 
 	buildSetOperations(
 		leftSelect: SQL,
-		outputSelection: SelectedFieldsOrdered,
-		useSelectionCastCodecs: boolean | undefined,
 		setOperators: CockroachSelectConfig['setOperators'],
 	): SQL {
-		const lastIdx = setOperators.length - 1;
-		let tailSql: SQL | undefined;
-
-		for (let i = 0; i <= lastIdx; ++i) {
-			const setOperator = setOperators[i]!;
-
-			const hoistTail = useSelectionCastCodecs && i === lastIdx;
-			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator, omitTail: hoistTail });
-			if (hoistTail) tailSql = this.buildSetOperationTail(setOperator);
+		for (let i = 0; i < setOperators.length; ++i) {
+			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator: setOperators[i]! });
 		}
 
-		return !useSelectionCastCodecs ? leftSelect : sql`select ${
-			this.buildSelection(
-				outputSelection.map((field) => {
-					if (field.fieldType === 'SQL.Aliased') {
-						const ref = field.field.clone();
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					if (field.fieldType === 'Column' && field.field.isAlias) {
-						const ref = new SQL.Aliased(sql`${sql.identifier(field.field.name)}`, field.field.name);
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					if (field.fieldType === 'Subquery') {
-						const ref = new SQL.Aliased(sql`${field.field.getSQL()}`, field.field._.alias);
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					return field;
-				}),
-				{
-					isSingleTable: true,
-					ignoreCastCodecs: !useSelectionCastCodecs,
-				},
-			)
-		} from (${leftSelect}) ${sql.identifier('drizzle_union')}${tailSql}`;
+		return leftSelect;
 	}
 
 	buildSetOperationQuery({
 		leftSelect,
 		setOperator,
-		omitTail,
 	}: {
 		leftSelect: SQL;
 		setOperator: CockroachSelectConfig['setOperators'][number];
-		omitTail?: boolean;
 	}): SQL {
 		const { type, isAll, rightSelect } = setOperator;
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
 		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
-		const tailSql = omitTail ? undefined : this.buildSetOperationTail(setOperator);
+		const tailSql = this.buildSetOperationTail(setOperator);
 
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${tailSql}`;
 	}
@@ -779,7 +728,6 @@ export class CockroachDialect {
 		withList,
 		select,
 		columnList,
-		useSelectionCastCodecs,
 	}: CockroachInsertConfig): SQL {
 		const columns: Record<string, CockroachColumn> = table[Table.Symbol.Columns];
 
@@ -844,9 +792,7 @@ export class CockroachDialect {
 		const valuesSql = new SQL(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
-			}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const onConflictSql = onConflict

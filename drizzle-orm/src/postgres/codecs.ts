@@ -1,13 +1,9 @@
-import { refineCodecs } from '~/codecs.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
 	byteaFromPgHex,
-	castToEpochMs,
-	castToJsonText,
 	castToText,
 	castToTextArr,
-	epochMsToDate,
 	makeBoxArray,
 	makeGeometryArray,
 	parseGeometryTuple,
@@ -18,23 +14,17 @@ import {
 	parsePointTuple,
 	parsePointXY,
 	type PgCodecs,
-	type PostgresType,
-	textToDateArray,
-	textToDateWithTzArray,
 } from '~/pg-core/codecs.ts';
 
 const jsonStringify = (value: any) => JSON.stringify(value);
 
-export const postgresShapeCodecs: PgCodecs = {
+export const postgresCodecs: PgCodecs = {
 	json: { normalizeParam: jsonStringify, normalizeParamArray: arrayCompatNormalizeInput(jsonStringify, true) },
 	jsonb: { normalizeParam: jsonStringify, normalizeParamArray: arrayCompatNormalizeInput(jsonStringify, true) },
 	bytea: {
 		normalizeInJson: byteaFromPgHex,
 		normalizeArrayInJson: arrayCompatNormalize(byteaFromPgHex),
 	},
-	date: { castArray: castToJsonText, normalizeArray: textToDateArray },
-	timestamp: { castArray: castToJsonText, normalizeArray: textToDateWithTzArray },
-	timestamptz: { castArray: castToJsonText, normalizeArray: textToDateArray },
 	'timestamp:string': { castInJson: castToText, castArrayInJson: castToTextArr },
 	'timestamptz:string': { castInJson: castToText, castArrayInJson: castToTextArr },
 	point: {
@@ -83,10 +73,3 @@ export const postgresShapeCodecs: PgCodecs = {
 		normalizeArrayInJson: arrayCompatNormalize(parsePgVector),
 	},
 };
-
-/** Variant of {@link postgresShapeCodecs} for text-only transports (HTTP), where scalars are text too */
-export const postgresHttpShapeCodecs: PgCodecs = refineCodecs<PostgresType>(postgresShapeCodecs, {
-	date: { cast: castToEpochMs, normalize: epochMsToDate },
-	timestamp: { cast: castToEpochMs, normalize: epochMsToDate },
-	timestamptz: { cast: castToEpochMs, normalize: epochMsToDate },
-});

@@ -44,6 +44,9 @@ export class EffectLibsqlDatabase<TRelations extends AnyRelations = EmptyRelatio
  *   Effect.provide(LibsqlDrizzle.DefaultServices),
  * );
  * ```
+ *
+ * Driver quirks:
+ * - With `intMode: 'number'` (the default), the client throws on integers past the safe integer range
  */
 export const make = Effect.fn('LibsqlDrizzle.make')(
 	function*<

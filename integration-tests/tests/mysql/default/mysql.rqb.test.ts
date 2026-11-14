@@ -12829,7 +12829,8 @@ test('alltypes', async () => {
 		decimalBig: 5044565289845416380n,
 		double: 15.35325689124218,
 		enum: 'enV1',
-		float: 1.048596,
+		// MySQL's text protocol rounds `float`s to 6 significant digits (a mysql2 quirk), this value rounds to itself
+		float: 1.0486,
 		real: 1.048596,
 		text: 'C4-',
 		int: 621,
@@ -12883,7 +12884,7 @@ test('alltypes', async () => {
 			decimalNum: 9007199254740991,
 			decimalBig: 5044565289845416380n,
 			double: 15.35325689124218,
-			float: 1.048596,
+			float: 1.0486,
 			int: 621,
 			json: { arr: ['str', 10], str: 'strval' },
 			medInt: 560,

@@ -1,7 +1,5 @@
 import {
 	arrayCompatNormalize,
-	castToText,
-	castToTextArr,
 	makeGeometryArray,
 	parseArray,
 	parseArrayAndNormalize,
@@ -11,7 +9,9 @@ import {
 	parseGeometryXY,
 	refineGenericCockroachCodecs,
 	textToDate,
+	textToDateArray,
 	textToDateWithTz,
+	textToDateWithTzArray,
 } from '~/cockroach-core/codecs.ts';
 
 export const nodeCockroachCodecs = refineGenericCockroachCodecs({
@@ -32,46 +32,47 @@ export const nodeCockroachCodecs = refineGenericCockroachCodecs({
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	int8: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	'int8:number': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
+	},
+	decimal: {
+		normalizeArray: parseArray,
 	},
 	'decimal:number': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: Number,
-		normalizeArray: arrayCompatNormalize(Number),
+		normalizeArray: parseArrayAndNormalize(Number),
 	},
 	'decimal:bigint': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: BigInt,
-		normalizeArray: arrayCompatNormalize(BigInt),
+		normalizeArray: parseArrayAndNormalize(BigInt),
 	},
 	date: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		normalizeArray: textToDateArray,
+	},
+	'date:string': {
+		normalizeArray: parseArray,
 	},
 	timestamp: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: textToDateWithTz,
-		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+		normalizeArray: textToDateWithTzArray,
 	},
 	timestamptz: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		normalizeArray: textToDateArray,
+	},
+	'timestamp:string': {
+		normalizeArray: parseArray,
+	},
+	'timestamptz:string': {
+		normalizeArray: parseArray,
+	},
+	interval: {
+		normalizeArray: parseArray,
 	},
 	geometry: {
 		normalize: parseGeometryTuple,
@@ -87,10 +88,6 @@ export const nodeCockroachCodecs = refineGenericCockroachCodecs({
 		normalize: parseCockroachVector,
 		normalizeArray: parseArrayAndNormalize(parseCockroachVector),
 	},
-	decimal: {
-		cast: castToText,
-		castArray: castToTextArr,
-	},
 	bit: {
 		normalizeArray: parseArray,
 	},
@@ -99,31 +96,5 @@ export const nodeCockroachCodecs = refineGenericCockroachCodecs({
 	},
 	enum: {
 		normalizeArray: parseArray,
-	},
-	interval: {
-		cast: castToText,
-		castArray: castToTextArr,
-	},
-	'date:string': {
-		cast: castToText,
-		castArray: castToTextArr,
-	},
-	'timestamp:string': {
-		cast: castToText,
-		castArray: castToTextArr,
-	},
-	'timestamptz:string': {
-		cast: castToText,
-		castArray: castToTextArr,
-	},
-	time: {
-		cast: castToText,
-		castArray: castToTextArr,
-	},
-	jsonb: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: JSON.parse,
-		normalizeArray: arrayCompatNormalize(JSON.parse),
 	},
 });

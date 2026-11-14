@@ -2,11 +2,7 @@ import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
-	castToEpochMs,
-	castToJsonText,
-	castToText,
 	castToTextArr,
-	epochMsToDate,
 	makeGeometryArray,
 	parseGeometryArrayAndNormalize,
 	parseGeometryTuple,
@@ -14,99 +10,72 @@ import {
 	parseLineABC,
 	parseLineTuple,
 	parsePgArrayAndNormalize,
+	parsePgArrayOfStrings,
 	parsePgVector,
-	parsePointTuple,
-	parsePointXY,
 	refineGenericPgCodecs,
-	textToDateArray,
-	textToDateWithTzArray,
+	textToDate,
+	textToDatePgArray,
+	textToDateWithTz,
+	textToDateWithTzPgArray,
 } from '~/pg-core/codecs.ts';
+
+const pointToTuple = ({ x, y }: { x: number; y: number }): [number, number] => [x, y];
 
 export const nodePgCodecs = refineGenericPgCodecs({
 	bigint: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	'bigint:number': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	'bigint:string': {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalize: String,
+		normalizeArray: arrayCompatNormalize(String),
 	},
 	bigserial: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	'bigserial:number': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	bit: {
-		normalizeArray: (v) => parsePgArray(v),
+		normalizeArray: parsePgArrayOfStrings,
 	},
 	numeric: {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalizeArray: parsePgArrayOfStrings,
 	},
 	'numeric:number': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: Number,
-		normalizeArray: arrayCompatNormalize(Number),
+		normalizeArray: parsePgArrayAndNormalize(Number),
 	},
 	'numeric:bigint': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: BigInt,
-		normalizeArray: arrayCompatNormalize(BigInt),
+		normalizeArray: parsePgArrayAndNormalize(BigInt),
 	},
 	date: {
-		cast: castToEpochMs,
-		castArray: castToJsonText,
-		normalize: epochMsToDate,
-		normalizeArray: textToDateArray,
+		normalize: textToDate,
+		normalizeArray: textToDatePgArray,
 	},
 	'date:string': {
-		cast: castToText,
-		castArray: castToTextArr,
-	},
-	time: {
-		cast: castToText,
-		castArray: castToTextArr,
-	},
-	timetz: {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalizeArray: parsePgArrayOfStrings,
 	},
 	timestamp: {
-		cast: castToEpochMs,
-		castArray: castToJsonText,
-		normalize: epochMsToDate,
-		normalizeArray: textToDateWithTzArray,
+		normalize: textToDateWithTz,
+		normalizeArray: textToDateWithTzPgArray,
 	},
 	timestamptz: {
-		cast: castToEpochMs,
-		castArray: castToJsonText,
-		normalize: epochMsToDate,
-		normalizeArray: textToDateArray,
+		normalize: textToDate,
+		normalizeArray: textToDatePgArray,
 	},
 	'timestamp:string': {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalizeArray: parsePgArrayOfStrings,
 	},
 	'timestamptz:string': {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalizeArray: parsePgArrayOfStrings,
 	},
 	'geometry(point)': {
 		normalize: parseGeometryXY,
@@ -119,56 +88,39 @@ export const nodePgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makeGeometryArray,
 	},
 	interval: {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalizeArray: parsePgArrayOfStrings,
 	},
+
 	json: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: JSON.parse,
-		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: JSON.parse,
-		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
+
 	enum: {
-		castArray: castToTextArr,
+		normalizeArray: parsePgArrayOfStrings,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+
 	line: {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: parseLineABC,
-		normalizeArray: arrayCompatNormalize(parseLineABC),
+		normalizeArray: parsePgArrayAndNormalize(parseLineABC),
 	},
 	'line:tuple': {
-		cast: castToText,
-		castArray: castToTextArr,
 		normalize: parseLineTuple,
-		normalizeArray: arrayCompatNormalize(parseLineTuple),
+		normalizeArray: parsePgArrayAndNormalize(parseLineTuple),
 	},
+
 	macaddr8: {
 		castArrayInJson: castToTextArr,
-		castArray: castToTextArr,
-	},
-	point: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: parsePointXY,
-		normalizeArray: arrayCompatNormalize(parsePointXY),
+		normalizeArray: parsePgArrayOfStrings,
 	},
 	'point:tuple': {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: parsePointTuple,
-		normalizeArray: arrayCompatNormalize(parsePointTuple),
+		normalize: pointToTuple,
+		normalizeArray: arrayCompatNormalize(pointToTuple),
 	},
 	halfvec: {
 		normalize: parsePgVector,

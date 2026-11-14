@@ -51,7 +51,7 @@ export class EffectPgSession<
 
 	override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper?: (rows: any[]) => any,
 		queryMetadata?: QueryMetadata,
@@ -61,7 +61,7 @@ export class EffectPgSession<
 			const q = this.client.unsafe(query.sql, params);
 
 			if (mode === 'arrays') return q.values;
-			if (mode === 'objects') return q.withoutTransform;
+			if (mode === 'objects' || mode === 'call') return q.withoutTransform;
 			return q.raw;
 		};
 

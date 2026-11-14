@@ -307,6 +307,79 @@ export function tests(test: Test) {
 			]);
 		});
 
+		test.concurrent('select distinct ordered by cast columns', async ({ db, push }) => {
+			const table = pgTable('distinct_cast_order', {
+				id: integer('id').notNull(),
+				createdAt: timestamp('created_at', { mode: 'date', precision: 3 }).notNull(),
+				amount: numeric('amount', { mode: 'number' }).notNull(),
+			});
+
+			await push({ table });
+
+			await db.insert(table).values([
+				{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+				{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+				{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+				{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+			]);
+
+			const byDate = await db
+				.selectDistinct({ id: table.id, createdAt: table.createdAt, amount: table.amount })
+				.from(table)
+				.orderBy(desc(table.createdAt));
+			const byAmount = await db
+				.selectDistinct({ id: table.id, amount: table.amount })
+				.from(table)
+				.orderBy(desc(table.amount));
+
+			expect(byDate).toEqual([
+				{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+				{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+				{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+			]);
+			expect(byAmount).toEqual([
+				{ id: 2, amount: 100 },
+				{ id: 3, amount: 10 },
+				{ id: 1, amount: 9 },
+			]);
+		});
+
+		test.concurrent('order by aliased cast columns', async ({ db, push }) => {
+			const table = pgTable('alias_cast_order', {
+				id: integer('id').notNull(),
+				amount: numeric('amount', { mode: 'number' }).notNull(),
+			});
+
+			await push({ table });
+
+			await db.insert(table).values([
+				{ id: 1, amount: 9 },
+				{ id: 2, amount: 100 },
+				{ id: 3, amount: 10 },
+			]);
+
+			const amountAlias = table.amount.as('amount_alias');
+			const amountSql = sql<number>`${table.amount}`.mapWith(table.amount).as('amount_sql');
+
+			const byColumnAlias = await db.select({ id: table.id, amount: amountAlias }).from(table).orderBy(
+				desc(amountAlias),
+			);
+			const bySqlAlias = await db.select({ id: table.id, amount: amountSql }).from(table).orderBy(desc(amountSql));
+			const byDistinctAlias = await db
+				.selectDistinct({ id: table.id, amount: amountAlias })
+				.from(table)
+				.orderBy(desc(amountAlias));
+
+			const expected = [
+				{ id: 2, amount: 100 },
+				{ id: 3, amount: 10 },
+				{ id: 1, amount: 9 },
+			];
+			expect(byColumnAlias).toEqual(expected);
+			expect(bySqlAlias).toEqual(expected);
+			expect(byDistinctAlias).toEqual(expected);
+		});
+
 		test.concurrent('insert returning sql', async ({ db, push }) => {
 			const users = pgTable('users_6', {
 				id: integer('id' as string).primaryKey(),

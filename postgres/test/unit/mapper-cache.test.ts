@@ -140,3 +140,150 @@ describe('row mapper cache', () => {
 		expect(m.forCols([{ name: 'c0', oid: 23 }], 'object')).not.toBe(first);
 	});
 });
+
+// One RowDescription body: int16 column count, then per column a name, NUL and 18 bytes of numbers.
+const rowDesc = (cols: [string, number][]) => {
+	const parts = [Buffer.from([cols.length >> 8, cols.length & 0xff])];
+	for (const [name, oid] of cols) {
+		const tail = Buffer.alloc(18);
+		tail.writeInt32BE(oid, 6);
+		tail.writeInt16BE(-1, 10);
+		tail.writeInt32BE(-1, 12);
+		parts.push(Buffer.from(name + '\0', 'utf8'), tail);
+	}
+	return Buffer.concat(parts);
+};
+
+describe('fields of a repeated RowDescription', () => {
+	test('the same bytes give the same parsed array', () => {
+		const m = new RowMappers('interpreted', buildDecoders());
+		const d = rowDesc([['id', 23], ['name', 25]]);
+		const a = m.fieldsFor(d);
+		expect(a.map((f) => [f.name, f.dataTypeOid])).toEqual([['id', 23], ['name', 25]]);
+		expect(m.fieldsFor(Buffer.from(d))).toBe(a);
+		// found inside a larger buffer that is reused afterwards
+		const scratch = Buffer.concat([Buffer.alloc(9, 1), d, Buffer.alloc(9, 2)]);
+		expect(m.fieldsFor(scratch.subarray(9, 9 + d.length))).toBe(a);
+		scratch.fill(0);
+		expect(m.fieldsFor(d)).toBe(a);
+		expect(a[1]!.name).toBe('name');
+	});
+
+	test('a different name, type or column count is a different array', () => {
+		const m = new RowMappers('interpreted', buildDecoders());
+		const a = m.fieldsFor(rowDesc([['id', 23], ['name', 25]]));
+		expect(m.fieldsFor(rowDesc([['id', 20], ['name', 25]]))[0]!.dataTypeOid).toBe(20);
+		expect(m.fieldsFor(rowDesc([['id', 23], ['nam', 25]]))[1]!.name).toBe('nam');
+		expect(m.fieldsFor(rowDesc([['id', 23]])).length).toBe(1);
+		expect(m.fieldsFor(rowDesc([['id', 23], ['name', 25], ['x', 16]])).length).toBe(3);
+		expect(m.fieldsFor(rowDesc([['id', 23], ['name', 25]]))).toBe(a);
+	});
+
+	test('the shared array cannot be changed', () => {
+		const m = new RowMappers('interpreted', buildDecoders());
+		const a = m.fieldsFor(rowDesc([['id', 23]]));
+		expect(Object.isFrozen(a)).toBe(true);
+		expect(Object.isFrozen(a[0])).toBe(true);
+		expect(() => a.push(a[0]!)).toThrow();
+		expect(() => {
+			'use strict';
+			a[0]!.name = 'x';
+		}).toThrow();
+	});
+
+	test('more layouts than are kept still parse correctly', () => {
+		const m = new RowMappers('interpreted', buildDecoders());
+		for (let round = 0; round < 2; round++) {
+			for (let k = 0; k < 40; k++) {
+				const f = m.fieldsFor(rowDesc([[`c${k}`, 23], ['t', 25]]));
+				expect(f.map((x) => x.name)).toEqual([`c${k}`, 't']);
+				expect(Object.isFrozen(f)).toBe(true);
+			}
+		}
+	});
+
+	test('two clients never share an array', () => {
+		const d = rowDesc([['id', 23]]);
+		const map = buildDecoders();
+		expect(new RowMappers('interpreted', map).fieldsFor(d)).not.toBe(new RowMappers('interpreted', map).fieldsFor(d));
+	});
+});
+
+// The wire transports hand a mapper the socket chunk and where the row starts in it (no view per row).
+describe('a mapper reads a row at an offset', () => {
+	const dataRow = (cells: (string | null)[]) => {
+		const parts = [Buffer.from([cells.length >> 8, cells.length & 0xff])];
+		for (const c of cells) {
+			const len = Buffer.alloc(4);
+			if (c === null) {
+				len.writeInt32BE(-1);
+				parts.push(len);
+			} else {
+				const v = Buffer.from(c, 'utf8');
+				len.writeInt32BE(v.length);
+				parts.push(len, v);
+			}
+		}
+		return Buffer.concat(parts);
+	};
+	const layout: CodegenCol[] = [
+		{ name: 'id', oid: 20 },
+		{ name: 'n', oid: 23 },
+		{ name: 'f', oid: 701 },
+		{ name: 'ok', oid: 16 },
+		{ name: 'at', oid: 1184 },
+		{ name: 'meta', oid: 3802 },
+		{ name: 'tags', oid: 1009 },
+		{ name: 'name', oid: 25 },
+		{ name: 'raw', oid: 17 },
+		{ name: 'gone', oid: 25 },
+	];
+	const rows = [
+		[
+			'9007199254740993',
+			'42',
+			'3.5',
+			't',
+			'2026-11-13 10:15:00.123+00',
+			'{"a":[1,2]}',
+			'{x,y}',
+			'héllo wörld',
+			'\\x00ff10',
+			null,
+		],
+		['-1', '-7', '0', 'f', '1999-01-01 00:00:00+00', 'null', '{}', '', '\\x', null],
+	];
+	for (const decode of ['jit', 'interpreted'] as const) {
+		for (const mode of ['object', 'array'] as const) {
+			test(`${decode} ${mode}: same row at offset 0 and in the middle of a chunk`, () => {
+				const m = new RowMappers(decode, buildDecoders()).forCols(layout, mode);
+				const bodies = rows.map(dataRow);
+				// a chunk as the socket delivers it: junk, then frames one after another, then junk
+				const chunk = Buffer.concat([
+					Buffer.alloc(13, 0xee),
+					...bodies.flatMap((b) => [Buffer.alloc(5, 0xdd), b]),
+					Buffer.alloc(9, 0xee),
+				]);
+				let at = 13;
+				for (const body of bodies) {
+					at += 5;
+					const alone = m(body);
+					expect(m(body, 0)).toEqual(alone);
+					expect(m(chunk, at)).toEqual(alone);
+					at += body.length;
+				}
+			});
+		}
+	}
+
+	test('a Collect shape reads at an offset too', () => {
+		for (const decode of ['jit', 'interpreted'] as const) {
+			const cols: CodegenCol[] = [{ name: 'id', oid: 23 }, { name: 'city', oid: 25, path: ['address'] }];
+			const m = new RowMappers(decode, buildDecoders()).forCols(cols, 'object');
+			const body = dataRow(['7', 'Kyiv']);
+			const chunk = Buffer.concat([Buffer.alloc(31, 1), body, Buffer.alloc(4, 1)]);
+			expect(m(chunk, 31)).toEqual(m(body));
+			expect(m(chunk, 31)).toEqual({ id: 7, address: { city: 'Kyiv' } });
+		}
+	});
+});

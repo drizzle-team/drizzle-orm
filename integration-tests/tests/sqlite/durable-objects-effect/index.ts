@@ -3274,7 +3274,7 @@ export class MyDurableObject extends DurableObject {
 				const queryRaw = yield* db.all<Record<string, unknown>>(
 					db.select(
 						Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
-					).from(allTypesTable).getSQL(true),
+					).from(allTypesTable).getSQL(),
 				);
 				expect(normalizeDataWithDbCodecs({ db: db as any, columns, data: queryRaw, mode: 'query' })[0])
 					.deep.equal(allTypesData);

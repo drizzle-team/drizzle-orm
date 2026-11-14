@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
-import { and, asc, eq, exists, inArray, Name, notInArray, placeholder, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, inArray, Name, notInArray, placeholder, sql } from 'drizzle-orm';
 import type { SingleStoreDatabase } from 'drizzle-orm/singlestore-core';
 import {
 	alias,
@@ -8,6 +8,7 @@ import {
 	boolean,
 	date,
 	datetime,
+	decimal,
 	getTableConfig,
 	int,
 	json,
@@ -310,6 +311,83 @@ export function tests(test: Test) {
 			await db.execute(sql`drop table ${usersDistinctTable}`);
 
 			expect(users).toEqual([{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+		});
+
+		test.concurrent('select distinct ordered by cast columns', async ({ db }) => {
+			const table = singlestoreTable('distinct_cast_order', {
+				id: int('id').notNull(),
+				createdAt: datetime('created_at', { mode: 'date' }).notNull(),
+				amount: decimal('amount', { mode: 'number', precision: 10, scale: 2 }).notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id int not null, created_at datetime not null, amount decimal(10, 2) not null)`,
+			);
+
+			await db.insert(table).values([
+				{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+				{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+				{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+				{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+			]);
+
+			const byDate = await db
+				.selectDistinct({ id: table.id, createdAt: table.createdAt, amount: table.amount })
+				.from(table)
+				.orderBy(desc(table.createdAt));
+			const byAmount = await db
+				.selectDistinct({ id: table.id, amount: table.amount })
+				.from(table)
+				.orderBy(desc(table.amount));
+
+			expect(byDate).toEqual([
+				{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+				{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+				{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+			]);
+			expect(byAmount).toEqual([
+				{ id: 2, amount: 100 },
+				{ id: 3, amount: 10 },
+				{ id: 1, amount: 9 },
+			]);
+		});
+
+		test.concurrent('order by aliased cast columns', async ({ db }) => {
+			const table = singlestoreTable('alias_cast_order', {
+				id: int('id').notNull(),
+				amount: decimal('amount', { mode: 'number', precision: 10, scale: 2 }).notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(sql`create table ${table} (id int not null, amount decimal(10, 2) not null)`);
+
+			await db.insert(table).values([
+				{ id: 1, amount: 9 },
+				{ id: 2, amount: 100 },
+				{ id: 3, amount: 10 },
+			]);
+
+			const amountAlias = table.amount.as('amount_alias');
+			const amountSql = sql<number>`${table.amount}`.mapWith(table.amount).as('amount_sql');
+
+			const byColumnAlias = await db.select({ id: table.id, amount: amountAlias }).from(table).orderBy(
+				desc(amountAlias),
+			);
+			const bySqlAlias = await db.select({ id: table.id, amount: amountSql }).from(table).orderBy(desc(amountSql));
+			const byDistinctAlias = await db
+				.selectDistinct({ id: table.id, amount: amountAlias })
+				.from(table)
+				.orderBy(desc(amountAlias));
+
+			const expected = [
+				{ id: 2, amount: 100 },
+				{ id: 3, amount: 10 },
+				{ id: 1, amount: 9 },
+			];
+			expect(byColumnAlias).toEqual(expected);
+			expect(bySqlAlias).toEqual(expected);
+			expect(byDistinctAlias).toEqual(expected);
 		});
 
 		test.concurrent('insert returning sql', async ({ db }) => {
@@ -617,8 +695,7 @@ export function tests(test: Test) {
 				.toSQL();
 
 			expect(query).toEqual({
-				sql:
-					`select cast(\`id\` as char), \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
+				sql: `select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
 				params: [],
 			});
 		});

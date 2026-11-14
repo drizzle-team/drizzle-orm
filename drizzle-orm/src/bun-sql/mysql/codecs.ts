@@ -1,52 +1,43 @@
-import { castToText, floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
-import { sql } from '~/sql/sql.ts';
+import { floatFromDouble, mysqlDatetimeTextFromUtcDate, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
+
+/** `YYYY-MM-DD` of a `date` the driver decoded to UTC midnight */
+const dateTextFromUtc = (value: Date): string =>
+	`${String(value.getUTCFullYear()).padStart(4, '0')}-${String(value.getUTCMonth() + 1).padStart(2, '0')}-${
+		String(value.getUTCDate()).padStart(2, '0')
+	}`;
 
 export const bunSqlMySqlCodecs = refineGenericMySqlCodecs({
 	serial: {
-		cast: castToText,
 		normalize: Number,
 	},
 	bigint: {
-		cast: castToText,
 		normalize: BigInt,
 	},
 	'bigint:number': {
-		cast: castToText,
 		normalize: Number,
 	},
 	'bigint:string': {
-		cast: castToText,
+		normalize: String,
 	},
 	boolean: {
 		normalize: (value: number) => value === 1,
 	},
-	year: {
-		// YEAR type is corrupted by driver in bun v1.3 and earlier
-		cast: (name) => sql`cast(${name} as unsigned)`,
-		normalize: Number,
-	},
 	'date:string': {
-		cast: castToText,
+		normalize: dateTextFromUtc,
 	},
 	'datetime:string': {
-		cast: castToText,
+		normalize: mysqlDatetimeTextFromUtcDate,
 	},
 	'timestamp:string': {
-		cast: castToText,
-	},
-	time: {
-		cast: castToText,
+		normalize: mysqlDatetimeTextFromUtcDate,
 	},
 	'decimal:number': {
-		cast: castToText,
 		normalize: Number,
 	},
 	'decimal:bigint': {
-		cast: castToText,
 		normalize: BigInt,
 	},
 	float: {
-		cast: (name) => sql`cast(${name} as double)`,
 		normalize: floatFromDouble,
 	},
 	binary: {
@@ -66,24 +57,5 @@ export const bunSqlMySqlCodecs = refineGenericMySqlCodecs({
 	},
 	longblob: {
 		normalize: (value: Buffer) => value.toString('utf8'),
-	},
-	decimal: {
-		cast: castToText,
-	},
-	date: {
-		cast: castToText,
-		normalize: (value: string) => new Date(value),
-	},
-	datetime: {
-		cast: castToText,
-		normalize: (value: string) => new Date(value.replace(' ', 'T') + 'Z'),
-	},
-	timestamp: {
-		cast: castToText,
-		normalize: (value: string) => new Date(value + '+0000'),
-	},
-	json: {
-		cast: castToText,
-		normalize: JSON.parse,
 	},
 });

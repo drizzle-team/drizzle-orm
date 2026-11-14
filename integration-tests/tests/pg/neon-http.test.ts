@@ -1,6 +1,6 @@
 import type { NeonQueryFunction } from '@neondatabase/serverless';
 import { defineRelations, eq, getColumns, sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/neon-http';
+import { drizzle, neonHttpRawTextTypes } from 'drizzle-orm/neon-http';
 import type { NeonHttpQueryResult } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
 import {
@@ -57,8 +57,6 @@ const skips = [
 	'time zones are preserved - non-UTC session',
 	'all types ~codecs~ - non-UTC session',
 	'all types ~codecs~ - non-UTC session - upstash',
-	'all types ~codecs~ - non-ISO DateStyle session',
-	'all types ~codecs~ - non-ISO DateStyle session - upstash',
 	'transaction with options (accessMode read only)',
 	'transaction with options (deferrable)',
 	'transaction with an empty options object',
@@ -644,10 +642,16 @@ describe('$withAuth tests', (it) => {
 		relations: defineRelations({ usersTable }),
 	});
 
+	// decoded queries (with a mapper) pass per-query `types` returning some types as raw text
 	it('$count', async () => {
 		await db.$withAuth('$count').$count(usersTable).catch(() => null);
 
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: '$count' });
+		expect(client.mock.lastCall?.[2]).toStrictEqual({
+			arrayMode: true,
+			fullResults: true,
+			authToken: '$count',
+			...neonHttpRawTextTypes,
+		});
 	});
 
 	it('delete', async () => {
@@ -659,7 +663,12 @@ describe('$withAuth tests', (it) => {
 	it('select', async () => {
 		await db.$withAuth('select').select().from(usersTable).catch(() => null);
 
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'select' });
+		expect(client.mock.lastCall?.[2]).toStrictEqual({
+			arrayMode: true,
+			fullResults: true,
+			authToken: 'select',
+			...neonHttpRawTextTypes,
+		});
 	});
 
 	it('selectDistinct', async () => {
@@ -669,6 +678,7 @@ describe('$withAuth tests', (it) => {
 			arrayMode: true,
 			fullResults: true,
 			authToken: 'selectDistinct',
+			...neonHttpRawTextTypes,
 		});
 	});
 
@@ -679,6 +689,7 @@ describe('$withAuth tests', (it) => {
 			arrayMode: true,
 			fullResults: true,
 			authToken: 'selectDistinctOn',
+			...neonHttpRawTextTypes,
 		});
 	});
 
@@ -702,13 +713,23 @@ describe('$withAuth tests', (it) => {
 		await db.$withAuth('with').with(db.$with('WITH').as((qb) => qb.select().from(usersTable))).select().from(usersTable)
 			.catch(() => null);
 
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'with' });
+		expect(client.mock.lastCall?.[2]).toStrictEqual({
+			arrayMode: true,
+			fullResults: true,
+			authToken: 'with',
+			...neonHttpRawTextTypes,
+		});
 	});
 
 	it('rqbV2', async () => {
 		await db.$withAuth('rqbV2').query.usersTable.findFirst().catch(() => null);
 
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'rqbV2' });
+		expect(client.mock.lastCall?.[2]).toStrictEqual({
+			arrayMode: true,
+			fullResults: true,
+			authToken: 'rqbV2',
+			...neonHttpRawTextTypes,
+		});
 	});
 
 	it('exec', async () => {
@@ -722,7 +743,12 @@ describe('$withAuth tests', (it) => {
 
 		await prep.execute().catch(() => null);
 
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'prepared' });
+		expect(client.mock.lastCall?.[2]).toStrictEqual({
+			arrayMode: true,
+			fullResults: true,
+			authToken: 'prepared',
+			...neonHttpRawTextTypes,
+		});
 	});
 
 	it('refreshMaterializedView', async () => {

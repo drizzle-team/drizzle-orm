@@ -48,6 +48,9 @@ export class EffectSQLiteD1Database<TRelations extends AnyRelations = EmptyRelat
  *   Effect.provide(SQLiteD1Drizzle.DefaultServices),
  * );
  * ```
+ *
+ * Driver quirks:
+ * - Integers past the safe integer range are read as numbers: `numeric` columns throw on them
  */
 export const make = Effect.fn('SQLiteD1Drizzle.make')(
 	function*<

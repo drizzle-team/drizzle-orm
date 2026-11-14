@@ -72,7 +72,7 @@ export class PostgresHttpSession<
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
 		queryMetadata?: QueryMetadata,
@@ -260,7 +260,7 @@ export class PostgresHttpPreparedQuery<T extends PreparedQueryConfig> extends Pg
 		executor: (params?: unknown[]) => Promise<any>,
 		query: Query,
 		mapper: ((rows: any[]) => any) | undefined,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		logger: Logger,
 		// cache instance
 		cache: Cache | undefined,

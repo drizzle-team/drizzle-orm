@@ -1,11 +1,16 @@
 import {
+	bigintFromBlob,
 	booleanFromInteger,
 	bufferFromBinaryIfAvailable,
-	castToText,
 	dateFromStoredMilliseconds,
 	dateFromStoredSeconds,
+	jsonFromBlob,
+	numericBigintFromValue,
+	numericTextFromValue,
 	refineSqliteCodecs,
 } from '~/sqlite-core/codecs.ts';
+
+const driver = 'durable-sqlite';
 
 export const durableSQLiteCodecs = refineSqliteCodecs({
 	integer: {
@@ -27,22 +32,18 @@ export const durableSQLiteCodecs = refineSqliteCodecs({
 		normalize: bufferFromBinaryIfAvailable,
 	},
 	'blob:json': {
-		cast: castToText,
-		normalize: JSON.parse,
+		normalize: jsonFromBlob,
 	},
 	'blob:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: bigintFromBlob,
 	},
 	numeric: {
-		cast: castToText,
-		normalize: String,
+		normalize: numericTextFromValue(driver),
 	},
 	'numeric:number': {
 		normalize: Number,
 	},
 	'numeric:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: numericBigintFromValue(driver),
 	},
 });

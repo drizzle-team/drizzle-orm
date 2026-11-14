@@ -1,34 +1,53 @@
 import type { Sql } from 'postgres';
-import { makePgArray } from '~/pg-core/array.ts';
+import type { NormalizeArrayCodec, NormalizeCodec } from '~/codecs.ts';
+import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
-	castToEpochMs,
-	castToJsonText,
-	castToText,
-	castToTextArr,
-	epochMsToDate,
 	makeBoxArray,
 	makeGeometryArray,
 	parseGeometryTuple,
 	parseGeometryXY,
 	parseLineABC,
 	parseLineTuple,
+	parsePgArrayAndNormalize,
+	parsePgArrayOfStrings,
 	parsePgVector,
 	parsePointTuple,
 	parsePointXY,
 	refineGenericPgCodecs,
-	textToDateArray,
-	textToDateWithTzArray,
+	textToDate,
+	textToDatePgArray,
+	textToDateWithTz,
+	textToDateWithTzPgArray,
 } from '~/pg-core/codecs.ts';
 
+/**
+ * Arrays of extension types (and enums) come back parsed only if `postgres.js` fetched their types on connection - the
+ * type existed by then - others come back as array literals
+ */
+const fetchedTypeArray = (normalize: NormalizeCodec, delim?: string): NormalizeArrayCodec => {
+	const fromLiteral = parsePgArrayAndNormalize(normalize, delim);
+	const fromParsed = arrayCompatNormalize(normalize);
+	return (value, arrayDimensions) =>
+		typeof value === 'string' ? fromLiteral(value, arrayDimensions) : fromParsed(value, arrayDimensions);
+};
+const fetchedTypeArrayOfStrings: NormalizeArrayCodec = (value: string | unknown[]) =>
+	typeof value === 'string' ? parsePgArray(value) : value;
+
 /** JSON param marker exists only on client and isn't importable outside of it */
-export const postgresJsCodecs = (client: Sql) =>
-	refineGenericPgCodecs({
+export const postgresJsCodecs = (client: Sql) => {
+	// `postgres.js` 4 serializes array params element by element, through the element type's serializer (JSON-encoding
+	// a prebuilt array literal), recursing into nested arrays unless an element is a typed parameter. 3 sends a prebuilt
+	// literal as is and infers the param type from typed elements - so each version gets its own form
+	const jsonParamArray = typeof (client as { batch?: unknown }).batch === 'function'
+		? arrayCompatNormalizeInput((v) => client.json(v as any))
+		: arrayCompatNormalizeInput((v) => JSON.stringify(v), true);
+
+	return refineGenericPgCodecs({
 		interval: {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayOfStrings,
 		},
 		point: {
 			normalize: parsePointXY,
@@ -52,20 +71,12 @@ export const postgresJsCodecs = (client: Sql) =>
 		},
 		macaddr8: { normalizeParamArray: (v) => makePgArray(v) },
 		json: {
-			cast: castToText,
-			castArray: castToTextArr,
-			normalize: JSON.parse,
-			normalizeArray: arrayCompatNormalize(JSON.parse),
 			normalizeParam: (value) => client.json(value),
-			normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
+			normalizeParamArray: jsonParamArray,
 		},
 		jsonb: {
-			cast: castToText,
-			castArray: castToTextArr,
-			normalize: JSON.parse,
-			normalizeArray: arrayCompatNormalize(JSON.parse),
 			normalizeParam: (value) => client.json(value),
-			normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
+			normalizeParamArray: jsonParamArray,
 		},
 
 		bit: { normalizeParamArray: (v) => makePgArray(v) },
@@ -83,7 +94,7 @@ export const postgresJsCodecs = (client: Sql) =>
 		'geography(point):tuple': { normalizeParamArray: makeGeometryArray },
 		halfvec: {
 			normalize: parsePgVector,
-			normalizeArray: arrayCompatNormalize(parsePgVector),
+			normalizeArray: fetchedTypeArray(parsePgVector),
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		inet: { normalizeParamArray: (v) => makePgArray(v) },
@@ -113,16 +124,15 @@ export const postgresJsCodecs = (client: Sql) =>
 		serial: { normalizeParamArray: (v) => makePgArray(v) },
 		smallint: { normalizeParamArray: (v) => makePgArray(v) },
 		smallserial: { normalizeParamArray: (v) => makePgArray(v) },
-		sparsevec: { normalizeParamArray: (v) => makePgArray(v) },
+		sparsevec: {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: fetchedTypeArrayOfStrings,
+		},
 		text: { normalizeParamArray: (v) => makePgArray(v) },
 		time: {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		timetz: {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		tsmultirange: { normalizeParamArray: (v) => makePgArray(v) },
@@ -135,116 +145,93 @@ export const postgresJsCodecs = (client: Sql) =>
 		varchar: { normalizeParamArray: (v) => makePgArray(v) },
 		vector: {
 			normalize: parsePgVector,
-			normalizeArray: arrayCompatNormalize(parsePgVector),
+			normalizeArray: fetchedTypeArray(parsePgVector),
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		xml: { normalizeParamArray: (v) => makePgArray(v) },
 		bytea: { normalizeParamArray: (v) => makePgArray(v) },
 		enum: {
-			castArray: castToTextArr,
+			normalizeArray: fetchedTypeArrayOfStrings,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'geometry(point)': {
-			castArray: castToTextArr,
 			normalize: parseGeometryXY,
-			normalizeArray: arrayCompatNormalize(parseGeometryXY),
 			normalizeParamArray: makeGeometryArray,
+			normalizeArray: fetchedTypeArray(parseGeometryXY, ':'),
 		},
 		'geometry(point):tuple': {
-			castArray: castToTextArr,
 			normalize: parseGeometryTuple,
-			normalizeArray: arrayCompatNormalize(parseGeometryTuple),
 			normalizeParamArray: makeGeometryArray,
+			normalizeArray: fetchedTypeArray(parseGeometryTuple, ':'),
 		},
 		numeric: {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayOfStrings,
 		},
 		'numeric:number': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalize: Number,
-			normalizeArray: arrayCompatNormalize(Number),
 			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayAndNormalize(Number),
 		},
 		'numeric:bigint': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalize: BigInt,
-			normalizeArray: arrayCompatNormalize(BigInt),
 			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayAndNormalize(BigInt),
 		},
 		bigint: {
-			cast: castToText,
-			castArray: castToTextArr,
+			normalizeParamArray: (v) => makePgArray(v),
 			normalize: BigInt,
 			normalizeArray: arrayCompatNormalize(BigInt),
-			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'bigint:number': {
-			cast: castToText,
-			castArray: castToTextArr,
+			normalizeParamArray: (v) => makePgArray(v),
 			normalize: Number,
 			normalizeArray: arrayCompatNormalize(Number),
-			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'bigint:string': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalize: String,
+			normalizeArray: arrayCompatNormalize(String),
 		},
 		bigserial: {
-			cast: castToText,
-			castArray: castToTextArr,
+			normalizeParamArray: (v) => makePgArray(v),
 			normalize: BigInt,
 			normalizeArray: arrayCompatNormalize(BigInt),
-			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'bigserial:number': {
-			cast: castToText,
-			castArray: castToTextArr,
+			normalizeParamArray: (v) => makePgArray(v),
 			normalize: Number,
 			normalizeArray: arrayCompatNormalize(Number),
-			normalizeParamArray: (v) => makePgArray(v),
 		},
 		float4: { normalizeParamArray: (v) => makePgArray(v) },
 		int: { normalizeParamArray: (v) => makePgArray(v) },
 		uuid: { normalizeParamArray: (v) => makePgArray(v) },
 		date: {
-			cast: castToEpochMs,
-			castArray: castToJsonText,
-			normalize: epochMsToDate,
-			normalizeArray: textToDateArray,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalize: textToDate,
+			normalizeArray: textToDatePgArray,
 		},
 		'date:string': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayOfStrings,
 		},
 		timestamp: {
-			cast: castToEpochMs,
-			castArray: castToJsonText,
-			normalize: epochMsToDate,
-			normalizeArray: textToDateWithTzArray,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalize: textToDateWithTz,
+			normalizeArray: textToDateWithTzPgArray,
 		},
 		timestamptz: {
-			cast: castToEpochMs,
-			castArray: castToJsonText,
-			normalize: epochMsToDate,
-			normalizeArray: textToDateArray,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalize: textToDate,
+			normalizeArray: textToDatePgArray,
 		},
 		'timestamp:string': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayOfStrings,
 		},
 		'timestamptz:string': {
-			cast: castToText,
-			castArray: castToTextArr,
 			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayOfStrings,
 		},
 	});
+};

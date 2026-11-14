@@ -1,6 +1,7 @@
 import { assert, expect, expectTypeOf, it, vi, Vitest } from '@effect/vitest';
 import {
 	asc,
+	desc,
 	eq,
 	getColumns,
 	getTableColumns,
@@ -291,7 +292,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 						Object.fromEntries(
 							Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)]),
 						),
-					).from(allTypesTable).getSQL(true),
+					).from(allTypesTable).getSQL(),
 				);
 				const queryRes = normalizeDataWithDbCodecs({
 					db,
@@ -1695,6 +1696,83 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					{ id: 1, name: 'John', age: 24 },
 					{ id: 2, name: 'John', age: 25 },
 				]);
+			}));
+
+		it.effect('select distinct ordered by cast columns', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = mysqlTable('distinct_cast_order', {
+					id: int('id').notNull(),
+					createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+					amount: decimal('amount', { mode: 'number', precision: 10, scale: 2 }).notNull(),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table).values([
+					{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+					{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+					{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+					{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+				]);
+
+				const byDate = yield* db
+					.selectDistinct({ id: table.id, createdAt: table.createdAt, amount: table.amount })
+					.from(table)
+					.orderBy(desc(table.createdAt));
+				const byAmount = yield* db
+					.selectDistinct({ id: table.id, amount: table.amount })
+					.from(table)
+					.orderBy(desc(table.amount));
+
+				expect(byDate).toEqual([
+					{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+					{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+					{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+				]);
+				expect(byAmount).toEqual([
+					{ id: 2, amount: 100 },
+					{ id: 3, amount: 10 },
+					{ id: 1, amount: 9 },
+				]);
+			}));
+
+		it.effect('order by aliased cast columns', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = mysqlTable('alias_cast_order', {
+					id: int('id').notNull(),
+					amount: decimal('amount', { mode: 'number', precision: 10, scale: 2 }).notNull(),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table).values([
+					{ id: 1, amount: 9 },
+					{ id: 2, amount: 100 },
+					{ id: 3, amount: 10 },
+				]);
+
+				const amountAlias = table.amount.as('amount_alias');
+				const amountSql = sql<number>`${table.amount}`.mapWith(table.amount).as('amount_sql');
+
+				const byColumnAlias = yield* db.select({ id: table.id, amount: amountAlias }).from(table).orderBy(
+					desc(amountAlias),
+				);
+				const bySqlAlias = yield* db.select({ id: table.id, amount: amountSql }).from(table).orderBy(desc(amountSql));
+				const byDistinctAlias = yield* db
+					.selectDistinct({ id: table.id, amount: amountAlias })
+					.from(table)
+					.orderBy(desc(amountAlias));
+
+				const expected = [
+					{ id: 2, amount: 100 },
+					{ id: 3, amount: 10 },
+					{ id: 1, amount: 9 },
+				];
+				expect(byColumnAlias).toEqual(expected);
+				expect(bySqlAlias).toEqual(expected);
+				expect(byDistinctAlias).toEqual(expected);
 			}));
 
 		it.effect('update with returning all fields', () =>

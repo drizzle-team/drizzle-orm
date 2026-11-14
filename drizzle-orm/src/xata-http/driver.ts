@@ -18,6 +18,10 @@ export class XataHttpDatabase<TRelations extends AnyRelations = EmptyRelations>
 	declare readonly session: XataHttpSession<TRelations>;
 }
 
+/**
+ * Requirements:
+ * - Sessions must use the ISO `DateStyle` (the default): temporal values of other `DateStyle`s throw
+ */
 export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	client: XataHttpClient,
 	config: DrizzlePgConfig<TRelations> = {},

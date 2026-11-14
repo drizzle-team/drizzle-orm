@@ -2841,6 +2841,20 @@ export type MySqlCodecs = Codecs<MySqlType>;
 
 export const castToText: CastCodec = (name) => sql`cast(${name} as char)`;
 
+export const mysqlDateFromText = (value: string): Date => new Date(value);
+export const mysqlDatetimeFromText = (value: string): Date => new Date(value.replace(' ', 'T') + 'Z');
+export const mysqlTimestampFromText = (value: string): Date => new Date(value + '+0000');
+
+/**
+ * MySQL's text of a `datetime` / `timestamp` the driver decoded to a `Date` at its UTC wall-clock time: fractional
+ * seconds are cut to the `Date`'s milliseconds, trailing zeros trimmed
+ */
+export const mysqlDatetimeTextFromUtcDate = (value: Date): string => {
+	const text = value.toISOString();
+	const fraction = text.slice(20, 23).replace(/0+$/, '');
+	return `${text.slice(0, 10)} ${text.slice(11, 19)}${fraction ? `.${fraction}` : ''}`;
+};
+
 /** Recover float32 casted to double
  *
  * Needed to avoid db\driver-side rounding

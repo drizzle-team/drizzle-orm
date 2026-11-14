@@ -316,5 +316,5 @@ const skip = [
 	'concat, substring expressions',
 ];
 
-tests(test, skip);
+tests(test, skip, { rawIntegers: 'bigint' });
 libsqlConcatSubstringTest(test);

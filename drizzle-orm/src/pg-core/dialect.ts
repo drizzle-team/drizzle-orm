@@ -146,14 +146,11 @@ export class PgDialect {
 		returning,
 		withList,
 		comment,
-		useSelectionCastCodecs,
 	}: PgDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
-			}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -204,7 +201,6 @@ export class PgDialect {
 		from,
 		joins,
 		comment,
-		useSelectionCastCodecs,
 	}: PgUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
@@ -225,9 +221,7 @@ export class PgDialect {
 		const joinsSql = this.buildJoins(joins);
 
 		const returningSql = returning
-			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: !from, ignoreCastCodecs: !useSelectionCastCodecs, table })
-			}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: !from, table })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -250,9 +244,8 @@ export class PgDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false, ignoreCastCodecs = false, table }: {
+		{ isSingleTable = false, table }: {
 			isSingleTable?: boolean;
-			ignoreCastCodecs?: boolean;
 			table?: PgTable | PgViewBase | SQL | Subquery;
 		} = {},
 	): SQL {
@@ -268,8 +261,7 @@ export class PgDialect {
 			: undefined;
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field, codecOverride, column, fieldType } = fields[i]!;
-			const override = codecOverride as PostgresType | undefined;
+			const { field, fieldType } = fields[i]!;
 
 			switch (fieldType) {
 				case 'Column': {
@@ -282,8 +274,7 @@ export class PgDialect {
 						name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 					}
 
-					const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
-					chunks.push(field.isAlias ? sql`${casted} as ${field}` : casted);
+					chunks.push(field.isAlias ? sql`${name} as ${field}` : name);
 
 					break;
 				}
@@ -292,8 +283,7 @@ export class PgDialect {
 						const query = !isSingleTable && field.origin !== undefined
 							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
 							: sql.identifier(field.fieldAlias);
-						if (column && !ignoreCastCodecs) chunks.push(this.codecs.apply(column, 'cast', query, override));
-						else chunks.push(query);
+						chunks.push(query);
 					} else {
 						if (isSingleTable && tableName !== undefined) {
 							const { queryChunks } = field.sql;
@@ -320,19 +310,19 @@ export class PgDialect {
 
 							if (abort) {
 								chunks.push(
-									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+									field.sql,
 								);
 							} else {
 								const newSql = new SQL(newChunks);
 
 								if (field.sql.shouldInlineParams) newSql.inlineParams();
 								chunks.push(
-									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql,
+									newSql,
 								);
 							}
 						} else {
 							chunks.push(
-								column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+								field.sql,
 							);
 						}
 
@@ -366,13 +356,13 @@ export class PgDialect {
 						}
 
 						if (abort) {
-							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+							chunks.push(field);
 						} else {
 							const newSql = new SQL(newChunks);
 							if (field.shouldInlineParams) newSql.inlineParams();
-							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
+							chunks.push(newSql);
 						}
-					} else chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+					} else chunks.push(field);
 
 					break;
 				}
@@ -380,12 +370,10 @@ export class PgDialect {
 					if (!field._.isWith) {
 						const inner = sql`(${field._.sql})`;
 						chunks.push(
-							sql`${column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', inner, override) : inner} ${
-								sql.identifier(field._.alias)
-							}`,
+							sql`${inner} ${sql.identifier(field._.alias)}`,
 						);
 					} else {
-						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+						chunks.push(field);
 					}
 
 					break;
@@ -474,9 +462,7 @@ export class PgDialect {
 		lockingClause,
 		distinct,
 		setOperators,
-		setFieldsFlat: setSelection,
 		comment,
-		useSelectionCastCodecs,
 	}: PgSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -528,7 +514,6 @@ export class PgDialect {
 
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
-			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 			table,
 		});
 
@@ -584,7 +569,7 @@ export class PgDialect {
 			}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, setSelection!, useSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, setOperators);
 		}
 
 		return finalQuery;
@@ -592,41 +577,13 @@ export class PgDialect {
 
 	buildSetOperations(
 		leftSelect: SQL,
-		outputSelection: SelectedFieldsOrdered,
-		useSelectionCastCodecs: boolean | undefined,
 		setOperators: PgSelectConfig['setOperators'],
 	): SQL {
 		for (let i = 0; i < setOperators.length; ++i) {
-			const setOperator = setOperators[i]!;
-			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator });
+			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator: setOperators[i]! });
 		}
 
-		return !useSelectionCastCodecs ? leftSelect : sql`select ${
-			this.buildSelection(
-				outputSelection.map((field) => {
-					if (field.fieldType === 'SQL.Aliased') {
-						const ref = field.field.clone();
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					if (field.fieldType === 'Column' && field.field.isAlias) {
-						const ref = new SQL.Aliased(sql`${sql.identifier(field.field.name)}`, field.field.name);
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					if (field.fieldType === 'Subquery') {
-						const ref = new SQL.Aliased(sql`${field.field.getSQL()}`, field.field._.alias);
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					return field;
-				}),
-				{
-					isSingleTable: true,
-					ignoreCastCodecs: !useSelectionCastCodecs,
-				},
-			)
-		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
+		return leftSelect;
 	}
 
 	buildSetOperationQuery({
@@ -679,7 +636,6 @@ export class PgDialect {
 		overridingSystemValue_,
 		comment,
 		columnList,
-		useSelectionCastCodecs,
 	}: PgInsertConfig): SQL {
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, PgColumn][] = columnList
@@ -750,9 +706,7 @@ export class PgDialect {
 		const valuesSql = new SQL(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
-			}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const onConflictSql = onConflict

@@ -2408,7 +2408,7 @@ export function tests(test: Test) {
 
 			expect(query).toEqual({
 				sql:
-					`select cast(\`id\` as char), \`name\` from \`mySchema\`.\`userstest\` group by \`mySchema\`.\`userstest\`.\`id\`, \`mySchema\`.\`userstest\`.\`name\``,
+					`select \`id\`, \`name\` from \`mySchema\`.\`userstest\` group by \`mySchema\`.\`userstest\`.\`id\`, \`mySchema\`.\`userstest\`.\`name\``,
 				params: [],
 			});
 		});
@@ -2776,7 +2776,7 @@ export function tests(test: Test) {
 
 			expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
 				sql:
-					'select `id` from ((select `id` from `pagination_4` where `pagination_4`.`id` < ?) union (select `id` from `pagination_4` where `pagination_4`.`id` >= ?)) `drizzle_union` order by `id` limit ? offset ?',
+					'select * from ((select `id` from `pagination_4` where `pagination_4`.`id` < ?) union (select `id` from `pagination_4` where `pagination_4`.`id` >= ?)) `drizzle_union` order by `id` limit ? offset ?',
 				params: [4, 3, 2, 0],
 			});
 			expect(await query().limit(0)).toStrictEqual([]);
@@ -3465,11 +3465,12 @@ export function tests(test: Test) {
 			await db.insert(allTypesTable).values(allTypesData);
 
 			const session = (<any> db).session as SingleStoreSession;
-			const queryRes = await session.objects<AllTypes>(
-				db.select(
-					Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
-				).from(allTypesTable).getSQL(true),
-			).then((e) =>
+			// query-path raw values come from a mapped prepared query, so that per-query parser overrides apply as for regular selects
+			const queryRes = await (<any> session).prepareQuery(
+				(<any> db).dialect.sqlToQuery(db.select().from(allTypesTable).getSQL()),
+				'arrays',
+				(rows: unknown[][]) => rows,
+			).execute().then((e: unknown[][]) =>
 				normalizeDataWithDbCodecs({
 					db,
 					columns: getColumns(allTypesTable),
@@ -3478,13 +3479,18 @@ export function tests(test: Test) {
 				})[0]
 			);
 
-			const { relationRes, rootRes } = await session.objects<AllTypes & { self: string }>(
-				db.query.allTypesTable.findFirst({
-					with: {
-						self: true,
-					},
-				}).getSQL(),
-			).then((e) => {
+			const { relationRes, rootRes } = await (<any> session).prepareQuery(
+				// with a mapper, as drizzle runs its queries: the driver returns raw text for codecs only then
+				(<any> db).dialect.sqlToQuery(
+					db.query.allTypesTable.findFirst({
+						with: {
+							self: true,
+						},
+					}).getSQL(),
+				),
+				'objects',
+				(rows: unknown[]) => rows,
+			).execute().then((e: (AllTypes & { self: string })[]) => {
 				const { self: relationRaw, ...rootRaw } = e[0]!;
 
 				return {

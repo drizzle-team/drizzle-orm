@@ -46,7 +46,6 @@ import type {
 } from './select.types.ts';
 
 export interface CockroachUpdateConfig {
-	useSelectionCastCodecs?: boolean;
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: CockroachTable;
@@ -579,20 +578,18 @@ export class CockroachUpdateBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildUpdateQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): CockroachUpdatePrepare<this> {
 		const { returning: fields } = this.config;
-		const query = this.dialect.sqlToQuery(this.getSQL(true));
+		const query = this.dialect.sqlToQuery(this.getSQL());
 		const nullableObjectPaths = fields ? resolveNullableObjectPaths(fields, this.joinsNotNullableMap) : undefined;
 
 		return this.session.prepareQuery<
