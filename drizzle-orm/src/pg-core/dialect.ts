@@ -53,6 +53,7 @@ import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
+import { PgCustomColumn } from './columns/custom.ts';
 import { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView } from './view.ts';
 
@@ -242,8 +243,14 @@ export class PgDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+					const columnName = sql.identifier(this.casing.getColumnCasing(field));
+					const columnRef = isSingleTable ? sql`${columnName}` : sql`${field}`;
+					const selected = is(field, PgCustomColumn) ? field.sqlForSelect(columnRef) : undefined;
+					if (selected) {
+						chunk.push(selected);
+						chunk.push(sql` as ${columnName}`);
+					} else if (isSingleTable) {
+						chunk.push(columnName);
 					} else {
 						chunk.push(field);
 					}
@@ -1355,13 +1362,18 @@ export class PgDialect {
 		if (nestedQueryRelation) {
 			let field = sql`json_build_array(${
 				sql.join(
-					selection.map(({ field, tsKey, isJson }) =>
-						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
+					selection.map(({ field, tsKey, isJson }) => {
+						if (isJson) {
+							return sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`;
+						}
+						if (is(field, SQL.Aliased)) {
+							return field.sql;
+						}
+						if (is(field, PgCustomColumn)) {
+							return field.sqlForSelect(sql`${field}`) ?? field;
+						}
+						return field;
+					}),
 					sql`, `,
 				)
 			})`;
