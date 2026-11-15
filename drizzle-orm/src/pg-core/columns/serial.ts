@@ -32,6 +32,10 @@ export class PgSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSeri
 		this.config.notNull = true;
 	}
 
+	getSQLType(): string {
+		return 'serial';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

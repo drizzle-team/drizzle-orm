@@ -20,6 +20,10 @@ export class PgMacaddrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgMac
 		super(name, 'string', 'PgMacaddr');
 	}
 
+	getSQLType(): string {
+		return 'macaddr';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

@@ -1,6 +1,8 @@
 import { entityKind, is } from '~/entity.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { NonArray, Writable } from '~/utils.ts';
+import type { pgDomain } from './columns/domain.ts';
+import { pgDomainWithSchema } from './columns/domain.ts';
 import { type PgEnum, type PgEnumObject, pgEnumObjectWithSchema, pgEnumWithSchema } from './columns/enum.ts';
 import { type pgSequence, pgSequenceWithSchema } from './sequence.ts';
 import { type PgTableFn, pgTableWithSchema } from './table.ts';
@@ -23,6 +25,10 @@ export class PgSchema<TName extends string = string> implements SQLWrapper {
 	materializedView = ((name, columns) => {
 		return pgMaterializedViewWithSchema(name, columns, this.schemaName);
 	}) as typeof pgMaterializedView;
+
+	domain: typeof pgDomain = ((name, columnBuilder) => {
+		return pgDomainWithSchema(name, columnBuilder, this.schemaName);
+	});
 
 	public enum<U extends string, T extends Readonly<[U, ...U[]]>>(
 		enumName: string,

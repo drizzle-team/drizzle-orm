@@ -46,6 +46,10 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', '
 		this.config.customTypeParams = customTypeParams;
 	}
 
+	getSQLType(): string {
+		return this.config.customTypeParams.dataType(this.config.fieldConfig);
+	}
+
 	/** @internal */
 	build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

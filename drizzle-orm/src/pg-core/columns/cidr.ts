@@ -20,6 +20,10 @@ export class PgCidrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgCidr'>
 		super(name, 'string', 'PgCidr');
 	}
 
+	getSQLType(): string {
+		return 'cidr';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

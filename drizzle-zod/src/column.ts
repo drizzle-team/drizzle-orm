@@ -1,4 +1,5 @@
 import type { Column, ColumnBaseConfig } from 'drizzle-orm';
+import { getTableName } from 'drizzle-orm';
 import type {
 	MySqlBigInt53,
 	MySqlChar,
@@ -15,11 +16,13 @@ import type {
 	MySqlYear,
 } from 'drizzle-orm/mysql-core';
 import type {
+	CheckBuilder,
 	PgArray,
 	PgBigInt53,
 	PgBigSerial53,
 	PgBinaryVector,
 	PgChar,
+	PgDomainColumn,
 	PgDoublePrecision,
 	PgGeometry,
 	PgGeometryObject,
@@ -37,6 +40,11 @@ import type {
 	PgVarchar,
 	PgVector,
 } from 'drizzle-orm/pg-core';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import { pgCheckNames } from './check-names.ts';
+import { applyCheckConstraint, type ColumnKind } from './checks.ts';
+
+const pgDialect = new PgDialect();
 import type {
 	SingleStoreBigInt53,
 	SingleStoreChar,
@@ -131,7 +139,61 @@ export function columnToSchema(
 		schema = z.any();
 	}
 
+	// refine with what the CHECK constraints guarantee, exactly as postgres evaluates them. for domain
+	// columns the domain's own checks (written against VALUE) apply too, plus any checks on the column itself
+	const isDomain = isColumnType<PgDomainColumn<any, any>>(column, ['PgDomainColumn']);
+	const kind = checkColumnKind(column);
+	const sources: { checks: CheckBuilder[] | undefined; ref: string; base: string }[] = [
+		{ checks: column.checkConstraints, ref: column.name, base: `${getTableName(column.table)}_${column.name}` },
+	];
+	if (isDomain) {
+		const domainColumn = column as PgDomainColumn<any, any>;
+		sources.push({ checks: domainColumn.domainCheckConstraints, ref: 'VALUE', base: domainColumn.domainName });
+	}
+	// unnamed checks get the same names drizzle-kit gives them in the database: <base>_check, <base>_check1, ...
+	const tableNames = column.table ? pgCheckNames(column.table) : undefined;
+	for (const { checks, ref, base } of sources) {
+		const taken = new Set((checks ?? []).map((c) => c.name).filter(Boolean) as string[]);
+		for (const checkConstraint of checks ?? []) {
+			let name = checkConstraint.name ?? (ref === 'VALUE' ? undefined : tableNames?.column.get(checkConstraint));
+			if (!name) {
+				name = `${base}_check`;
+				for (let i = 1; taken.has(name); i++) name = `${base}_check${i}`;
+				taken.add(name);
+			}
+			const checkSql = pgDialect.sqlToQuery(checkConstraint.value).sql;
+			schema = applyCheckConstraint(schema, checkSql, ref, name, kind);
+		}
+	}
+
 	return schema;
+}
+
+/** How postgres compares this column's values in a CHECK expression (a domain column: its base type). */
+export function checkColumnKind(column: Column): ColumnKind {
+	const base: Column = isColumnType<PgDomainColumn<any, any>>(column, ['PgDomainColumn'])
+		? (column as PgDomainColumn<any, any>).domain
+		: column;
+	if (base.columnType === 'PgEnumColumn' || base.columnType === 'PgEnumObjectColumn') return { t: 'enum' };
+	const sqlType = base.getSQLType().toLowerCase().trim();
+	if (/^(?:text|varchar|character varying)(?:\s*\(\d+\))?$/.test(sqlType)) return { t: 'string' };
+	if (/^(?:smallint|integer|int|int2|int4|serial|smallserial)$/.test(sqlType)) return { t: 'number' };
+	if (/^(?:bigint|int8|bigserial)$/.test(sqlType)) {
+		return base.dataType === 'bigint'
+			? { t: 'bigint' }
+			: { t: 'number' };
+	}
+	if (sqlType === 'real') return { t: 'number', float: 'real' };
+	if (sqlType === 'double precision') return { t: 'number', float: 'double' };
+	const numeric = /^(?:numeric|decimal)(?:\s*\(\s*\d+\s*(?:,\s*(\d+)\s*)?\))?$/.exec(sqlType);
+	if (numeric) {
+		const scale = numeric[1] === undefined ? sqlType.includes('(') ? 0 : undefined : Number(numeric[1]);
+		return { t: 'numeric', scale };
+	}
+	if (sqlType === 'date') return { t: 'time', zone: 'day' };
+	const ts = /^timestamp(?:\s*\((\d)\))?(\s+with time zone)?$/.exec(sqlType);
+	if (ts) return { t: 'time', zone: ts[2] ? 'tstz' : 'ts', precision: ts[1] === undefined ? undefined : Number(ts[1]) };
+	return { t: 'other' };
 }
 
 function numberColumnToSchema(

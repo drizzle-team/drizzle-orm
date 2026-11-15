@@ -1,10 +1,12 @@
 import { sql } from 'drizzle-orm';
 import {
 	AnyPgColumn,
+	check,
 	foreignKey,
 	geometry,
 	index,
 	integer,
+	pgDomain,
 	pgEnum,
 	pgSchema,
 	pgSequence,
@@ -954,4 +956,66 @@ test('optional db aliases (camel case)', async () => {
 	const st7 = `CREATE INDEX "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
+});
+
+test('domain with not null and check constraints', async () => {
+	const emailDomain = pgDomain(
+		'email_field',
+		text().notNull().checkConstraint('valid_email', sql`VALUE ~ '^[^@]+@[^@]+\.[^@]+$'`),
+	);
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		email: emailDomain('email'),
+	});
+
+	const to = {
+		domain: emailDomain,
+		table: users,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
+
+	expect(sqlStatements[0]).toContain(
+		`CREATE DOMAIN "public"."email_field" AS text NOT NULL CONSTRAINT "valid_email" CHECK (VALUE ~ '^[^@]+@[^@]+\.[^@]+$');`,
+	);
+
+	const createTableStatement = `CREATE TABLE "users" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"email" "email_field"
+);
+`;
+
+	expect(sqlStatements[1]).toBe(createTableStatement);
+});
+
+test('domain with default value and check constraints', async () => {
+	const shortTextDomain = pgDomain(
+		'short_text',
+		text().default('placeholder').checkConstraint('text_check', sql`LENGTH(VALUE) BETWEEN 3 and 30`),
+	);
+
+	const users = pgTable('users', {
+		id: serial('id').primaryKey(),
+		firstName: shortTextDomain('first_name'),
+	});
+
+	const to = {
+		domain: shortTextDomain,
+		table: users,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
+
+	expect(sqlStatements[0]).toContain(
+		`CREATE DOMAIN "public"."short_text" AS text DEFAULT 'placeholder' CONSTRAINT "text_check" CHECK (LENGTH(VALUE) BETWEEN 3 and 30);`,
+	);
+
+	const createTableStatement = `CREATE TABLE "users" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"first_name" "short_text"
+);
+`;
+
+	expect(sqlStatements[1]).toBe(createTableStatement);
 });

@@ -7,7 +7,7 @@ export class CheckBuilder {
 
 	protected brand!: 'PgConstraintBuilder';
 
-	constructor(public name: string, public value: SQL) {}
+	constructor(public name: string | undefined, public value: SQL) {}
 
 	/** @internal */
 	build(table: PgTable): Check {
@@ -18,7 +18,7 @@ export class CheckBuilder {
 export class Check {
 	static readonly [entityKind]: string = 'PgCheck';
 
-	readonly name: string;
+	readonly name?: string;
 	readonly value: SQL;
 
 	constructor(public table: PgTable, builder: CheckBuilder) {
@@ -27,6 +27,12 @@ export class Check {
 	}
 }
 
-export function check(name: string, value: SQL): CheckBuilder {
-	return new CheckBuilder(name, value);
+export function check(value: SQL): CheckBuilder;
+export function check(name: string, value: SQL): CheckBuilder;
+export function check(nameOrValue: string | SQL, maybeValue?: SQL): CheckBuilder {
+	if (maybeValue === undefined) {
+		// Only one argument: treat it as the SQL value.
+		return new CheckBuilder(undefined, nameOrValue as SQL);
+	}
+	return new CheckBuilder(nameOrValue as string, maybeValue);
 }

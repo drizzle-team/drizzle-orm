@@ -38,6 +38,10 @@ export class PgEnumObjectColumnBuilder<
 		this.config.enum = enumInstance;
 	}
 
+	getSQLType(): string {
+		return this.config.enum.enumName;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
@@ -107,6 +111,10 @@ export class PgEnumColumnBuilder<
 	constructor(name: T['name'], enumInstance: PgEnum<T['enumValues']>) {
 		super(name, 'string', 'PgEnumColumn');
 		this.config.enum = enumInstance;
+	}
+
+	getSQLType(): string {
+		return this.config.enum.enumName;
 	}
 
 	/** @internal */

@@ -24,6 +24,10 @@ export class PgRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgReal'>
 		this.config.length = length;
 	}
 
+	getSQLType(): string {
+		return 'real';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

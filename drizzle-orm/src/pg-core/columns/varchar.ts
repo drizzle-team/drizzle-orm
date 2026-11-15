@@ -34,6 +34,10 @@ export class PgVarcharBuilder<
 		this.config.enumValues = config.enum;
 	}
 
+	getSQLType(): string {
+		return this.config.length === undefined ? `varchar` : `varchar(${this.config.length})`;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

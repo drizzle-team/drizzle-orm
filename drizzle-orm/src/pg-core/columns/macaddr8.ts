@@ -20,6 +20,10 @@ export class PgMacaddr8Builder<T extends ColumnBuilderBaseConfig<'string', 'PgMa
 		super(name, 'string', 'PgMacaddr8');
 	}
 
+	getSQLType(): string {
+		return 'macaddr8';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

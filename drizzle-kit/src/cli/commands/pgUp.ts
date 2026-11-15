@@ -103,6 +103,7 @@ export const updateUpToV7 = (json: Record<string, any>): PgSchema => {
 		dialect: 'postgresql',
 		sequences: {},
 		tables: tables,
+		domains: {},
 		policies: {},
 		views: {},
 		roles: {},

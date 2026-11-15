@@ -215,6 +215,7 @@ export function applyJsonDiff(json1, json2) {
 	const difference = JSON.parse(JSON.stringify(rawDiff || {}));
 	difference.schemas = difference.schemas || {};
 	difference.tables = difference.tables || {};
+	difference.domains = difference.domains || {};
 	difference.enums = difference.enums || {};
 	difference.sequences = difference.sequences || {};
 	difference.roles = difference.roles || {};
@@ -270,6 +271,16 @@ export function applyJsonDiff(json1, json2) {
 			delete difference.tables[tableKey];
 		}
 	}
+
+	const domainsEntries = Object.entries(difference.domains);
+	const alteredDomains = domainsEntries
+		.filter((it) => !(it[0].includes('__added') || it[0].includes('__deleted')))
+		.map((it) => {
+			const domainEntry = json1.domains[it[0]];
+			if (!domainEntry) return;
+			const { name, schema, baseType, notNull, defaultValue, checkConstraints } = domainEntry;
+			return { name, schema, baseType, notNull, defaultValue, checkConstraints };
+		}).filter(Boolean);
 
 	const enumsEntries = Object.entries(difference.enums);
 	const alteredEnums = enumsEntries
@@ -402,6 +413,7 @@ export function applyJsonDiff(json1, json2) {
 
 	return {
 		alteredTablesWithColumns,
+		alteredDomains,
 		alteredEnums,
 		alteredSequences,
 		alteredRoles,

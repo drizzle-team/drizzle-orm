@@ -13,7 +13,7 @@ import type { MySqlColumn, MySqlSchema } from 'drizzle-orm/mysql-core';
 import { getTableConfig as getMysqlTableConfig, MySqlDatabase, MySqlTable } from 'drizzle-orm/mysql-core';
 
 import type { PgArray, PgColumn, PgSchema } from 'drizzle-orm/pg-core';
-import { getTableConfig as getPgTableConfig, PgDatabase, PgTable } from 'drizzle-orm/pg-core';
+import { getTableConfig as getPgTableConfig, PgDatabase, PgDomainColumn, PgTable } from 'drizzle-orm/pg-core';
 
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase, getTableConfig as getSqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
@@ -720,11 +720,20 @@ const getPostgresInfo = (
 		}
 		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
 
+		// a domain column is seeded as the column type it wraps (domains can wrap other domains)
+		const unwrapDomain = (column: any): any => {
+			while (is(column, PgDomainColumn)) {
+				column = column.domain;
+			}
+			return column;
+		};
+
 		const getAllBaseColumns = (
-			baseColumn: PgArray<any, any>['baseColumn'] & { baseColumn?: PgArray<any, any>['baseColumn'] },
+			outerBaseColumn: PgArray<any, any>['baseColumn'] & { baseColumn?: PgArray<any, any>['baseColumn'] },
 		): Column['baseColumn'] => {
+			const baseColumn = unwrapDomain(outerBaseColumn);
 			const baseColumnResult: Column['baseColumn'] = {
-				name: baseColumn.name,
+				name: outerBaseColumn.name,
 				columnType: baseColumn.getSQLType(),
 				typeParams: getTypeParams(baseColumn.getSQLType()),
 				dataType: baseColumn.dataType,
@@ -785,23 +794,27 @@ const getPostgresInfo = (
 		// console.log(tableConfig.columns);
 		tables.push({
 			name: dbToTsTableNamesMap[tableConfig.name] as string,
-			columns: tableConfig.columns.map((column) => ({
-				name: dbToTsColumnNamesMap[column.name] as string,
-				columnType: column.getSQLType(),
-				typeParams: getTypeParams(column.getSQLType()),
-				dataType: column.dataType,
-				size: (column as PgArray<any, any>).size,
-				hasDefault: column.hasDefault,
-				default: column.default,
-				enumValues: column.enumValues,
-				isUnique: column.isUnique,
-				notNull: column.notNull,
-				primary: column.primary,
-				generatedIdentityType: column.generatedIdentity?.type,
-				baseColumn: ((column as PgArray<any, any>).baseColumn === undefined)
-					? undefined
-					: getAllBaseColumns((column as PgArray<any, any>).baseColumn),
-			})),
+			columns: tableConfig.columns.map((column) => {
+				const typeColumn = unwrapDomain(column);
+				const isDomain = typeColumn !== column;
+				return {
+					name: dbToTsColumnNamesMap[column.name] as string,
+					columnType: typeColumn.getSQLType(),
+					typeParams: getTypeParams(typeColumn.getSQLType()),
+					dataType: typeColumn.dataType,
+					size: (typeColumn as PgArray<any, any>).size,
+					hasDefault: column.hasDefault || (isDomain && (column as PgDomainColumn<any, any>).domainHasDefault),
+					default: column.default ?? (isDomain ? typeColumn.default : undefined),
+					enumValues: column.enumValues ?? typeColumn.enumValues,
+					isUnique: column.isUnique,
+					notNull: column.notNull || (isDomain && (column as PgDomainColumn<any, any>).domainNotNull),
+					primary: column.primary,
+					generatedIdentityType: column.generatedIdentity?.type,
+					baseColumn: ((typeColumn as PgArray<any, any>).baseColumn === undefined)
+						? undefined
+						: getAllBaseColumns((typeColumn as PgArray<any, any>).baseColumn),
+				};
+			}),
 			primaryKeys: tableConfig.columns
 				.filter((column) => column.primary)
 				.map((column) => dbToTsColumnNamesMap[column.name] as string),

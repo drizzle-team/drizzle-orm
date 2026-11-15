@@ -47,6 +47,7 @@ export const pullParams = object({
 		.default(['public']),
 	extensionsFilters: literal('postgis').array().optional(),
 	casing,
+	schemaSuffix: boolean().optional(),
 	breakpoints: boolean().optional().default(true),
 	migrations: object({
 		prefix: prefix.optional().default('index'),

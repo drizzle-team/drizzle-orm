@@ -234,6 +234,7 @@ Expect<
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 			cityId: PgColumn<{
 				tableName: 'new_yorkers';
@@ -251,6 +252,7 @@ Expect<
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 		}>,
 		typeof newYorkers
@@ -295,6 +297,7 @@ Expect<
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -312,6 +315,7 @@ Expect<
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -354,6 +358,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -371,6 +376,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -413,6 +419,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -430,6 +437,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -462,6 +470,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -479,6 +488,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -511,6 +521,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -528,6 +539,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -575,6 +587,7 @@ Expect<
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 			cityId: PgColumn<{
 				tableName: 'new_yorkers';
@@ -592,6 +605,7 @@ Expect<
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 		}>,
 		typeof newYorkers2
@@ -639,6 +653,7 @@ Expect<
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -656,6 +671,7 @@ Expect<
 					isPrimaryKey: true;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -701,6 +717,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -718,6 +735,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -763,6 +781,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -780,6 +799,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -812,6 +832,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -829,6 +850,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -861,6 +883,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
@@ -878,6 +901,7 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				}>;
 			}>,
 			typeof newYorkers2
@@ -994,6 +1018,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 			name: PgColumn<{
 				tableName: 'cities_table';
@@ -1011,6 +1036,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 			role: PgColumn<{
 				tableName: 'cities_table';
@@ -1028,6 +1054,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				isPrimaryKey: false;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 			population: PgColumn<{
 				tableName: 'cities_table';
@@ -1045,6 +1072,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				isPrimaryKey: false;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 		};
 	}>;

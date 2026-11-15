@@ -21,6 +21,7 @@ import {
 	JsonAlterColumnSetPrimaryKeyStatement,
 	JsonAlterColumnTypeStatement,
 	JsonAlterCompositePK,
+	JsonAlterDomainStatement,
 	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
 	JsonAlterPolicyStatement,
@@ -37,6 +38,7 @@ import {
 	JsonAlterViewDropWithOptionStatement,
 	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
+	JsonCreateDomainStatement,
 	JsonCreateEnumStatement,
 	JsonCreateIndexStatement,
 	JsonCreateIndPolicyStatement,
@@ -56,6 +58,7 @@ import {
 	JsonDeleteUniqueConstraint,
 	JsonDisableRLSStatement,
 	JsonDropColumnStatement,
+	JsonDropDomainStatement,
 	JsonDropEnumStatement,
 	JsonDropIndexStatement,
 	JsonDropIndPolicyStatement,
@@ -67,12 +70,14 @@ import {
 	JsonDropViewStatement,
 	JsonEnableRLSStatement,
 	JsonIndRenamePolicyStatement,
+	JsonMoveDomainStatement,
 	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
 	JsonRecreateSingleStoreTableStatement,
 	JsonRecreateTableStatement,
 	JsonRenameColumnStatement,
+	JsonRenameDomainStatement,
 	JsonRenameEnumStatement,
 	JsonRenamePolicyStatement,
 	JsonRenameRoleStatement,
@@ -477,7 +482,12 @@ class PgCreateTableConvertor extends Convertor {
 			for (const checkConstraint of checkConstraints) {
 				statement += ',\n';
 				const unsquashedCheck = PgSquasher.unsquashCheck(checkConstraint);
-				statement += `\tCONSTRAINT "${unsquashedCheck.name}" CHECK (${unsquashedCheck.value})`;
+
+				if (unsquashedCheck.name) {
+					statement += `\tCONSTRAINT "${unsquashedCheck.name}" CHECK (${unsquashedCheck.value})`;
+				} else {
+					statement += `\tCHECK (${unsquashedCheck.value})`;
+				}
 			}
 		}
 
@@ -1369,6 +1379,102 @@ class AlterPgSequenceConvertor extends Convertor {
 		}${maxValue ? ` MAXVALUE ${maxValue}` : ''}${startWith ? ` START WITH ${startWith}` : ''}${
 			cache ? ` CACHE ${cache}` : ''
 		}${cycle ? ` CYCLE` : ''};`;
+	}
+}
+
+abstract class DomainConvertor extends Convertor {
+	protected getDomainNameWithSchema(name: string, schema?: string): string {
+		return schema ? `"${schema}"."${name}"` : `"${name}"`;
+	}
+
+	protected checkSql(squashed: string): string {
+		const { name, value } = PgSquasher.unsquashCheck(squashed);
+		return name ? `CONSTRAINT "${name}" CHECK (${value})` : `CHECK (${value})`;
+	}
+}
+
+class CreateDomainConvertor extends DomainConvertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'create_domain';
+	}
+
+	convert(st: JsonCreateDomainStatement): string {
+		const { name, schema, baseType, notNull, defaultValue, checkConstraints } = st;
+		let statement = `CREATE DOMAIN ${this.getDomainNameWithSchema(name, schema)} AS ${baseType}`;
+
+		// defaultValue is already a SQL expression (see domainDefaultToSql)
+		if (defaultValue !== undefined) {
+			statement += ` DEFAULT ${defaultValue}`;
+		}
+
+		if (notNull) {
+			statement += ' NOT NULL';
+		}
+
+		for (const checkConstraint of checkConstraints ?? []) {
+			statement += ` ${this.checkSql(checkConstraint)}`;
+		}
+
+		return `${statement};`;
+	}
+}
+
+class AlterDomainConvertor extends DomainConvertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'alter_domain';
+	}
+
+	convert(st: JsonAlterDomainStatement): string | string[] {
+		const { name, schema, action, checkConstraints, defaultValue } = st;
+		const prefix = `ALTER DOMAIN ${this.getDomainNameWithSchema(name, schema)}`;
+
+		switch (action) {
+			case 'add_constraint':
+				return (checkConstraints ?? []).map((c) => `${prefix} ADD ${this.checkSql(c)};`);
+			case 'drop_constraint':
+				return (checkConstraints ?? []).map((c) => `${prefix} DROP CONSTRAINT "${PgSquasher.unsquashCheck(c).name}";`);
+			case 'set_not_null':
+				return `${prefix} SET NOT NULL;`;
+			case 'drop_not_null':
+				return `${prefix} DROP NOT NULL;`;
+			case 'set_default':
+				return `${prefix} SET DEFAULT ${defaultValue};`;
+			case 'drop_default':
+				return `${prefix} DROP DEFAULT;`;
+			default:
+				throw new Error(`Unknown alter domain action: ${action}`);
+		}
+	}
+}
+
+class RenameDomainConvertor extends DomainConvertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'rename_domain';
+	}
+
+	convert(st: JsonRenameDomainStatement): string {
+		return `ALTER DOMAIN ${this.getDomainNameWithSchema(st.nameFrom, st.schema)} RENAME TO "${st.nameTo}";`;
+	}
+}
+
+class MoveDomainConvertor extends DomainConvertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'move_domain';
+	}
+
+	convert(st: JsonMoveDomainStatement): string {
+		return `ALTER DOMAIN ${this.getDomainNameWithSchema(st.name, st.schemaFrom)} SET SCHEMA "${st.schemaTo}";`;
+	}
+}
+
+class DropDomainConvertor extends DomainConvertor {
+	can(statement: JsonStatement): boolean {
+		return statement.type === 'drop_domain';
+	}
+
+	// no CASCADE: that would silently drop every table column still using the domain
+	convert(st: JsonDropDomainStatement): string {
+		return `DROP DOMAIN ${this.getDomainNameWithSchema(st.name, st.schema)};`;
 	}
 }
 
@@ -3975,6 +4081,12 @@ convertors.push(new MySqlAlterViewConvertor());
 
 convertors.push(new SqliteCreateViewConvertor());
 convertors.push(new SqliteDropViewConvertor());
+
+convertors.push(new CreateDomainConvertor());
+convertors.push(new DropDomainConvertor());
+convertors.push(new AlterDomainConvertor());
+convertors.push(new RenameDomainConvertor());
+convertors.push(new MoveDomainConvertor());
 
 convertors.push(new CreateTypeEnumConvertor());
 convertors.push(new DropTypeEnumConvertor());
