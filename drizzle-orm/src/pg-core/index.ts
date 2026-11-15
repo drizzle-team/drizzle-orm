@@ -19,3 +19,4 @@ export * from './utils.ts';
 export * from './utils/index.ts';
 export * from './view-common.ts';
 export * from './view.ts';
+export { createTableRelationsHelpers } from '~/relations.ts';
