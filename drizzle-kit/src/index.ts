@@ -124,7 +124,9 @@ export type Config =
 			prefix?: Prefix;
 		};
 		introspect?: {
-			casing: 'camel' | 'preserve';
+			casing?: 'camel' | 'preserve';
+			/** postgres pull: set to `false` to name schema-scoped entities `userRole` instead of `userRoleInApp` */
+			schemaSuffix?: boolean;
 		};
 		entities?: {
 			roles?: boolean | { provider?: 'supabase' | 'neon' | string & {}; exclude?: string[]; include?: string[] };

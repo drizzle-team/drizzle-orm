@@ -302,8 +302,14 @@ function generateIdentityParams(identity: Column['identity']) {
 	return `.generatedByDefaultAsIdentity(${paramsObj})`;
 }
 
+// `introspect.schemaSuffix: false` drops the `In<Schema>` suffix from pulled names (they then must be unique across schemas)
+let useSchemaSuffix = true;
+export const setSchemaSuffix = (enabled: boolean) => {
+	useSchemaSuffix = enabled;
+};
+
 export const paramNameFor = (name: string, schema?: string) => {
-	const schemaSuffix = schema && schema !== 'public' ? `In${schema.capitalise()}` : '';
+	const schemaSuffix = useSchemaSuffix && schema && schema !== 'public' ? `In${schema.capitalise()}` : '';
 	return `${name}${schemaSuffix}`;
 };
 

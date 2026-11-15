@@ -1,51 +1,41 @@
-import { type Equal, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { bigint, integer, pgDomain, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { z } from 'zod/v4';
-import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema } from '../src';
-import { Expect, expectSchemaShape } from './utils.ts';
 
-// TODO think about what to do with the existing filters being added when check constraints are involved
-const integerSchema = z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX);
-const textSchema = z.string();
+const accepts = (schema: z.ZodType, value: unknown) => schema.safeParse(value).success;
 
-test('table containing columns with check constraints', (t) => {
+test('table containing columns with check constraints', () => {
 	const table = pgTable('test', {
 		id: serial().primaryKey(),
-		firstName: text('first_name')
-			.notNull()
-			.checkConstraint('first_name_length', sql`length(first_name) BETWEEN 2 and 100`),
+		firstName: text('first_name').notNull().checkConstraint(
+			'first_name_length',
+			sql`length(first_name) BETWEEN 2 and 100`,
+		),
 	});
-
-	const result = createSelectSchema(table);
-	const expected = z.object({ id: integerSchema, firstName: textSchema.min(2).max(100) });
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
+	const { firstName } = createSelectSchema(table).shape;
+	expect([
+		accepts(firstName, 'a'),
+		accepts(firstName, 'ab'),
+		accepts(firstName, 'a'.repeat(100)),
+		accepts(firstName, 'a'.repeat(101)),
+	])
+		.toEqual([false, true, true, false]);
 });
 
-test('selecting from table containing custom domain columns', (t) => {
+test('selecting from table containing custom domain columns', () => {
 	const shortTextDomain = pgDomain(
 		'limited_text',
 		text().notNull().checkConstraint('limited_text_length', sql`length(value) BETWEEN 3 and 50`),
 	);
-
-	const table = pgTable('users', {
-		id: serial('id').notNull(),
-		email: shortTextDomain(),
-	});
-
-	const result = createSelectSchema(table);
-	const expected = z.object({
-		id: integerSchema,
-		email: textSchema.min(3).max(50),
-	});
-
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
+	const table = pgTable('users', { id: serial('id').notNull(), email: shortTextDomain() });
+	const { email } = createSelectSchema(table).shape;
+	expect([accepts(email, 'ab'), accepts(email, 'abc'), accepts(email, 'a'.repeat(51)), accepts(email, null)])
+		.toEqual([false, true, false, false]);
 });
 
-test('selecting from table containing custom domain columns with complicated postgres syntax', (t) => {
+test('selecting from table containing custom domain columns with complicated postgres syntax', () => {
 	const shortTextDomain = pgDomain(
 		'limited_text',
 		text().notNull().checkConstraint(
@@ -53,142 +43,104 @@ test('selecting from table containing custom domain columns with complicated pos
 			sql`CHECK (((length(TRIM(BOTH FROM VALUE)) >= 8) AND (length(TRIM(BOTH FROM VALUE)) <= 64)))`,
 		),
 	);
-
-	const table = pgTable('users', {
-		id: serial('id').notNull(),
-		email: shortTextDomain(),
-	});
-
-	const result = createSelectSchema(table);
-	const expected = z.object({
-		id: integerSchema,
-		// length(trim(x)) <= 64 does not bound the untrimmed length, so only the lower bound is sound
-		email: textSchema.min(8),
-	});
-
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
+	const table = pgTable('users', { id: serial('id').notNull(), email: shortTextDomain() });
+	const { email } = createSelectSchema(table).shape;
+	// both bounds apply to the trimmed value, exactly like postgres
+	expect([
+		accepts(email, '1234567'),
+		accepts(email, '  12345678  '),
+		accepts(email, 'a'.repeat(65)),
+		accepts(email, ` ${'a'.repeat(64)} `),
+	])
+		.toEqual([false, true, false, true]);
 });
 
-test('inserting into table containing custom domain columns', (t) => {
+test('inserting into table containing custom domain columns', () => {
 	const shortTextDomain = pgDomain(
 		'limited_text',
 		text().notNull().checkConstraint('limited_text_length', sql`(length(value) BETWEEN 3 and 50)`),
 	);
-
-	const table = pgTable('users', {
-		email: shortTextDomain(),
-	});
-
-	const result = createInsertSchema(table);
-	const expected = z.object({
-		email: textSchema.min(3).max(50),
-	});
-
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
+	const schema = createInsertSchema(pgTable('users', { email: shortTextDomain() }));
+	expect([
+		schema.safeParse({ email: 'ab' }).success,
+		schema.safeParse({ email: 'abc' }).success,
+		schema.safeParse({}).success,
+	])
+		.toEqual([false, true, false]);
 });
 
-test('table containing column with numeric BETWEEN constraint', (t) => {
+test('table containing column with numeric BETWEEN constraint', () => {
 	const table = pgTable('users', {
-		age: integer('age')
-			.notNull()
-			.checkConstraint('age_range', sql`age BETWEEN 18 AND 65`),
+		age: integer('age').notNull().checkConstraint('age_range', sql`age BETWEEN 18 AND 65`),
 	});
-
-	const result = createSelectSchema(table);
-	const expected = z.object({ age: integerSchema.min(18).max(65) });
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
+	const { age } = createSelectSchema(table).shape;
+	expect([17, 18, 65, 66].map((v) => accepts(age, v))).toEqual([false, true, true, false]);
 });
 
-test('table containing column with numeric exclusive bounds', (t) => {
+test('table containing column with numeric exclusive bounds', () => {
 	const table = pgTable('employees', {
 		salary: integer('salary')
 			.notNull()
-			// Using > and < for exclusive bounds
 			.checkConstraint('salary_gt', sql`salary > 30000`)
 			.checkConstraint('salary_lt', sql`salary < 200000`),
 	});
-
-	const result = createSelectSchema(table);
-	// Note: The Zod schema uses .gt() for exclusive greater-than and .lt() for exclusive less-than.
-	const expected = z.object({ salary: integerSchema.gt(30000).lt(200000) });
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
+	const { salary } = createSelectSchema(table).shape;
+	expect([30000, 30001, 199999, 200000].map((v) => accepts(salary, v))).toEqual([false, true, true, false]);
 });
 
-test('table containing column with string length BETWEEN constraint', (t) => {
+test('table containing column with string length BETWEEN constraint', () => {
 	const table = pgTable('contacts', {
-		firstName: text('first_name')
-			.notNull()
-			.checkConstraint('first_name_length', sql`length(first_name) BETWEEN 2 AND 100`),
+		firstName: text('first_name').notNull().checkConstraint(
+			'first_name_length',
+			sql`length(first_name) BETWEEN 2 AND 100`,
+		),
 	});
-
-	const result = createSelectSchema(table);
-	const expected = z.object({ firstName: z.string().min(2).max(100) });
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
+	const { firstName } = createSelectSchema(table).shape;
+	// length() counts characters, not UTF-16 units
+	expect([
+		accepts(firstName, 'a'),
+		accepts(firstName, '😀😀'),
+		accepts(firstName, '😀'.repeat(100)),
+		accepts(firstName, '😀'.repeat(101)),
+	])
+		.toEqual([false, true, true, false]);
 });
 
-test('table containing column with string exclusive length constraints', (t) => {
+test('table containing column with string exclusive length constraints', () => {
 	const table = pgTable('products', {
 		code: text('code')
 			.notNull()
-			// Use > for exclusive minimum length and < for exclusive maximum length.
 			.checkConstraint('code_min', sql`length(code) > 3`)
 			.checkConstraint('code_max', sql`length(code) < 10`),
 	});
-
-	const result = createSelectSchema(table);
-	// Because Zod has no built-in exclusive length, we add refinements.
-	const expected = z.object({
-		code: z.string().min(4).max(9),
-	});
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
+	const { code } = createSelectSchema(table).shape;
+	expect(['abc', 'abcd', 'a'.repeat(9), 'a'.repeat(10)].map((v) => accepts(code, v))).toEqual([
+		false,
+		true,
+		true,
+		false,
+	]);
 });
 
-test('table containing column with LIKE pattern constraint', (t) => {
+test('table containing column with LIKE pattern constraint', () => {
 	const table = pgTable('accounts', {
-		email: text('email')
-			.notNull()
-			// For example, require the email to contain an "@" somewhere.
-			.checkConstraint('email_pattern', sql`email LIKE '%@%.%'`),
+		email: text('email').notNull().checkConstraint('email_pattern', sql`email LIKE '%@%.%'`),
 	});
-
-	const result = createSelectSchema(table);
-	// The likeToRegex conversion will create a regex anchored at start and end.
-	// Here we do not specify the exact regex string; instead we verify that the schema includes a regex refinement.
-	const expected = z.object({
-		// LIKE matches the whole string and is case-sensitive
-		email: z.string().regex(/^[\s\S]*@[\s\S]*\.[\s\S]*$/),
-	});
-	// You might need to run a sample against the schema to ensure it rejects values without an "@".
-	expectSchemaShape(t, expected).from(result);
-	// Type-level equality can be relaxed here if necessary.
+	const { email } = createSelectSchema(table).shape;
+	// LIKE matches the whole string and is case-sensitive
+	expect(['a@b.c', 'ab', 'a@b'].map((v) => accepts(email, v))).toEqual([true, false, false]);
 });
 
-test('table containing column with PostgreSQL regex operator constraint', (t) => {
+test('table containing column with PostgreSQL regex operator constraint', () => {
 	const table = pgTable('users', {
-		username: text('username')
-			.notNull()
-			// Using the PostgreSQL regex operator (~) to enforce a pattern.
-			.checkConstraint('username_regex', sql`username ~ '^\\w+$'`),
+		username: text('username').notNull().checkConstraint('username_regex', sql`username ~ '^\\w+$'`),
 	});
-
-	const result = createSelectSchema(table);
-	// The expected Zod schema should include a regex refinement for the allowed characters.
-	const expected = z.object({
-		// `~` is case-sensitive (`~*` would add the i flag)
-		username: z.string().regex(/^\w+$/),
-	});
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
+	const { username } = createSelectSchema(table).shape;
+	expect(['abc_1', 'a b', ''].map((v) => accepts(username, v))).toEqual([true, false, false]);
 });
 
-// soundness: derived rules may be looser than postgres, but must never reject a value postgres accepts
-test('check-derived rules are never stricter than postgres', () => {
+// CHECK-derived rules accept exactly what postgres accepts (pg-checks-db.test.ts compares against a real database)
+test('check-derived rules follow postgres semantics', () => {
 	const ok = (schema: z.ZodType, value: unknown) => expect(schema.safeParse(value).success).toBe(true);
 	const bad = (schema: z.ZodType, value: unknown) => expect(schema.safeParse(value).success).toBe(false);
 	const table = pgTable('t', {
@@ -208,15 +160,17 @@ test('check-derived rules are never stricter than postgres', () => {
 	});
 	const s = createInsertSchema(table).shape;
 
-	ok(s.either, 200); // OR: not translated
-	ok(s.id, 1); // check references another column
+	ok(s.either, 200);
+	bad(s.either, 50); // OR is evaluated exactly
+	ok(s.id, 1); // check references another column: not checkable per field
 	ok(s.neg, -5);
 	bad(s.neg, -10);
 	ok(s.dec, 7);
 	bad(s.dec, 8);
 	bad(s.code, 'abc'); // ~ is case-sensitive
 	ok(s.ci, 'ABC'); // ~* is not
-	ok(s.trimmed, '  ab  '); // trimmed upper bound does not apply to the raw value
+	ok(s.trimmed, '  ab  '); // the bound applies to the trimmed value
+	bad(s.trimmed, ' abcd ');
 	ok(s.status, "it's");
 	bad(s.status, 'other');
 	bad(s.nonEmpty, '');

@@ -266,6 +266,7 @@ const flattenPull = (config: any) => {
 			...rest,
 			...dbCredentials,
 			casing: introspect?.casing,
+			schemaSuffix: introspect?.schemaSuffix,
 		};
 	}
 	return config;
@@ -513,6 +514,10 @@ export const preparePullConfig = async (
 
 	const config = parsed.data;
 	const dialect = config.dialect;
+	if (dialect === 'postgresql') {
+		const { setSchemaSuffix } = await import('../../introspect-pg');
+		setSchemaSuffix(config.schemaSuffix ?? true);
+	}
 
 	const tablesFilterConfig = config.tablesFilter;
 	const tablesFilter = tablesFilterConfig

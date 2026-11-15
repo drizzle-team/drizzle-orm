@@ -1,4 +1,5 @@
 import type { Column, ColumnBaseConfig } from 'drizzle-orm';
+import { getTableName } from 'drizzle-orm';
 import type {
 	MySqlBigInt53,
 	MySqlChar,
@@ -40,7 +41,7 @@ import type {
 } from 'drizzle-orm/pg-core';
 import type { CheckBuilder } from 'drizzle-orm/pg-core';
 import { PgDialect } from 'drizzle-orm/pg-core';
-import { applyCheckBounds, parseCheckConstraint } from './checks.ts';
+import { applyCheckConstraint, type ValueKind } from './checks.ts';
 
 const pgDialect = new PgDialect();
 import type {
@@ -137,25 +138,42 @@ export function columnToSchema(
 		schema = z.any();
 	}
 
-	// refine with what the CHECK constraints guarantee. for domain columns the domain's own checks
-	// (written against VALUE) apply too, plus any checks declared on the column itself
-	const checkSources: { checks: CheckBuilder[] | undefined; ref: string }[] = [
-		{ checks: column.checkConstraints, ref: column.name },
+	// refine with what the CHECK constraints guarantee, exactly as postgres evaluates them. for domain
+	// columns the domain's own checks (written against VALUE) apply too, plus any checks on the column itself
+	const isDomain = isColumnType<PgDomainColumn<any, any>>(column, ['PgDomainColumn']);
+	const baseColumn: Column = isDomain ? (column as PgDomainColumn<any, any>).domain : column;
+	const kind = checkValueKind(baseColumn);
+	const sources: { checks: CheckBuilder[] | undefined; ref: string; base: string }[] = [
+		{ checks: column.checkConstraints, ref: column.name, base: `${getTableName(column.table)}_${column.name}` },
 	];
-	if (isColumnType<PgDomainColumn<any, any>>(column, ['PgDomainColumn'])) {
-		checkSources.push({ checks: column.domainCheckConstraints, ref: 'VALUE' });
+	if (isDomain) {
+		const domainColumn = column as PgDomainColumn<any, any>;
+		sources.push({ checks: domainColumn.domainCheckConstraints, ref: 'VALUE', base: domainColumn.domainName });
 	}
-	for (const { checks, ref } of checkSources) {
+	for (const { checks, ref, base } of sources) {
+		// unnamed checks get the same names drizzle-kit gives them in the database: <base>_check, <base>_check1, ...
+		const taken = new Set((checks ?? []).map((c) => c.name).filter(Boolean) as string[]);
 		for (const checkConstraint of checks ?? []) {
-			const checkSql = pgDialect.sqlToQuery(checkConstraint.value).sql;
-			const bounds = parseCheckConstraint(checkSql, ref);
-			if (bounds) {
-				schema = applyCheckBounds(schema, bounds);
+			let name = checkConstraint.name;
+			if (!name) {
+				name = `${base}_check`;
+				for (let i = 1; taken.has(name); i++) name = `${base}_check${i}`;
+				taken.add(name);
 			}
+			const checkSql = pgDialect.sqlToQuery(checkConstraint.value).sql;
+			schema = applyCheckConstraint(schema, checkSql, ref, name, kind);
 		}
 	}
 
 	return schema;
+}
+
+function checkValueKind(column: Column): ValueKind {
+	if (column.dataType === 'number') return 'number';
+	if (column.dataType === 'bigint') return 'bigint';
+	// numeric/decimal in string mode: compared as numbers, validated as strings
+	if (/^(numeric|decimal)\b/i.test(column.getSQLType())) return 'numeric-string';
+	return 'string';
 }
 
 function numberColumnToSchema(
