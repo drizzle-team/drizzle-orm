@@ -1701,6 +1701,37 @@ export function tests() {
 			]);
 		});
 
+		test('left join (grouped fields with null first column)', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const { id: cityId } = await db
+				.insert(citiesTable)
+				.values([{ name: 'Paris' }])
+				.returning({ id: citiesTable.id })
+				.then((rows) => rows[0]!);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId }]);
+
+			const res = await db
+				.select({
+					id: users2Table.id,
+					city: {
+						state: citiesTable.state,
+						id: citiesTable.id,
+						name: citiesTable.name,
+					},
+				})
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id));
+
+			expect(res).toEqual([
+				{
+					id: 1,
+					city: { state: null, id: cityId, name: 'Paris' },
+				},
+			]);
+		});
+
 		test('left join (all fields)', async (ctx) => {
 			const { db } = ctx.pg;
 
