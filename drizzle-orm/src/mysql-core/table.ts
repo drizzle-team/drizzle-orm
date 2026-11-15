@@ -1,5 +1,6 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
+import type { SQLWrapper } from '~/sql/sql.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getMySqlColumnBuilders, type MySqlColumnBuilders } from './columns/all.ts';
@@ -56,6 +57,11 @@ export type MySqlTableWithColumns<T extends TableConfig> =
 	& MySqlTable<T>
 	& {
 		[Key in keyof T['columns']]: T['columns'][Key];
+	}
+	& {
+		withDefaultScope: (
+			scope: (table: MySqlTableWithColumns<T>, context?: any) => SQLWrapper | undefined,
+		) => MySqlTableWithColumns<T>;
 	};
 
 export function mysqlTableWithSchema<
@@ -112,7 +118,17 @@ export function mysqlTableWithSchema<
 		) => MySqlTableExtraConfig;
 	}
 
-	return table;
+	return Object.assign(table, {
+		withDefaultScope: (scope: (table: any, context?: any) => SQLWrapper | undefined) => {
+			table[Table.Symbol.DefaultScope] = scope;
+			return table as MySqlTableWithColumns<{
+				name: TTableName;
+				schema: TSchemaName;
+				columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
+				dialect: 'mysql';
+			}>;
+		},
+	});
 }
 
 export interface MySqlTableFn<TSchemaName extends string | undefined = undefined> {

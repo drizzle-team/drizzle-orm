@@ -37,6 +37,9 @@ export const IsAlias = Symbol.for('drizzle:IsAlias');
 /** @internal */
 export const ExtraConfigBuilder = Symbol.for('drizzle:ExtraConfigBuilder');
 
+/** @internal */
+export const TableDefaultScope = Symbol.for('drizzle:DefaultScope');
+
 const IsDrizzleTable = Symbol.for('drizzle:IsDrizzleTable');
 
 export interface Table<
@@ -72,6 +75,7 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 		BaseName: BaseName as typeof BaseName,
 		IsAlias: IsAlias as typeof IsAlias,
 		ExtraConfigBuilder: ExtraConfigBuilder as typeof ExtraConfigBuilder,
+		DefaultScope: TableDefaultScope as typeof TableDefaultScope,
 	};
 
 	/**
@@ -109,6 +113,9 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 
 	/** @internal */
 	[ExtraConfigBuilder]: ((self: any) => Record<string, unknown> | unknown[]) | undefined = undefined;
+
+	/** @internal */
+	[TableDefaultScope]?: ((table: any, context?: any) => SQLWrapper | undefined) | undefined;
 
 	constructor(name: string, schema: string | undefined, baseName: string) {
 		this[TableName] = this[OriginalName] = name;

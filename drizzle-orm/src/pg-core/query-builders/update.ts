@@ -23,6 +23,7 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { applyDefaultScopeToWhere } from '~/scope.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
@@ -51,6 +52,8 @@ import type {
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
+	unscoped?: boolean;
+	context?: any;
 	set: UpdateSet;
 	table: PgTable;
 	from?: PgTable | Subquery | PgViewBase | SQL;
@@ -566,9 +569,26 @@ export class PgUpdateBase<
 		return this as any;
 	}
 
+	unscoped(): this {
+		this.config.unscoped = true;
+		return this;
+	}
+
+	withContext(context: any): this {
+		this.config.context = context;
+		return this;
+	}
+
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+		if (this.config.unscoped) {
+			return this.dialect.buildUpdateQuery(this.config);
+		}
+		const where = applyDefaultScopeToWhere(this.config.table, this.config.where, this.config.context);
+		return this.dialect.buildUpdateQuery({
+			...this.config,
+			where,
+		});
 	}
 
 	toSQL(): Query {

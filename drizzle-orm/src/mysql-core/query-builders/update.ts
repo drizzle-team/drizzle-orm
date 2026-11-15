@@ -13,6 +13,7 @@ import type {
 } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import { applyDefaultScopeToWhere } from '~/scope.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -24,6 +25,8 @@ import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface MySqlUpdateConfig {
 	where?: SQL | undefined;
+	unscoped?: boolean;
+	context?: any;
 	limit?: number | Placeholder;
 	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
 	set: UpdateSet;
@@ -182,6 +185,16 @@ export class MySqlUpdateBase<
 		return this as any;
 	}
 
+	unscoped(): this {
+		this.config.unscoped = true;
+		return this;
+	}
+
+	withContext(context: any): this {
+		this.config.context = context;
+		return this;
+	}
+
 	orderBy(
 		builder: (updateTable: TTable) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
 	): MySqlUpdateWithout<this, TDynamic, 'orderBy'>;
@@ -215,7 +228,14 @@ export class MySqlUpdateBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+		if (this.config.unscoped) {
+			return this.dialect.buildUpdateQuery(this.config);
+		}
+		const where = applyDefaultScopeToWhere(this.config.table, this.config.where, this.config.context);
+		return this.dialect.buildUpdateQuery({
+			...this.config,
+			where,
+		});
 	}
 
 	toSQL(): Query {

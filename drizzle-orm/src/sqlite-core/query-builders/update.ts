@@ -3,6 +3,7 @@ import { entityKind, is } from '~/entity.ts';
 import type { JoinType, SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { applyDefaultScopeToWhere } from '~/scope.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
@@ -26,6 +27,8 @@ import type { SelectedFields, SelectedFieldsOrdered, SQLiteSelectJoinConfig } fr
 
 export interface SQLiteUpdateConfig {
 	where?: SQL | undefined;
+	unscoped?: boolean;
+	context?: any;
 	limit?: number | Placeholder;
 	orderBy?: (SQLiteColumn | SQL | SQL.Aliased)[];
 	set: UpdateSet;
@@ -346,6 +349,16 @@ export class SQLiteUpdateBase<
 		return this as any;
 	}
 
+	unscoped(): this {
+		this.config.unscoped = true;
+		return this;
+	}
+
+	withContext(context: any): this {
+		this.config.context = context;
+		return this;
+	}
+
 	orderBy(
 		builder: (updateTable: TTable) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>,
 	): SQLiteUpdateWithout<this, TDynamic, 'orderBy'>;
@@ -412,7 +425,14 @@ export class SQLiteUpdateBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+		if (this.config.unscoped) {
+			return this.dialect.buildUpdateQuery(this.config);
+		}
+		const where = applyDefaultScopeToWhere(this.config.table, this.config.where, this.config.context);
+		return this.dialect.buildUpdateQuery({
+			...this.config,
+			where,
+		});
 	}
 
 	toSQL(): Query {

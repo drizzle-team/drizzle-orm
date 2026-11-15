@@ -1,5 +1,6 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
+import type { SQLWrapper } from '~/sql/sql.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getSQLiteColumnBuilders, type SQLiteColumnBuilders } from './columns/all.ts';
@@ -54,6 +55,11 @@ export type SQLiteTableWithColumns<T extends TableConfig> =
 	& SQLiteTable<T>
 	& {
 		[Key in keyof T['columns']]: T['columns'][Key];
+	}
+	& {
+		withDefaultScope: (
+			scope: (table: SQLiteTableWithColumns<T>, context?: any) => SQLWrapper | undefined,
+		) => SQLiteTableWithColumns<T>;
 	};
 
 export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
@@ -213,7 +219,17 @@ function sqliteTableBase<
 		) => SQLiteTableExtraConfig;
 	}
 
-	return table;
+	return Object.assign(table, {
+		withDefaultScope: (scope: (table: any, context?: any) => SQLWrapper | undefined) => {
+			table[Table.Symbol.DefaultScope] = scope;
+			return table as SQLiteTableWithColumns<{
+				name: TTableName;
+				schema: TSchema;
+				columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
+				dialect: 'sqlite';
+			}>;
+		},
+	});
 }
 
 export const sqliteTable: SQLiteTableFn = (name, columns, extraConfig) => {
