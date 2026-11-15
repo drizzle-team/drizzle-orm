@@ -13,6 +13,7 @@ import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { PreparedQueryConfig, SQLitePreparedQuery, SQLiteSession } from '../session.ts';
+import { Table } from '~/table.ts';
 import type { SQLiteTable } from '../table.ts';
 
 export type SQLiteRelationalQueryKind<TMode extends 'sync' | 'async', TResult> = TMode extends 'async'
@@ -183,6 +184,45 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 
 	toSQL(): Query {
 		return this._toSQL().builtQuery;
+	}
+
+	/**
+	 * Returns every table referenced by this relational query, including the
+	 * root table and tables reached through nested `with` relations. The
+	 * list is used by `useLiveQuery` (expo-sqlite) to re-run the query when
+	 * any involved table changes.
+	 *
+	 * @internal
+	 */
+	getReferencedTables(): string[] {
+		const names = new Set<string>([this.table[Table.Symbol.BaseName]]);
+		if (this.config === true) return [...names];
+
+		const visited = new Set<TableRelationalConfig>();
+		const walk = (
+			withConfig: Record<string, unknown> | undefined,
+			tableConfig: TableRelationalConfig,
+		) => {
+			if (!withConfig || visited.has(tableConfig)) return;
+			visited.add(tableConfig);
+			for (const [relName, value] of Object.entries(withConfig)) {
+				if (!value) continue;
+				const relation = tableConfig.relations[relName];
+				if (!relation) continue;
+				names.add(relation.referencedTableName);
+				if (typeof value === 'object') {
+					const nested = Object.values(this.schema).find(
+						(c) => c.dbName === relation.referencedTableName,
+					);
+					if (nested) {
+						walk((value as DBQueryConfig<'many', true>).with as Record<string, unknown> | undefined, nested);
+					}
+				}
+			}
+		};
+
+		walk(this.config.with as Record<string, unknown> | undefined, this.tableConfig);
+		return [...names];
 	}
 
 	/** @internal */
