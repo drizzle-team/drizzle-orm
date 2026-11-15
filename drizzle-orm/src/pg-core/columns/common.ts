@@ -13,6 +13,7 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Simplify, Update } from '~/utils.ts';
 
+import { check } from '~/pg-core/checks.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
@@ -47,6 +48,12 @@ export abstract class PgColumnBuilder<
 
 	static override readonly [entityKind]: string = 'PgColumnBuilder';
 
+	getDataType(): T['dataType'] {
+		return this.config.dataType as T['dataType'];
+	}
+
+	abstract getSQLType(): string;
+
 	array<TSize extends number | undefined = undefined>(size?: TSize): PgArrayBuilder<
 		& {
 			name: T['name'];
@@ -63,6 +70,17 @@ export abstract class PgColumnBuilder<
 		T
 	> {
 		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size as any);
+	}
+
+	checkConstraint(name: string, value: SQL): this;
+	checkConstraint(value: SQL): this;
+	checkConstraint(nameOrValue: string | SQL, maybeValue?: SQL): this {
+		if (!this.config.checkConstraints) {
+			this.config.checkConstraints = [];
+		}
+
+		this.config.checkConstraints.push(check(nameOrValue as any, maybeValue as any));
+		return this;
 	}
 
 	references(
@@ -291,6 +309,10 @@ export class PgArrayBuilder<
 		super(name, 'array', 'PgArray');
 		this.config.baseBuilder = baseBuilder;
 		this.config.size = size;
+	}
+
+	getSQLType(): string {
+		return `${this.config.baseBuilder.getSQLType()}[${typeof this.config.size === 'number' ? this.config.size : ''}]`;
 	}
 
 	/** @internal */

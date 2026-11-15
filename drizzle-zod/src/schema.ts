@@ -1,6 +1,6 @@
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
 import type { Table, View } from 'drizzle-orm';
-import type { PgEnum } from 'drizzle-orm/pg-core';
+import type { PgDomainColumn, PgEnum } from 'drizzle-orm/pg-core';
 import { z } from 'zod/v4';
 import { columnToSchema } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
@@ -10,7 +10,7 @@ import type {
 	CreateSelectSchema,
 	CreateUpdateSchema,
 } from './schema.types.ts';
-import { isPgEnum } from './utils.ts';
+import { isColumnType, isPgEnum } from './utils.ts';
 
 function getColumns(tableLike: Table | View) {
 	return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
@@ -73,22 +73,39 @@ function handleEnum(
 	return zod.enum(enum_.enumValues);
 }
 
+function isNullable(column: Column) {
+	if (isColumnType<PgDomainColumn<any, any>>(column, ['PgDomainColumn'])) {
+		// if either the wrapped column or the column instance is nullable, nullable is true
+		return !column.domain.notNull && !column.notNull;
+	}
+
+	return !column.notNull;
+}
+
 const selectConditions: Conditions = {
 	never: () => false,
 	optional: () => false,
-	nullable: (column) => !column.notNull,
+	nullable: (column) => isNullable(column),
 };
 
 const insertConditions: Conditions = {
 	never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
-	optional: (column) => !column.notNull || (column.notNull && column.hasDefault),
-	nullable: (column) => !column.notNull,
+	optional: (column) => {
+		if (isColumnType<PgDomainColumn<any, any>>(column, ['PgDomainColumn'])) {
+			// handle both the underlying column and the column itself
+			return (column.domain.hasDefault || column.hasDefault)
+				|| (!column.domain.notNull && !column.notNull);
+		}
+
+		return !column.notNull || column.hasDefault;
+	},
+	nullable: (column) => isNullable(column),
 };
 
 const updateConditions: Conditions = {
 	never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
 	optional: () => true,
-	nullable: (column) => !column.notNull,
+	nullable: (column) => isNullable(column),
 };
 
 export const createSelectSchema: CreateSelectSchema<undefined> = (

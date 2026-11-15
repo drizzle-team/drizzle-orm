@@ -59,6 +59,7 @@ const pgImportsList = new Set([
 	'point',
 	'line',
 	'geometry',
+	'customType',
 ]);
 
 const objToStatement2 = (json: { [s: string]: unknown }) => {
@@ -321,6 +322,11 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		}),
 	);
 
+	const domainTypes = Object.values(schema.domains).reduce((acc, cur) => {
+		acc.add(`${cur.schema}.${cur.name}`);
+		return acc;
+	}, new Set<string>());
+
 	const enumTypes = Object.values(schema.enums).reduce((acc, cur) => {
 		acc.add(`${cur.schema}.${cur.name}`);
 		return acc;
@@ -415,6 +421,14 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		}
 	});
 
+	Object.values(schema.domains).forEach((it) => {
+		if (it.schema && it.schema !== 'public' && it.schema !== '') {
+			imports.pg.push('pgSchema');
+		} else if (it.schema === 'public') {
+			imports.pg.push('pgDomain');
+		}
+	});
+
 	Object.values(schema.enums).forEach((it) => {
 		if (it.schema && it.schema !== 'public' && it.schema !== '') {
 			imports.pg.push('pgSchema');
@@ -426,6 +440,59 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 	if (Object.keys(schema.roles).length > 0) {
 		imports.pg.push('pgRole');
 	}
+
+	// domains can be defined over enums and other domains, so declare dependencies first
+	const userTypeRef = (baseType: string): { schema: string; name: string } | undefined => {
+		const m = /^"([^"]+)"\."([^"]+)"$/.exec(baseType);
+		return m ? { schema: m[1]!, name: m[2]! } : undefined;
+	};
+	const orderedDomains: typeof schema.domains[string][] = [];
+	{
+		const pending = Object.values(schema.domains);
+		const placed = new Set<string>();
+		while (pending.length) {
+			const idx = pending.findIndex((d) => {
+				const ref = userTypeRef(d.baseType);
+				const key = ref && `${ref.schema}.${ref.name}`;
+				return !key || !domainTypes.has(key) || placed.has(key);
+			});
+			const [next] = pending.splice(idx === -1 ? 0 : idx, 1);
+			placed.add(`${next!.schema}.${next!.name}`);
+			orderedDomains.push(next!);
+		}
+	}
+
+	const domainStatements = orderedDomains
+		.map((it) => {
+			const domainSchema = schemas[it.schema];
+			const paramName = paramNameFor(it.name, domainSchema);
+			const func = domainSchema ? `${domainSchema}.domain` : 'pgDomain';
+
+			const { expression, importName, jsKind } = domainBaseTypeToTs(
+				it.baseType,
+				userTypeRef(it.baseType),
+				domainTypes,
+				enumTypes,
+				schemas,
+				casing,
+			);
+			if (importName) imports.pg.push(importName);
+
+			let chain = expression;
+			if (it.defaultValue !== undefined && it.defaultValue !== null) {
+				chain += `.default(${domainDefaultToTs(String(it.defaultValue), jsKind)})`;
+			}
+			if (it.notNull) {
+				chain += '.notNull()';
+			}
+			for (const check of Object.values(it.checkConstraints ?? {})) {
+				chain += `\n\t.checkConstraint(${JSON.stringify(check.name)}, sql\`${escapeTemplate(check.value)}\`)`;
+			}
+
+			return `export const ${withCasing(paramName, casing)} = ${func}(${JSON.stringify(it.name)}, ${chain});\n`;
+		})
+		.join('\n')
+		.concat('\n');
 
 	const enumStatements = Object.values(schema.enums)
 		.map((it) => {
@@ -515,6 +582,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			table.name,
 			Object.values(table.columns),
 			Object.values(table.foreignKeys),
+			domainTypes,
 			enumTypes,
 			schemas,
 			casing,
@@ -586,6 +654,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 				'',
 				Object.values(it.columns),
 				[],
+				domainTypes,
 				enumTypes,
 				schemas,
 				casing,
@@ -613,6 +682,7 @@ import { sql } from "drizzle-orm"\n\n`;
 	let decalrations = schemaStatements;
 	decalrations += rolesStatements;
 	decalrations += enumStatements;
+	decalrations += domainStatements;
 	decalrations += sequencesStatements;
 	decalrations += '\n';
 	decalrations += tableStatements.join('\n\n');
@@ -839,6 +909,7 @@ const column = (
 	tableName: string,
 	type: string,
 	name: string,
+	domainTypes: Set<string>,
 	enumTypes: Set<string>,
 	typeSchema: string,
 	casing: Casing,
@@ -848,11 +919,12 @@ const column = (
 	const isExpression = internals?.tables[tableName]?.columns[name]?.isDefaultAnExpression ?? false;
 	const lowered = type.toLowerCase().replace('[]', '');
 
-	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
-		let out = `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema), casing)}(${
+	const isDomainType = domainTypes.has(`${typeSchema}.${type}`);
+	const isEnumType = enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`);
+	if (isDomainType || isEnumType) {
+		return `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema), casing)}(${
 			dbColumnName({ name, casing })
 		})`;
-		return out;
 	}
 
 	if (lowered.startsWith('serial')) {
@@ -1100,6 +1172,69 @@ const column = (
 	return unknown;
 };
 
+const escapeTemplate = (value: string) =>
+	value.replaceAll('\\', '\\\\').replaceAll('`', '\\`').replaceAll('${', '\\${');
+
+type JsKind = 'string' | 'number' | 'boolean' | 'other';
+
+// turns a domain's base type ("integer", "numeric(10, 2)", ""public"."mood"", "citext", ...)
+// into the column builder expression to wrap, reusing the regular column codegen
+const domainBaseTypeToTs = (
+	baseType: string,
+	userType: { schema: string; name: string } | undefined,
+	domainTypes: Set<string>,
+	enumTypes: Set<string>,
+	schemas: Record<string, string>,
+	casing: Casing,
+): { expression: string; importName?: string; jsKind: JsKind } => {
+	if (userType) {
+		const key = `${userType.schema}.${userType.name}`;
+		if (domainTypes.has(key) || enumTypes.has(key)) {
+			const ref = withCasing(
+				paramNameFor(userType.name, schemas[userType.schema] ? userType.schema : undefined),
+				casing,
+			);
+			return { expression: `${ref}()`, jsKind: enumTypes.has(key) ? 'string' : 'other' };
+		}
+	}
+
+	// generate as a column named "x" and strip the key, e.g. `x: numeric({ precision: 10, scale: 2 })`
+	const generated = column('', baseType, 'x', domainTypes, enumTypes, 'public', casing);
+	const keyIdx = generated.lastIndexOf('x: ');
+	const expression = keyIdx === -1 ? '' : generated.slice(keyIdx + 3);
+	const fn = /^(\w+)\(/.exec(expression)?.[1];
+
+	if (!fn || fn === 'unknown' || !pgImportsList.has(fn)) {
+		// unsupported base type (e.g. an extension type like citext): fall back to a custom type
+		return {
+			expression: `customType<{ data: string }>({ dataType: () => ${JSON.stringify(baseType)} })()`,
+			importName: 'customType',
+			jsKind: 'other',
+		};
+	}
+
+	const numberTypes = ['integer', 'smallint', 'real', 'doublePrecision', 'serial', 'smallserial'];
+	const stringTypes = ['text', 'varchar', 'char', 'uuid', 'inet', 'cidr', 'macaddr', 'macaddr8', 'numeric', 'decimal'];
+	const jsKind: JsKind = fn === 'boolean'
+		? 'boolean'
+		: numberTypes.includes(fn) || (fn === 'bigint' && expression.includes('"number"'))
+		? 'number'
+		: stringTypes.includes(fn)
+		? 'string'
+		: 'other';
+
+	return { expression, importName: fn, jsKind };
+};
+
+// typdefault comes back as SQL (`'abc'`, `42`, `now()`, ...); emit a JS literal when that is lossless
+const domainDefaultToTs = (value: string, jsKind: JsKind): string => {
+	if (jsKind === 'number' && /^-?\d+(\.\d+)?$/.test(value)) return value;
+	if (jsKind === 'boolean' && (value === 'true' || value === 'false')) return value;
+	const quoted = /^'((?:[^']|'')*)'$/.exec(value);
+	if (jsKind === 'string' && quoted) return JSON.stringify(quoted[1]!.replaceAll("''", "'"));
+	return `sql\`${escapeTemplate(value)}\``;
+};
+
 const dimensionsInArray = (size?: number): string => {
 	let res = '';
 	if (typeof size === 'undefined') return res;
@@ -1113,6 +1248,7 @@ const createTableColumns = (
 	tableName: string,
 	columns: Column[],
 	fks: ForeignKey[],
+	domainTypes: Set<string>,
 	enumTypes: Set<string>,
 	schemas: Record<string, string>,
 	casing: Casing,
@@ -1139,6 +1275,7 @@ const createTableColumns = (
 			tableName,
 			it.type,
 			it.name,
+			domainTypes,
 			enumTypes,
 			it.typeSchema ?? 'public',
 			casing,

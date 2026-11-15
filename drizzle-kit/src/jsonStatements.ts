@@ -4,6 +4,7 @@ import { warning } from './cli/views';
 import { CommonSquashedSchema } from './schemaValidator';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher, View as MySqlView } from './serializer/mysqlSchema';
 import {
+	CheckConstraint,
 	Index,
 	MatViewWithOption,
 	PgSchema,
@@ -22,7 +23,7 @@ import {
 	SQLiteSquasher,
 	View as SqliteView,
 } from './serializer/sqliteSchema';
-import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
+import { AlteredColumn, Column, Domain, Sequence, Table } from './snapshotsDiffer';
 
 export interface JsonSqliteCreateTableStatement {
 	type: 'sqlite_create_table';
@@ -95,6 +96,59 @@ export interface JsonRenameTableStatement {
 	toSchema: string;
 	tableNameFrom: string;
 	tableNameTo: string;
+}
+
+// Types for Domain-related JSON statements
+export type JsonDomainStatement =
+	| JsonCreateDomainStatement
+	| JsonDropDomainStatement
+	| JsonAlterDomainStatement
+	| JsonRenameDomainStatement
+	| JsonMoveDomainStatement;
+
+export interface JsonRenameDomainStatement {
+	type: 'rename_domain';
+	nameFrom: string;
+	nameTo: string;
+	schema: string;
+}
+
+export interface JsonMoveDomainStatement {
+	type: 'move_domain';
+	name: string;
+	schemaFrom: string;
+	schemaTo: string;
+}
+
+export interface JsonCreateDomainStatement {
+	type: 'create_domain';
+	name: string;
+	schema: string;
+	notNull?: boolean;
+	defaultValue?: string;
+	baseType: string;
+	checkConstraints?: string[];
+}
+
+export interface JsonDropDomainStatement {
+	type: 'drop_domain';
+	name: string;
+	schema: string;
+}
+
+export interface JsonAlterDomainStatement {
+	type: 'alter_domain';
+	action:
+		| 'add_constraint'
+		| 'drop_constraint'
+		| 'set_not_null'
+		| 'drop_not_null'
+		| 'set_default'
+		| 'drop_default';
+	name: string;
+	schema: string;
+	defaultValue?: string;
+	checkConstraints?: string[];
 }
 
 export interface JsonCreateEnumStatement {
@@ -884,7 +938,12 @@ export type JsonStatement =
 	| JsonIndRenamePolicyStatement
 	| JsonDropIndPolicyStatement
 	| JsonCreateIndPolicyStatement
-	| JsonAlterIndPolicyStatement;
+	| JsonAlterIndPolicyStatement
+	| JsonCreateDomainStatement
+	| JsonDropDomainStatement
+	| JsonAlterDomainStatement
+	| JsonRenameDomainStatement
+	| JsonMoveDomainStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -1021,6 +1080,46 @@ export const prepareRenameTableJson = (
 		toSchema: tableTo.schema,
 		tableNameFrom: tableFrom.name,
 		tableNameTo: tableTo.name,
+	};
+};
+
+// Helper function to create domain statements
+export const prepareDomainJson = (
+	domain: Domain,
+	type: 'create' | 'alter' | 'drop',
+	action?: JsonAlterDomainStatement['action'],
+): JsonDomainStatement => {
+	let checkConstraints;
+	if (domain.checkConstraints) {
+		checkConstraints = Object.values(domain.checkConstraints);
+	}
+
+	if (type === 'create') {
+		return {
+			type: 'create_domain',
+			name: domain.name,
+			schema: domain.schema,
+			notNull: domain.notNull,
+			defaultValue: domain.defaultValue,
+			baseType: domain.baseType,
+			checkConstraints,
+		};
+	} else if (type === 'drop') {
+		return {
+			type: 'drop_domain',
+			name: domain.name,
+			schema: domain.schema,
+		};
+	}
+
+	// For alter actions
+	return {
+		type: 'alter_domain',
+		action: action!,
+		name: domain.name,
+		schema: domain.schema,
+		defaultValue: domain.defaultValue,
+		checkConstraints,
 	};
 };
 

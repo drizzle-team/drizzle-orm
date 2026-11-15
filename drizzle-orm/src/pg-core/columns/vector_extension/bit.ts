@@ -28,6 +28,10 @@ export class PgBinaryVectorBuilder<
 		this.config.dimensions = config.dimensions;
 	}
 
+	getSQLType(): string {
+		return `bit(${this.config.dimensions})`;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

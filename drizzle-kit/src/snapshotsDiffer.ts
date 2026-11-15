@@ -14,6 +14,7 @@ import {
 } from 'zod';
 import { applyJsonDiff, diffColumns, diffIndPolicies, diffPolicies, diffSchemasOrTables } from './jsonDiffer';
 import { fromJson } from './sqlgenerator';
+import { stripTrailingCast } from './utils';
 
 import {
 	_prepareAddColumns,
@@ -40,6 +41,7 @@ import {
 	JsonDeleteCompositePK,
 	JsonDeleteUniqueConstraint,
 	JsonDisableRLSStatement,
+	JsonDomainStatement,
 	JsonDropColumnStatement,
 	JsonDropIndPolicyStatement,
 	JsonDropPolicyStatement,
@@ -82,6 +84,7 @@ import {
 	prepareDeleteCompositePrimaryKeySqlite,
 	prepareDeleteSchemasJson as prepareDropSchemasJson,
 	prepareDeleteUniqueConstraintPg as prepareDeleteUniqueConstraint,
+	prepareDomainJson,
 	prepareDropEnumJson,
 	prepareDropEnumValues,
 	prepareDropIndexesJson,
@@ -242,6 +245,24 @@ const alteredColumnSchema = object({
 	identity: makePatched(string()).optional(),
 }).strict();
 
+const domainSchema = object({
+	name: string(),
+	schema: string(),
+	baseType: string(),
+	notNull: boolean().optional(),
+	defaultValue: string().optional(),
+	checkConstraints: record(string(), string()).optional(),
+}).strict();
+
+const changedDomainSchema = object({
+	name: string(),
+	schema: string(),
+	baseType: string(),
+	notNull: boolean().optional(),
+	defaultValue: string().optional(),
+	checkConstraints: record(string(), string()).optional(),
+}).strict();
+
 const enumSchema = object({
 	name: string(),
 	schema: string(),
@@ -383,6 +404,7 @@ const alteredMySqlViewSchema = alteredViewCommon.merge(
 
 export const diffResultScheme = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
+	alteredDomains: changedDomainSchema.array(),
 	alteredEnums: changedEnumSchema.array(),
 	alteredSequences: sequenceSquashed.array(),
 	alteredRoles: roleSchema.array(),
@@ -409,6 +431,7 @@ export const diffResultSchemeSQLite = object({
 
 export type Column = TypeOf<typeof columnSchema>;
 export type AlteredColumn = TypeOf<typeof alteredColumnSchema>;
+export type Domain = TypeOf<typeof domainSchema>;
 export type Enum = TypeOf<typeof enumSchema>;
 export type Sequence = TypeOf<typeof sequenceSquashed>;
 export type Table = TypeOf<typeof tableScheme>;
@@ -537,6 +560,20 @@ const nameSchemaChangeFor = (
 	};
 };
 
+// format_type() and drizzle spell some types slightly differently (e.g. "timestamp(3)" vs "timestamp (3)")
+// postgres stores defaults in its own spelling: 'abc'::text, 1.5 (for '1.5' on numeric), ...
+const normalizeDomainDefault = (value: string | undefined) => {
+	if (value === undefined) return undefined;
+	const stripped = stripTrailingCast(value);
+	const quotedNumber = /^'(-?\d+(?:\.\d+)?)'$/.exec(stripped);
+	return quotedNumber ? quotedNumber[1] : stripped;
+};
+
+const isSameDomainBaseType = (a: string, b: string) => {
+	const norm = (t: string) => t.toLowerCase().replace(/\s+\(/g, '(').replace(/,\s*/g, ',').replace(/"public"\./g, '');
+	return norm(a) === norm(b);
+};
+
 const columnChangeFor = (
 	column: string,
 	renamedColumns: { from: Named; to: Named }[],
@@ -562,6 +599,9 @@ export const applyPgSnapshotsDiff = async (
 	schemasResolver: (
 		input: ResolverInput<Named>,
 	) => Promise<ResolverOutput<Named>>,
+	domainsResolver: (
+		input: ResolverInput<Domain>,
+	) => Promise<ResolverOutputWithMoved<Domain>>,
 	enumsResolver: (
 		input: ResolverInput<Enum>,
 	) => Promise<ResolverOutputWithMoved<Enum>>,
@@ -627,6 +667,34 @@ export const applyPgSnapshotsDiff = async (
 		return [key, it];
 	});
 
+	schemasPatchedSnap1.domains = mapEntries(schemasPatchedSnap1.domains ?? {}, (_, it) => {
+		const { key, schema } = schemaChangeFor(it, renamedSchemas);
+		it.schema = schema;
+		return [key, it];
+	});
+
+	const domainsDiff = diffSchemasOrTables(schemasPatchedSnap1.domains, json2.domains ?? {});
+
+	const {
+		created: createdDomains,
+		deleted: deletedDomains,
+		renamed: renamedDomains,
+		moved: movedDomains,
+	} = await domainsResolver({
+		created: domainsDiff.added,
+		deleted: domainsDiff.deleted,
+	});
+
+	// apply renames/moves to the previous snapshot so the alter-diff below compares like with like
+	schemasPatchedSnap1.domains = mapEntries(schemasPatchedSnap1.domains, (_, it) => {
+		const renamed = nameSchemaChangeFor(it, renamedDomains);
+		it.name = renamed.name;
+		it.schema = renamed.schema;
+		const move = movedDomains.find((m) => m.name === it.name && m.schemaFrom === it.schema);
+		if (move) it.schema = move.schemaTo;
+		return [`${it.schema || 'public'}.${it.name}`, it];
+	});
+
 	const enumsDiff = diffSchemasOrTables(schemasPatchedSnap1.enums, json2.enums);
 
 	const {
@@ -646,7 +714,10 @@ export const applyPgSnapshotsDiff = async (
 		return [key, it];
 	});
 
-	const columnTypesChangeMap = renamedEnums.reduce(
+	const columnTypesChangeMap = [
+		...renamedEnums,
+		...renamedDomains,
+	].reduce(
 		(acc, it) => {
 			acc[`${it.from.schema}.${it.from.name}`] = {
 				nameFrom: it.from.name,
@@ -667,7 +738,10 @@ export const applyPgSnapshotsDiff = async (
 		>,
 	);
 
-	const columnTypesMovesMap = movedEnums.reduce(
+	const columnTypesMovesMap = [
+		...movedEnums,
+		...movedDomains,
+	].reduce(
 		(acc, it) => {
 			acc[`${it.schemaFrom}.${it.name}`] = {
 				nameFrom: it.name,
@@ -1699,6 +1773,78 @@ export const applyPgSnapshotsDiff = async (
 	// - create table with generated
 	// - alter - should be not triggered, but should get warning
 
+	const createDomains = createdDomains.map((domain) => prepareDomainJson(domain, 'create'));
+	const dropDomains = deletedDomains.map((domain) => prepareDomainJson(domain, 'drop'));
+	const moveDomains: JsonDomainStatement[] = movedDomains.map((it) => ({
+		type: 'move_domain',
+		name: it.name,
+		schemaFrom: it.schemaFrom,
+		schemaTo: it.schemaTo,
+	}));
+	const renameDomains: JsonDomainStatement[] = renamedDomains.map((it) => ({
+		type: 'rename_domain',
+		nameFrom: it.from.name,
+		nameTo: it.to.name,
+		schema: it.to.schema,
+	}));
+
+	const alterDomains: JsonDomainStatement[] = [];
+	for (const domainKey of Object.keys(schemasPatchedSnap1.domains)) {
+		const domain1 = schemasPatchedSnap1.domains[domainKey];
+		const domain2 = (json2.domains ?? {})[domainKey];
+		if (!domain1 || !domain2) continue;
+
+		if (!isSameDomainBaseType(domain1.baseType, domain2.baseType)) {
+			// postgres has no ALTER DOMAIN ... TYPE, and DROP DOMAIN ... CASCADE would silently
+			// drop every column using the domain, so refuse instead of generating something destructive
+			throw new Error(
+				`Domain "${domain2.schema}"."${domain2.name}" changed its base type from ${domain1.baseType} to ${domain2.baseType}. `
+					+ `PostgreSQL cannot alter a domain's base type. Create a new domain, migrate the columns to it, and then remove the old one.`,
+			);
+		}
+
+		const default1 = normalizeDomainDefault(domain1.defaultValue);
+		const default2 = normalizeDomainDefault(domain2.defaultValue);
+		if (default1 !== default2) {
+			alterDomains.push(
+				prepareDomainJson(domain2, 'alter', domain2.defaultValue !== undefined ? 'set_default' : 'drop_default'),
+			);
+		}
+
+		if (!!domain1.notNull !== !!domain2.notNull) {
+			alterDomains.push(prepareDomainJson(domain2, 'alter', domain2.notNull ? 'set_not_null' : 'drop_not_null'));
+		}
+
+		const constraints1 = domain1.checkConstraints ?? {};
+		const constraints2 = domain2.checkConstraints ?? {};
+
+		const droppedChecks = Object.keys(constraints1).filter((name) => !constraints2[name]);
+		const addedChecks = Object.keys(constraints2).filter((name) => !constraints1[name]);
+		// postgres normalizes check expressions, so (like table checks) value changes are not diffed on push
+		const changedChecks = action === 'push'
+			? []
+			: Object.keys(constraints2).filter((name) => constraints1[name] && constraints1[name] !== constraints2[name]);
+
+		for (const name of [...droppedChecks, ...changedChecks]) {
+			alterDomains.push({
+				type: 'alter_domain',
+				action: 'drop_constraint',
+				name: domain2.name,
+				schema: domain2.schema,
+				checkConstraints: [constraints1[name]!],
+			});
+		}
+		for (const name of [...addedChecks, ...changedChecks]) {
+			alterDomains.push({
+				type: 'alter_domain',
+				action: 'add_constraint',
+				name: domain2.name,
+				schema: domain2.schema,
+				checkConstraints: [constraints2[name]!],
+			});
+		}
+	}
+
 	const createEnums = createdEnums.map((it) => {
 		return prepareCreateEnumJson(it.name, it.schema, it.values);
 	}) ?? [];
@@ -1947,10 +2093,17 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);
+
 	jsonStatements.push(...createEnums);
 	jsonStatements.push(...moveEnums);
 	jsonStatements.push(...renameEnums);
 	jsonStatements.push(...jsonAlterEnumsWithAddedValues);
+
+	// after enums: a domain can be defined over an enum
+	jsonStatements.push(...createDomains);
+	jsonStatements.push(...moveDomains);
+	jsonStatements.push(...renameDomains);
+	jsonStatements.push(...alterDomains);
 
 	jsonStatements.push(...createSequences);
 	jsonStatements.push(...moveSequences);
@@ -2017,6 +2170,8 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonCreateIndPoliciesStatements);
 	jsonStatements.push(...jsonAlterIndPoliciesStatements);
 
+	// after tables/columns using them are gone, before the enums and schemas they depend on
+	jsonStatements.push(...dropDomains);
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);
 	jsonStatements.push(...dropSchemas);

@@ -23,6 +23,10 @@ export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSm
 		super(name, 'number', 'PgSmallInt');
 	}
 
+	getSQLType(): string {
+		return 'smallint';
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

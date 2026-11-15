@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { getTableName, is, SQL } from 'drizzle-orm';
+import { ColumnBuilderBaseConfig, getTableName, is, SQL } from 'drizzle-orm';
 import {
 	AnyPgTable,
 	getMaterializedViewConfig,
@@ -8,9 +8,15 @@ import {
 	IndexedColumn,
 	PgArray,
 	PgColumn,
+	PgColumnBuilder,
 	PgDialect,
+	PgDomain,
+	PgDomainColumn,
+	PgDomainColumnBuilder,
 	PgEnum,
 	PgEnumColumn,
+	PgEnumColumnBuilder,
+	PgEnumObjectColumnBuilder,
 	PgMaterializedView,
 	PgPolicy,
 	PgRole,
@@ -23,15 +29,19 @@ import { CasingType } from 'src/cli/validations/common';
 import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
 import type { IntrospectStage, IntrospectStatus } from '../cli/views';
-import type {
+import { snapshotVersion } from '../global';
+import { type DB, escapeSingleQuotes, isPgArrayType, stripTrailingCast } from '../utils';
+import {
 	CheckConstraint,
 	Column,
+	Domain,
 	Enum,
 	ForeignKey,
 	Index,
 	IndexColumnType,
 	PgKitInternals,
 	PgSchemaInternal,
+	PgSquasher,
 	Policy,
 	PrimaryKey,
 	Role,
@@ -39,8 +49,7 @@ import type {
 	Table,
 	UniqueConstraint,
 	View,
-} from '../serializer/pgSchema';
-import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
+} from './pgSchema';
 import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
@@ -98,8 +107,75 @@ export function buildArrayString(array: any[], sqlType: string): string {
 	return `{${values}}`;
 }
 
+// mirrors postgres' ChooseConstraintName: <base>_<label>, <base>_<label>1, <base>_<label>2, ...
+// format_type() spelling -> the spelling drizzle columns use in getSQLType()
+export const normalizePgTypeName = (type: string): string => {
+	let t = type
+		.replace('character varying', 'varchar')
+		.replace(' without time zone', '')
+		.replace(/^character\b/, 'char')
+		.replace(/^bit varying/, 'varbit');
+	if (t.startsWith('numeric(')) t = t.replace(/,\s*/, ', ');
+	return t;
+};
+
+// CHECK ((VALUE > 0)) NOT VALID -> (VALUE > 0)
+export const unwrapCheckDefinition = (def: string): string => {
+	const m = /^CHECK \((.*)\)(?: NOT VALID)?$/s.exec(def.trim());
+	return m ? m[1]! : def;
+};
+
+export const nextConstraintName = (base: string, label: string, taken: Set<string>) => {
+	let name = `${base}_${label}`;
+	for (let i = 1; taken.has(name); i++) {
+		name = `${base}_${label}${i}`;
+	}
+	return name;
+};
+
+// the SQL type a domain is defined over. user-defined base types (enums, other domains)
+// are schema-qualified, since the domain may live in a different schema than its base type
+const domainBaseType = (builder: PgColumnBuilder<any, any>): string => {
+	if (is(builder, PgEnumColumnBuilder) || is(builder, PgEnumObjectColumnBuilder)) {
+		const enumConfig = (builder as any).config.enum as PgEnum<any>;
+		return `"${enumConfig.schema ?? 'public'}"."${enumConfig.enumName}"`;
+	}
+	if (is(builder, PgDomainColumnBuilder)) {
+		return `"${builder.schema ?? 'public'}"."${builder.domainName}"`;
+	}
+	return builder.getSQLType();
+};
+
+// renders a domain default as the SQL expression that goes after DEFAULT
+export const domainDefaultToSql = (
+	value: unknown,
+	sqlTypeLowered: string,
+	casing: CasingType | undefined,
+): string | undefined => {
+	if (value === undefined) return undefined;
+	if (is(value, SQL)) return sqlToStr(value, casing);
+	if (value === null) return 'NULL';
+	if (typeof value === 'string') return `'${escapeSingleQuotes(value)}'`;
+	if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') return String(value);
+	if (sqlTypeLowered === 'json' || sqlTypeLowered === 'jsonb') {
+		return `'${escapeSingleQuotes(JSON.stringify(value))}'::${sqlTypeLowered}`;
+	}
+	if (value instanceof Date) {
+		if (sqlTypeLowered === 'date') return `'${value.toISOString().split('T')[0]}'`;
+		if (sqlTypeLowered.startsWith('timestamp') && !sqlTypeLowered.includes('with time zone')) {
+			return `'${value.toISOString().replace('T', ' ').slice(0, 23)}'`;
+		}
+		return `'${value.toISOString()}'`;
+	}
+	if (Array.isArray(value) && isPgArrayType(sqlTypeLowered)) {
+		return `'${buildArrayString(value, sqlTypeLowered)}'`;
+	}
+	return `'${escapeSingleQuotes(String(value))}'`;
+};
+
 export const generatePgSnapshot = (
 	tables: AnyPgTable[],
+	domains: PgDomain<any>[],
 	enums: PgEnum<any>[],
 	schemas: PgSchema[],
 	sequences: PgSequence[],
@@ -123,11 +199,11 @@ export const generatePgSnapshot = (
 
 	const indexesInSchema: Record<string, string[]> = {};
 
-	for (const table of tables) {
-		// This object stores unique names for checks and will be used to detect if you have the same names for checks
-		// within the same PostgreSQL table
-		const checksInTable: Record<string, string[]> = {};
+	// This object stores unique names for checks and will be used to detect if you have the same names for checks
+	// within the same PostgreSQL table
+	const checksInTable: Record<string, string[]> = {};
 
+	for (const table of tables) {
 		const {
 			name: tableName,
 			columns,
@@ -159,17 +235,18 @@ export const generatePgSnapshot = (
 			const primaryKey: boolean = column.primary;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 
-			const getEnumSchema = (column: PgColumn) => {
+			// enums and domains are user-defined types that live in a schema (arrays of them too)
+			const getTypeSchema = (column: PgColumn) => {
 				while (is(column, PgArray)) {
 					column = column.baseColumn;
 				}
+				if (is(column, PgDomainColumn)) return column.schema || 'public';
 				return is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
 			};
-			const typeSchema: string | undefined = getEnumSchema(column);
+			const typeSchema: string | undefined = getTypeSchema(column);
 
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
-
 			const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
 			const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
 				?? (parseFloat(increment) < 0 ? minRangeForIdentityBasedOn(column.columnType) : '1');
@@ -182,7 +259,7 @@ export const generatePgSnapshot = (
 			const columnToSet: Column = {
 				name,
 				type: column.getSQLType(),
-				typeSchema: typeSchema,
+				typeSchema,
 				primaryKey,
 				notNull,
 				generated: generated
@@ -534,11 +611,35 @@ export const generatePgSnapshot = (
 			};
 		});
 
-		checks.forEach((check) => {
-			const checkName = check.name;
+		// column-level checks (`integer().checkConstraint(...)`) are table constraints in postgres.
+		// (for domain columns, `column.checkConstraints` holds checks added on the column itself;
+		// the domain's own checks live on the domain)
+		const columnChecks: { name: string | undefined; value: SQL; defaultBase: string }[] = [];
+		for (const column of columns) {
+			for (const c of column.checkConstraints ?? []) {
+				columnChecks.push({
+					name: c.name,
+					value: c.value,
+					defaultBase: `${tableName}_${getColumnCasing(column, casing)}`,
+				});
+			}
+		}
+
+		const allChecks = [
+			...checks.map((c) => ({ name: c.name, value: c.value, defaultBase: tableName })),
+			...columnChecks,
+		];
+
+		// unnamed checks get an explicit name that follows postgres' own naming scheme,
+		// so that generate/push/pull agree on it and it can later be dropped by name
+		const takenCheckNames = new Set(allChecks.map((c) => c.name).filter(Boolean) as string[]);
+
+		allChecks.forEach((check) => {
+			const checkName = check.name ?? nextConstraintName(check.defaultBase, 'check', takenCheckNames);
+			takenCheckNames.add(checkName);
 
 			if (typeof checksInTable[`"${schema ?? 'public'}"."${tableName}"`] !== 'undefined') {
-				if (checksInTable[`"${schema ?? 'public'}"."${tableName}"`].includes(check.name)) {
+				if (checksInTable[`"${schema ?? 'public'}"."${tableName}"`].includes(checkName)) {
 					console.log(
 						`\n${
 							withStyle.errorWarning(
@@ -562,7 +663,7 @@ export const generatePgSnapshot = (
 				}
 				checksInTable[`"${schema ?? 'public'}"."${tableName}"`].push(checkName);
 			} else {
-				checksInTable[`"${schema ?? 'public'}"."${tableName}"`] = [check.name];
+				checksInTable[`"${schema ?? 'public'}"."${tableName}"`] = [checkName];
 			}
 
 			checksObject[checkName] = {
@@ -754,7 +855,10 @@ export const generatePgSnapshot = (
 				const primaryKey: boolean = column.primary;
 				const sqlTypeLowered = column.getSQLType().toLowerCase();
 
-				const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+				const domainTypeSchema = is(column, PgDomainColumn) ? column.schema || 'public' : undefined;
+				const enumTypeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+				const typeSchema = domainTypeSchema ?? enumTypeSchema;
+
 				const generated = column.generated;
 				const identity = column.generatedIdentity;
 
@@ -869,6 +973,46 @@ export const generatePgSnapshot = (
 		};
 	}
 
+	const domainsToReturn: Record<string, Domain> = {};
+	for (const domain of domains) {
+		const domainSchema = domain.schema || 'public';
+		if (schemaFilter && !schemaFilter.includes(domainSchema)) continue;
+
+		const key = `${domainSchema}.${domain.domainName}`;
+		if (domainsToReturn[key]) {
+			console.log(
+				`\n${
+					withStyle.errorWarning(
+						`We've found duplicated domain name ${chalk.underline.blue(key)}. Please rename one of the domains`,
+					)
+				}`,
+			);
+			process.exit(1);
+		}
+
+		const checksObject: Record<string, CheckConstraint> = {};
+		const domainChecks = domain.domainCheckConstraints ?? [];
+		const takenNames = new Set(domainChecks.map((c) => c.name).filter(Boolean) as string[]);
+		for (const checkConstraint of domainChecks) {
+			const checkName = checkConstraint.name ?? nextConstraintName(domain.domainName, 'check', takenNames);
+			takenNames.add(checkName);
+			checksObject[checkName] = {
+				name: checkName,
+				value: dialect.sqlToQuery(checkConstraint.value).sql,
+			};
+		}
+
+		const baseType = domainBaseType(domain.domain);
+		domainsToReturn[key] = {
+			name: domain.domainName,
+			schema: domainSchema,
+			notNull: domain.domainNotNull,
+			baseType,
+			defaultValue: domainDefaultToSql(domain.domainDefaultValue, baseType.toLowerCase(), casing),
+			checkConstraints: checksObject,
+		};
+	}
+
 	const enumsToReturn: Record<string, Enum> = enums.reduce<{
 		[key: string]: Enum;
 	}>((map, obj) => {
@@ -895,9 +1039,10 @@ export const generatePgSnapshot = (
 	);
 
 	return {
-		version: '7',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		tables: result,
+		domains: domainsToReturn,
 		enums: enumsToReturn,
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
@@ -1066,6 +1211,68 @@ WHERE
 			cycle,
 			cache: cacheSize,
 		};
+	}
+
+	const whereDomains = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
+
+	const allDomainsConstraints = await db.query(
+		`SELECT
+			n.nspname AS schema,
+			t.typname AS name,
+			format_type(t.typbasetype, t.typtypmod) AS base_type,
+			bt.typtype AS base_typtype,
+			bt.typname AS base_typname,
+			bn.nspname AS base_schema,
+			t.typnotnull AS not_null,
+			t.typdefault AS default_value,
+			c.conname AS constraint_name,
+			pg_get_constraintdef(c.oid) AS domain_constraint
+		FROM pg_type t
+			JOIN pg_namespace n ON t.typnamespace = n.oid
+			JOIN pg_type bt ON bt.oid = t.typbasetype
+			JOIN pg_namespace bn ON bt.typnamespace = bn.oid
+			LEFT JOIN pg_constraint c ON t.oid = c.contypid AND c.contype = 'c'
+		WHERE
+			t.typtype = 'd'
+			AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+			AND n.nspname NOT LIKE 'pg_toast%'
+			AND NOT EXISTS (
+				SELECT 1 FROM pg_depend d WHERE d.objid = t.oid AND d.deptype = 'e'
+			)
+			${whereDomains === '' ? '' : ` AND (${whereDomains})`}
+		ORDER BY schema, name, constraint_name;`,
+	);
+
+	const domainsToReturn: Record<string, Domain> = {};
+
+	for (const row of allDomainsConstraints) {
+		const schemaName = row.schema || 'public';
+		const key = `${schemaName}.${row.name}`;
+
+		if (!domainsToReturn[key]) {
+			// user-defined base types (enums, domains) are kept schema-qualified, same as generate does
+			const baseType = row.base_typtype === 'e' || row.base_typtype === 'd'
+				? `"${row.base_schema}"."${row.base_typname}"`
+				: normalizePgTypeName(row.base_type);
+
+			domainsToReturn[key] = {
+				name: row.name,
+				schema: schemaName,
+				baseType,
+				notNull: row.not_null,
+				defaultValue: row.default_value === null || row.default_value === undefined
+					? undefined
+					: stripTrailingCast(row.default_value),
+				checkConstraints: {},
+			};
+		}
+
+		if (row.constraint_name && row.domain_constraint) {
+			domainsToReturn[key].checkConstraints![row.constraint_name] = {
+				name: row.constraint_name,
+				value: unwrapCheckDefinition(row.domain_constraint),
+			};
+		}
 	}
 
 	const whereEnums = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
@@ -1239,7 +1446,7 @@ WHERE
 					const tableChecks = await db.query(`SELECT 
 						tc.constraint_name,
 						tc.constraint_type,
-						pg_get_constraintdef(con.oid) AS constraint_definition
+						pg_get_expr(con.conbin, con.conrelid) AS check_expression
 					FROM 
 						information_schema.table_constraints AS tc
 						JOIN pg_constraint AS con 
@@ -1367,10 +1574,8 @@ WHERE
 					for (const checks of tableChecks) {
 						// CHECK (((email)::text <> 'test@gmail.com'::text))
 						// Where (email) is column in table
-						let checkValue: string = checks.constraint_definition;
+						const checkValue: string = checks.check_expression;
 						const constraintName: string = checks.constraint_name;
-
-						checkValue = checkValue.replace(/^CHECK\s*\(\(/, '').replace(/\)\)\s*$/, '');
 
 						checkConstraints[constraintName] = {
 							name: constraintName,
@@ -1383,9 +1588,11 @@ WHERE
 						const columnAdditionalDT = columnResponse.additional_dt;
 						const columnDimensions = columnResponse.array_dimensions;
 						const enumType: string = columnResponse.enum_name;
-						let columnType: string = columnResponse.data_type;
-						const typeSchema = columnResponse.type_schema;
+						const enumSchema: string = columnResponse.enum_schema;
+						const domainType: string = columnResponse.domain_name;
+						const domainSchema: string = columnResponse.domain_schema;
 						const defaultValueRes: string = columnResponse.column_default;
+						let columnType: string = columnResponse.data_type;
 
 						const isGenerated = columnResponse.is_generated === 'ALWAYS';
 						const generationExpression = columnResponse.generation_expression;
@@ -1488,17 +1695,34 @@ WHERE
 
 						columnTypeMapped = trimChar(columnTypeMapped, '"');
 
+						// handle user defined types (enums, domains)
+						let userDefinedType = columnTypeMapped;
+						let userDefinedTypeSchema: string | undefined;
+						if (domainType && domainSchema) {
+							userDefinedType = domainType;
+							userDefinedTypeSchema = domainSchema;
+						} // filter vectors, but in future we should filter any extension that was installed by user
+						else if (
+							columnAdditionalDT === 'USER-DEFINED'
+							&& !['vector', 'geometry', 'halfvec', 'sparsevec', 'bit'].includes(enumType)
+						) {
+							userDefinedType = enumType;
+							// only enums get a typeSchema; other user-defined types (e.g. citext) keep it undefined
+							userDefinedTypeSchema = enumsToReturn[`${enumSchema}.${enumType}`]?.schema;
+						} // arrays of domains/enums: information_schema reports no domain_name, but udt_name is "_<element type>"
+						else if (columnAdditionalDT === 'ARRAY' && enumType?.startsWith('_')) {
+							const elementKey = `${enumSchema}.${enumType.slice(1)}`;
+							if (domainsToReturn[elementKey] || enumsToReturn[elementKey]) {
+								const dims = (columnTypeMapped.match(/\[\]/g) ?? []).length || 1;
+								userDefinedType = enumType.slice(1) + '[]'.repeat(dims);
+								userDefinedTypeSchema = enumSchema;
+							}
+						}
+
 						columnToReturn[columnName] = {
 							name: columnName,
-							type:
-								// filter vectors, but in future we should filter any extension that was installed by user
-								columnAdditionalDT === 'USER-DEFINED'
-									&& !['vector', 'geometry', 'halfvec', 'sparsevec', 'bit'].includes(enumType)
-									? enumType
-									: columnTypeMapped,
-							typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
-								? enumsToReturn[`${typeSchema}.${enumType}`].schema
-								: undefined,
+							type: userDefinedType,
+							typeSchema: userDefinedTypeSchema,
 							primaryKey: primaryKey.length === 1 && cprimaryKey.length < 2,
 							// default: isSerial ? undefined : defaultValue,
 							notNull: columnResponse.is_nullable === 'NO',
@@ -1918,9 +2142,10 @@ WHERE
 	const schemasObject = Object.fromEntries([...schemas].map((it) => [it, it]));
 
 	return {
-		version: '7',
+		version: snapshotVersion,
 		dialect: 'postgresql',
 		tables: result,
+		domains: domainsToReturn,
 		enums: enumsToReturn,
 		schemas: schemasObject,
 		sequences: sequencesToReturn,
@@ -2061,6 +2286,9 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
     c.column_default,  -- Column default value
     c.data_type AS additional_dt,  -- Data type from information_schema
     c.udt_name AS enum_name,  -- Enum type (if applicable)
+    c.udt_schema AS enum_schema, -- Enum schema (if applicable)
+    c.domain_name, -- Domain type (if applicable)
+    c.domain_schema, -- Domain schema (if applicable)
     c.is_generated,  -- Is it a generated column?
     c.generation_expression,  -- Generation expression (if generated)
     c.is_identity,  -- Is it an identity column?
@@ -2069,8 +2297,7 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
     c.identity_increment,  -- Increment for identity column
     c.identity_maximum,  -- Maximum value for identity column
     c.identity_minimum,  -- Minimum value for identity column
-    c.identity_cycle,  -- Does the identity column cycle?
-    enum_ns.nspname AS type_schema  -- Schema of the enum type
+    c.identity_cycle  -- Does the identity column cycle?
 FROM 
     pg_attribute a
 JOIN 
@@ -2081,10 +2308,6 @@ LEFT JOIN
     information_schema.columns c ON c.column_name = a.attname 
         AND c.table_schema = ns.nspname 
         AND c.table_name = cls.relname  -- Match schema and table/view name
-LEFT JOIN 
-    pg_type enum_t ON enum_t.oid = a.atttypid  -- Join to get the type info
-LEFT JOIN 
-    pg_namespace enum_ns ON enum_ns.oid = enum_t.typnamespace  -- Join to get the enum schema
 WHERE 
     a.attnum > 0  -- Valid column numbers only
     AND NOT a.attisdropped  -- Skip dropped columns

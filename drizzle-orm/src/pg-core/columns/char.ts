@@ -34,6 +34,10 @@ export class PgCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgChar'>
 		this.config.enumValues = config.enum;
 	}
 
+	getSQLType(): string {
+		return this.config.length === undefined ? `char` : `char(${this.config.length})`;
+	}
+
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,

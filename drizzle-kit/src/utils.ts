@@ -369,3 +369,8 @@ export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolea
 	const regex = ignoreFirstAndLastChar ? /(?<!^)'(?!$)/g : /'/g;
 	return str.replace(/''/g, "'").replace(regex, "\\'");
 }
+
+// 'abc'::text -> 'abc', '{"a":1}'::jsonb -> '{"a":1}' ; leaves function calls like now() alone
+export const stripTrailingCast = (value: string): string => {
+	return value.replace(/::(?:"[^"]+"|[\w ]+)(?:\(\d+(?:,\s*\d+)?\))?(?:\[\])*$/, '');
+};

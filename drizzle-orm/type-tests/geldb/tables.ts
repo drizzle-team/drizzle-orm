@@ -701,6 +701,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 			name: GelColumn<{
 				tableName: 'cities_table';
@@ -718,6 +719,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 				isPrimaryKey: true;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 			role: GelColumn<
 				{
@@ -736,6 +738,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
+					checkConstraints: undefined;
 				},
 				{},
 				{ $type: 'admin' | 'user' }
@@ -756,6 +759,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 				isPrimaryKey: false;
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
+				checkConstraints: undefined;
 			}>;
 		};
 	}>;

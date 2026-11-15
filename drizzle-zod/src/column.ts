@@ -20,6 +20,7 @@ import type {
 	PgBigSerial53,
 	PgBinaryVector,
 	PgChar,
+	PgDomainColumn,
 	PgDoublePrecision,
 	PgGeometry,
 	PgGeometryObject,
@@ -37,6 +38,11 @@ import type {
 	PgVarchar,
 	PgVector,
 } from 'drizzle-orm/pg-core';
+import type { CheckBuilder } from 'drizzle-orm/pg-core';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import { applyCheckBounds, parseCheckConstraint } from './checks.ts';
+
+const pgDialect = new PgDialect();
 import type {
 	SingleStoreBigInt53,
 	SingleStoreChar,
@@ -129,6 +135,24 @@ export function columnToSchema(
 
 	if (!schema) {
 		schema = z.any();
+	}
+
+	// refine with what the CHECK constraints guarantee. for domain columns the domain's own checks
+	// (written against VALUE) apply too, plus any checks declared on the column itself
+	const checkSources: { checks: CheckBuilder[] | undefined; ref: string }[] = [
+		{ checks: column.checkConstraints, ref: column.name },
+	];
+	if (isColumnType<PgDomainColumn<any, any>>(column, ['PgDomainColumn'])) {
+		checkSources.push({ checks: column.domainCheckConstraints, ref: 'VALUE' });
+	}
+	for (const { checks, ref } of checkSources) {
+		for (const checkConstraint of checks ?? []) {
+			const checkSql = pgDialect.sqlToQuery(checkConstraint.value).sql;
+			const bounds = parseCheckConstraint(checkSql, ref);
+			if (bounds) {
+				schema = applyCheckBounds(schema, bounds);
+			}
+		}
 	}
 
 	return schema;

@@ -14,6 +14,13 @@ export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
 	enumValues: undefined;
 }>;
 
+// shared by the numeric builders (string, number and bigint modes); mirrors PgNumeric*.getSQLType()
+function numericSQLType(precision: number | undefined, scale: number | undefined): string {
+	if (precision !== undefined && scale !== undefined) return `numeric(${precision}, ${scale})`;
+	if (precision === undefined) return 'numeric';
+	return `numeric(${precision})`;
+}
+
 export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNumeric'>> extends PgColumnBuilder<
 	T,
 	{
@@ -27,6 +34,16 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNum
 		super(name, 'string', 'PgNumeric');
 		this.config.precision = precision;
 		this.config.scale = scale;
+	}
+
+	getSQLType(): string {
+		if (this.config.precision !== undefined && this.config.scale !== undefined) {
+			return `numeric(${this.config.precision}, ${this.config.scale})`;
+		} else if (this.config.precision === undefined) {
+			return 'numeric';
+		} else {
+			return `numeric(${this.config.precision})`;
+		}
 	}
 
 	/** @internal */
@@ -90,6 +107,10 @@ export class PgNumericNumberBuilder<T extends ColumnBuilderBaseConfig<'number', 
 		super(name, 'number', 'PgNumericNumber');
 		this.config.precision = precision;
 		this.config.scale = scale;
+	}
+
+	getSQLType(): string {
+		return numericSQLType(this.config.precision, this.config.scale);
 	}
 
 	/** @internal */
@@ -158,6 +179,10 @@ export class PgNumericBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 
 		super(name, 'bigint', 'PgNumericBigInt');
 		this.config.precision = precision;
 		this.config.scale = scale;
+	}
+
+	getSQLType(): string {
+		return numericSQLType(this.config.precision, this.config.scale);
 	}
 
 	/** @internal */
