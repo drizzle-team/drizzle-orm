@@ -146,7 +146,8 @@ export type Expr =
 	| { k: 'str'; v: string }
 	| { k: 'bool'; v: boolean };
 
-class Unsupported extends Error {}
+// thrown (and caught) when an expression or value is outside what this evaluator models
+const UNSUPPORTED = new Error('unsupported CHECK expression');
 
 /** Maps a column reference to a key, or null when the name isn't a column the rule can read. */
 type Resolve = (name: string, quoted: boolean) => string | null;
@@ -161,7 +162,7 @@ function parse(tokens: Tok[], resolve: Resolve): Expr {
 	const eatKw = (word: string) => (kw(word) ? (p++, true) : false);
 	const expect = (t: Tok['t']) => {
 		const tok = tokens[p];
-		if (!tok || tok.t !== t) throw new Unsupported();
+		if (!tok || tok.t !== t) throw UNSUPPORTED;
 		p++;
 		return tok;
 	};
@@ -194,7 +195,7 @@ function parse(tokens: Tok[], resolve: Resolve): Expr {
 			expect(')');
 			mod = `(${parts.filter((x) => x !== ',').join(',')})`;
 		}
-		if (peek()?.t === '[') throw new Unsupported(); // array casts
+		if (peek()?.t === '[') throw UNSUPPORTED; // array casts
 		return words.join(' ') + mod;
 	}
 
@@ -230,7 +231,7 @@ function parse(tokens: Tok[], resolve: Resolve): Expr {
 			if ((kw('any') || kw('all')) && tokens[p + 1]?.t === '(') {
 				const all = kw('all');
 				p += 2;
-				if (!eatKw('array')) throw new Unsupported();
+				if (!eatKw('array')) throw UNSUPPORTED;
 				expect('[');
 				const list = [term()];
 				while (peek()?.t === ',') {
@@ -247,25 +248,25 @@ function parse(tokens: Tok[], resolve: Resolve): Expr {
 		if (t?.t === 'op' && ['~', '~*', '!~', '!~*'].includes(t.v)) {
 			p++;
 			const pat = term();
-			if (pat.k !== 'str') throw new Unsupported();
+			if (pat.k !== 'str') throw UNSUPPORTED;
 			return { k: 'regex', e: left, pattern: pat.v, ci: t.v.endsWith('*'), neg: t.v.startsWith('!') };
 		}
 		if (eatKw('is')) {
 			const neg = eatKw('not');
-			if (!eatKw('null')) throw new Unsupported();
+			if (!eatKw('null')) throw UNSUPPORTED;
 			return { k: 'isnull', e: left, neg };
 		}
 		const neg = eatKw('not');
 		if (eatKw('between')) {
 			const lo = term();
-			if (!eatKw('and')) throw new Unsupported();
+			if (!eatKw('and')) throw UNSUPPORTED;
 			return { k: 'between', e: left, lo, hi: term(), neg };
 		}
 		if (kw('like') || kw('ilike')) {
 			const ci = kw('ilike');
 			p++;
 			const pat = term();
-			if (pat.k !== 'str' || kw('escape')) throw new Unsupported();
+			if (pat.k !== 'str' || kw('escape')) throw UNSUPPORTED;
 			return { k: 'like', e: left, pattern: pat.v, ci, neg };
 		}
 		if (eatKw('in')) {
@@ -278,12 +279,12 @@ function parse(tokens: Tok[], resolve: Resolve): Expr {
 			expect(')');
 			return { k: 'in', e: left, list, neg };
 		}
-		if (neg) throw new Unsupported();
+		if (neg) throw UNSUPPORTED;
 		return left;
 	}
 	function term(): Expr {
 		const t = peek();
-		if (!t) throw new Unsupported();
+		if (!t) throw UNSUPPORTED;
 		let e: Expr;
 		if (t.t === '(') {
 			p++;
@@ -317,11 +318,11 @@ function parse(tokens: Tok[], resolve: Resolve): Expr {
 					quoted = nxt.quoted;
 				}
 				const key = resolve(name, quoted);
-				if (key === null) throw new Unsupported();
+				if (key === null) throw UNSUPPORTED;
 				e = { k: 'col', key };
 			}
 		} else {
-			throw new Unsupported();
+			throw UNSUPPORTED;
 		}
 		return postfix(e);
 	}
@@ -331,7 +332,7 @@ function parse(tokens: Tok[], resolve: Resolve): Expr {
 			for (const m of ['both', 'leading', 'trailing'] as const) {
 				if (eatKw(m)) mode = m;
 			}
-			if (peek()?.t === 'str') throw new Unsupported(); // trim(chars from x)
+			if (peek()?.t === 'str') throw UNSUPPORTED; // trim(chars from x)
 			eatKw('from');
 			const arg = orExpr();
 			expect(')');
@@ -350,7 +351,7 @@ function parse(tokens: Tok[], resolve: Resolve): Expr {
 	}
 
 	const e = orExpr();
-	if (p !== tokens.length) throw new Unsupported();
+	if (p !== tokens.length) throw UNSUPPORTED;
 	return e;
 }
 
@@ -360,7 +361,7 @@ function parseWith(sql: string, resolve: Resolve): Expr | null {
 	try {
 		return parse(tokens, resolve);
 	} catch (e) {
-		if (e instanceof Unsupported) return null;
+		if (e === UNSUPPORTED) return null;
 		throw e;
 	}
 }
@@ -422,25 +423,25 @@ const TIME_RE =
 
 function parseTime(s: string, zone: 'ts' | 'tstz' | 'day'): bigint {
 	const m = TIME_RE.exec(s.trim());
-	if (!m) throw new Unsupported();
+	if (!m) throw UNSUPPORTED;
 	const [y, mo, d, h = 0, mi = 0, sec = 0] = [m[1], m[2], m[3], m[4], m[5], m[6]].map((x) =>
 		Number(x ?? 0)
 	) as number[];
-	if (y === 0 || h! > 23 || mi! > 59 || sec! > 59) throw new Unsupported();
+	if (y === 0 || h! > 23 || mi! > 59 || sec! > 59) throw UNSUPPORTED;
 	const ms = Date.UTC(y!, mo! - 1, d!, h, mi, sec);
 	const check = new Date(ms);
 	if (check.getUTCFullYear() !== y || check.getUTCMonth() !== mo! - 1 || check.getUTCDate() !== d) {
-		throw new Unsupported();
+		throw UNSUPPORTED;
 	}
 	if (zone === 'day') {
-		if (m[4] !== undefined || m[8] !== undefined) throw new Unsupported();
+		if (m[4] !== undefined || m[8] !== undefined) throw UNSUPPORTED;
 		return BigInt(ms / 86_400_000);
 	}
 	let us = BigInt(ms) * 1000n + BigInt((m[7] ?? '').padEnd(6, '0') || '0');
 	const off = m[8];
 	if (zone === 'tstz') {
 		// without an offset postgres would use the session time zone, which isn't known here
-		if (off === undefined) throw new Unsupported();
+		if (off === undefined) throw UNSUPPORTED;
 		if (off.toUpperCase() !== 'Z') {
 			const om = /^([+-])(\d{2}):?(\d{2})?$/.exec(off)!;
 			const mins = Number(om[2]) * 60 + Number(om[3] ?? 0);
@@ -453,16 +454,16 @@ function parseTime(s: string, zone: 'ts' | 'tstz' | 'day'): bigint {
 
 function timeOf(v: unknown, zone: 'ts' | 'tstz' | 'day', precision: number | undefined): bigint {
 	let us: bigint;
-	if (v instanceof Date) {
-		const ms = v.getTime();
-		if (Number.isNaN(ms)) throw new Unsupported();
+	if (Object.prototype.toString.call(v) === '[object Date]') {
+		const ms = (v as Date).getTime();
+		if (Number.isNaN(ms)) throw UNSUPPORTED;
 		// drizzle sends dates as UTC ISO strings
 		if (zone === 'day') return BigInt(Math.floor(ms / 86_400_000));
 		us = BigInt(ms) * 1000n;
 	} else if (typeof v === 'string') {
 		us = parseTime(v, zone);
 		if (zone === 'day') return us;
-	} else throw new Unsupported();
+	} else throw UNSUPPORTED;
 	if (precision !== undefined && precision < 6) {
 		// timestamp(p) rounds half away from zero, counted from postgres' 2000-01-01 epoch
 		const scale = 10n ** BigInt(6 - precision);
@@ -496,16 +497,16 @@ const PG_ONLY_REGEX = /\\[AMYZmy]|\[\[[.:=]|\(\?[^!:=]/;
 const ASCII = { test: (s: string) => [...s].every((c) => c.codePointAt(0)! < 128) };
 
 function regexFor(pattern: string, ci: boolean): RegExp {
-	if (PG_ONLY_REGEX.test(pattern)) throw new Unsupported();
+	if (PG_ONLY_REGEX.test(pattern)) throw UNSUPPORTED;
 	try {
 		return new RegExp(pattern, ci ? 'iu' : 'u');
 	} catch {
-		throw new Unsupported();
+		throw UNSUPPORTED;
 	}
 }
 
 function escapeRegex(value: string) {
-	return value.replace(/[$()*+./?[\\\]^{|}\-]/g, '\\$&');
+	return value.replace(/[$()*+./?[\\\]^{|}]/g, '\\$&');
 }
 
 function likeRegex(pattern: string, ci: boolean): RegExp {
@@ -551,7 +552,7 @@ function compileColumn(key: string, kind: ColumnKind): { ty: Ty; fn: Fn } {
 				fn: (env) => {
 					const v = read(env);
 					if (v === null) return null;
-					if (typeof v !== 'string') throw new Unsupported();
+					if (typeof v !== 'string') throw UNSUPPORTED;
 					return v;
 				},
 			};
@@ -566,7 +567,7 @@ function compileColumn(key: string, kind: ColumnKind): { ty: Ty; fn: Fn } {
 					fn: (env) => {
 						const v = read(env);
 						if (v === null) return null;
-						if (typeof v !== 'number' || !Number.isFinite(v)) throw new Unsupported();
+						if (typeof v !== 'number' || !Number.isFinite(v)) throw UNSUPPORTED;
 						return float === 'real' ? Math.fround(v) : v;
 					},
 				};
@@ -577,9 +578,9 @@ function compileColumn(key: string, kind: ColumnKind): { ty: Ty; fn: Fn } {
 				fn: (env) => {
 					const v = read(env);
 					if (v === null) return null;
-					if (typeof v !== 'string' && typeof v !== 'number' && typeof v !== 'bigint') throw new Unsupported();
+					if (typeof v !== 'string' && typeof v !== 'number' && typeof v !== 'bigint') throw UNSUPPORTED;
 					const d = toDec(String(v));
-					if (!d) throw new Unsupported(); // not a number: the type checks report it
+					if (!d) throw UNSUPPORTED; // not a number: the type checks report it
 					return kind.t === 'numeric' && kind.scale !== undefined ? roundDec(d, kind.scale) : d;
 				},
 			};
@@ -594,7 +595,7 @@ function compileColumn(key: string, kind: ColumnKind): { ty: Ty; fn: Fn } {
 			};
 		}
 		case 'other': {
-			throw new Unsupported();
+			throw UNSUPPORTED;
 		}
 	}
 }
@@ -611,20 +612,20 @@ function compileCast(e: Extract<Expr, { k: 'cast' }>, kindOf: KindOf): { ty: Ty;
 		if (TEXT_TYPES.has(to)) return { ty: 'str', fn: () => inner.v };
 		if (to === 'numeric' || INT_TYPES.has(to)) {
 			const d = toDec(inner.v);
-			if (!d || (to !== 'numeric' && d.s > 0)) throw new Unsupported();
+			if (!d || (to !== 'numeric' && d.s > 0)) throw UNSUPPORTED;
 			return { ty: 'num', fn: () => d };
 		}
 		if (/^(?:bool|boolean|double precision|real|float\d?|json|jsonb|uuid|bytea|interval|time)\b/.test(to)) {
-			throw new Unsupported();
+			throw UNSUPPORTED;
 		}
 		// any other type: an enum label, e.g. 'workflow'::app.conversation_kind
 		return { ty: 'enum', fn: () => inner.v };
 	}
 	if (inner.k === 'num') {
 		const d = toDec(inner.v);
-		if (!d) throw new Unsupported();
+		if (!d) throw UNSUPPORTED;
 		if (to === 'numeric' || (INT_TYPES.has(to) && d.s === 0)) return { ty: 'num', fn: () => d };
-		throw new Unsupported();
+		throw UNSUPPORTED;
 	}
 	const x = compile(inner, kindOf);
 	// only casts that leave the value unchanged
@@ -638,7 +639,7 @@ function compileCast(e: Extract<Expr, { k: 'cast' }>, kindOf: KindOf): { ty: Ty;
 		const kind = kindOf(inner.key);
 		if (kind.t === 'time' && kind.precision === undefined) return x;
 	}
-	throw new Unsupported();
+	throw UNSUPPORTED;
 }
 
 // a comparison of two values postgres can compare without a collation, cast or session time zone
@@ -664,7 +665,7 @@ function comparator(a: Ty, b: Ty, op: CmpOp): (x: any, y: any) => number {
 	}
 	if (eqOnly && a === 'str' && b === 'enum') return (x, y) => (x === y ? 0 : 1);
 	if (eqOnly && a === 'bool' && b === 'bool') return (x, y) => (x === y ? 0 : 1);
-	throw new Unsupported();
+	throw UNSUPPORTED;
 }
 
 function compile(e: Expr, kindOf: KindOf): { ty: Ty; fn: Fn } {
@@ -674,7 +675,7 @@ function compile(e: Expr, kindOf: KindOf): { ty: Ty; fn: Fn } {
 		}
 		case 'num': {
 			const d = toDec(e.v);
-			if (!d) throw new Unsupported();
+			if (!d) throw UNSUPPORTED;
 			return { ty: 'num', fn: () => d };
 		}
 		case 'str': {
@@ -688,7 +689,7 @@ function compile(e: Expr, kindOf: KindOf): { ty: Ty; fn: Fn } {
 		}
 		case 'call': {
 			const args = e.args.map((a) => compile(a, kindOf));
-			if (args.length !== 1 || args[0]!.ty !== 'str') throw new Unsupported();
+			if (args.length !== 1 || args[0]!.ty !== 'str') throw UNSUPPORTED;
 			const f = args[0]!.fn;
 			if (LENGTH_FNS.has(e.fn)) {
 				return { ty: 'num', fn: nullable((s: string) => ({ m: BigInt(charLength(s)), s: 0 }), f) };
@@ -703,12 +704,12 @@ function compile(e: Expr, kindOf: KindOf): { ty: Ty; fn: Fn } {
 				return {
 					ty: 'str',
 					fn: nullable((s: string) => {
-						if (!ASCII.test(s)) throw new Unsupported();
+						if (!ASCII.test(s)) throw UNSUPPORTED;
 						return e.fn === 'lower' ? s.toLowerCase() : s.toUpperCase();
 					}, f),
 				};
 			}
-			throw new Unsupported();
+			throw UNSUPPORTED;
 		}
 		case 'cmp': {
 			const a = compile(e.a, kindOf);
@@ -726,12 +727,12 @@ function compile(e: Expr, kindOf: KindOf): { ty: Ty; fn: Fn } {
 		case 'like':
 		case 'regex': {
 			const x = compile(e.e, kindOf);
-			if (x.ty !== 'str') throw new Unsupported();
+			if (x.ty !== 'str') throw UNSUPPORTED;
 			const re = e.k === 'like' ? likeRegex(e.pattern, e.ci) : regexFor(e.pattern, e.ci);
 			return {
 				ty: 'bool',
 				fn: nullable((s: string) => {
-					if (e.ci && !ASCII.test(s)) throw new Unsupported();
+					if (e.ci && !ASCII.test(s)) throw UNSUPPORTED;
 					return re.test(s) !== e.neg;
 				}, x.fn),
 			};
@@ -751,13 +752,13 @@ function compile(e: Expr, kindOf: KindOf): { ty: Ty; fn: Fn } {
 		}
 		case 'not': {
 			const x = compile(e.e, kindOf);
-			if (x.ty !== 'bool') throw new Unsupported();
+			if (x.ty !== 'bool') throw UNSUPPORTED;
 			return { ty: 'bool', fn: (env) => not3(x.fn(env)) };
 		}
 		case 'and':
 		case 'or': {
 			const items = e.items.map((it) => compile(it, kindOf));
-			if (items.some((it) => it.ty !== 'bool')) throw new Unsupported();
+			if (items.some((it) => it.ty !== 'bool')) throw UNSUPPORTED;
 			const stop = e.k === 'or'; // the value that decides the result
 			return {
 				ty: 'bool',
@@ -783,7 +784,7 @@ function predicateOf(part: Expr, kindOf: KindOf): ((env: Env) => boolean) | null
 		if (compiled.ty !== 'bool') return null;
 		fn = compiled.fn;
 	} catch (e) {
-		if (e instanceof Unsupported) return null;
+		if (e === UNSUPPORTED) return null;
 		throw e;
 	}
 	return (env) => {
@@ -791,7 +792,7 @@ function predicateOf(part: Expr, kindOf: KindOf): ((env: Env) => boolean) | null
 			return fn(env) !== false;
 		} catch (e) {
 			// a value this evaluator can't read (e.g. not a number) is left to the other checks
-			if (e instanceof Unsupported) return true;
+			if (e === UNSUPPORTED) return true;
 			throw e;
 		}
 	};

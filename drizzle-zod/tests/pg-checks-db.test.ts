@@ -50,6 +50,12 @@ const exact: Case[] = [
 	{
 		sqlType: 'text',
 		builder: () => text(),
+		check: "VALUE LIKE 'ab-%' AND VALUE !~ '[-]x'",
+		values: ['ab-1', 'ab1', 'ab--x', 'ab-'],
+	},
+	{
+		sqlType: 'text',
+		builder: () => text(),
 		check: "VALUE IN ('active', 'it''s')",
 		values: ['active', "it's", 'other', ''],
 	},
