@@ -550,6 +550,53 @@ const columnChangeFor = (
 	return column;
 };
 
+// SQLite and libSQL enforce foreign keys by default (unlike the drop-and-recreate
+// __new_ table rebuild path, plain DROP TABLE statements aren't wrapped in
+// `PRAGMA foreign_keys=OFF`), so dropping a table that's still referenced by
+// another table also being dropped fails with `FOREIGN KEY constraint failed`.
+// Order the tables so a table is dropped before any table it references.
+const orderSqliteTableDeletionsByForeignKeys = <T extends Table>(tables: T[]): T[] => {
+	const byName = new Map(tables.map((table) => [table.name, table]));
+
+	// tables in `tables` that reference a given table name via a foreign key -
+	// these must be dropped before that table
+	const dependents = new Map<string, Set<string>>();
+	for (const table of tables) {
+		for (const fkStr of Object.values(table.foreignKeys)) {
+			const { tableTo } = SQLiteSquasher.unsquashFK(fkStr);
+			if (!byName.has(tableTo)) continue;
+			const set = dependents.get(tableTo) ?? new Set<string>();
+			set.add(table.name);
+			dependents.set(tableTo, set);
+		}
+	}
+
+	const sorted: T[] = [];
+	const visited = new Set<string>();
+	const visiting = new Set<string>();
+
+	const visit = (name: string) => {
+		if (visited.has(name) || visiting.has(name)) return;
+		visiting.add(name);
+
+		for (const dependent of dependents.get(name) ?? []) {
+			visit(dependent);
+		}
+
+		visiting.delete(name);
+		visited.add(name);
+
+		const table = byName.get(name);
+		if (table) sorted.push(table);
+	};
+
+	for (const table of tables) {
+		visit(table.name);
+	}
+
+	return sorted;
+};
+
 // resolve roles same as enums
 // create new json statements
 // sql generators
@@ -3266,12 +3313,13 @@ export const applySqliteSnapshotsDiff = async (
 
 	const {
 		created: createdTables,
-		deleted: deletedTables,
+		deleted: unorderedDeletedTables,
 		renamed: renamedTables,
 	} = await tablesResolver({
 		created: tablesDiff.added,
 		deleted: tablesDiff.deleted,
 	});
+	const deletedTables = orderSqliteTableDeletionsByForeignKeys(unorderedDeletedTables);
 
 	const tablesPatchedSnap1 = copy(json1);
 	tablesPatchedSnap1.tables = mapEntries(tablesPatchedSnap1.tables, (_, it) => {
@@ -3820,12 +3868,13 @@ export const applyLibSQLSnapshotsDiff = async (
 	const tablesDiff = diffSchemasOrTables(json1.tables, json2.tables);
 	const {
 		created: createdTables,
-		deleted: deletedTables,
+		deleted: unorderedDeletedTables,
 		renamed: renamedTables,
 	} = await tablesResolver({
 		created: tablesDiff.added,
 		deleted: tablesDiff.deleted,
 	});
+	const deletedTables = orderSqliteTableDeletionsByForeignKeys(unorderedDeletedTables);
 
 	const tablesPatchedSnap1 = copy(json1);
 	tablesPatchedSnap1.tables = mapEntries(tablesPatchedSnap1.tables, (_, it) => {
