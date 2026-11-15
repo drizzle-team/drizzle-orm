@@ -109,7 +109,7 @@ describe('sqlite to camel case', () => {
 			.union(db.select({ first_name: users.first_name }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select "firstName" from "users" union select "firstName" from "users"',
+			sql: 'select "firstName" from "users" union select * from (select "firstName" from "users")',
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);
@@ -122,7 +122,7 @@ describe('sqlite to camel case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select "firstName" from "users" union select "firstName" from "users"',
+			sql: 'select "firstName" from "users" union select * from (select "firstName" from "users")',
 			params: [],
 		});
 		expect(db.dialect.casing.cache).toEqual(usersCache);

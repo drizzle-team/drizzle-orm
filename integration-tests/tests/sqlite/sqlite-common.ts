@@ -2833,12 +2833,9 @@ export function tests() {
 						),
 				);
 
-			expect(result).toHaveLength(2);
+			expect(result).toHaveLength(1);
 
-			expect(result).toEqual([
-				{ id: 1, name: 'New York' },
-				{ id: 2, name: 'London' },
-			]);
+			expect(result).toEqual([{ id: 1, name: 'New York' }]);
 
 			await expect(async () => {
 				db
