@@ -4,7 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn } from './common.ts';
-import { PgDateColumnBaseBuilder } from './date.common.ts';
+import { normalizeIsoDate, PgDateColumnBaseBuilder } from './date.common.ts';
 
 export type PgTimestampBuilderInitial<TName extends string> = PgTimestampBuilder<{
 	name: TName;
@@ -65,7 +65,7 @@ export class PgTimestamp<T extends ColumnBaseConfig<'date', 'PgTimestamp'>> exte
 	}
 
 	override mapToDriverValue = (value: Date): string => {
-		return value.toISOString();
+		return normalizeIsoDate(value);
 	};
 }
 
@@ -127,7 +127,7 @@ export class PgTimestampString<T extends ColumnBaseConfig<'string', 'PgTimestamp
 	override mapFromDriverValue(value: Date | string): string {
 		if (typeof value === 'string') return value;
 
-		const shortened = value.toISOString().slice(0, -1).replace('T', ' ');
+		const shortened = normalizeIsoDate(value).slice(0, -1).replace('T', ' ');
 		if (this.withTimezone) {
 			const offset = value.getTimezoneOffset();
 			const sign = offset <= 0 ? '+' : '-';

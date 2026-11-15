@@ -3,6 +3,11 @@ import { entityKind } from '~/entity.ts';
 import { sql } from '~/sql/sql.ts';
 import { PgColumnBuilder } from './common.ts';
 
+export function normalizeIsoDate(value: Date): string {
+	const iso = value.toISOString();
+	return iso.startsWith('+') ? iso.replace(/^\+0*/, '') : iso;
+}
+
 export abstract class PgDateColumnBaseBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,

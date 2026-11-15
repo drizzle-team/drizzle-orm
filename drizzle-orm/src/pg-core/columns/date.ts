@@ -4,7 +4,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn } from './common.ts';
-import { PgDateColumnBaseBuilder } from './date.common.ts';
+import { normalizeIsoDate, PgDateColumnBaseBuilder } from './date.common.ts';
 
 export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<{
 	name: TName;
@@ -44,7 +44,7 @@ export class PgDate<T extends ColumnBaseConfig<'date', 'PgDate'>> extends PgColu
 	}
 
 	override mapToDriverValue(value: Date): string {
-		return value.toISOString();
+		return normalizeIsoDate(value);
 	}
 }
 
@@ -87,7 +87,7 @@ export class PgDateString<T extends ColumnBaseConfig<'string', 'PgDateString'>> 
 	override mapFromDriverValue(value: Date | string): string {
 		if (typeof value === 'string') return value;
 
-		return value.toISOString().slice(0, -14);
+		return normalizeIsoDate(value).slice(0, -14);
 	}
 }
 
