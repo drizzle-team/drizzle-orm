@@ -1,11 +1,9 @@
 import { ESLintUtils } from '@typescript-eslint/utils';
-import { resolveMemberExpressionPath } from './utils/ast';
+import { isMethodCalledLaterInChain, resolveMemberExpressionPath } from './utils/ast';
 import { isDrizzleObj, type Options } from './utils/options';
 
 const createRule = ESLintUtils.RuleCreator(() => 'https://github.com/drizzle-team/eslint-plugin-drizzle');
 type MessageIds = 'enforceUpdateWithWhere';
-
-let lastNodeName: string = '';
 
 const updateRule = createRule<Options, MessageIds>({
 	defaultOptions: [{ drizzleObjectName: [] }],
@@ -35,13 +33,13 @@ const updateRule = createRule<Options, MessageIds>({
 			MemberExpression: (node) => {
 				if (node.property.type === 'Identifier') {
 					if (
-						lastNodeName !== 'where'
-						&& node.property.name === 'set'
+						node.property.name === 'set'
 						&& node.object.type === 'CallExpression'
 						&& node.object.callee.type === 'MemberExpression'
 						&& node.object.callee.property.type === 'Identifier'
 						&& node.object.callee.property.name === 'update'
 						&& isDrizzleObj(node.object.callee, options)
+						&& !isMethodCalledLaterInChain(node, 'where')
 					) {
 						context.report({
 							node,
@@ -51,7 +49,6 @@ const updateRule = createRule<Options, MessageIds>({
 							},
 						});
 					}
-					lastNodeName = node.property.name;
 				}
 				return;
 			},
