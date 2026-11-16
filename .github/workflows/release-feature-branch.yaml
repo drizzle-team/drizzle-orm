@@ -100,6 +100,8 @@ jobs:
         with:
           clean: ${{ runner.environment != 'self-hosted' }}
       - uses: ./.github/actions/setup-pnpm
+      # After setup-pnpm, which removes untracked files on self-hosted runners.
+      - uses: ./.github/actions/checkout-docs
       - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
       - uses: ./.github/actions/pnpm-store

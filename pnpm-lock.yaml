@@ -525,6 +525,9 @@ importers:
       ws:
         specifier: ^8.18.2
         version: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      zbsearch:
+        specifier: 4.0.4
+        version: 4.0.4
       zod:
         specifier: ^3.25
         version: 3.25.76
@@ -11620,6 +11623,10 @@ packages:
 
   yuku-parser@0.8.7:
     resolution: {integrity: sha512-vRD9nwt4L3aYpxNqeSC4WqLv58xrXef0Ong1Mc45CTXTIpvLafx7JO05sczmQZwdLEZvywrLOGdNC5+Rp5N1BQ==}
+
+  zbsearch@4.0.4:
+    resolution: {integrity: sha512-uajYItKQcOP6f1z+XqzJSIx1jQPe7PbXajElh7r60KGc1MoSIn/hH9d++SvtkT78GXrZB4fah/e8Ts8jFh2CGw==}
+    engines: {node: '>= 20.0.0'}
 
   zod-to-json-schema@3.24.3:
     resolution: {integrity: sha512-HIAfWdYIt1sssHfYZFCXp4rU1w2r8hVVXYIlmoa0r0gABLs5di3RCqPU5DDROogVz1pAdYBaz7HK5n9pSUNs3A==}
@@ -23086,6 +23093,8 @@ snapshots:
       '@yuku-parser/binding-linux-x64-musl': 0.8.7
       '@yuku-parser/binding-win32-arm64': 0.8.7
       '@yuku-parser/binding-win32-x64': 0.8.7
+
+  zbsearch@4.0.4: {}
 
   zod-to-json-schema@3.24.3(zod@3.24.2):
     dependencies:

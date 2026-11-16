@@ -2,7 +2,7 @@
 name: drizzle
 description: Work across the Drizzle ecosystem — drizzle-orm schema and query code, drizzle-kit migrations, and related tooling. Load before reading or editing any Drizzle file (anything importing `drizzle-orm/*`), defining or editing `drizzle.config.ts`, generating migrations, applying schema changes to a database (push), introspecting an existing database into a schema (pull), resolving drizzle-kit prompts or `missing_hints` output, choosing output modes, or decoding drizzle-kit JSON responses and errors — via CLI, SDK, or MCP. Load also when migrations from several git branches meet in one migrations folder, when a drizzle-kit command reports a broken migrations folder or branch conflicts, or when a command asks to run `drizzle-kit up`. Also runs a once-per-session staleness check against the installed `drizzle-kit`.
 metadata:
-  revision: 15
+  revision: 16
 ---
 
 # Drizzle
@@ -19,6 +19,32 @@ This skill is the entry point for all Drizzle work — drizzle-orm schema and qu
 - Resolving `missing_hints`, rename-vs-create, or `confirm_data_loss` → [hints.md](hints.md)
 - Choosing `--output` modes and non-interactive runs → [output-modes.md](output-modes.md)
 - Decoding the response envelope, error codes, and exit codes → [responses-and-errors.md](responses-and-errors.md)
+
+## Look up Drizzle APIs
+
+Your memory of the Drizzle API can come from an older version. The installed `drizzle-kit` ships the Drizzle docs for its own version, and it searches them with no network access. Before you write Drizzle code that you are not sure about (schema, queries, relations, migrations or config), do these steps:
+
+1. Search the docs with two to five words. Run the project-installed `drizzle-kit` in the same way as the staleness check below.
+
+   ```
+   drizzle-kit docs search "<2-5 words>"
+   ```
+
+   The result has up to 10 hits, one per line, with the best hit first. Each line has the form `<id>  <title>: <description>`. The hits are for the dialect in `drizzle.config.*`. To set the dialect, add `--dialect <dialect>`, for example `--dialect postgresql`. To read a config in another folder, add `--config <path>`.
+
+2. Retrieve the best hit before you write code. The hit list does not show the API.
+
+   ```
+   drizzle-kit docs retrieve <id>
+   ```
+
+   An `id` with `#` gives one section. A large page gives its intro and a list of section ids. Retrieve one of those sections, or add `--full` to get the whole page.
+
+3. Write the code from the retrieved text.
+
+The docs match the installed `drizzle-kit` version. If the installed `drizzle-orm` version is different from the `drizzle-kit` version, the docs might not match `drizzle-orm`. In that case, check the APIs that you use against the types of the installed `drizzle-orm`.
+
+If the command prints `This drizzle-kit build has no docs index.`, continue without the docs.
 
 ## Staleness check
 

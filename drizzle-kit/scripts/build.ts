@@ -2,8 +2,10 @@
 import { rmSync } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { build as tsdown } from 'tsdown';
 import pkg from '../package.json';
+import { writeDocsIndex } from '../src/docs/build-index';
 import { readSkillsRevisionFromDisk } from './lib/read-skills-revision';
 
 const driversPackages = [
@@ -59,6 +61,25 @@ const commonOptions = {
 	outputOptions: { chunkFileNames: 'chunks/[name]-[hash].js' },
 } satisfies Parameters<typeof tsdown>[0];
 
+async function buildDocsIndex() {
+	const docsRepo = process.env['DRIZZLE_DOCS_DIR'];
+	if (!docsRepo) {
+		if (process.env['CI']) {
+			throw new Error(
+				'DRIZZLE_DOCS_DIR is not set. A CI build must ship the docs index. '
+					+ 'Use the checkout-docs action before the build.',
+			);
+		}
+		console.warn(
+			'  DRIZZLE_DOCS_DIR is not set, so this build has no docs index. '
+				+ 'To include it, set DRIZZLE_DOCS_DIR to a checkout of drizzle-team/drizzle-orm-docs.',
+		);
+		return;
+	}
+	const { pages, sections, bytes } = await writeDocsIndex(docsRepo, 'dist/docs');
+	console.log(`  Built docs index: ${pages} pages, ${sections} sections, ${(bytes / 1024).toFixed(0)} KB`);
+}
+
 async function main() {
 	const startTime = Date.now();
 	rmSync('dist', { recursive: true, force: true });
@@ -92,6 +113,12 @@ async function main() {
 	await Promise.all([
 		fs.copyFile('package.json', 'dist/package.json'),
 		fs.cp('skills', 'dist/skills', { recursive: true }),
+		// The CLI bundles zbsearch, and its Apache-2.0 license requires a copy of the license in the package.
+		fs.copyFile(
+			join(dirname(createRequire(import.meta.url).resolve('zbsearch/package.json')), 'LICENSE.md'),
+			'dist/zbsearch-LICENSE.md',
+		),
+		buildDocsIndex(),
 	]);
 
 	const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
