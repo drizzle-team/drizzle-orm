@@ -172,7 +172,16 @@ export interface JsonDropValueFromEnumStatement {
 	enumSchema: string;
 	deletedValues: string[];
 	newValues: string[];
-	columnsWithEnum: { tableSchema: string; table: string; column: string; default?: string; columnType: string }[];
+	columnsWithEnum: {
+		tableSchema: string;
+		table: string;
+		column: string;
+		default?: string;
+		columnType: string;
+		// Squashed checks (`name;expression`) that reference this column and must be
+		// detached before the column is cast away from the enum.
+		checks?: string[];
+	}[];
 }
 
 export interface JsonCreateSequenceStatement {
@@ -1054,11 +1063,28 @@ export const prepareAddValuesToEnumJson = (
 	});
 };
 
+// Quoted identifiers followed by '.' are schema/table qualifiers, not column uses.
+const expressionReferencesColumn = (expression: string, columnName: string): boolean => {
+	const withoutStrings = expression.replace(/'(?:''|[^'])*'/g, '');
+	const quoted = `"${columnName.replaceAll('"', '""')}"`;
+	let from = 0;
+	while (from < withoutStrings.length) {
+		const idx = withoutStrings.indexOf(quoted, from);
+		if (idx === -1) return false;
+		let next = idx + quoted.length;
+		while (next < withoutStrings.length && /\s/.test(withoutStrings[next]!)) next += 1;
+		if (withoutStrings[next] !== '.') return true;
+		from = idx + quoted.length;
+	}
+	return false;
+};
+
 export const prepareDropEnumValues = (
 	name: string,
 	schema: string,
 	removedValues: string[],
 	json2: PgSchema,
+	json1: PgSchema,
 ): JsonDropValueFromEnumStatement[] => {
 	if (!removedValues.length) return [];
 
@@ -1066,6 +1092,7 @@ export const prepareDropEnumValues = (
 
 	for (const tableKey in json2.tables) {
 		const table = json2.tables[tableKey];
+		const prevTable = json1.tables[tableKey];
 		for (const columnKey in table.columns) {
 			const column = table.columns[columnKey];
 
@@ -1073,13 +1100,27 @@ export const prepareDropEnumValues = (
 			const parsedColumnType = column.type.replace(arrayDefinitionRegex, '');
 
 			if (parsedColumnType === name && column.typeSchema === schema) {
-				affectedColumns.push({
+				const prevChecks = prevTable ? Object.values(prevTable.checkConstraints) : undefined;
+				const checks = Object.values(table.checkConstraints).flatMap((check) => {
+					if (!expressionReferencesColumn(check.value, column.name)) return [];
+					// A check that is only being added does not exist yet. Checks that already
+					// exist (including ones whose expression is changing) are still attached
+					// when the column is cast, unless we drop them here.
+					if (prevChecks && !prevChecks.some((prev) => prev.name === check.name)) return [];
+					return [PgSquasher.squashCheck(check)];
+				});
+
+				const columnWithEnum: JsonDropValueFromEnumStatement['columnsWithEnum'][number] = {
 					tableSchema: table.schema,
 					table: table.name,
 					column: column.name,
 					columnType: column.type,
 					default: column.default,
-				});
+				};
+				if (checks.length > 0) {
+					columnWithEnum.checks = checks;
+				}
+				affectedColumns.push(columnWithEnum);
 			}
 		}
 	}

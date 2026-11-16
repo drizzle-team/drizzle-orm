@@ -1468,6 +1468,29 @@ class AlterTypeDropValueConvertor extends Convertor {
 		const { columnsWithEnum, name, newValues, enumSchema } = st;
 
 		const statements: string[] = [];
+		const checksToRestore: { tableNameWithSchema: string; name: string; value: string }[] = [];
+		const seenChecks = new Set<string>();
+
+		for (const withEnum of columnsWithEnum) {
+			const tableNameWithSchema = withEnum.tableSchema
+				? `"${withEnum.tableSchema}"."${withEnum.table}"`
+				: `"${withEnum.table}"`;
+
+			for (const check of withEnum.checks ?? []) {
+				const unsquashedCheck = PgSquasher.unsquashCheck(check);
+				const key = `${tableNameWithSchema}."${unsquashedCheck.name}"`;
+				if (seenChecks.has(key)) continue;
+				seenChecks.add(key);
+				checksToRestore.push({
+					tableNameWithSchema,
+					name: unsquashedCheck.name,
+					value: unsquashedCheck.value,
+				});
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${unsquashedCheck.name}";`,
+				);
+			}
+		}
 
 		for (const withEnum of columnsWithEnum) {
 			const tableNameWithSchema = withEnum.tableSchema
@@ -1507,6 +1530,12 @@ class AlterTypeDropValueConvertor extends Convertor {
 
 			statements.push(
 				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${withEnum.column}" SET DATA TYPE ${parsedType} USING "${withEnum.column}"::${parsedType};`,
+			);
+		}
+
+		for (const check of checksToRestore) {
+			statements.push(
+				`ALTER TABLE ${check.tableNameWithSchema} ADD CONSTRAINT "${check.name}" CHECK (${check.value});`,
 			);
 		}
 
