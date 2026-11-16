@@ -1655,6 +1655,7 @@ export type IntrospectStage =
 	| 'indexes'
 	| 'policies'
 	| 'checks'
+	| 'pks'
 	| 'fks'
 	| 'views';
 
@@ -1691,6 +1692,11 @@ export class IntrospectProgress extends TaskView {
 			name: 'indexes',
 			status: 'fetching',
 		},
+		pks: {
+			count: 0,
+			name: 'primary keys',
+			status: 'fetching',
+		},
 		fks: {
 			count: 0,
 			name: 'foreign keys',
@@ -1713,7 +1719,8 @@ export class IntrospectProgress extends TaskView {
 		},
 	};
 
-	constructor(private readonly hasEnums: boolean = false) {
+	// a stage that a dialect does not report would stay in `fetching` forever, so it is not rendered
+	constructor(private readonly stages: { enums?: boolean; pks?: boolean } = {}) {
 		super();
 		this.timeout = setInterval(() => {
 			this.spinner.tick();
@@ -1771,8 +1778,9 @@ export class IntrospectProgress extends TaskView {
 		const spin = this.spinner.value();
 		info += this.statusText(spin, this.state.tables);
 		info += this.statusText(spin, this.state.columns);
-		info += this.hasEnums ? this.statusText(spin, this.state.enums) : '';
+		info += this.stages.enums ? this.statusText(spin, this.state.enums) : '';
 		info += this.statusText(spin, this.state.indexes);
+		info += this.stages.pks ? this.statusText(spin, this.state.pks) : '';
 		info += this.statusText(spin, this.state.fks);
 		info += this.statusText(spin, this.state.policies);
 		info += this.statusText(spin, this.state.checks);

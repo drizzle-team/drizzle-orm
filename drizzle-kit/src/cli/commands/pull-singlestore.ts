@@ -43,7 +43,7 @@ export const handle = async (
 
 	let res: Awaited<ReturnType<typeof fromDatabaseForDrizzle>>;
 	if (text) {
-		const progress = new IntrospectProgress();
+		const progress = new IntrospectProgress({ pks: true });
 		const task = fromDatabaseForDrizzle(db.db, db.database, filter, (stage, count, status) => {
 			progress.update(stage, count, status);
 		}, migrations);

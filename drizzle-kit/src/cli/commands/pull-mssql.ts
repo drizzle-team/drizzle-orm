@@ -57,7 +57,7 @@ export const handle = async (
 
 	let res: Awaited<ReturnType<typeof fromDatabaseForDrizzle>>;
 	if (text) {
-		const progress = new IntrospectProgress(true);
+		const progress = new IntrospectProgress({ enums: true });
 		const task = fromDatabaseForDrizzle(
 			db.db,
 			filter,

@@ -180,7 +180,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 
 	const db = {
 		query: async (sql: string, params: any[]) => {
-			const [res] = await client.query(sql);
+			const [res] = await (params?.length ? client.execute(sql, params) : client.query(sql));
 			return res as any[];
 		},
 	};
