@@ -16,6 +16,7 @@ import {
 import { AnySQLiteTable, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import {
 	columnsResolver,
+	createMigrationResolver,
 	enumsResolver,
 	indPolicyResolver,
 	mySqlViewsResolver,
@@ -40,6 +41,12 @@ import type { SqliteCredentials } from './cli/validations/sqlite';
 import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
 import { originUUID } from './global';
 import type { Config } from './index';
+import {
+	type GenerateMigrationQuestion,
+	type GenerateMigrationQuestions,
+	GenerateMigrationQuestionsError,
+	parseGenerateMigrationQuestions,
+} from './migrationQuestions';
 import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from './serializer/mysqlSchema';
 import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
 import { prepareFromExports } from './serializer/pgImports';
@@ -60,6 +67,24 @@ export type DrizzleSnapshotJSON = PgSchemaKit;
 export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
 export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;
 export type DrizzleSingleStoreSnapshotJSON = SingleStoreSchemaKit;
+export type {
+	GenerateMigrationChoice,
+	GenerateMigrationQuestion,
+	GenerateMigrationQuestionKind,
+	GenerateMigrationQuestions,
+	GenerateMigrationRef,
+} from './migrationQuestions';
+export { GenerateMigrationQuestionsError } from './migrationQuestions';
+
+export type GenerateMigrationOptions = {
+	answers?: GenerateMigrationQuestions | GenerateMigrationQuestion[];
+};
+
+const normalizeGenerateMigrationOptions = (options?: GenerateMigrationOptions) => {
+	return {
+		answers: options?.answers ? parseGenerateMigrationQuestions(options.answers) : undefined,
+	};
+};
 
 export const generateDrizzleJson = (
 	imports: Record<string, unknown>,
@@ -94,8 +119,13 @@ export const generateDrizzleJson = (
 export const generateMigration = async (
 	prev: DrizzleSnapshotJSON,
 	cur: DrizzleSnapshotJSON,
+	options?: GenerateMigrationOptions,
 ) => {
 	const { applyPgSnapshotsDiff } = await import('./snapshotsDiffer');
+	const normalizedOptions = normalizeGenerateMigrationOptions(options);
+	const resolver = normalizedOptions.answers
+		? createMigrationResolver({ answers: normalizedOptions.answers })
+		: undefined;
 
 	const validatedPrev = pgSchema.parse(prev);
 	const validatedCur = pgSchema.parse(cur);
@@ -106,20 +136,58 @@ export const generateMigration = async (
 	const { sqlStatements, _meta } = await applyPgSnapshotsDiff(
 		squashedPrev,
 		squashedCur,
-		schemasResolver,
-		enumsResolver,
-		sequencesResolver,
-		policyResolver,
-		indPolicyResolver,
-		roleResolver,
-		tablesResolver,
-		columnsResolver,
-		viewsResolver,
+		resolver?.schemasResolver ?? schemasResolver,
+		resolver?.enumsResolver ?? enumsResolver,
+		resolver?.sequencesResolver ?? sequencesResolver,
+		resolver?.policyResolver ?? policyResolver,
+		resolver?.indPolicyResolver ?? indPolicyResolver,
+		resolver?.roleResolver ?? roleResolver,
+		resolver?.tablesResolver ?? tablesResolver,
+		resolver?.columnsResolver ?? columnsResolver,
+		resolver?.viewsResolver ?? viewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
 
+	if (resolver && resolver.hasUnresolvedQuestions()) {
+		throw new GenerateMigrationQuestionsError(resolver.questions());
+	}
+
 	return sqlStatements;
+};
+
+export const preflightMigration = async (
+	prev: DrizzleSnapshotJSON,
+	cur: DrizzleSnapshotJSON,
+	options?: GenerateMigrationOptions,
+) => {
+	const { applyPgSnapshotsDiff } = await import('./snapshotsDiffer');
+	const normalizedOptions = normalizeGenerateMigrationOptions(options);
+	const resolver = createMigrationResolver({ answers: normalizedOptions.answers });
+
+	const validatedPrev = pgSchema.parse(prev);
+	const validatedCur = pgSchema.parse(cur);
+
+	const squashedPrev = squashPgScheme(validatedPrev);
+	const squashedCur = squashPgScheme(validatedCur);
+
+	await applyPgSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		resolver.schemasResolver,
+		resolver.enumsResolver,
+		resolver.sequencesResolver,
+		resolver.policyResolver,
+		resolver.indPolicyResolver,
+		resolver.roleResolver,
+		resolver.tablesResolver,
+		resolver.columnsResolver,
+		resolver.viewsResolver,
+		validatedPrev,
+		validatedCur,
+	);
+
+	return resolver.questions();
 };
 
 export const pushSchema = async (
@@ -245,8 +313,13 @@ export const generateSQLiteDrizzleJson = async (
 export const generateSQLiteMigration = async (
 	prev: DrizzleSQLiteSnapshotJSON,
 	cur: DrizzleSQLiteSnapshotJSON,
+	options?: GenerateMigrationOptions,
 ) => {
 	const { applySqliteSnapshotsDiff } = await import('./snapshotsDiffer');
+	const normalizedOptions = normalizeGenerateMigrationOptions(options);
+	const resolver = normalizedOptions.answers
+		? createMigrationResolver({ answers: normalizedOptions.answers })
+		: undefined;
 
 	const validatedPrev = sqliteSchema.parse(prev);
 	const validatedCur = sqliteSchema.parse(cur);
@@ -257,14 +330,46 @@ export const generateSQLiteMigration = async (
 	const { sqlStatements } = await applySqliteSnapshotsDiff(
 		squashedPrev,
 		squashedCur,
-		tablesResolver,
-		columnsResolver,
-		sqliteViewsResolver,
+		resolver?.tablesResolver ?? tablesResolver,
+		resolver?.columnsResolver ?? columnsResolver,
+		resolver?.sqliteViewsResolver ?? sqliteViewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
 
+	if (resolver && resolver.hasUnresolvedQuestions()) {
+		throw new GenerateMigrationQuestionsError(resolver.questions());
+	}
+
 	return sqlStatements;
+};
+
+export const preflightSQLiteMigration = async (
+	prev: DrizzleSQLiteSnapshotJSON,
+	cur: DrizzleSQLiteSnapshotJSON,
+	options?: GenerateMigrationOptions,
+) => {
+	const { applySqliteSnapshotsDiff } = await import('./snapshotsDiffer');
+	const normalizedOptions = normalizeGenerateMigrationOptions(options);
+	const resolver = createMigrationResolver({ answers: normalizedOptions.answers });
+
+	const validatedPrev = sqliteSchema.parse(prev);
+	const validatedCur = sqliteSchema.parse(cur);
+
+	const squashedPrev = squashSqliteScheme(validatedPrev);
+	const squashedCur = squashSqliteScheme(validatedCur);
+
+	await applySqliteSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		resolver.tablesResolver,
+		resolver.columnsResolver,
+		resolver.sqliteViewsResolver,
+		validatedPrev,
+		validatedCur,
+	);
+
+	return resolver.questions();
 };
 
 export const pushSQLiteSchema = async (
@@ -384,8 +489,13 @@ export const generateMySQLDrizzleJson = async (
 export const generateMySQLMigration = async (
 	prev: DrizzleMySQLSnapshotJSON,
 	cur: DrizzleMySQLSnapshotJSON,
+	options?: GenerateMigrationOptions,
 ) => {
 	const { applyMysqlSnapshotsDiff } = await import('./snapshotsDiffer');
+	const normalizedOptions = normalizeGenerateMigrationOptions(options);
+	const resolver = normalizedOptions.answers
+		? createMigrationResolver({ answers: normalizedOptions.answers })
+		: undefined;
 
 	const validatedPrev = mysqlSchema.parse(prev);
 	const validatedCur = mysqlSchema.parse(cur);
@@ -396,14 +506,46 @@ export const generateMySQLMigration = async (
 	const { sqlStatements } = await applyMysqlSnapshotsDiff(
 		squashedPrev,
 		squashedCur,
-		tablesResolver,
-		columnsResolver,
-		mySqlViewsResolver,
+		resolver?.tablesResolver ?? tablesResolver,
+		resolver?.columnsResolver ?? columnsResolver,
+		resolver?.mySqlViewsResolver ?? mySqlViewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
 
+	if (resolver && resolver.hasUnresolvedQuestions()) {
+		throw new GenerateMigrationQuestionsError(resolver.questions());
+	}
+
 	return sqlStatements;
+};
+
+export const preflightMySQLMigration = async (
+	prev: DrizzleMySQLSnapshotJSON,
+	cur: DrizzleMySQLSnapshotJSON,
+	options?: GenerateMigrationOptions,
+) => {
+	const { applyMysqlSnapshotsDiff } = await import('./snapshotsDiffer');
+	const normalizedOptions = normalizeGenerateMigrationOptions(options);
+	const resolver = createMigrationResolver({ answers: normalizedOptions.answers });
+
+	const validatedPrev = mysqlSchema.parse(prev);
+	const validatedCur = mysqlSchema.parse(cur);
+
+	const squashedPrev = squashMysqlScheme(validatedPrev);
+	const squashedCur = squashMysqlScheme(validatedCur);
+
+	await applyMysqlSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		resolver.tablesResolver,
+		resolver.columnsResolver,
+		resolver.mySqlViewsResolver,
+		validatedPrev,
+		validatedCur,
+	);
+
+	return resolver.questions();
 };
 
 export const pushMySQLSchema = async (
@@ -519,8 +661,13 @@ export const generateSingleStoreDrizzleJson = async (
 export const generateSingleStoreMigration = async (
 	prev: DrizzleSingleStoreSnapshotJSON,
 	cur: DrizzleSingleStoreSnapshotJSON,
+	options?: GenerateMigrationOptions,
 ) => {
 	const { applySingleStoreSnapshotsDiff } = await import('./snapshotsDiffer');
+	const normalizedOptions = normalizeGenerateMigrationOptions(options);
+	const resolver = normalizedOptions.answers
+		? createMigrationResolver({ answers: normalizedOptions.answers })
+		: undefined;
 
 	const validatedPrev = singlestoreSchema.parse(prev);
 	const validatedCur = singlestoreSchema.parse(cur);
@@ -531,15 +678,48 @@ export const generateSingleStoreMigration = async (
 	const { sqlStatements } = await applySingleStoreSnapshotsDiff(
 		squashedPrev,
 		squashedCur,
-		tablesResolver,
-		columnsResolver,
+		resolver?.tablesResolver ?? tablesResolver,
+		resolver?.columnsResolver ?? columnsResolver,
 		/* singleStoreViewsResolver, */
 		validatedPrev,
 		validatedCur,
 		'push',
 	);
 
+	if (resolver && resolver.hasUnresolvedQuestions()) {
+		throw new GenerateMigrationQuestionsError(resolver.questions());
+	}
+
 	return sqlStatements;
+};
+
+export const preflightSingleStoreMigration = async (
+	prev: DrizzleSingleStoreSnapshotJSON,
+	cur: DrizzleSingleStoreSnapshotJSON,
+	options?: GenerateMigrationOptions,
+) => {
+	const { applySingleStoreSnapshotsDiff } = await import('./snapshotsDiffer');
+	const normalizedOptions = normalizeGenerateMigrationOptions(options);
+	const resolver = createMigrationResolver({ answers: normalizedOptions.answers });
+
+	const validatedPrev = singlestoreSchema.parse(prev);
+	const validatedCur = singlestoreSchema.parse(cur);
+
+	const squashedPrev = squashSingleStoreScheme(validatedPrev);
+	const squashedCur = squashSingleStoreScheme(validatedCur);
+
+	await applySingleStoreSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		resolver.tablesResolver,
+		resolver.columnsResolver,
+		/* singleStoreViewsResolver, */
+		validatedPrev,
+		validatedCur,
+		'push',
+	);
+
+	return resolver.questions();
 };
 
 export const pushSingleStoreSchema = async (
