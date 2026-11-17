@@ -1,10 +1,9 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig, CockroachColumnBuilder } from './common.ts';
 
-export class CockroachStringBuilder<TEnum extends [string, ...string[]]> extends CockroachColumnWithArrayBuilder<
+export class CockroachStringBuilder<TEnum extends [string, ...string[]]> extends CockroachColumnBuilder<
 	{
 		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 		data: TEnum[number];
@@ -33,9 +32,12 @@ export class CockroachStringBuilder<TEnum extends [string, ...string[]]> extends
 }
 
 export class CockroachString<
-	T extends ColumnBaseConfig<'string' | 'string enum'>,
-> extends CockroachColumn<T, { enumValues: [string, ...string[]] | undefined }> {
+	T extends CockroachColumnBaseConfig<'string' | 'string enum'>,
+> extends CockroachColumn<'string' | 'string enum', T, { enumValues: [string, ...string[]] | undefined }> {
 	static override readonly [entityKind]: string = 'CockroachString';
+
+	/** @internal */
+	override readonly codec = 'string';
 
 	override readonly enumValues = this.config.enumValues;
 

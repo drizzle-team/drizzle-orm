@@ -53,8 +53,11 @@ test('column name + options', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'default-value-varchar');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(db, schema, 'default-value-varchar');
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });

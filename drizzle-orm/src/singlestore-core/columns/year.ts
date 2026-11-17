@@ -28,15 +28,12 @@ export class SingleStoreYear<
 > extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreYear';
 
+	/** @internal */
+	override readonly codec = 'year';
+
 	getSQLType(): string {
 		return `year`;
 	}
-
-	override mapFromDriverValue = (value: unknown): number => {
-		if (typeof value !== 'number') return Number(value);
-
-		return value;
-	};
 }
 
 export function year(name?: string): SingleStoreYearBuilder {

@@ -14,14 +14,20 @@ import type {
 	PgSchemaV5,
 	PgSchemaV6,
 	PgSchemaV7,
-	PostgresSnapshot,
+	PostgresSnapshotV8,
 	TableV5,
 } from '../../dialects/postgres/snapshot';
 import { getOrNull } from '../../dialects/utils';
 
+// Tells whether a format 8 file has the two lists that the conversion to format 9 reads: `ddl` and `prevIds`.
+// A missing `renames` counts as empty, and the caller checks the version. A schema state of the programmatic
+// API passes this check too, because it holds the same two lists.
+export const isSnapshotV8 = (it: Record<string, any>): it is PostgresSnapshotV8 =>
+	Array.isArray(it.ddl) && Array.isArray(it.prevIds);
+
 export const upToV8 = (
 	it: Record<string, any>,
-): { snapshot: PostgresSnapshot; hints: string[] } => {
+): { snapshot: PostgresSnapshotV8; hints: string[] } => {
 	if (Number(it.version) < 7) return upToV8(updateUpToV7(it));
 	const json = it as PgSchemaV7;
 
@@ -339,10 +345,17 @@ export const upToV8 = (
 		});
 	}
 
+	// Turns a quoted name of `_meta` into the form of a format 8 rename string, which has no quotes and always
+	// has the schema. A name in the default schema has no schema part, for example `"posts"`. `_meta` maps each
+	// old name to its new name, for example `"s"."posts"` to `"s"."articles"`.
+	const renameName = (key: string, parts: number) => {
+		const name = key.replaceAll('"', '');
+		return key.split('"."').length < parts ? `public.${name}` : name;
+	};
 	const renames = [
-		...Object.entries(json._meta.tables).map(([k, v]) => `${v}->${k}`),
-		...Object.entries(json._meta.schemas).map(([k, v]) => `${v}->${k}`),
-		...Object.entries(json._meta.columns).map(([k, v]) => `${v}->${k}`),
+		...Object.entries(json._meta.schemas).map(([from, to]) => `${renameName(from, 1)}->${renameName(to, 1)}`),
+		...Object.entries(json._meta.tables).map(([from, to]) => `${renameName(from, 2)}->${renameName(to, 2)}`),
+		...Object.entries(json._meta.columns).map(([from, to]) => `${renameName(from, 3)}->${renameName(to, 3)}`),
 	];
 
 	return {
@@ -503,14 +516,12 @@ export const updateToV5 = (it: Record<string, any>): PgSchemaV5 => {
 		};
 	}
 
+	// `...obj` keeps the other fields of the file. Format 4 files store their parent in `prevId`, and the later
+	// steps read it from there.
 	return {
+		...obj,
 		version: '5',
-		dialect: obj.dialect,
-		id: obj.id,
-		prevIds: obj.prevIds,
 		tables: mappedTables,
-		enums: obj.enums,
-		schemas: obj.schemas,
 		_meta: {
 			schemas: {} as Record<string, string>,
 			tables: {} as Record<string, string>,

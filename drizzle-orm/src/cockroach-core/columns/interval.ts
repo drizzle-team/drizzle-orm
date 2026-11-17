@@ -1,11 +1,10 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig, CockroachColumnBuilder } from './common.ts';
 import type { Precision } from './timestamp.ts';
 
-export class CockroachIntervalBuilder extends CockroachColumnWithArrayBuilder<{
+export class CockroachIntervalBuilder extends CockroachColumnBuilder<{
 	dataType: 'string interval';
 	data: string;
 	driverParam: string;
@@ -31,10 +30,13 @@ export class CockroachIntervalBuilder extends CockroachColumnWithArrayBuilder<{
 	}
 }
 
-export class CockroachInterval<T extends ColumnBaseConfig<'string interval'>>
-	extends CockroachColumn<T, { intervalConfig: IntervalConfig }>
+export class CockroachInterval<T extends CockroachColumnBaseConfig<'string interval'>>
+	extends CockroachColumn<'string interval', T, { intervalConfig: IntervalConfig }>
 {
 	static override readonly [entityKind]: string = 'CockroachInterval';
+
+	/** @internal */
+	override readonly codec = 'interval';
 
 	readonly fields: IntervalConfig['fields'] = this.config.intervalConfig.fields;
 	readonly precision: IntervalConfig['precision'] = this.config.intervalConfig.precision;

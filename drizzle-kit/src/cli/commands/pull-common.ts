@@ -1,18 +1,21 @@
-import { toCamelCase } from 'drizzle-orm/casing';
 import { plural, singular } from 'pluralize';
 import { paramNameFor } from '../../dialects/postgres/typescript';
-import { assertUnreachable } from '../../utils';
+import { withCasing } from '../../dialects/pull-utils';
 import type { Casing } from '../validations/common';
 
-const withCasing = (value: string, casing: Casing) => {
-	if (casing === 'preserve') {
-		return value;
-	}
-	if (casing === 'camel') {
-		return toCamelCase(value);
-	}
+// interimToDDL mapping errors are schema-shape descriptors ({ type, schema?,
+// table?, name? }) and carry no driver credentials, so they're safe to surface.
+// Bounded to keep the message/meta from ballooning on large schemas.
+type SchemaMappingError = { type: string; schema?: string; table?: string; name?: string; column?: string };
 
-	assertUnreachable(casing);
+export const summarizeSchemaMappingErrors = (errors: SchemaMappingError[], limit = 5): string => {
+	const describe = (e: SchemaMappingError) => {
+		const target = [e.schema, e.table, e.column ?? e.name].filter(Boolean).join('.');
+		return target ? `${e.type} (${target})` : e.type;
+	};
+	const head = errors.slice(0, limit).map(describe).join('; ');
+	const rest = errors.length > limit ? ` (+${errors.length - limit} more)` : '';
+	return `${head}${rest}`;
 };
 
 export type SchemaForPull = {
@@ -30,7 +33,7 @@ export type SchemaForPull = {
 		name: string;
 		entityType: 'fks';
 	}[];
-	columns?: { name: string }[];
+	columns: { name: string }[];
 	// both unique constraints and unique indexes
 	uniques: {
 		columns: string[];
@@ -73,6 +76,9 @@ export const relationsToTypeScript = (
 		const fks = Object.values(table.foreignKeys);
 		const tableColumns = table.columns?.map((it) => withCasing(it.name, casing)) ?? [];
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6197
+		// https://github.com/drizzle-team/drizzle-orm/issues/6253
+		// junction table gets many-to-many relations through it in addition to direct relations below
 		if (fks.length === 2) {
 			const [fk1, fk2] = fks;
 			// reference to different tables, means it can be through many-many
@@ -89,6 +95,8 @@ export const relationsToTypeScript = (
 
 			if (
 				toTable1 !== toTable2
+				&& toTable1 !== tableThrough // check for non self ref
+				&& toTable2 !== tableThrough // check for non self ref
 			) {
 				if (!tableRelations[toTable1]) {
 					tableRelations[toTable1] = [];
@@ -123,68 +131,69 @@ export const relationsToTypeScript = (
 					columnsThroughTo,
 				});
 			}
-		} else {
-			fks.forEach((fk) => {
-				const tableNameFrom = paramNameFor(fk.table, table.schema);
-				const tableNameTo = paramNameFor(fk.tableTo, fk.schemaTo);
-				const tableFrom = withCasing(tableNameFrom.replace(/:+/g, ''), casing);
-				const tableTo = withCasing(tableNameTo.replace(/:+/g, ''), casing);
-				const columnsFrom = fk.columns.map((it) => withCasing(it, casing));
-				const columnsTo = fk.columnsTo.map((it) => withCasing(it, casing));
-
-				imports.push(tableTo, tableFrom);
-
-				const keyFrom = tableFrom;
-				if (!tableRelations[keyFrom]) {
-					tableRelations[keyFrom] = [];
-				}
-
-				tableRelations[keyFrom].push({
-					name: prepareNameFor(singular(tableTo), tableColumns),
-					type: 'one',
-					tableFrom,
-					columnsFrom,
-					tableTo,
-					columnsTo,
-				});
-
-				const keyTo = tableTo;
-				if (!tableRelations[keyTo]) {
-					tableRelations[keyTo] = [];
-				}
-
-				// if this table has a unique on a column, that is used for 1-m, then we can assume that it's 1-1 relation
-				// we will check that all of the fk columns are unique, so we can assume it's 1-1
-				// not matter if it's 1 column, 2 columns or more
-				if (
-					table.uniques.find((constraint) =>
-						constraint.columns.length === columnsFrom.length
-						&& constraint.columns.every((col, i) => col === columnsFrom[i])
-					)
-				) {
-					// the difference between one and one-one is that one-one won't contain from and to
-					// maybe it can be done by introducing some sort of flag or just not providing columnsFrom and columnsTo
-					// but I decided just to have a different type field here
-					tableRelations[keyTo].push({
-						name: prepareNameFor(plural(tableFrom), tableColumns),
-						type: 'one-one',
-						tableFrom: tableTo,
-						columnsFrom: columnsTo,
-						tableTo: tableFrom,
-						columnsTo: columnsFrom,
-					});
-				} else {
-					tableRelations[keyTo].push({
-						name: prepareNameFor(plural(tableFrom), tableColumns),
-						type: 'many',
-						tableFrom: tableTo,
-						columnsFrom: columnsTo,
-						tableTo: tableFrom,
-						columnsTo: columnsFrom,
-					});
-				}
-			});
 		}
+
+		// Always generate direct relations
+		fks.forEach((fk) => {
+			const tableNameFrom = paramNameFor(fk.table, table.schema);
+			const tableNameTo = paramNameFor(fk.tableTo, fk.schemaTo);
+			const tableFrom = withCasing(tableNameFrom.replace(/:+/g, ''), casing);
+			const tableTo = withCasing(tableNameTo.replace(/:+/g, ''), casing);
+			const columnsFrom = fk.columns.map((it) => withCasing(it, casing));
+			const columnsTo = fk.columnsTo.map((it) => withCasing(it, casing));
+
+			imports.push(tableTo, tableFrom);
+
+			const keyFrom = tableFrom;
+			if (!tableRelations[keyFrom]) {
+				tableRelations[keyFrom] = [];
+			}
+
+			tableRelations[keyFrom].push({
+				name: prepareNameFor(singular(tableTo), tableColumns),
+				type: 'one',
+				tableFrom,
+				columnsFrom,
+				tableTo,
+				columnsTo,
+			});
+
+			const keyTo = tableTo;
+			if (!tableRelations[keyTo]) {
+				tableRelations[keyTo] = [];
+			}
+
+			// if this table has a unique on a column, that is used for 1-m, then we can assume that it's 1-1 relation
+			// we will check that all of the fk columns are unique, so we can assume it's 1-1
+			// not matter if it's 1 column, 2 columns or more
+			if (
+				table.uniques.find((constraint) =>
+					constraint.columns.length === fk.columns.length // need to check without casing (name should be preserved)
+					&& constraint.columns.every((col, i) => col === fk.columns[i]) // need to check without casing (name should be preserved)
+				)
+			) {
+				// the difference between one and one-one is that one-one won't contain from and to
+				// maybe it can be done by introducing some sort of flag or just not providing columnsFrom and columnsTo
+				// but I decided just to have a different type field here
+				tableRelations[keyTo].push({
+					name: prepareNameFor(plural(tableFrom), tableColumns),
+					type: 'one-one',
+					tableFrom: tableTo,
+					columnsFrom: columnsTo,
+					tableTo: tableFrom,
+					columnsTo: columnsFrom,
+				});
+			} else {
+				tableRelations[keyTo].push({
+					name: prepareNameFor(plural(tableFrom), tableColumns),
+					type: 'many',
+					tableFrom: tableTo,
+					columnsFrom: columnsTo,
+					tableTo: tableFrom,
+					columnsTo: columnsFrom,
+				});
+			}
+		});
 	});
 
 	const importsTs = `import { defineRelations } from "drizzle-orm";\nimport * as schema from "${
@@ -283,7 +292,10 @@ export const relationsToTypeScript = (
 					})`
 					: `[${
 						relation.columnsThroughFrom!
-							.map((it) => `r.${relation.tableFrom}.${it}.through(${relation.tableThrough}.${it})`)
+							// https://github.com/drizzle-team/drizzle-orm/issues/6100
+							.map((it, index) =>
+								`r.${relation.tableFrom}.${relation.columnsFrom[index]}.through(r.${relation.tableThrough}.${it})`
+							)
 							.join(', ')
 					}]`;
 				const to = relation.columnsThroughTo!.length === 1
@@ -292,7 +304,10 @@ export const relationsToTypeScript = (
 					})`
 					: `[${
 						relation.columnsThroughTo!
-							.map((it) => `r.${relation.tableTo}.${it}.through(${relation.tableThrough}.${it})`)
+							// https://github.com/drizzle-team/drizzle-orm/issues/6100
+							.map((it, index) =>
+								`r.${relation.tableTo}.${relation.columnsTo![index]}.through(r.${relation.tableThrough}.${it})`
+							)
 							.join(', ')
 					}]`;
 
@@ -308,5 +323,6 @@ export const relationsToTypeScript = (
 
 	return {
 		file: importsTs + relationString,
+		tableRelations,
 	};
 };

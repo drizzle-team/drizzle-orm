@@ -5,6 +5,7 @@ export default defineConfig({
 	test: {
 		include: [
 			'tests/**/*.test.ts',
+			'tests/**/*.test-d.ts',
 			// Need to test it first before pushing changes
 			// 'tests/singlestore-schemas.test.ts',
 			// 'tests/singlestore-views.test.ts',

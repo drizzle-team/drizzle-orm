@@ -1,9 +1,12 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SQL } from '~/sql/index.ts';
 import type { PgTable } from './table.ts';
 
 export class CheckBuilder {
 	static readonly [entityKind]: string = 'PgCheckBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected brand!: 'PgConstraintBuilder';
 
@@ -17,6 +20,9 @@ export class CheckBuilder {
 
 export class Check {
 	static readonly [entityKind]: string = 'PgCheck';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly name: string;
 	readonly value: SQL;

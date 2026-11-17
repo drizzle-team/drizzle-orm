@@ -1,7 +1,7 @@
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 
 export interface EffectLoggerShape {
@@ -41,6 +41,10 @@ export class EffectLogger extends Context.Service<EffectLogger, EffectLoggerShap
 	})),
 }) {
 	static readonly [entityKind]: string = 'drizzle-orm/EffectLogger';
+
+	static override [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/**
 	 * The default layer providing a no-op logger.

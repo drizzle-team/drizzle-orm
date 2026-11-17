@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { any, array as zArray, boolean, enum as enumType, literal, object, record, string, type TypeOf } from 'zod';
 import { originUUID } from '../../utils';
-import type { MysqlDDL, MysqlEntity } from '../mysql/ddl';
+import type { MysqlDDL } from '../mysql/ddl';
 import { createDDL } from '../mysql/ddl';
 import { array, validator } from '../simpleValidator';
 
@@ -152,7 +152,7 @@ export const snapshotValidator = validator({
 	dialect: ['singlestore'],
 	id: 'string',
 	prevIds: array<string>((_) => true),
-	ddl: array<MysqlEntity>((it) => ddl.entities.validate(it)),
+	ddl: array((it) => ddl.entities.validate(it)),
 	renames: array<string>((_) => true),
 });
 

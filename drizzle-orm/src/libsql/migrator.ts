@@ -6,8 +6,8 @@ import { sql } from '~/sql/sql.ts';
 import { upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { LibSQLDatabase } from './driver.ts';
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: LibSQLDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: LibSQLDatabase<TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);

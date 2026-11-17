@@ -8,3 +8,4 @@ export * from './refresh-materialized-view.ts';
 export * from './select.ts';
 export * from './session.ts';
 export * from './update.ts';
+export * from './utils.ts';

@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, gt, sql } from 'drizzle-orm';
 import { bit, int, mssqlSchema, mssqlTable, mssqlView, varchar } from 'drizzle-orm/mssql-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -1010,4 +1010,73 @@ test('create 2 dependent views', async () => {
 	const { sqlStatements: pst2 } = await push({ db, to: schema });
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
+});
+
+// TODO enhancement: alter_view statements are emitted before sorted create_view statements,
+// so "v2" is altered before "v_new" exists
+test.skipIf(Date.now() < +new Date('2026-11-13'))(
+	'topological sort test. existing view starts reading a new view',
+	async () => {
+		const t = mssqlTable('t', { id: int() });
+
+		const v2a = mssqlView('v2').as((qb) => qb.select().from(t));
+		const schema1 = { t, v2a };
+
+		const vNew = mssqlView('v_new').as((qb) => qb.select().from(t));
+		const v2b = mssqlView('v2').as((qb) => qb.select().from(vNew));
+		const schema2 = { t, v2b, vNew };
+
+		const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+		await push({ db, to: schema1 });
+		const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+		expect(st1).toStrictEqual([
+			'CREATE VIEW [v_new] AS select [id] from [t];',
+			'ALTER VIEW [v2] AS select [id] from [v_new];',
+		]);
+		// push ignores definition changes
+		expect(pst1).toStrictEqual(['CREATE VIEW [v_new] AS select [id] from [t];']);
+	},
+);
+
+// ALTER VIEW keeps views that depend on the altered one, so they don't need to be recreated
+test('topological sort test. recreate view that another view depends on', async () => {
+	const t = mssqlTable('t', { id: int() });
+
+	const v1a = mssqlView('v1').as((qb) => qb.select().from(t));
+	const v2a = mssqlView('v2').as((qb) => qb.select().from(v1a));
+	const schema1 = { t, v1a, v2a };
+
+	const v1b = mssqlView('v1').as((qb) => qb.select().from(t).where(gt(t.id, 0)));
+	const v2b = mssqlView('v2').as((qb) => qb.select().from(v1b));
+	const schema2 = { t, v1b, v2b };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	expect(st1).toStrictEqual(['ALTER VIEW [v1] AS select [id] from [t] where [t].[id] > 0;']);
+	// push ignores definition changes
+	expect(pst1).toStrictEqual([]);
+});
+
+// mssql allows dropping a view that other (not schema-bound) views depend on
+test('topological sort test. drop 2 dependent views', async () => {
+	const t = mssqlTable('t', { id: int() });
+
+	const v1 = mssqlView('v1').as((qb) => qb.select().from(t));
+	const v2 = mssqlView('v2').as((qb) => qb.select().from(v1));
+	const schema1 = { t, v1, v2 };
+	const schema2 = { t };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	const expectedSt1 = [
+		'DROP VIEW [v1];',
+		'DROP VIEW [v2];',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });

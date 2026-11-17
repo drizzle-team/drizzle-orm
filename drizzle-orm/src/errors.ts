@@ -1,7 +1,11 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 
 export class DrizzleError extends Error {
 	static readonly [entityKind]: string = 'DrizzleError';
+
+	static override [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor({ message, cause }: { message?: string; cause?: unknown }) {
 		super(message);
@@ -13,12 +17,18 @@ export class DrizzleError extends Error {
 export class DrizzleQueryError extends Error {
 	static readonly [entityKind]: string = 'DrizzleQueryError';
 
+	static override [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
 	constructor(
 		public query: string,
-		public params: any[],
+		public params: any[] | undefined,
 		public override cause?: Error,
 	) {
-		super(`Failed query: ${query}\nparams: ${params}${cause ? `\nerror: ${cause.message}` : ''}`);
+		super(
+			`Failed query: ${query}${params ? `\nparams: ${params}` : ''}${cause ? `\nerror: ${cause.message}` : ''}`,
+		);
 		this.name = 'DrizzleQueryError';
 		Error.captureStackTrace(this, DrizzleQueryError);
 

@@ -9,7 +9,7 @@ import {
 	type PrimaryKey as PrimaryKeyORM,
 	uniqueKeyName,
 } from 'orm044/mysql-core';
-import type { CasingType } from 'src/cli/validations/common';
+import type { CasingType } from '../../cli/validations/common';
 import { withStyle } from '../outputs';
 import { escapeSingleQuotes } from '../utils';
 import { getColumnCasing, sqlToStr } from '../utils';

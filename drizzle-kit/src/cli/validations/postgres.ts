@@ -1,84 +1,149 @@
+import type { PGlite } from '@electric-sql/pglite';
+import type { ConnectionOptions } from 'tls';
 import type { TypeOf } from 'zod';
-import { boolean, coerce, literal, object, string, undefined as zUndefined, union } from 'zod';
+import { boolean, coerce, custom, literal, object, string, undefined as zUndefined, union } from 'zod';
+import { ConfigConnectionCliError } from '../errors';
 import { error } from '../views';
-import { wrapParam } from './common';
+import { awsDataApiDriver, dsqlDriver, pgliteDriver, warnOnUrlConflict, wrapParam } from './common';
 
-export const postgresCredentials = union([
+const pgSsl = union([
+	literal('require'),
+	literal('allow'),
+	literal('prefer'),
+	literal('verify-full'),
+	boolean(),
+	// same as object({}).passthrough(), but just for types
+	custom<ConnectionOptions>((ssl) => typeof ssl === 'object' && ssl !== null && !Array.isArray(ssl)),
+]);
+
+export const dsqlCredentials = union([
 	object({
-		driver: zUndefined(),
+		url: string().min(1),
+	}),
+	object({
+		host: string().min(1),
+		port: coerce.number().min(1).optional(),
+		user: string().min(1).optional(),
+		database: string().min(1),
+		ssl: pgSsl.optional(),
+	}),
+]).and(object({
+	// specify custom profile
+	profile: string().optional(),
+	// specify custom region
+	region: string().optional(),
+	// specify custom creds
+	customCredentialsProvider: object({
+		accessKeyId: string(),
+		secretAccessKey: string(),
+		sessionToken: string().optional(),
+		credentialScope: string().optional(),
+		accountId: string().optional(),
+	}).optional(),
+}));
+
+export const pgDefaultCredentials = union([
+	// "url" goes first: when it's provided along with individual params, it wins
+	object({ url: string().min(1) }),
+	object({
 		host: string().min(1),
 		port: coerce.number().min(1).optional(),
 		user: string().min(1).optional(),
 		password: string().min(1).optional(),
 		database: string().min(1),
-		ssl: union([
-			literal('require'),
-			literal('allow'),
-			literal('prefer'),
-			literal('verify-full'),
-			boolean(),
-			object({}).passthrough(),
-		]).optional(),
-	}).transform((o) => {
-		delete o.driver;
-		return o as Omit<typeof o, 'driver'>;
+		ssl: pgSsl.optional(),
 	}),
+]);
+
+export const awsDataApiCredentials = object({
+	database: string().min(1),
+	secretArn: string().min(1),
+	resourceArn: string().min(1),
+});
+
+export const pgLiteCredentials = object({ url: string().min(1) });
+export const pgLiteClientCredentials = object({
+	client: custom<PGlite>((client) => typeof client === 'object' && client !== null),
+});
+
+export const postgresCredentials = union([
 	object({
 		driver: zUndefined(),
-		url: string().min(1),
-	}).transform<{ url: string }>((o) => {
+	}).and(pgDefaultCredentials).transform((o) => {
 		delete o.driver;
 		return o;
 	}),
-	object({
-		driver: literal('aws-data-api'),
-		database: string().min(1),
-		secretArn: string().min(1),
-		resourceArn: string().min(1),
-	}),
-	object({
-		driver: literal('pglite'),
-		url: string().min(1),
-	}),
+	object({ driver: awsDataApiDriver }).and(awsDataApiCredentials),
+	object({ driver: pgliteDriver }).and(union([pgLiteCredentials, pgLiteClientCredentials])),
+	object({ driver: dsqlDriver }).and(dsqlCredentials),
 ]);
 
 export type PostgresCredentials = TypeOf<typeof postgresCredentials>;
 
+export const warnOnConflictingCredentials = (options: Record<string, unknown>) =>
+	warnOnUrlConflict(options, ['host', 'port', 'user', 'password', 'database', 'ssl']);
+
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
-) => {
+): never => {
 	if (options.driver === 'aws-data-api') {
 		let text = `Please provide required params for AWS Data API driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('database', options.database));
-		console.log(wrapParam('secretArn', options.secretArn, false, 'secret'));
-		console.log(wrapParam('resourceArn', options.resourceArn, false, 'secret'));
-		process.exit(1);
+		throw new ConfigConnectionCliError(
+			'aws-data-api',
+			['database', 'secretArn', 'resourceArn'],
+			[
+				error(text),
+				wrapParam('database', options.database),
+				wrapParam('secretArn', options.secretArn, false, 'secret'),
+				wrapParam('resourceArn', options.resourceArn, false, 'secret'),
+			].join('\n'),
+		);
+	}
+
+	if (options.driver === 'pglite') {
+		throw new ConfigConnectionCliError(
+			'pglite',
+			['url', 'client'],
+			error(
+				`Please provide either "url" or "client" for PGlite driver`,
+			),
+		);
 	}
 
 	if ('url' in options) {
 		let text = `Please provide required params for Postgres driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('url', options.url, false, 'url'));
-		process.exit(1);
+		throw new ConfigConnectionCliError(
+			'postgresql',
+			['url'],
+			[
+				error(text),
+				wrapParam('url', options.url, false, 'url'),
+			].join('\n'),
+		);
 	}
 
 	if ('host' in options || 'database' in options) {
 		let text = `Please provide required params for Postgres driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('host', options.host));
-		console.log(wrapParam('port', options.port, true));
-		console.log(wrapParam('user', options.user, true));
-		console.log(wrapParam('password', options.password, true, 'secret'));
-		console.log(wrapParam('database', options.database));
-		console.log(wrapParam('ssl', options.ssl, true));
-		process.exit(1);
+		throw new ConfigConnectionCliError(
+			'postgresql',
+			['host', 'database'],
+			[
+				error(text),
+				wrapParam('host', options.host),
+				wrapParam('port', options.port, true),
+				wrapParam('user', options.user, true),
+				wrapParam('password', options.password, true, 'secret'),
+				wrapParam('database', options.database),
+				wrapParam('ssl', options.ssl, true),
+			].join('\n'),
+		);
 	}
 
-	console.log(
+	throw new ConfigConnectionCliError(
+		'postgresql',
+		['url', 'host', 'database'],
 		error(
 			`Either connection "url" or "host", "database" are required for PostgreSQL database connection`,
 		),
 	);
-	process.exit(1);
 };

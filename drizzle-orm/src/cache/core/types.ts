@@ -27,3 +27,9 @@ export type CacheConfig = {
 };
 
 export type WithCacheConfig = { enabled: boolean; config?: CacheConfig; tag?: string; autoInvalidate?: boolean };
+
+export type QueryMetadata = {
+	type: 'select' | 'update' | 'delete' | 'insert';
+	/** Collects tables query uses - only called when they're needed */
+	tables: () => string[];
+};

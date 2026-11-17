@@ -1,4 +1,4 @@
-import type { MigrationMeta } from './migrator';
+import type { MigrationMeta } from './migrator.ts';
 
 export function formatToMillis(dateStr: string): number {
 	const year = parseInt(dateStr.slice(0, 4), 10);

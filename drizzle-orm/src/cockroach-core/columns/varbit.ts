@@ -1,10 +1,9 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig, CockroachColumnBuilder } from './common.ts';
 
-export class CockroachVarbitBuilder extends CockroachColumnWithArrayBuilder<{
+export class CockroachVarbitBuilder extends CockroachColumnBuilder<{
 	dataType: 'string binary';
 	data: string;
 	driverParam: string;
@@ -27,10 +26,13 @@ export class CockroachVarbitBuilder extends CockroachColumnWithArrayBuilder<{
 	}
 }
 
-export class CockroachVarbit<T extends ColumnBaseConfig<'string binary'>>
-	extends CockroachColumn<T, { length: number | undefined }>
+export class CockroachVarbit<T extends CockroachColumnBaseConfig<'string binary'>>
+	extends CockroachColumn<'string binary', T, { length: number | undefined }>
 {
 	static override readonly [entityKind]: string = 'CockroachVarbit';
+
+	/** @internal */
+	override readonly codec = 'varbit';
 
 	getSQLType(): string {
 		return this.length ? `varbit(${this.length})` : 'varbit';

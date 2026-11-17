@@ -1,0 +1,4 @@
+*
+!skills/
+!skills/**
+!.gitignore

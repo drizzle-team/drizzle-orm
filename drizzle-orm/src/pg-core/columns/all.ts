@@ -1,6 +1,7 @@
 import { bigint } from './bigint.ts';
 import { bigserial } from './bigserial.ts';
 import { boolean } from './boolean.ts';
+import { bytea } from './bytea.ts';
 import { char } from './char.ts';
 import { cidr } from './cidr.ts';
 import { customType } from './custom.ts';
@@ -14,7 +15,7 @@ import { jsonb } from './jsonb.ts';
 import { line } from './line.ts';
 import { macaddr } from './macaddr.ts';
 import { macaddr8 } from './macaddr8.ts';
-import { numeric } from './numeric.ts';
+import { decimal, numeric } from './numeric.ts';
 import { point } from './point.ts';
 import { geometry } from './postgis_extension/geometry.ts';
 import { real } from './real.ts';
@@ -35,6 +36,7 @@ export function getPgColumnBuilders() {
 	return {
 		bigint,
 		bigserial,
+		bytea,
 		boolean,
 		char,
 		cidr,
@@ -50,6 +52,7 @@ export function getPgColumnBuilders() {
 		macaddr,
 		macaddr8,
 		numeric,
+		decimal,
 		point,
 		geometry,
 		real,

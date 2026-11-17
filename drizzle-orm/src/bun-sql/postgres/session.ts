@@ -2,7 +2,7 @@
 
 import type { SavepointSQL, SQL, TransactionSQL } from 'bun';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -15,6 +15,7 @@ import type { Query } from '~/sql/sql.ts';
 export interface BunSQLSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class BunSQLSession<
@@ -43,10 +44,7 @@ export class BunSQLSession<
 		mode: 'arrays' | 'objects' | 'raw',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const tagged = query._sql ? query._sql : null;
@@ -68,6 +66,7 @@ export class BunSQLSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -129,6 +128,10 @@ export class BunSQLTransaction<
 	}
 }
 
+export type BunSQLRawExecuteResult = Record<string, unknown>[] | Record<string, unknown>[][];
+
 export interface BunSQLQueryResultHKT extends PgQueryResultHKT {
-	type: this['row'][];
+	type: [this['row']] extends [never] ? []
+		: [this['row']] extends ['unknown'] ? BunSQLRawExecuteResult
+		: this['row'][];
 }

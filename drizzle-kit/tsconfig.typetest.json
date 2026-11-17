@@ -2,7 +2,7 @@
 	"compilerOptions": {
 		"target": "es2022",
 		"module": "esnext",
-		"moduleResolution": "node",
+		"moduleResolution": "bundler",
 		"lib": ["es2022"],
 		"types": ["node"],
 		"strictNullChecks": true,
@@ -18,10 +18,10 @@
 		"noErrorTruncation": true,
 		"isolatedModules": true,
 		"sourceMap": true,
-		"baseUrl": ".",
 		"paths": {
-			"@/*": ["tests/fixtures/tsconfig-paths/src/*"],
-			"@profile": ["tests/fixtures/tsconfig-paths/src/profile/schema.ts"]
+			"@/*": ["./tests/fixtures/tsconfig-paths/src/*"],
+			"@profile": ["./tests/fixtures/tsconfig-paths/src/profile/schema.ts"],
+			"*": ["./*"]
 		},
 		"outDir": "dist",
 		"noEmit": true,

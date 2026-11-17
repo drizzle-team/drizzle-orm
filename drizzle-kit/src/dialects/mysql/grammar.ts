@@ -1,7 +1,7 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
-import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../utils';
+import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../grammar';
 import type { Column, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
@@ -29,6 +29,12 @@ const checkNumber = (it: string) => {
 	if (Number.isNaN(check)) return 'NaN';
 	if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return 'number';
 	return 'bigint';
+};
+
+// information_schema returns expression text with `\'` for a quote and `\\` for a backslash.
+// A template literal reads these escapes back into the SQL of the database, so the backslash stays as it is.
+export const escapeBacktickAndInterpolation = (sql: string) => {
+	return sql.replaceAll('`', '\\`').replaceAll('${', '\\${');
 };
 
 export interface SqlType<MODE = unknown> {
@@ -62,7 +68,7 @@ export const Int: SqlType = {
 	toTs: (type, value) => {
 		const options = type.includes('unsigned') ? { unsigned: true } : undefined;
 		const check = Number(value);
-		if (Number.isNaN(check)) return { options, default: `sql\`${value}\`` };
+		if (Number.isNaN(check)) return { options, default: `sql\`${escapeBacktickAndInterpolation(value!)}\`` };
 		return { options, default: value ?? '' };
 	},
 };
@@ -126,7 +132,9 @@ export const BigInt: SqlType = {
 
 		const trimmed = trimChar(value, "'");
 		const numType = checkNumber(trimmed);
-		if (numType === 'NaN') return { options: { ...options, mode: 'number' }, default: `sql\`${value}\`` };
+		if (numType === 'NaN') {
+			return { options: { ...options, mode: 'number' }, default: `sql\`${escapeBacktickAndInterpolation(value)}\`` };
+		}
 		if (numType === 'number') return { options: { ...options, mode: 'number' }, default: trimmed };
 		if (numType === 'bigint') return { options: { ...options, mode: 'bigint' }, default: `${trimmed}n` };
 		assertUnreachable(numType);
@@ -162,7 +170,7 @@ export const Decimal: SqlType = {
 		if (!value) return { options, default: '' };
 
 		const numType = checkNumber(value);
-		if (numType === 'NaN') return { options: options, default: `sql\`${value}\`` };
+		if (numType === 'NaN') return { options: options, default: `sql\`${escapeBacktickAndInterpolation(value)}\`` };
 		if (numType === 'number') return { options: { ...options, mode: 'number' }, default: value };
 		if (numType === 'bigint') return { options: { ...options, mode: 'bigint' }, default: `${value}n` };
 		assertUnreachable(numType);
@@ -189,7 +197,7 @@ export const Real: SqlType = {
 		if (!value) return { options, default: '' };
 
 		const numType = checkNumber(value);
-		if (numType === 'NaN') return { options, default: `sql\`${value}\`` };
+		if (numType === 'NaN') return { options, default: `sql\`${escapeBacktickAndInterpolation(value)}\`` };
 		if (numType === 'number') return { options, default: value };
 		if (numType === 'bigint') return { options, default: `${value}n` };
 		assertUnreachable(numType);
@@ -232,7 +240,7 @@ export const Char: SqlType = {
 		const [length] = parseParams(type);
 		if (length) options['length'] = Number(length);
 		if (!value) return { options, default: '' };
-		if (value.startsWith('(')) return { options, default: `sql\`${value}\`` };
+		if (value.startsWith('(')) return { options, default: `sql\`${escapeBacktickAndInterpolation(value)}\`` };
 
 		const escaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(value, "'")));
 		return { options, default: escaped };
@@ -265,7 +273,9 @@ export const TinyText: SqlType = {
 		const [length] = parseParams(type);
 		if (length) options['length'] = Number(length);
 		if (!value) return { options, default: '' };
-		if (value.startsWith('(') || !value.startsWith("'")) return { options, default: `sql\`${value}\`` };
+		if (value.startsWith('(') || !value.startsWith("'")) {
+			return { options, default: `sql\`${escapeBacktickAndInterpolation(value)}\`` };
+		}
 
 		const trimmed = trimChar(value, "'");
 		const escaped = value ? escapeForTsLiteral(unescapeFromSqlDefault(trimmed)) : '';
@@ -404,7 +414,7 @@ export const Varbinary: SqlType = {
 			}
 			return { options, default: `"${trimmed.replaceAll('"', '\\"')}"` };
 		} else {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeBacktickAndInterpolation(value)}\`` };
 		}
 	},
 };
@@ -436,7 +446,7 @@ export const Json: SqlType = {
 			)!;
 			return { default: stringified };
 		} catch {}
-		return { default: `sql\`${def}\`` };
+		return { default: `sql\`${escapeBacktickAndInterpolation(def)}\`` };
 	},
 };
 
@@ -472,10 +482,10 @@ export const Timestamp: SqlType = {
 		}
 
 		if (trimmed.includes('now(') || trimmed.includes('CURRENT_TIMESTAMP(')) {
-			return { options, default: `sql\`${trimmed}\`` };
+			return { options, default: `sql\`${escapeBacktickAndInterpolation(trimmed)}\`` };
 		}
 
-		if (fsp && Number(fsp) > 3) return { options, default: `sql\`'${trimmed}'\`` };
+		if (fsp && Number(fsp) > 3) return { options, default: `sql\`'${escapeBacktickAndInterpolation(trimmed)}'\`` };
 		// TODO: we can handle fsp 6 here too, using sql``
 		return { options, default: `new Date("${trimmed}Z")` };
 	},
@@ -495,10 +505,10 @@ export const DateTime: SqlType = {
 		const trimmed = trimChar(def, "'");
 
 		if (trimmed.includes('now') || trimmed.includes('CURRENT_TIMESTAMP')) {
-			return { options, default: `sql\`${trimmed}\`` };
+			return { options, default: `sql\`${escapeBacktickAndInterpolation(trimmed)}\`` };
 		}
 
-		if (fsp && Number(fsp) > 3) return { options, default: `sql\`'${trimmed}'\`` };
+		if (fsp && Number(fsp) > 3) return { options, default: `sql\`'${escapeBacktickAndInterpolation(trimmed)}'\`` };
 		// TODO: we can handle fsp 6 here too, using sql``
 		return { options, default: `new Date("${trimmed}Z")` };
 	},

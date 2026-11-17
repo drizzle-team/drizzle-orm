@@ -1667,9 +1667,14 @@ test('weightedRandom with array generators', async ({ db, push }) => {
 		}),
 	};
 
-	const alphaFields = Array.from({ length: 20 }, (val, idx) => `alpha_field_${idx}`);
-	const betaFields = Array.from({ length: 20 }, (val, idx) => `beta_field_${idx}`);
-	const gammaFields = Array.from({ length: 20 }, (val, idx) => `gamma_field_${idx}`);
+	const alphaFields: string[] = new Array(20);
+	const betaFields: string[] = new Array(20);
+	const gammaFields: string[] = new Array(20);
+	for (let idx = 0; idx < 20; idx++) {
+		alphaFields[idx] = `alpha_field_${idx}`;
+		betaFields[idx] = `beta_field_${idx}`;
+		gammaFields[idx] = `gamma_field_${idx}`;
+	}
 
 	await push(schema);
 	await reset(db, schema);
@@ -1962,6 +1967,9 @@ test('vector array generator test', async ({ db }) => {
 
 test('composite unique key generator test', async ({ db }) => {
 	await reset(db, { compositeUniqueKeyTable: schema.compositeUniqueKeyTable });
+	const valuesFromArrayValues: string[] = new Array(20);
+	for (let i = 0; i < valuesFromArrayValues.length; i++) valuesFromArrayValues[i] = String(i + 1);
+
 	await seed(db, { compositeUniqueKeyTable: schema.compositeUniqueKeyTable }, { count: 10000 }).refine((funcs) => ({
 		compositeUniqueKeyTable: {
 			columns: {
@@ -1983,7 +1991,7 @@ test('composite unique key generator test', async ({ db }) => {
 				bit: funcs.bitString(),
 				inet: funcs.inet(),
 				vector: funcs.vector(),
-				valuesFromArray: funcs.valuesFromArray({ values: Array.from({ length: 20 }, (_, i) => String(i + 1)) }),
+				valuesFromArray: funcs.valuesFromArray({ values: valuesFromArrayValues }),
 				// point: funcs.point(),
 				// line: funcs.line(),
 			},

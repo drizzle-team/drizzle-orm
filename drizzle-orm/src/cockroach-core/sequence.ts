@@ -10,6 +10,9 @@ export type CockroachSequenceOptions = {
 
 export class CockroachSequence {
 	static readonly [entityKind]: string = 'CockroachSequence';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		public readonly seqName: string,

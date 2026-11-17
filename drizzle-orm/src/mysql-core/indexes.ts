@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { AnyMySqlColumn, MySqlColumn } from './columns/index.ts';
 import type { MySqlTable } from './table.ts';
@@ -33,6 +33,9 @@ export type IndexColumn = MySqlColumn | SQL;
 
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'MySqlIndexBuilderOn';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(private name: string, private unique: boolean) {}
 
@@ -50,6 +53,9 @@ export interface IndexBuilder extends AnyIndexBuilder {}
 
 export class IndexBuilder implements AnyIndexBuilder {
 	static readonly [entityKind]: string = 'MySqlIndexBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	config: IndexConfig;
@@ -85,6 +91,9 @@ export class IndexBuilder implements AnyIndexBuilder {
 
 export class Index {
 	static readonly [entityKind]: string = 'MySqlIndex';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly config: IndexConfig & { table: MySqlTable };
 	readonly isNameExplicit: boolean;

@@ -22,7 +22,8 @@ import {
 	notLike,
 	or,
 } from '~/sql/expressions/index.ts';
-import { type InferSelectViewModel, param, sql } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
+import type { InferViewSelectModel } from '~/view.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
@@ -38,7 +39,7 @@ import {
 } from '~/mysql-core/index.ts';
 import { unique } from '~/mysql-core/unique-constraint.ts';
 import { db } from './db.ts';
-import { cities, classes, newYorkers, users } from './tables.ts';
+import { cities, classes, newYorkers, newYorkersWithSubquery, users } from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -295,10 +296,10 @@ const allOperators = await db
 		col6: sql<boolean>`true`, // boolean
 		col7: sql<number>`random()`, // number
 		col8: sql`some_funky_func(${users.id})`.mapWith(mapFunkyFuncResult), // { foo: string }
-		col9: sql`greatest(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // unknown
-		col10: sql<Date | boolean>`date_or_false(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // Date | boolean
+		col9: sql`greatest(${users.createdAt}, ${sql.param(new Date(), users.createdAt)})`, // unknown
+		col10: sql<Date | boolean>`date_or_false(${users.createdAt}, ${sql.param(new Date(), users.createdAt)})`, // Date | boolean
 		col11: sql`${users.age1} + ${age}`, // unknown
-		col12: sql`${users.age1} + ${param(age, users.age1)}`, // unknown
+		col12: sql`${users.age1} + ${sql.param(age, users.age1)}`, // unknown
 		col13: sql`lower(${users.class})`, // unknown
 		col14: sql<number>`length(${users.class})`, // number
 		count: sql<number>`count(*)::int`, // number
@@ -580,6 +581,35 @@ await db
 }
 
 {
+	const result = await db.select().from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				id: number;
+				class: 'A' | 'C';
+				cityCount: number;
+				lastCityId: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery>[]>>;
+}
+
+{
+	const result = await db.select({ cityCount: newYorkersWithSubquery.cityCount }).from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				cityCount: number;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
 	const query = db.select().from(users).prepare().iterator();
 	for await (const row of query) {
 		Expect<Equal<typeof users.$inferSelect, typeof row>>();
@@ -790,7 +820,7 @@ await db
 		}[]>
 	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof view>[]>>;
 }
 
 {

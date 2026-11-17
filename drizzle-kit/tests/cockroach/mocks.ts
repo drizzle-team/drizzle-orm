@@ -20,7 +20,14 @@ import {
 	isCockroachView,
 } from 'drizzle-orm/cockroach-core';
 import { configMigrations } from 'src/cli/validations/common';
-import { CockroachDDL, Column, createDDL, interimToDDL, SchemaError } from 'src/dialects/cockroach/ddl';
+import {
+	CockroachDDL,
+	cockroachToRelationsPull,
+	createDDL,
+	fromEntities,
+	interimToDDL,
+	SchemaError,
+} from 'src/dialects/cockroach/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/cockroach/diff';
 import {
 	defaultFromColumn,
@@ -30,24 +37,25 @@ import {
 } from 'src/dialects/cockroach/drizzle';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
-import Docker from 'dockerode';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
 import { suggestions } from 'src/cli/commands/push-cockroach';
+import { runWithCliContext } from 'src/cli/context';
+import { HintsHandler } from 'src/cli/hints';
 import { EmptyProgressView, explain } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
 import { ddlToTypeScript } from 'src/dialects/cockroach/typescript';
 import { DB } from 'src/utils';
-import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
 import { randomUUID } from 'crypto';
+import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { hash } from 'src/dialects/common';
 import { extractCrdbExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import { loadModule } from 'src/utils/utils-node';
 import { measure, tsc } from 'tests/utils';
 import { expect, test as base } from 'vitest';
 
@@ -94,7 +102,7 @@ export const drizzleToDDL = (
 
 	const existing = extractCrdbExisting(schemas, views, materializedViews);
 	const filter = prepareEntityFilter('cockroach', filterConfig, existing);
-	const { schema: res, errors, warnings } = fromDrizzleSchema(
+	const { schema: res, metadata, errors, warnings } = fromDrizzleSchema(
 		{
 			schemas,
 			tables,
@@ -112,7 +120,7 @@ export const drizzleToDDL = (
 		throw new Error();
 	}
 
-	return { ...interimToDDL(res), existing };
+	return { ...interimToDDL(res), existing, metadata };
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -124,8 +132,8 @@ export const diff = async (
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as CockroachDDL, errors: [] }
 		: drizzleToDDL(left);
-	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
-		? { ddl: right as CockroachDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in right && '_' in right
+		? { ddl: right as CockroachDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
@@ -149,6 +157,7 @@ export const diff = async (
 		mockResolver(renames),
 		mockResolver(renames),
 		'default',
+		metadata,
 	);
 	return { sqlStatements, statements, groupedStatements, next: ddl2 };
 };
@@ -192,8 +201,8 @@ export const push = async (
 
 	const migrations = configMigrations.parse(config.migrationsConfig);
 
-	const { ddl: ddl2, errors: err3, existing } = 'entities' in to && '_' in to
-		? { ddl: to as CockroachDDL, errors: [], existing: [] }
+	const { ddl: ddl2, errors: err3, existing, metadata } = 'entities' in to && '_' in to
+		? { ddl: to as CockroachDDL, errors: [], existing: [], metadata: undefined }
 		: drizzleToDDL(to, filterConfig);
 
 	const filter = prepareEntityFilter('cockroach', filterConfig, existing);
@@ -234,12 +243,16 @@ export const push = async (
 		mockResolver(renames),
 		mockResolver(renames),
 		'push',
+		metadata,
 	);
 
-	const hints = await suggestions(db, statements);
+	const hints = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, new HintsHandler()),
+	);
 
 	if (config.explain) {
-		const explainMessage = explain('cockroach', groupedStatements, false, []);
+		const explainMessage = explain('cockroach', groupedStatements, []);
 		console.log(explainMessage);
 		return { sqlStatements, statements, hints };
 	}
@@ -313,12 +326,26 @@ export const diffIntrospect = async (
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
+	// schema
 	const filePath = `tests/cockroach/tmp/${testName}.ts`;
-
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	writeFileSync(filePath, file.file);
+	await tsc(file.file).catch((e) => {
+		throw new Error(`tsc error in file ${filePath}`, { cause: e });
+	});
 
-	await tsc(file.file);
+	// relations
+	const relationsPath = `tests/cockroach/tmp/${testName}-relations.ts`;
+	const schemaAbsolutePath = path.resolve('tests/cockroach/tmp', testName);
+	const relationsForTsc = relationsToTypeScript(
+		cockroachToRelationsPull(ddl1),
+		'camel',
+		schemaAbsolutePath,
+	);
+	writeFileSync(relationsPath, relationsForTsc.file);
+	await tsc(relationsForTsc.file).catch((e) => {
+		throw new Error(`tsc error in file ${relationsPath}`, { cause: e });
+	});
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([filePath]);
@@ -326,18 +353,54 @@ export const diffIntrospect = async (
 	const { schema: schema2, errors: e2, warnings } = fromDrizzleSchema(response, filter);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
-	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await ddlDiffDry(
-		ddl1,
-		ddl2,
-		'push',
-	);
+	// we need to create copies, since first ddlDiffDry makes preserve entity names logic
+	const ddl1Copy = fromEntities(ddl1.entities.list());
+	const ddl2Copy = fromEntities(ddl2.entities.list());
 
-	rmSync(`tests/cockroach/tmp/${testName}.ts`);
+	const {
+		sqlStatements: pushAfterFileSqlStatements,
+		statements: pushAfterFileStatements,
+		groupedStatements: pushAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1, ddl2, 'push');
+
+	if (pushAfterFileSqlStatements.length > 0) {
+		console.log(chalk.bgRed('After push: ') + '\n' + explain('cockroach', pushAfterFileGroupedStatements, []));
+	}
+
+	const {
+		sqlStatements: generateAfterFileSqlStatements,
+		statements: generateAfterFileStatements,
+		groupedStatements: generateAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1Copy, ddl2Copy, 'default');
+
+	if (generateAfterFileSqlStatements.length > 0) {
+		console.log(
+			chalk.bgRed('After generate: ') + '\n' + explain('cockroach', generateAfterFileGroupedStatements, []),
+		);
+	}
+
+	let relationsError: Error | null = null;
+	try {
+		await loadModule(path.relative(process.cwd(), relationsPath));
+		rmSync(relationsPath);
+	} catch (error: any) {
+		relationsError = error;
+	}
+
+	if (
+		[...generateAfterFileSqlStatements, ...pushAfterFileSqlStatements].length === 0
+	) {
+		rmSync(filePath);
+	}
 
 	return {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
+		pushSqlStatements: pushAfterFileSqlStatements,
+		pushStatements: pushAfterFileStatements,
+		generateSqlStatements: generateAfterFileSqlStatements,
+		generateStatements: generateAfterFileStatements,
+		ddlAfterPull: ddl1,
 		schema2,
+		relationsError,
 	};
 };
 
@@ -488,36 +551,6 @@ export type TestDatabaseKit = {
 	close: () => Promise<void>;
 };
 
-export async function createDockerDB() {
-	const docker = new Docker();
-	const port = await getPort({ port: 26257 });
-	const image = 'cockroachdb/cockroach:v25.2.0';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	const container = await docker.createContainer({
-		Image: image,
-		Cmd: ['start-single-node', '--insecure'],
-		name: `drizzle-integration-tests-${uuidV4()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'26257/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await container.start();
-
-	return {
-		url: `postgresql://root@127.0.0.1:${port}/defaultdb?sslmode=disable`,
-		container,
-	};
-}
-
 const prepareClient = async (url: string, n: string, tx: boolean) => {
 	const name = `${n}${hash(String(Math.random()), 10)}`;
 
@@ -537,6 +570,7 @@ const prepareClient = async (url: string, n: string, tx: boolean) => {
 	}
 
 	const clear = async () => {
+		await client.query('RESET ROLE;');
 		if (tx) {
 			await client.query('ROLLBACK');
 			await client.query('BEGIN');
@@ -580,24 +614,21 @@ const prepareClient = async (url: string, n: string, tx: boolean) => {
 
 export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
+	if (!envUrl) {
+		throw new Error(
+			'COCKROACH_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up cockroach` and export the connection string before running tests.',
+		);
+	}
 
 	let url: string;
-	let container: Docker.Container | null = null;
-
-	if (envUrl) {
-		// Support multiple connection strings separated by ';'
-		const urls = envUrl.split(';').filter(Boolean);
-		if (urls.length > 1) {
-			// Use VITEST_POOL_ID to distribute workers across containers
-			const poolId = parseInt(process.env.VITEST_POOL_ID || '1', 10);
-			url = urls[poolId % urls.length]!;
-		} else {
-			url = urls[0]!;
-		}
+	// Support multiple connection strings separated by ';'
+	const urls = envUrl.split(';').filter(Boolean);
+	if (urls.length > 1) {
+		// Use VITEST_POOL_ID to distribute workers across containers
+		const poolId = parseInt(process.env.VITEST_POOL_ID || '1', 10);
+		url = urls[poolId % urls.length]!;
 	} else {
-		const dockerResult = await createDockerDB();
-		url = dockerResult.url;
-		container = dockerResult.container;
+		url = urls[0]!;
 	}
 
 	const clients = [
@@ -655,7 +686,6 @@ export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 			for (const c of clients) {
 				c.close();
 			}
-			await container?.stop();
 		},
 	};
 };

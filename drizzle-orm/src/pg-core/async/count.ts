@@ -6,21 +6,21 @@ import type { PgDialect } from '../dialect.ts';
 import { PgCountBuilder } from '../query-builders/count.ts';
 import type { PgTable } from '../table.ts';
 import type { PgViewBase } from '../view-base.ts';
-import type { PgAsyncSession } from './session.ts';
+import type { BasePgAsyncSession } from './session.ts';
 
 export interface PgAsyncCountBuilder extends PgCountBuilder, QueryPromise<number> {}
 
 export class PgAsyncCountBuilder extends PgCountBuilder {
 	static override readonly [entityKind]: string = 'PgAsyncCountBuilder';
 
-	protected session: PgAsyncSession;
+	protected session: BasePgAsyncSession;
 
 	constructor(
 		{ source, dialect, filters, session }: {
 			source: PgTable | PgViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			dialect: PgDialect;
-			session: PgAsyncSession;
+			session: BasePgAsyncSession;
 		},
 	) {
 		super({ source, dialect, filters });

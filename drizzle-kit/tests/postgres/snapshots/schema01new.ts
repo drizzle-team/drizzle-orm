@@ -57,7 +57,12 @@ export const users4 = pgTable('users4', {
 	c6: text().array('[][]').default([[]]),
 	c7: text().array('[][][]').default([[[]]]),
 	c8: text().array('[][]'),
-}, (t) => [foreignKey({ columns: [t.c3, t.c4], foreignColumns: [users3.c2, users3.c3] })]);
+}, (t) => [foreignKey({
+	columns: [t.c3],
+	foreignColumns: [users3.c3],
+	// still same name, as was in prev snapshot, only nameExplicitChanged
+	// name: 'users4_c3_users3_c3_fkey',
+})]);
 
 export const users5 = pgTable('users5', {
 	fullName: text(),

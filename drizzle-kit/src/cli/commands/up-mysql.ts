@@ -1,18 +1,20 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
 import { createDDL } from '../../dialects/mysql/ddl';
 import { Binary, Varbinary } from '../../dialects/mysql/grammar';
 import type { MysqlSchemaV6, MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import { trimChar } from '../../utils';
+import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
+import { outputFormat } from '../context';
 import { migrateToFoldersV3 } from './utils';
 
-export const upMysqlHandler = (out: string) => {
+export const upMysqlHandler = (out: string): string[] => {
 	migrateToFoldersV3(out);
 
 	const { snapshots } = prepareOutFolder(out);
 	const report = validateWithReport(snapshots, 'mysql');
 
+	const upgraded: string[] = [];
 	report.nonLatest
 		.map((it) => ({
 			path: it,
@@ -23,12 +25,16 @@ export const upMysqlHandler = (out: string) => {
 
 			const snapshot = upToV6(it.raw);
 
-			console.log(`[${chalk.green('✓')}] ${path}`);
+			if (outputFormat() === 'text') console.log(`[${chalk.green('✓')}] ${path}`);
 
 			writeFileSync(path, JSON.stringify(snapshot, null, 2));
+
+			upgraded.push(path);
 		});
 
-	console.log("Everything's fine 🐶🔥");
+	if (outputFormat() === 'text') console.log("Everything's fine 🐶🔥");
+
+	return upgraded;
 };
 
 export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {

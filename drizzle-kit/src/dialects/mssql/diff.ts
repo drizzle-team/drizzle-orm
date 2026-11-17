@@ -2,7 +2,8 @@ import { prepareMigrationRenames, trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs, preserveEntityNames } from '../utils';
+import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
+import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
 import type {
 	CheckConstraint,
@@ -23,7 +24,12 @@ import { typesCommutative } from './grammar';
 import type { JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
-export const ddlDiffDry = async (ddlFrom: MssqlDDL, ddlTo: MssqlDDL, mode: 'default' | 'push') => {
+export const ddlDiffDry = async (
+	ddlFrom: MssqlDDL,
+	ddlTo: MssqlDDL,
+	mode: 'default' | 'push',
+	$metadata?: SchemaMetadata,
+) => {
 	const mocks = new Set<string>();
 	return ddlDiff(
 		ddlFrom,
@@ -39,6 +45,7 @@ export const ddlDiffDry = async (ddlFrom: MssqlDDL, ddlTo: MssqlDDL, mode: 'defa
 		mockResolver(mocks),
 		mockResolver(mocks),
 		mode,
+		$metadata,
 	);
 };
 
@@ -56,6 +63,7 @@ export const ddlDiff = async (
 	fksResolver: Resolver<ForeignKey>,
 	defaultsResolver: Resolver<DefaultConstraint>,
 	mode: 'default' | 'push',
+	$metadata?: SchemaMetadata,
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -68,32 +76,15 @@ export const ddlDiff = async (
 	}
 
 	const schemasDiff = diff(ddl1, ddl2, 'schemas');
-	const {
-		created: createdSchemas,
-		deleted: deletedSchemas,
-		renamedOrMoved: renamedSchemas,
-	} = await schemasResolver({
+	const { created: createdSchemas, deleted: deletedSchemas, renamedOrMoved: renamedSchemas } = await schemasResolver({
 		created: schemasDiff.filter((it) => it.$diffType === 'create'),
 		deleted: schemasDiff.filter((it) => it.$diffType === 'drop'),
 	});
 
 	for (const rename of renamedSchemas) {
-		ddl1.entities.update({
-			set: {
-				schema: rename.to.name,
-			},
-			where: {
-				schema: rename.from.name,
-			},
-		});
-
-		ddl1.fks.update({
-			set: {
-				schemaTo: rename.to.name,
-			},
-			where: {
-				schemaTo: rename.from.name,
-			},
+		ddl1.schemas.update({
+			set: { name: rename.to.name },
+			where: { name: rename.from.name },
 		});
 	}
 
@@ -103,65 +94,23 @@ export const ddlDiff = async (
 
 	const tablesDiff = diff(ddl1, ddl2, 'tables');
 
-	const {
-		created: createdTables,
-		deleted: deletedTables,
-		renamedOrMoved: renamedOrMovedTables, // renamed or moved
-	} = await tablesResolver({
+	const { created: createdTables, deleted: deletedTables, renamedOrMoved: orMovedTables } = await tablesResolver({
 		created: tablesDiff.filter((it) => it.$diffType === 'create'),
 		deleted: tablesDiff.filter((it) => it.$diffType === 'drop'),
 	});
 
-	const renamedTables = renamedOrMovedTables.filter((it) => it.from.name !== it.to.name);
-	const movedTables = renamedOrMovedTables.filter((it) => it.from.schema !== it.to.schema);
+	const renamedTables = orMovedTables.filter((it) => it.from.name !== it.to.name);
+	const movedTables = orMovedTables.filter((it) => it.from.schema !== it.to.schema);
 
 	const pksRenames = [] as { from: PrimaryKey; to: PrimaryKey }[];
 	const uniqueRenames = [] as { from: UniqueConstraint; to: UniqueConstraint }[];
 	const fksRenames = [] as { from: ForeignKey; to: ForeignKey }[];
 	const checkRenames = [] as { from: CheckConstraint; to: CheckConstraint }[];
 
-	for (const rename of renamedOrMovedTables) {
+	for (const rename of orMovedTables) {
 		ddl1.tables.update({
-			set: {
-				name: rename.to.name,
-				schema: rename.to.schema,
-			},
-			where: {
-				name: rename.from.name,
-				schema: rename.from.schema,
-			},
-		});
-
-		ddl1.fks.update({
-			set: {
-				schemaTo: rename.to.schema,
-				tableTo: rename.to.name,
-			},
-			where: {
-				schemaTo: rename.from.schema,
-				tableTo: rename.from.name,
-			},
-		});
-		ddl1.fks.update({
-			set: {
-				schema: rename.to.schema,
-				table: rename.to.name,
-			},
-			where: {
-				schema: rename.from.schema,
-				table: rename.from.name,
-			},
-		});
-
-		ddl1.entities.update({
-			set: {
-				table: rename.to.name,
-				schema: rename.to.schema,
-			},
-			where: {
-				table: rename.from.name,
-				schema: rename.from.schema,
-			},
+			set: { name: rename.to.name, schema: rename.to.schema },
+			where: { name: rename.from.name, schema: rename.from.schema },
 		});
 	}
 
@@ -173,10 +122,7 @@ export const ddlDiff = async (
 	const groupedByTable = groupDiffs(columnsDiff);
 
 	for (let it of groupedByTable) {
-		const { created, deleted, renamedOrMoved } = await columnsResolver({
-			created: it.inserted,
-			deleted: it.deleted,
-		});
+		const { created, deleted, renamedOrMoved } = await columnsResolver({ created: it.inserted, deleted: it.deleted });
 
 		columnsToCreate.push(...created);
 		columnsToDelete.push(...deleted);
@@ -185,81 +131,8 @@ export const ddlDiff = async (
 
 	for (const rename of columnRenames) {
 		ddl1.columns.update({
-			set: {
-				name: rename.to.name,
-				schema: rename.to.schema,
-			},
-			where: {
-				name: rename.from.name,
-				schema: rename.from.schema,
-			},
-		});
-
-		ddl1.pks.update({
-			set: {
-				columns: (it) => {
-					return it === rename.from.name ? rename.to.name : it;
-				},
-			},
-			where: {
-				schema: rename.from.schema,
-				table: rename.from.table,
-			},
-		});
-
-		ddl1.fks.update({
-			set: {
-				columns: (it) => {
-					return it === rename.from.name ? rename.to.name : it;
-				},
-			},
-			where: {
-				schema: rename.from.schema,
-				table: rename.from.table,
-			},
-		});
-		ddl1.fks.update({
-			set: {
-				columnsTo: (it) => {
-					return it === rename.from.name ? rename.to.name : it;
-				},
-			},
-			where: {
-				schemaTo: rename.from.schema,
-				tableTo: rename.from.table,
-			},
-		});
-
-		ddl1.uniques.update({
-			set: {
-				columns: (it) => {
-					return it === rename.from.name ? rename.to.name : it;
-				},
-			},
-			where: {
-				schema: rename.from.schema,
-				table: rename.from.table,
-			},
-		});
-
-		ddl1.defaults.update({
-			set: { column: rename.to.name },
-			where: {
-				schema: rename.from.schema,
-				table: rename.from.table,
-				column: rename.from.name,
-			},
-		});
-
-		ddl1.checks.update({
-			set: {
-				value: rename.to.name,
-			},
-			where: {
-				schema: rename.from.schema,
-				table: rename.from.table,
-				value: rename.from.name,
-			},
+			set: { name: rename.to.name, schema: rename.to.schema },
+			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
 		});
 	}
 
@@ -287,14 +160,8 @@ export const ddlDiff = async (
 
 	for (const rename of uniqueRenames) {
 		ddl1.uniques.update({
-			set: {
-				name: rename.to.name,
-				schema: rename.to.schema,
-			},
-			where: {
-				name: rename.from.name,
-				schema: rename.from.schema,
-			},
+			set: { name: rename.to.name, schema: rename.to.schema },
+			where: { name: rename.from.name, schema: rename.from.schema },
 		});
 	}
 
@@ -316,14 +183,8 @@ export const ddlDiff = async (
 
 	for (const rename of checkRenames) {
 		ddl1.checks.update({
-			set: {
-				name: rename.to.name,
-				schema: rename.to.schema,
-			},
-			where: {
-				name: rename.from.name,
-				schema: rename.from.schema,
-			},
+			set: { name: rename.to.name, schema: rename.to.schema },
+			where: { name: rename.from.name, schema: rename.from.schema },
 		});
 	}
 
@@ -346,14 +207,8 @@ export const ddlDiff = async (
 
 	for (const rename of indexesRenames) {
 		ddl1.indexes.update({
-			set: {
-				name: rename.to.name,
-				schema: rename.to.schema,
-			},
-			where: {
-				name: rename.from.name,
-				schema: rename.from.schema,
-			},
+			set: { name: rename.to.name, schema: rename.to.schema },
+			where: { name: rename.from.name, schema: rename.from.schema },
 		});
 	}
 
@@ -363,10 +218,7 @@ export const ddlDiff = async (
 	const pksDeletes = [] as PrimaryKey[];
 
 	for (const entry of groupedPKsDiff) {
-		const { renamedOrMoved, created, deleted } = await pksResolver({
-			created: entry.inserted,
-			deleted: entry.deleted,
-		});
+		const { renamedOrMoved, created, deleted } = await pksResolver({ created: entry.inserted, deleted: entry.deleted });
 
 		pksCreates.push(...created);
 		pksDeletes.push(...deleted);
@@ -375,14 +227,8 @@ export const ddlDiff = async (
 
 	for (const rename of pksRenames) {
 		ddl1.pks.update({
-			set: {
-				name: rename.to.name,
-				schema: rename.to.schema,
-			},
-			where: {
-				name: rename.from.name,
-				schema: rename.from.schema,
-			},
+			set: { name: rename.to.name, schema: rename.to.schema },
+			where: { name: rename.from.name, schema: rename.from.schema },
 		});
 	}
 
@@ -392,10 +238,7 @@ export const ddlDiff = async (
 	const fksDeletes = [] as ForeignKey[];
 
 	for (const entry of groupedFKsDiff) {
-		const { renamedOrMoved, created, deleted } = await fksResolver({
-			created: entry.inserted,
-			deleted: entry.deleted,
-		});
+		const { renamedOrMoved, created, deleted } = await fksResolver({ created: entry.inserted, deleted: entry.deleted });
 
 		fksCreates.push(...created);
 		fksDeletes.push(...deleted);
@@ -404,24 +247,14 @@ export const ddlDiff = async (
 
 	for (const rename of fksRenames) {
 		ddl1.fks.update({
-			set: {
-				name: rename.to.name,
-				schema: rename.to.schema,
-			},
-			where: {
-				name: rename.from.name,
-				schema: rename.from.schema,
-			},
+			set: { name: rename.to.name, schema: rename.to.schema },
+			where: { name: rename.from.name, schema: rename.from.schema },
 		});
 	}
 
 	const viewsDiff = diff(ddl1, ddl2, 'views');
 
-	const {
-		created: createdViews,
-		deleted: deletedViews,
-		renamedOrMoved: renamedOrMovedViews,
-	} = await viewsResolver({
+	const { created: createdViews, deleted: deletedViews, renamedOrMoved: renamedOrMovedViews } = await viewsResolver({
 		created: viewsDiff.filter((it) => it.$diffType === 'create'),
 		deleted: viewsDiff.filter((it) => it.$diffType === 'drop'),
 	});
@@ -431,25 +264,14 @@ export const ddlDiff = async (
 
 	for (const rename of renamedViews) {
 		ddl1.views.update({
-			set: {
-				name: rename.to.name,
-				schema: rename.to.schema,
-			},
-			where: {
-				name: rename.from.name,
-				schema: rename.from.schema,
-			},
+			set: { name: rename.to.name, schema: rename.to.schema },
+			where: { name: rename.from.name, schema: rename.from.schema },
 		});
 	}
 	for (const move of movedViews) {
 		ddl1.views.update({
-			set: {
-				schema: move.to.schema,
-			},
-			where: {
-				name: move.from.name,
-				schema: move.from.schema,
-			},
+			set: { schema: move.to.schema },
+			where: { name: move.from.name, schema: move.from.schema },
 		});
 	}
 
@@ -908,13 +730,7 @@ export const ddlDiff = async (
 		})
 	);
 	alters.filter((it) => it.entityType === 'fks').filter((x) => {
-		if (
-			x.nameExplicit
-			&& ((mode === 'push' && x.nameExplicit.from && !x.nameExplicit.to)
-				|| x.nameExplicit.to && !x.nameExplicit.from)
-		) {
-			delete x.nameExplicit;
-		}
+		if (x.nameExplicit) delete x.nameExplicit;
 
 		return ddl2.fks.hasDiff(x);
 	}).filter(fksIdentityFilter('created')).filter(
@@ -1037,7 +853,11 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRenameReferences);
 	// jsonStatements.push(...jsonRenameDefaults);
 
-	jsonStatements.push(...createViews);
+	// dependent views must be created after their dependencies, otherwise the migration breaks
+	// but this will not help us when views are altered ("alter_view")
+	// "alter_view" does not drop and create, it alters through ddl, see drizzle-kit/tests/mssql/views.test.ts -> "topological sort test. existing view starts reading a new view" case
+	// but for created views we still sort in the correct order
+	jsonStatements.push(...sortCreateViews(createViews, $metadata?.viewDependencies));
 
 	jsonStatements.push(...dropSchemas);
 
@@ -1045,7 +865,7 @@ export const ddlDiff = async (
 
 	const renames = prepareMigrationRenames([
 		...renameSchemas,
-		...renamedOrMovedTables,
+		...orMovedTables,
 		...columnRenames,
 		...uniqueRenames,
 		...checkRenames,

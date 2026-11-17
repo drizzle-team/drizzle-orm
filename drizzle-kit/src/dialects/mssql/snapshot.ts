@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
-import type { MssqlDDL, MssqlEntity, MssqlEntityV1 } from './ddl';
+import type { MssqlDDL } from './ddl';
 import { createDDL, createDDLV1 } from './ddl';
 
 // v1
@@ -12,7 +12,7 @@ export const snapshotValidatorV1 = validator({
 	dialect: ['mssql'],
 	id: 'string',
 	prevIds: array<string>((_) => true),
-	ddl: array<MssqlEntityV1>((it) => ddlV1.entities.validate(it)),
+	ddl: array((it) => ddlV1.entities.validate(it)),
 	renames: array<string>((_) => true),
 });
 
@@ -22,7 +22,7 @@ export const snapshotValidator = validator({
 	dialect: ['mssql'],
 	id: 'string',
 	prevIds: array<string>((_) => true),
-	ddl: array<MssqlEntity>((it) => ddl.entities.validate(it)),
+	ddl: array((it) => ddl.entities.validate(it)),
 	renames: array<string>((_) => true),
 });
 

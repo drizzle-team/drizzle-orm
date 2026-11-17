@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { TableName } from '~/table.utils.ts';
 import type { MySqlColumn } from './columns/index.ts';
 import type { MySqlTable } from './table.ts';
@@ -13,6 +13,13 @@ export function uniqueKeyName(table: MySqlTable, columns: string[]) {
 
 export class UniqueConstraintBuilder<TName extends string | undefined = undefined> {
 	static readonly [entityKind]: string = 'MySqlUniqueConstraintBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	declare _: {
+		brand: 'MySqlUniqueConstraintBuilder';
+	};
 
 	/** @internal */
 	columns: MySqlColumn[];
@@ -35,6 +42,9 @@ export class UniqueConstraintBuilder<TName extends string | undefined = undefine
 
 export class UniqueOnConstraintBuilder<TName extends string | undefined = undefined> {
 	static readonly [entityKind]: string = 'MySqlUniqueOnConstraintBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	name?: TName;
@@ -52,6 +62,9 @@ export class UniqueOnConstraintBuilder<TName extends string | undefined = undefi
 
 export class UniqueConstraint {
 	static readonly [entityKind]: string = 'MySqlUniqueConstraint';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly columns: MySqlColumn[];
 	readonly name: string;

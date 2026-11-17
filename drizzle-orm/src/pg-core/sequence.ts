@@ -11,6 +11,9 @@ export type PgSequenceOptions = {
 
 export class PgSequence {
 	static readonly [entityKind]: string = 'PgSequence';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		public readonly seqName: string | undefined,

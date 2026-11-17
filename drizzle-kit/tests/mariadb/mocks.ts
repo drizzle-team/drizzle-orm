@@ -1,19 +1,18 @@
-import Docker, { Container } from 'dockerode';
 import { is } from 'drizzle-orm';
 import { int, MySqlColumnBuilder, MySqlSchema, MySqlTable, mysqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import {
 	MySqlSchema as MySqlSchemaOld,
 	MySqlTable as MysqlTableOld,
 	MySqlView as MysqlViewOld,
 } from 'orm044/mysql-core';
-import { v4 as uuid } from 'uuid';
 import { suggestions as diffSuggestions } from '../../src/cli/commands/generate-mysql';
 import { introspect } from '../../src/cli/commands/pull-mysql';
 import { suggestions } from '../../src/cli/commands/push-mysql';
 import { upToV6 } from '../../src/cli/commands/up-mysql';
+import { runWithCliContext } from '../../src/cli/context';
+import { HintsHandler } from '../../src/cli/hints';
 import { CasingType, configMigrations } from '../../src/cli/validations/common';
 import { mysqlSchemaError as schemaError } from '../../src/cli/views';
 import { EmptyProgressView } from '../../src/cli/views';
@@ -59,7 +58,8 @@ export const fromEntities = (entities: MysqlEntity[]) => {
 export const drizzleToDDL = (sch: MysqlSchema) => {
 	const tables = Object.values(sch).filter((it) => is(it, MySqlTable)) as MySqlTable[];
 	const views = Object.values(sch).filter((it) => is(it, MySqlView)) as MySqlView[];
-	return interimToDDL(fromDrizzleSchema(tables, views));
+	const { schema, metadata } = fromDrizzleSchema(tables, views);
+	return { ...interimToDDL(schema), metadata };
 };
 
 export const diff = async (
@@ -70,8 +70,8 @@ export const diff = async (
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as MysqlDDL, errors: [] }
 		: drizzleToDDL(left);
-	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
-		? { ddl: right as MysqlDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in right && '_' in right
+		? { ddl: right as MysqlDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(right);
 
 	const renames = new Set(renamesArr);
@@ -86,6 +86,7 @@ export const diff = async (
 		mockResolver(renames),
 		mockResolver(renames),
 		'default',
+		metadata,
 	);
 
 	const { errors } = diffSuggestions(statements, ddl2);
@@ -135,7 +136,7 @@ export const diffIntrospect = async (
 		filePath,
 	]);
 
-	const interim = fromDrizzleSchema(
+	const { schema: interim } = fromDrizzleSchema(
 		response.tables,
 		response.views,
 	);
@@ -191,8 +192,8 @@ export const push = async (config: {
 		migrations,
 	});
 	const { ddl: ddl1, errors: err1 } = interimToDDL(schema);
-	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
-		? { ddl: to as MysqlDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in to && '_' in to
+		? { ddl: to as MysqlDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(to);
 
 	if (err2.length > 0) {
@@ -217,9 +218,13 @@ export const push = async (config: {
 		mockResolver(renames),
 		mockResolver(renames),
 		'push',
+		metadata,
 	);
 
-	const res = await suggestions(db, statements, ddl2);
+	const res = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, ddl2, new HintsHandler()),
+	);
 
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
@@ -313,7 +318,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const sch = fromDrizzleSchema(response.tables, response.views);
+	const { schema: sch } = fromDrizzleSchema(response.tables, response.views);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
@@ -370,34 +375,6 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	return res;
 };
 
-export const createDockerDB = async (): Promise<{ url: string; container: Container }> => {
-	const docker = new Docker();
-	const port = await getPort({ port: 3306 });
-	const image = 'mariadb:11.8';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
-	);
-
-	const mysqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['MARIADB_ROOT_PASSWORD=mariadb', 'MARIADB_DATABASE=drizzle'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'3306/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await mysqlContainer.start();
-
-	return { url: `mariadb://root:mariadb@127.0.0.1:${port}/drizzle`, container: mysqlContainer };
-};
-
 export type TestDatabase = {
 	db: DB;
 	client: Connection;
@@ -407,8 +384,12 @@ export type TestDatabase = {
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	const envUrl = process.env['MARIADB_CONNECTION_STRING'];
-	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
+	const url = process.env['MARIADB_CONNECTION_STRING'];
+	if (!url) {
+		throw new Error(
+			'MARIADB_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mariadb` (or your own mariadb container) and export the connection string before running tests.',
+		);
+	}
 
 	const sleep = 1000;
 	let timeLeft = 20000;
@@ -428,7 +409,6 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 			};
 			const close = async () => {
 				await client?.end().catch(console.error);
-				await container?.stop().catch(console.error);
 			};
 			const clear = async () => {
 				await client.query(`drop database if exists \`drizzle\`;`);

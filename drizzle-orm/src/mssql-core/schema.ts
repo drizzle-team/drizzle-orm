@@ -1,10 +1,13 @@
 import type { Casing } from '~/casing.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { type MsSqlTableFn, mssqlTableWithSchema } from './table.ts';
-import { type mssqlView, mssqlViewWithSchema } from './view.ts';
+import { type MsSqlViewFn, mssqlViewWithSchema } from './view.ts';
 
 export class MsSqlSchema<TName extends string = string> {
 	static readonly [entityKind]: string = 'MsSqlSchema';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	isExisting: boolean = false;
 	constructor(
@@ -18,7 +21,7 @@ export class MsSqlSchema<TName extends string = string> {
 
 	view = ((name, columns) => {
 		return mssqlViewWithSchema(name, columns, this.schemaName, this.casing);
-	}) as typeof mssqlView;
+	}) as MsSqlViewFn<TName>;
 
 	existing(): this {
 		this.isExisting = true;

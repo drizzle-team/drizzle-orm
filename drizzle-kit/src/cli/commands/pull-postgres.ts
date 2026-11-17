@@ -3,9 +3,7 @@ import { writeFileSync } from 'fs';
 import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import { toJsonSnapshot } from 'src/dialects/postgres/snapshot';
-import type { EntityFilter } from 'src/dialects/pull-utils';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import { footprintsOf } from '../../dialects/postgres/commutativity';
 import type {
 	CheckConstraint,
 	Column,
@@ -15,7 +13,6 @@ import type {
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
-	Privilege,
 	Role,
 	Schema,
 	Sequence,
@@ -24,20 +21,25 @@ import type {
 } from '../../dialects/postgres/ddl';
 import { createDDL, interimToDDL, postgresToRelationsPull } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
+import { assertHistory, readEntries } from '../../dialects/postgres/folder';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
+import { toJsonBaseSnapshot } from '../../dialects/postgres/snapshot';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
+import type { EntityFilter } from '../../dialects/pull-utils';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
 import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
-import { prepareOutFolder } from '../../utils/utils-node';
 import type { preparePostgresDB } from '../connections';
+import { outputFormat } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { Casing } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
 import type { IntrospectStage, IntrospectStatus } from '../views';
-import { IntrospectProgress } from '../views';
+import { humanLog, IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
-import { relationsToTypeScript } from './pull-common';
+import { relationsToTypeScript, summarizeSchemaMappingErrors } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
@@ -49,35 +51,46 @@ export const handle = async (
 		table: string;
 		schema: string;
 	},
+	init: boolean,
 	db?: Awaited<ReturnType<typeof preparePostgresDB>>,
 ) => {
+	const entries = readEntries(out);
+	assertHistory(entries);
+	const snapshots = entries.map((it) => it.path);
+
 	if (!db) {
 		const { preparePostgresDB } = await import('../connections');
 		db = await preparePostgresDB(credentials);
 	}
 
-	const progress = new IntrospectProgress(true);
+	const text = outputFormat() === 'text';
 	const entityFilter = prepareEntityFilter('postgresql', filtersConfig, []);
 
-	const { schema: res } = await renderWithTask(
-		progress,
-		introspect(
-			db,
-			entityFilter,
+	let res: Awaited<ReturnType<typeof fromDatabaseForDrizzle>>;
+	if (text) {
+		const progress = new IntrospectProgress(true);
+		({ schema: res } = await renderWithTask(
 			progress,
-			(stage, count, status) => {
-				progress.update(stage, count, status);
-			},
-			migrations,
-		),
-	);
+			introspect(
+				db,
+				entityFilter,
+				progress,
+				(stage, count, status) => {
+					progress.update(stage, count, status);
+				},
+				migrations,
+			),
+		));
+	} else {
+		res = await fromDatabaseForDrizzle(db, entityFilter, () => {}, migrations);
+	}
 
 	const { ddl: ddl2, errors } = interimToDDL(res);
 
 	if (errors.length > 0) {
-		// TODO: print errors
-		console.error(errors);
-		process.exit(1);
+		throw new CommandOutputCliError('pull', 'Failed to map the introspected schema', {
+			errors: summarizeSchemaMappingErrors(errors),
+		});
 	}
 
 	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing);
@@ -87,12 +100,12 @@ export const handle = async (
 	writeFileSync(schemaFile, ts.file);
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relationsTs.file);
-	console.log();
+	humanLog();
 
-	const { snapshots } = prepareOutFolder(out);
+	let snapshotPath: string;
+	let migrationPath: string | undefined;
 	if (snapshots.length === 0) {
-		// const blanks = new Set<string>();
-		const { sqlStatements, renames } = await ddlDiff(
+		const { sqlStatements, groupedStatements } = await ddlDiff(
 			createDDL(), // dry ddl
 			ddl2,
 			resolver<Schema>('schema'),
@@ -100,55 +113,66 @@ export const handle = async (
 			resolver<Sequence>('sequence'),
 			resolver<Policy>('policy'),
 			resolver<Role>('role'),
-			resolver<Privilege>('privilege'),
 			resolver<PostgresEntities['tables']>('table'),
 			resolver<Column>('column'),
 			resolver<View>('view'),
 			resolver<UniqueConstraint>('unique'),
 			resolver<Index>('index'),
 			resolver<CheckConstraint>('check'),
-			resolver<PrimaryKey>('primary key'),
+			resolver<PrimaryKey>('primary_key'),
 			resolver<ForeignKey>('foreign key'),
 			'push',
 		);
 
-		writeResult({
-			snapshot: toJsonSnapshot(ddl2, [originUUID], renames),
+		({ snapshotPath, migrationPath } = writeResult({
+			snapshot: toJsonBaseSnapshot(ddl2, [originUUID], footprintsOf(groupedStatements)),
 			sqlStatements,
-			renames,
 			outFolder: out,
 			breakpoints,
+			init,
 			type: 'introspect',
 			snapshots,
-		});
+		}));
 	} else {
+		snapshotPath = snapshots[snapshots.length - 1];
+		if (text) {
+			render(
+				`[${
+					chalk.blue(
+						'i',
+					)
+				}] No SQL generated, you already have migrations in project`,
+			);
+		}
+	}
+
+	if (text) {
 		render(
 			`[${
-				chalk.blue(
-					'i',
+				chalk.green(
+					'✓',
 				)
-			}] No SQL generated, you already have migrations in project`,
+			}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		);
+		render(
+			`[${
+				chalk.green(
+					'✓',
+				)
+			}] Your relations file is ready ➜ ${
+				chalk.bold.underline.blue(
+					relationsFile,
+				)
+			} 🚀`,
 		);
 	}
 
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
-	);
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your relations file is ready ➜ ${
-			chalk.bold.underline.blue(
-				relationsFile,
-			)
-		} 🚀`,
-	);
+	return {
+		schemaPath: schemaFile,
+		relationsPath: relationsFile,
+		snapshotPath,
+		...(migrationPath ? { migrationPath } : {}),
+	};
 };
 
 export const introspect = async (

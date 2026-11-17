@@ -26,16 +26,12 @@ export class SingleStoreBooleanBuilder extends SingleStoreColumnBuilder<{
 export class SingleStoreBoolean<T extends ColumnBaseConfig<'boolean'>> extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreBoolean';
 
+	/** @internal */
+	override readonly codec = 'boolean';
+
 	getSQLType(): string {
 		return 'boolean';
 	}
-
-	override mapFromDriverValue = (value: number | boolean): boolean => {
-		if (typeof value === 'boolean') {
-			return value;
-		}
-		return value === 1;
-	};
 }
 
 export function boolean(name?: string): SingleStoreBooleanBuilder {

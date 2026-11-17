@@ -28,6 +28,9 @@ export class MsSqlTinyIntBuilder extends MsSqlColumnBuilderWithIdentity<{
 export class MsSqlTinyInt<T extends ColumnBaseConfig<'number uint8'>> extends MsSqlColumnWithIdentity<T> {
 	static override readonly [entityKind]: string = 'MsSqlTinyInt';
 
+	/** @internal */
+	override readonly codec = 'tinyint';
+
 	getSQLType(): string {
 		return `tinyint`;
 	}

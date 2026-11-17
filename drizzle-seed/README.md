@@ -1,8 +1,5 @@
 # Drizzle Seed
 
-> [!NOTE]
-> `drizzle-seed` can only be used with `drizzle-orm@0.36.4` or higher. Versions lower than this may work at runtime but could have type issues and identity column issues, as this patch was introduced in `drizzle-orm@0.36.4`
-
 ## Documentation
 
 The full API reference and package overview can be found in our [official documentation](https://orm.drizzle.team/docs/seed-overview)
@@ -84,6 +81,88 @@ in the `seed` option. Any new number will generate a unique set of values
 ```ts
 await seed(db, schema, { seed: 12345 });
 ```
+
+## Relations
+
+`drizzle-seed` links tables together so that a foreign key column is always filled with a value that exists in the
+table it points at. It picks those links up from foreign key constraints, and from relations declared with
+`defineRelations` - which is what makes it work on schemas that have no foreign keys in the database at all.
+
+A database created with its relations already knows about them, so nothing has to be passed to `seed`:
+
+```ts
+import * as schema from "./schema.ts";
+import { relations } from "./relations.ts";
+
+const db = drizzle(process.env.DATABASE_URL!, { relations });
+
+await seed(db, schema);
+```
+
+Relations can also be handed to `seed` directly, which takes precedence over the ones on the database:
+
+```ts
+await seed(db, schema, { relations });
+```
+
+Many-to-many relations declared with `.through()` are followed as well: the junction table is filled with rows that
+reference both of the tables it joins.
+
+```ts
+export const relations = defineRelations(schema, (r) => ({
+  users: {
+    groups: r.many.groups({
+      from: r.users.id.through(r.usersToGroups.userId),
+      to: r.groups.id.through(r.usersToGroups.groupId),
+    }),
+  },
+}));
+```
+
+Note that `defineRelations` does not record which side of a relation holds the foreign key, so when no foreign key
+constraint backs it, `drizzle-seed` infers the direction: the side whose columns are a primary key or a unique
+constraint is the one being referenced. A relation that joins two columns that are neither is skipped with a warning,
+since there is no containment for the seeder to reproduce.
+
+## Generating data without writing it
+
+`dryRun` runs the whole generation and hands you the result instead of writing it. No query is issued - the database is
+only used to tell which dialect to generate for.
+
+```ts
+const data = await seed(db, schema, { count: 5 }).dryRun();
+
+data.users; // [{ id: 1, name: "Melanie" }, ...]
+data.posts; // [{ id: 1, ownerId: 1, title: "..." }, ...]
+```
+
+The rows are exactly the ones a real `seed` with the same `seed` number would have written, relations included, and
+`refine` works the same way:
+
+```ts
+const data = await seed(db, schema)
+  .refine((funcs) => ({
+    users: { count: 3, columns: { name: funcs.firstName() } },
+  }))
+  .dryRun();
+```
+
+### As SQL
+
+`output: "sql"` gives you the statements a seed would run, with their values written into them, so they can be saved
+and replayed anywhere:
+
+```ts
+const statements = await seed(db, schema, { count: 5 }).dryRun({ output: "sql" });
+
+// [`insert into "users" ("id", "name") values (1, 'Melanie'), (2, 'Kurt')`, ...]
+
+fs.writeFileSync("seed.sql", statements.join(";\n") + ";");
+```
+
+They are the same statements a real seed executes, batched the same way, and they include everything the seed does:
+the second pass that fills in the columns of tables that reference each other, and the sequence synchronisation
+postgres needs after rows are written with explicit ids.
 
 ## Reset databases
 

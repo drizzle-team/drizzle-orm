@@ -1,8 +1,11 @@
 import mssql from 'mssql';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 
 export class AutoPool {
 	static readonly [entityKind]: string = 'AutoPool';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private pool: mssql.ConnectionPool;
 

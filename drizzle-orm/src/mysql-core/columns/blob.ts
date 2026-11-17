@@ -1,7 +1,7 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { type Equal, getColumnNameAndConfig, textDecoder } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlBlobColumnType = 'tinyblob' | 'blob' | 'mediumblob' | 'longblob';
@@ -50,29 +50,14 @@ export class MySqlStringBlob<T extends ColumnBaseConfig<'string'>>
 {
 	static override readonly [entityKind]: string = 'MySqlBlob';
 
+	/** @internal */
+	override readonly codec: MySqlBlobColumnType = this.config.blobType;
+
 	readonly blobType: MySqlBlobColumnType = this.config.blobType;
 
 	getSQLType(): string {
 		return this.blobType;
 	}
-
-	override mapFromDriverValue = (value: Buffer | Uint8Array | ArrayBuffer | string): T['data'] => {
-		if (typeof value === 'string') return atob(value);
-
-		if (typeof Buffer !== 'undefined' && Buffer.from) {
-			const buf = Buffer.isBuffer(value)
-				? value
-				// oxlint-disable-next-line drizzle-internal/no-instanceof
-				: value instanceof ArrayBuffer
-				? Buffer.from(value)
-				: value.buffer
-				? Buffer.from(value.buffer, value.byteOffset, value.byteLength)
-				: Buffer.from(value);
-			return buf.toString('utf8');
-		}
-
-		return textDecoder!.decode(value as ArrayBuffer);
-	};
 }
 
 export class MySqlBufferBlobBuilder extends MySqlColumnBuilder<
@@ -118,21 +103,14 @@ export class MySqlBufferBlob<T extends ColumnBaseConfig<'object buffer'>>
 {
 	static override readonly [entityKind]: string = 'MySqlBlob';
 
+	/** @internal */
+	override readonly codec: `${MySqlBlobColumnType}:buffer` = `${this.config.blobType}:buffer`;
+
 	readonly blobType: MySqlBlobColumnType = this.config.blobType;
 
 	getSQLType(): string {
 		return this.blobType;
 	}
-
-	override mapFromDriverValue = (value: Buffer | Uint8Array | ArrayBuffer | string): T['data'] => {
-		if (typeof value === 'string') return Buffer.from(value, 'base64');
-
-		if (Buffer.isBuffer(value)) {
-			return value;
-		}
-
-		return Buffer.from(value as Uint8Array);
-	};
 }
 
 export interface MySqlBlobConfig<

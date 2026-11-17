@@ -1,8 +1,13 @@
 import { is } from '~/entity.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { Table } from '~/table.ts';
+import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { ViewConfig } from '~/view.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
+import type { MsSqlCodecs } from './codecs.ts';
 import type { ForeignKey } from './foreign-keys.ts';
 import { ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
@@ -29,7 +34,8 @@ export function getTableConfig(table: MsSqlTable) {
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[MsSqlTable.Symbol.Columns]);
-		for (const builder of Object.values(extraConfig)) {
+		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) as any[] : Object.values(extraConfig);
+		for (const builder of extraValues) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {
@@ -40,6 +46,8 @@ export function getTableConfig(table: MsSqlTable) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
+			} else {
+				throwUnknownExtraConfigValue(name, builder);
 			}
 		}
 	}
@@ -57,12 +65,13 @@ export function getTableConfig(table: MsSqlTable) {
 	};
 }
 
-export function getViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: MsSqlView<TName, TExisting>) {
+export function getViewConfig<T extends ViewConfig = ViewConfig>(view: MsSqlView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		...view[MsSqlViewConfig],
 	};
 }
+
+export type DrizzleMsSqlConfig<TRelations extends AnyRelations> =
+	& DrizzleConfig<TRelations>
+	& { codecs?: MsSqlCodecs | undefined };

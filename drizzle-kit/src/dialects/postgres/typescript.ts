@@ -7,7 +7,9 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable, trimChar } from '../../utils';
-import { escapeForTsLiteral, inspect } from '../utils';
+import { escapeForSqlTemplate, escapeForTsLiteral } from '../grammar';
+import { withCasing } from '../pull-utils';
+import { inspect } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -20,7 +22,7 @@ import type {
 	ViewColumn,
 } from './ddl';
 import { tableFromDDL } from './ddl';
-import { defaultNameForIdentitySequence, defaults, typeFor } from './grammar';
+import { defaultNameForFK, defaultNameForIdentitySequence, defaultNameForPK, defaults, typeFor } from './grammar';
 
 // TODO: omit defaults opclass... improvement
 const imports = [
@@ -82,24 +84,6 @@ const objToStatement2 = (json: { [s: string]: unknown }) => {
 };
 
 const relations = new Set<string>();
-
-const escapeColumnKey = (value: string) => {
-	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
-		return `"${value}"`;
-	}
-	return value;
-};
-
-const withCasing = (value: string, casing: Casing) => {
-	if (casing === 'preserve') {
-		return escapeColumnKey(value);
-	}
-	if (casing === 'camel') {
-		return escapeColumnKey(toCamelCase(value));
-	}
-
-	assertUnreachable(casing);
-};
 
 const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
 	if (casing === 'preserve') {
@@ -268,8 +252,6 @@ export const ddlToTypeScript = (
 
 		if (x.entityType === 'fks') {
 			imports.add('foreignKey');
-
-			if (isCyclic(x) && !isSelf(x)) imports.add('type AnyPgColumn');
 		}
 		if (x.entityType === 'pks') imports.add('primaryKey');
 		if (x.entityType === 'uniques') imports.add('unique');
@@ -362,34 +344,54 @@ export const ddlToTypeScript = (
 		func += table.isRlsEnabled ? '.withRLS' : '';
 
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
+
+		const callbackFks: ForeignKey[] = [];
+		const inlineFks: ForeignKey[] = [];
+		for (let index = 0; index < fks.length; index++) {
+			const fk = fks[index];
+			if (
+				!isSelf(fk) && fk.columns.length === 1
+				&& fk.name === defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo)
+			) inlineFks.push(fk);
+			else callbackFks.push(fk);
+		}
+		// self() already was filtered above
+		if (inlineFks.some((fk) => isCyclic(fk))) imports.add('type AnyPgColumn');
+
+		const hasCyclicCallbackFk = callbackFks.some((fk) => isCyclic(fk) && !isSelf(fk));
+		if (hasCyclicCallbackFk) imports.add('type PgTableExtraConfigValue');
+
+		const primaryKeyType: 'callback' | 'inline' = table.pk
+				&& (
+					table.pk.columns.length > 1
+					|| (table.pk.columns.length === 1 && table.pk.name !== defaultNameForPK(table.name))
+				)
+			? 'callback'
+			: 'inline';
+
 		statement += createTableColumns(
 			columns,
-			table.pk,
-			fks,
+			primaryKeyType === 'inline' ? table.pk : null,
+			inlineFks,
 			schemas,
 			casing,
 		);
 		statement += '}';
 
-		// more than 2 fields or self reference or cyclic
-		// Andrii: I switched this one off until we will get custom names in .references()
-		const filteredFKs = table.fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it);
-		});
-
 		const hasCallback = table.indexes.length > 0
-			|| filteredFKs.length > 0
+			|| callbackFks.length > 0
 			|| table.policies.length > 0
-			|| (table.pk && table.pk.columns.length > 1)
+			|| primaryKeyType === 'callback'
 			|| table.uniques.length > 0
 			|| table.checks.length > 0;
 
 		if (hasCallback) {
 			statement += ', ';
-			statement += '(table) => [\n';
-			// TODO: or pk has non-default name
-			statement += table.pk && table.pk.columns.length > 1 ? createTablePK(table.pk, casing) : '';
-			statement += createTableFKs(filteredFKs, schemas, casing);
+			statement += hasCyclicCallbackFk ? '(table): PgTableExtraConfigValue[] => [\n' : '(table) => [\n';
+			statement += primaryKeyType === 'callback'
+				? createTablePK(table.pk!, casing)
+				: '';
+			statement += createTableFKs(callbackFks, schemas, casing);
 			statement += createTableIndexes(table.name, table.indexes, casing);
 			statement += createTableUniques(table.uniques, casing);
 			statement += createTablePolicies(table.policies, casing, rolesNameToTsKey);
@@ -413,7 +415,7 @@ export const ddlToTypeScript = (
 				: 'pgView';
 
 			const withOption = Object.fromEntries(Object.entries(it.with ?? {}).filter((x) => x[1] !== null));
-			const as = `sql\`${it.definition}\``;
+			const as = `sql\`${it.definition ? escapeForSqlTemplate(it.definition) : it.definition}\``;
 			const tablespace = it.tablespace ?? '';
 
 			const viewColumns = columnsForViews.filter((x) => x.schema === it.schema && x.view === it.name);
@@ -542,20 +544,13 @@ const createViewColumns = (
 const createTableColumns = (
 	columns: Column[],
 	primaryKey: PrimaryKey | null,
-	fks: ForeignKey[],
+	inlineFks: ForeignKey[],
 	schemas: Record<string, string>,
 	casing: Casing,
 ): string => {
 	let statement = '';
 
-	// no self refs and no cyclic
-	const oneColumnsFKs = Object.values(fks)
-		.filter((it) => {
-			return !isSelf(it);
-		})
-		.filter((it) => it.columns.length === 1);
-
-	const fkByColumnName = oneColumnsFKs.reduce((res, it) => {
+	const fkByColumnName = inlineFks.reduce((res, it) => {
 		const arr = res[it.columns[0]] || [];
 		arr.push(it);
 		res[it.columns[0]] = arr;
@@ -577,6 +572,7 @@ const createTableColumns = (
 		const comma = (dbName && opts) ? ', ' : '';
 
 		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
+				&& primaryKey.name === defaultNameForPK(it.table)
 			? primaryKey
 			: null;
 
@@ -593,14 +589,13 @@ const createTableColumns = (
 		if (pk) columnStatement += '.primaryKey()';
 		if (it.notNull && !it.identity && !pk) columnStatement += '.notNull()';
 		if (identity) columnStatement += generateIdentityParams(it);
-		if (generated) columnStatement += `.generatedAlwaysAs(sql\`${generated.as}\`)`;
+		if (generated) columnStatement += `.generatedAlwaysAs(sql\`${escapeForSqlTemplate(generated.as)}\`)`;
 
 		statement += '\t';
 		statement += columnStatement;
 		// Provide just this in column function
 
 		const fks = fkByColumnName[it.name];
-		// Andrii: I switched it off until we will get a custom naem setting in references
 		if (fks) {
 			const fksStatement = fks
 				.map((it) => {
@@ -662,7 +657,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 			it.columns
 				.map((it) => {
 					if (it.isExpression) {
-						return `sql\`${it.value}\``;
+						return `sql\`${escapeForSqlTemplate(it.value)}\``;
 					} else {
 						return `table.${withCasing(it.value, casing)}${it.asc ? '.asc()' : '.desc()'}${
 							it.nullsFirst ? '.nullsFirst()' : '.nullsLast()'
@@ -675,7 +670,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 				})
 				.join(', ')
 		})`;
-		statement += it.where ? `.where(sql\`${it.where}\`)` : '';
+		statement += it.where ? `.where(sql\`${escapeForSqlTemplate(it.where)}\`)` : '';
 
 		statement += it.with
 			? `.with({ ${
@@ -728,8 +723,8 @@ const createTablePolicies = (
 				`[${mappedItTo.map((x) => `${x}`).join(', ')}]`,
 			]);
 		}
-		if (it.using !== null) tuples.push(['using', `sql\`${it.using}\``]);
-		if (it.withCheck !== null) tuples.push(['withCheck', `sql\`${it.withCheck}\``]);
+		if (it.using !== null) tuples.push(['using', `sql\`${escapeForSqlTemplate(it.using)}\``]);
+		if (it.withCheck !== null) tuples.push(['withCheck', `sql\`${escapeForSqlTemplate(it.withCheck)}\``]);
 		const opts = tuples.length > 0 ? `, { ${tuples.map((x) => `${x[0]}: ${x[1]}`).join(', ')} }` : '';
 		statement += `\n\tpgPolicy("${it.name}"${opts}),\n`;
 	});
@@ -763,7 +758,7 @@ const createTableChecks = (
 	checkConstraints.forEach((it) => {
 		statement += 'check(';
 		statement += `"${it.name}", `;
-		statement += `sql\`${it.value.replaceAll('`', '\\`')}\`)`;
+		statement += `sql\`${escapeForSqlTemplate(it.value)}\`)`;
 		statement += `,`;
 	});
 

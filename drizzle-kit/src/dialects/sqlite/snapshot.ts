@@ -12,7 +12,7 @@ import {
 } from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
-import type { SQLiteDDL, SqliteEntity } from './ddl';
+import type { SQLiteDDL } from './ddl';
 import { createDDL } from './ddl';
 
 // ------- V3 --------
@@ -176,7 +176,7 @@ export const snapshotValidator = validator({
 	dialect: ['sqlite'],
 	id: 'string',
 	prevIds: array<string>((_) => true),
-	ddl: array<SqliteEntity>((it) => ddl.entities.validate(it)),
+	ddl: array((it) => ddl.entities.validate(it)),
 	renames: array<string>((_) => true),
 });
 

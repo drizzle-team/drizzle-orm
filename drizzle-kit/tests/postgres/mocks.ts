@@ -30,6 +30,9 @@ import {
 	PgView as PgViewOld,
 } from 'orm044/pg-core';
 import { configMigrations } from 'src/cli/validations/common';
+import type { Footprint } from 'src/commutativity/engine';
+import { normalizeDDL } from 'src/dialects/ddl-canonical';
+import type { Delta } from 'src/dialects/dialect';
 import {
 	createDDL,
 	fromEntities,
@@ -45,6 +48,7 @@ import {
 	prepareFromSchemaFiles,
 	unwrapColumn,
 } from 'src/dialects/postgres/drizzle';
+import { applyDeltas } from 'src/dialects/postgres/reconstruct';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
@@ -53,11 +57,13 @@ import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 // @ts-ignore
 import { citext } from '@electric-sql/pglite/contrib/citext';
 // @ts-ignore
-import { vector } from '@electric-sql/pglite/vector';
+import { vector } from '@electric-sql/pglite-pgvector';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import pg from 'pg';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
+import { runWithCliContext } from 'src/cli/context';
+import { HintsHandler } from 'src/cli/hints';
 import { EmptyProgressView, explain, psqlExplain } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
@@ -68,8 +74,8 @@ import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
-import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
+import { footprintsOf, postgresCommutativity } from 'src/dialects/postgres/commutativity';
+import { isFootprint } from 'src/dialects/postgres/snapshot';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
@@ -142,6 +148,7 @@ export const drizzleToDDL = (
 
 	const {
 		schema: res,
+		metadata,
 		errors,
 		warnings,
 	} = fromDrizzleSchema(grouped, filter);
@@ -150,7 +157,23 @@ export const drizzleToDDL = (
 		throw new Error();
 	}
 
-	return { ...interimToDDL(res), existing };
+	return { ...interimToDDL(res), existing, metadata };
+};
+
+export const apply = (base: PostgresDDL, deltas: Delta[]) => applyDeltas(base.clone(), deltas);
+
+// Checks that the deltas from ddlDiff turn `parent` into `next`. ddlDiff mutates both of its states, so
+// `parent` must be a copy taken before the call.
+const expectDeltasRebuildState = (parent: PostgresDDL, deltas: Delta[], next: PostgresDDL) => {
+	expect(normalizeDDL(apply(parent, deltas).entities.list()), 'the deltas from ddlDiff rebuild the new state')
+		.toStrictEqual(normalizeDDL(next.entities.list()));
+};
+
+// Checks the footprints in the form that a snapshot file holds, after a JSON round trip. Each one must pass the
+// snapshot validator.
+const expectValidFootprints = (footprints: Footprint[]) => {
+	const stored: unknown[] = JSON.parse(JSON.stringify(footprints));
+	expect(stored.filter((it) => !isFootprint(it)), 'footprints that the validator rejects').toStrictEqual([]);
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -162,8 +185,8 @@ export const diff = async (
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as PostgresDDL, errors: [] }
 		: drizzleToDDL(left);
-	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
-		? { ddl: right as PostgresDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in right && '_' in right
+		? { ddl: right as PostgresDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
@@ -172,7 +195,8 @@ export const diff = async (
 
 	const renames = new Set(renamesArr);
 
-	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
+	const parent = ddl1.clone();
+	const { sqlStatements, statements, groupedStatements, deltas } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -188,10 +212,13 @@ export const diff = async (
 		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
-		mockResolver(renames),
 		'default',
+		metadata,
 	);
-	return { sqlStatements, statements, groupedStatements, next: ddl2 };
+	expectDeltasRebuildState(parent, deltas, ddl2);
+	const footprints = footprintsOf(groupedStatements);
+	expectValidFootprints(footprints);
+	return { sqlStatements, statements, footprints, groupedStatements, deltas, next: ddl2 };
 };
 
 // init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
@@ -225,8 +252,8 @@ export const push = async (config: {
 		extensions: [],
 	};
 
-	const { ddl: ddl2, errors: err2, existing } = 'entities' in to && '_' in to
-		? { ddl: to as PostgresDDL, errors: [], existing: [] }
+	const { ddl: ddl2, errors: err2, existing, metadata } = 'entities' in to && '_' in to
+		? { ddl: to as PostgresDDL, errors: [], existing: [], metadata: undefined }
 		: drizzleToDDL(to, filterConfig);
 
 	const filter = prepareEntityFilter('postgresql', filterConfig, existing);
@@ -244,18 +271,19 @@ export const push = async (config: {
 		for (const e of err2) {
 			console.error(`err2: ${JSON.stringify(e)}`);
 		}
-		throw new Error();
+		throw new MockError(err2);
 	}
 
 	if (err3.length > 0) {
 		for (const e of err3) {
 			console.error(`err3: ${JSON.stringify(e)}`);
 		}
-		throw new Error();
+		throw new MockError(err3);
 	}
 
 	const renames = new Set(config.renames ?? []);
-	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
+	const parent = ddl1.clone();
+	const { sqlStatements, statements, groupedStatements, deltas } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -271,14 +299,18 @@ export const push = async (config: {
 		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
-		mockResolver(renames),
 		'push',
+		metadata,
+	);
+	expectDeltasRebuildState(parent, deltas, ddl2);
+
+	const hints = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, new HintsHandler()),
 	);
 
-	const hints = await suggestions(db, statements);
-
 	if (config.explain) {
-		const explainMessage = explain('postgres', groupedStatements, false, []);
+		const explainMessage = explain('postgres', groupedStatements, []);
 		console.log(explainMessage);
 		return { sqlStatements, statements, hints };
 	}
@@ -300,7 +332,8 @@ export const push = async (config: {
 			);
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
-			const { sqlStatements, statements } = await ddlDiff(
+			const parent = ddl1.clone();
+			const { sqlStatements, statements, deltas } = await ddlDiff(
 				ddl1,
 				ddl2,
 				mockResolver(renames),
@@ -316,9 +349,9 @@ export const push = async (config: {
 				mockResolver(renames),
 				mockResolver(renames),
 				mockResolver(renames),
-				mockResolver(renames),
 				'push',
 			);
+			expectDeltasRebuildState(parent, deltas, ddl2);
 			if (sqlStatements.length > 0) {
 				console.error('---- subsequent push is not empty ----');
 				expect(sqlStatements.join('\n')).toBe('');
@@ -334,7 +367,7 @@ export const diffIntrospect = async (
 	db: DB,
 	initSchema: PostgresSchema,
 	testName: string,
-	schemas: string[] = ['public'],
+	schemas: string[] = [],
 	entities?: EntitiesFilter,
 ) => {
 	const { ddl: initDDL } = drizzleToDDL(initSchema);
@@ -388,6 +421,10 @@ export const diffIntrospect = async (
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 	// TODO: handle errors
 
+	// we need to create copies, since first ddlDryDiff makes preserve entity names logic
+	const ddl1Copy = fromEntities(ddl1.entities.list());
+	const ddl2Copy = fromEntities(ddl2.entities.list());
+
 	const {
 		sqlStatements: pushAfterFileSqlStatements,
 		statements: pushAfterFileStatements,
@@ -395,18 +432,18 @@ export const diffIntrospect = async (
 	} = await ddlDiffDry(ddl1, ddl2, 'push');
 
 	if (pushAfterFileSqlStatements.length > 0) {
-		console.log(chalk.bgRed('After push: ') + '\n' + explain('postgres', pushAfterFileGroupedStatements, true, []));
+		console.log(chalk.bgRed('After push: ') + '\n' + explain('postgres', pushAfterFileGroupedStatements, []));
 	}
 
 	const {
 		sqlStatements: generateAfterFileSqlStatements,
 		statements: generateAfterFileStatements,
 		groupedStatements: generateAfterFileGroupedStatements,
-	} = await ddlDiffDry(ddl1, ddl2, 'default');
+	} = await ddlDiffDry(ddl1Copy, ddl2Copy, 'default');
 
 	if (generateAfterFileSqlStatements.length > 0) {
 		console.log(
-			chalk.bgRed('After generate: ') + '\n' + explain('postgres', generateAfterFileGroupedStatements, true, []),
+			chalk.bgRed('After generate: ') + '\n' + explain('postgres', generateAfterFileGroupedStatements, []),
 		);
 	}
 
@@ -430,6 +467,7 @@ export const diffIntrospect = async (
 		ddlAfterPull: ddl1,
 		schema2,
 		relationsError,
+		relationsFile: relationsForTsc.file,
 	};
 };
 
@@ -873,19 +911,8 @@ export async function conflictsFromSchema(
 		child2: SchemaShape;
 	},
 ) {
-	const { ddl: parentDDL } = drizzleToDDL(parent.schema);
+	const { footprints: footprints1 } = await diff(parent.schema, child1.schema, []);
+	const { footprints: footprints2 } = await diff(parent.schema, child2.schema, []);
 
-	const parentSnapshot = {
-		version: '8',
-		dialect: 'postgres',
-		id: parent.id,
-		prevIds: parent.prevId ? [parent.prevId] : [],
-		ddl: parentDDL.entities.list(),
-		renames: [],
-	} satisfies PostgresSnapshot;
-
-	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
-	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
-
-	return await postgresCommutativity.getReasonsFromStatements(st1, st2, parentSnapshot);
+	return postgresCommutativity.findConflict(footprints1, footprints2);
 }

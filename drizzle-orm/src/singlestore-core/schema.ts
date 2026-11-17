@@ -5,6 +5,9 @@ import { type SingleStoreTableFn, singlestoreTableWithSchema } from './table.ts'
 
 export class SingleStoreSchema<TName extends string = string> {
 	static readonly [entityKind]: string = 'SingleStoreSchema';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		public readonly schemaName: TName,

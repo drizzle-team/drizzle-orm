@@ -1,9 +1,7 @@
+import type { Resolver } from '../dialects/common';
+
 export const mockResolver =
-	<T extends { name: string; table?: string; schema?: string }>(renames: Set<string>) =>
-	async (it: {
-		created: T[];
-		deleted: T[];
-	}): Promise<{ created: T[]; deleted: T[]; renamedOrMoved: { from: T; to: T }[] }> => {
+	<T extends { name: string; table?: string; schema?: string }>(renames: Set<string>): Resolver<T> => async (it) => {
 		const { created, deleted } = it;
 
 		if (created.length === 0 || deleted.length === 0 || renames.size === 0) {

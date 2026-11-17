@@ -39,10 +39,19 @@ import {
 	notLike,
 	or,
 } from '~/sql/expressions/index.ts';
-import { type InferSelectViewModel, type SQL, sql } from '~/sql/sql.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
+import type { InferViewSelectModel } from '~/view.ts';
 
 import { db } from './db.ts';
-import { cities, classes, newYorkers, newYorkers2, users } from './tables.ts';
+import {
+	cities,
+	classes,
+	newYorkers,
+	newYorkers2,
+	newYorkersWithSubquery,
+	newYorkersWithSubquery2,
+	users,
+} from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -979,6 +988,50 @@ await db
 }
 
 {
+	const result = await db.select().from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				id: number;
+				class: 'A' | 'C';
+				cityCount: number;
+				lastCityId: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery>[]>>;
+}
+
+{
+	const result = await db.select({ cityCount: newYorkersWithSubquery.cityCount }).from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				cityCount: number;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
+	const result = await db.select().from(newYorkersWithSubquery2);
+	Expect<
+		Equal<
+			{
+				id: number;
+				cityCount: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery2.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery2>[]>>;
+}
+
+{
 	db
 		.select()
 		.from(users)
@@ -1220,7 +1273,7 @@ await db
 		}[]>
 	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof view>[]>>;
 }
 
 {
@@ -1257,7 +1310,7 @@ await db
 		}[]>
 	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof view>[]>>;
 }
 
 {

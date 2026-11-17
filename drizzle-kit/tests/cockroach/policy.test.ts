@@ -1524,3 +1524,25 @@ test('alter policy in the table: using', async ({ db }) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+test('a policy rename on one table keeps the change of a policy with the same name on another table', async ({ db }) => {
+	const tables = (first: ReturnType<typeof cockroachPolicy>, second: ReturnType<typeof cockroachPolicy>) => ({
+		users: cockroachTable('users', { id: int4() }, () => [first]),
+		posts: cockroachTable('posts', { id: int4() }, () => [second]),
+	});
+	const schema1 = tables(cockroachPolicy('readers', { for: 'select' }), cockroachPolicy('readers', { for: 'select' }));
+	const schema2 = tables(cockroachPolicy('viewers', { for: 'select' }), cockroachPolicy('readers', { for: 'delete' }));
+	const renames = ['public.users.readers->public.users.viewers'];
+
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
+
+	const st0 = [
+		'ALTER POLICY "readers" ON "users" RENAME TO "viewers";',
+		'DROP POLICY "readers" ON "posts";',
+		'CREATE POLICY "readers" ON "posts" AS PERMISSIVE FOR DELETE TO public;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

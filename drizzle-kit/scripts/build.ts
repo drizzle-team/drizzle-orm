@@ -4,6 +4,7 @@ import * as fs from 'node:fs/promises';
 import { rolldown } from 'rolldown';
 import { build as tsdown } from 'tsdown';
 import pkg from '../package.json';
+import { readSkillsRevisionFromDisk } from './lib/read-skills-revision';
 
 const driversPackages = [
 	// postgres drivers
@@ -12,6 +13,10 @@ const driversPackages = [
 	'@vercel/postgres',
 	'@neondatabase/serverless',
 	'@electric-sql/pglite',
+	/^@drizzle-team\/minipg(\/|$)/,
+	// dsql drivers
+	'@aws/aurora-dsql-node-postgres-connector',
+	'@aws/aurora-dsql-postgresjs-connector',
 	// mysql drivers
 	'mysql2',
 	'@planetscale/database',
@@ -22,13 +27,14 @@ const driversPackages = [
 	'@sqlitecloud/drivers',
 	'@tursodatabase/database',
 	'bun',
+	// mssql drivers
+	'mssql',
 	// duckdb drivers
 	'duckdb',
 	'@duckdb/node-api',
 ];
 
 const external = [
-	'esbuild',
 	/^drizzle-orm\/?/,
 	...driversPackages,
 ];
@@ -78,22 +84,25 @@ async function buildCli() {
 	await build.close();
 
 	const binContent = await fs.readFile('dist/bin.cjs', 'utf8');
-	await fs.writeFile(
-		'dist/bin.cjs',
-		binContent.replace(
-			/process\.env\.DRIZZLE_KIT_VERSION/g,
-			JSON.stringify(pkg.version),
-		),
-	);
+	const patched = binContent
+		.replace(/process\.env\.DRIZZLE_KIT_VERSION/g, JSON.stringify(pkg.version))
+		.replace(/process\.env\.DRIZZLE_KIT_SKILLS_REVISION/g, JSON.stringify(readSkillsRevisionFromDisk('./skills')));
+	await fs.writeFile('dist/bin.cjs', patched);
 
 	console.log('  Built bin.cjs');
 }
 
+// tsdown's `emitDtsOnly: true` still emits chunked .js files alongside the
+// declarations. If tsdown writes to ./dist it overwrites rolldown's clean
+// single-file bundles and produces a CJS entry that fails to load. Direct
+// tsdown's output at a temp dir and copy only .d.ts / .d.mts back into ./dist.
+const TSDOWN_TEMP_DIR = './dist/__dts-temp';
+
 async function buildDeclarations() {
 	// Use tsdown for declaration bundling - it handles path resolution and creates bundled .d.ts files
 	await tsdown({
-		entry: ['./src/index.ts'],
-		outDir: './dist',
+		entry: { index: './src/index.ts', cli: './src/cli-sdk/index.ts' },
+		outDir: TSDOWN_TEMP_DIR,
 		external: [...driversPackages, /^drizzle-orm\/?/],
 		dts: { emitDtsOnly: true },
 		format: ['cjs', 'es'],
@@ -108,9 +117,17 @@ async function buildDeclarations() {
 	});
 
 	await tsdown({
-		entry: ['./src/ext/api-postgres.ts', './src/ext/api-mysql.ts', './src/ext/api-sqlite.ts'],
-		outDir: './dist',
-		external: ['esbuild', 'drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
+		entry: {
+			'api-postgres': './src/ext/api-postgres.ts',
+			'api-mysql': './src/ext/api-mysql.ts',
+			'api-sqlite': './src/ext/api-sqlite.ts',
+			'payload-postgres': './src/payload/postgres.ts',
+			'payload-mysql': './src/payload/mysql.ts',
+			'payload-sqlite': './src/payload/sqlite.ts',
+			'payload-mssql': './src/payload/mssql.ts',
+		},
+		outDir: TSDOWN_TEMP_DIR,
+		external: ['drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
 		dts: { emitDtsOnly: true },
 		format: ['cjs', 'es'],
 		logLevel: 'silent',
@@ -126,8 +143,26 @@ async function buildDeclarations() {
 	console.log('  Built declarations');
 }
 
+async function copyDeclarationsAndCleanTemp() {
+	const entries = await fs.readdir(TSDOWN_TEMP_DIR);
+	await Promise.all(
+		entries
+			.filter((f) => f.endsWith('.d.ts') || f.endsWith('.d.mts'))
+			.map((f) => fs.copyFile(`${TSDOWN_TEMP_DIR}/${f}`, `dist/${f}`)),
+	);
+	rmSync(TSDOWN_TEMP_DIR, { recursive: true, force: true });
+}
+
 async function postProcessApiFiles() {
-	const apiFiles = ['dist/api-postgres.js', 'dist/api-mysql.js', 'dist/api-sqlite.js'];
+	const apiFiles = [
+		'dist/api-postgres.js',
+		'dist/api-mysql.js',
+		'dist/api-sqlite.js',
+		'dist/payload-postgres.js',
+		'dist/payload-mysql.js',
+		'dist/payload-sqlite.js',
+		'dist/payload-mssql.js',
+	];
 	await Promise.all(
 		apiFiles.map(async (file) => {
 			if (existsSync(file)) {
@@ -192,12 +227,74 @@ async function main() {
 			outputName: 'api-sqlite.mjs',
 			format: 'esm',
 		}),
+		buildBundle({
+			name: 'cli-cjs',
+			input: './src/cli-sdk/index.ts',
+			outputName: 'cli.js',
+			format: 'cjs',
+		}),
+		buildBundle({
+			name: 'cli-esm',
+			input: './src/cli-sdk/index.ts',
+			outputName: 'cli.mjs',
+			format: 'esm',
+		}),
+		buildBundle({
+			name: 'payload-postgres-cjs',
+			input: './src/payload/postgres.ts',
+			outputName: 'payload-postgres.js',
+			format: 'cjs',
+		}),
+		buildBundle({
+			name: 'payload-postgres-esm',
+			input: './src/payload/postgres.ts',
+			outputName: 'payload-postgres.mjs',
+			format: 'esm',
+		}),
+		buildBundle({
+			name: 'payload-mysql-cjs',
+			input: './src/payload/mysql.ts',
+			outputName: 'payload-mysql.js',
+			format: 'cjs',
+		}),
+		buildBundle({
+			name: 'payload-mysql-esm',
+			input: './src/payload/mysql.ts',
+			outputName: 'payload-mysql.mjs',
+			format: 'esm',
+		}),
+		buildBundle({
+			name: 'payload-sqlite-cjs',
+			input: './src/payload/sqlite.ts',
+			outputName: 'payload-sqlite.js',
+			format: 'cjs',
+		}),
+		buildBundle({
+			name: 'payload-sqlite-esm',
+			input: './src/payload/sqlite.ts',
+			outputName: 'payload-sqlite.mjs',
+			format: 'esm',
+		}),
+		buildBundle({
+			name: 'payload-mssql-cjs',
+			input: './src/payload/mssql.ts',
+			outputName: 'payload-mssql.js',
+			format: 'cjs',
+		}),
+		buildBundle({
+			name: 'payload-mssql-esm',
+			input: './src/payload/mssql.ts',
+			outputName: 'payload-mssql.mjs',
+			format: 'esm',
+		}),
 		buildDeclarations(),
 	]);
 
+	await copyDeclarationsAndCleanTemp();
 	await Promise.all([
 		postProcessApiFiles(),
 		fs.copyFile('package.json', 'dist/package.json'),
+		fs.cp('skills', 'dist/skills', { recursive: true }),
 	]);
 
 	const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);

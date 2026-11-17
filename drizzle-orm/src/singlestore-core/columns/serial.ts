@@ -35,16 +35,12 @@ export class SingleStoreSerial<
 > extends SingleStoreColumnWithAutoIncrement<T> {
 	static override readonly [entityKind]: string = 'SingleStoreSerial';
 
+	/** @internal */
+	override readonly codec = 'serial';
+
 	getSQLType(): string {
 		return 'serial';
 	}
-
-	override mapFromDriverValue = (value: number | string): number => {
-		if (typeof value === 'string') {
-			return Number(value);
-		}
-		return value;
-	};
 }
 
 export function serial(name?: string): SingleStoreSerialBuilder {

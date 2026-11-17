@@ -1,9 +1,12 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { SQLiteTable } from './table.ts';
 
 export class CheckBuilder {
 	static readonly [entityKind]: string = 'SQLiteCheckBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected brand!: 'SQLiteConstraintBuilder';
 
@@ -16,6 +19,9 @@ export class CheckBuilder {
 
 export class Check {
 	static readonly [entityKind]: string = 'SQLiteCheck';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: {
 		brand: 'SQLiteCheck';

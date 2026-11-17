@@ -2,6 +2,7 @@ import { type Equal, Expect } from 'type-tests/utils';
 import { drizzle } from '~/cockroach';
 import { cockroachTable, int4, text, varchar } from '~/cockroach-core';
 import { type InferInsertModel, type InferSelectModel, sql } from '~/index';
+import { defineRelations } from '~/relations.ts';
 import { db } from './db';
 
 const users = cockroachTable(
@@ -96,9 +97,9 @@ const users = cockroachTable(
 }
 
 {
-	const db = drizzle({} as any, { schema: { users } });
+	const db = drizzle({} as any, { relations: defineRelations({ users }, () => ({ users: {} })) });
 
-	const dbUser = await db._query.users.findFirst();
+	const dbUser = await db.query.users.findFirst();
 
 	Expect<
 		Equal<
@@ -116,9 +117,9 @@ const users = cockroachTable(
 }
 
 {
-	const db = drizzle({} as any, { schema: { users } });
+	const db = drizzle({} as any, { relations: defineRelations({ users }, () => ({ users: {} })) });
 
-	const dbUser = await db._query.users.findMany();
+	const dbUser = await db.query.users.findMany();
 
 	Expect<
 		Equal<
@@ -137,12 +138,7 @@ const users = cockroachTable(
 
 {
 	// @ts-expect-error - Can't use the fullName because it's a generated column
-	await db.insert(users).values({
-		firstName: 'test',
-		lastName: 'test',
-		email: 'test',
-		fullName: 'test',
-	});
+	await db.insert(users).values({ firstName: 'test', lastName: 'test', email: 'test', fullName: 'test' });
 }
 
 {

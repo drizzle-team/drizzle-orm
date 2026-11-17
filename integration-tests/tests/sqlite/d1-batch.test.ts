@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import 'dotenv/config';
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
-import { createSQLiteDB } from '@miniflare/shared';
+import Client from 'better-sqlite3';
 import { defineRelations, eq, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
@@ -136,12 +136,12 @@ const schema = {
 
 const relationsV2 = defineRelations(schema);
 
-let db: DrizzleD1Database<typeof schema, typeof relationsV2>;
+let db: DrizzleD1Database<typeof relationsV2>;
 
 beforeAll(async () => {
-	const sqliteDb = await createSQLiteDB(':memory:');
+	const sqliteDb = new Client(':memory:');
 	const d1db = new D1Database(new D1DatabaseAPI(sqliteDb));
-	db = drizzle(d1db, { logger: ENABLE_LOGGING, schema, relations: relationsV2 });
+	db = drizzle(d1db, { logger: ENABLE_LOGGING, relations: relationsV2 });
 });
 
 beforeEach(async () => {
@@ -253,17 +253,17 @@ test('batch api example', async () => {
 		invitedBy: null,
 	}]);
 
-	// expect(batchResponse[1]).toEqual({
-	// 	results: [],
-	// 	success: true,
-	// 	meta: {
-	// 		duration: 0.027083873748779297,
-	// 		last_row_id: 2,
-	// 		changes: 1,
-	// 		served_by: 'miniflare.db',
-	// 		internal_stats: null,
-	// 	},
-	// });
+	expect(batchResponse[1]).toEqual({
+		results: [],
+		success: true,
+		meta: {
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			last_row_id: 2,
+			changes: 1,
+			served_by: 'miniflare.db',
+			internal_stats: null,
+		},
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
@@ -276,8 +276,178 @@ test('insert + findMany', async () => {
 	const batchResponse = await db.batch([
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-		db._query.usersTable.findMany({}),
 		db.query.usersTable.findMany({}),
+	]);
+
+	expectTypeOf(batchResponse).toEqualTypeOf<[
+		{
+			id: number;
+		}[],
+		D1Result,
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[],
+	]>();
+
+	expect(batchResponse.length).eq(3);
+
+	expect(batchResponse[0]).toEqual([{
+		id: 1,
+	}]);
+
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
+
+	expect(batchResponse[2]).toEqual([
+		{ id: 1, name: 'John', verified: 0, invitedBy: null },
+		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
+	]);
+});
+
+// batch api relational many + one
+test('insert + findMany + findFirst', async () => {
+	const batchResponse = await db.batch([
+		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
+		db.query.usersTable.findMany({}),
+		db.query.usersTable.findFirst({}),
+	]);
+
+	expectTypeOf(batchResponse).toEqualTypeOf<[
+		{
+			id: number;
+		}[],
+		D1Result,
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[],
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		} | undefined,
+	]>();
+
+	expect(batchResponse.length).eq(4);
+
+	expect(batchResponse[0]).toEqual([{
+		id: 1,
+	}]);
+
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
+
+	expect(batchResponse[2]).toEqual([
+		{ id: 1, name: 'John', verified: 0, invitedBy: null },
+		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
+	]);
+
+	expect(batchResponse[3]).toEqual(
+		{ id: 1, name: 'John', verified: 0, invitedBy: null },
+	);
+});
+
+test('insert + db.all + db.get + db.values + db.run', async () => {
+	const batchResponse = await db.batch([
+		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+		db.run(sql`insert into users (id, name) values (2, 'Dan')`),
+		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
+		db.values(sql`select * from users`),
+		db.get<typeof usersTable.$inferSelect>(sql`select * from users`),
+		db.all<[number, string, number, number | null]>(sql`select * from users`, 'arrays'),
+		db.get<[number, string, number, number | null]>(sql`select * from users`, 'arrays'),
+	]);
+
+	expectTypeOf(batchResponse).toEqualTypeOf<[
+		{
+			id: number;
+		}[],
+		D1Result,
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[],
+		unknown[][],
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		} | undefined,
+		[number, string, number, number | null][],
+		[number, string, number, number | null] | undefined,
+	]>();
+
+	expect(batchResponse.length).eq(7);
+
+	expect(batchResponse[0], 'insert').toEqual([{
+		id: 1,
+	}]);
+
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
+
+	expect(batchResponse[2], 'all').toEqual([
+		{ id: 1, name: 'John', verified: 0, invited_by: null },
+		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
+	]);
+
+	expect(batchResponse[3], 'values').toEqual([[1, 'John', 0, null], [2, 'Dan', 0, null]]);
+
+	expect(batchResponse[4], 'get').toEqual(
+		{ id: 1, name: 'John', verified: 0, invited_by: null },
+	);
+	expect(batchResponse[5]).toEqual([
+		[1, 'John', 0, null],
+		[2, 'Dan', 0, null],
+	]);
+
+	expect(batchResponse[6]).toEqual([1, 'John', 0, null]);
+});
+
+// batch api combined rqb + raw call
+test('insert + findManyWith + db.all', async () => {
+	const batchResponse = await db.batch([
+		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
+		db.query.usersTable.findMany({}),
+		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
 	]);
 
 	expectTypeOf(batchResponse).toEqualTypeOf<[
@@ -305,179 +475,17 @@ test('insert + findMany', async () => {
 		id: 1,
 	}]);
 
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
-
-	expect(batchResponse[2]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[3]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-});
-
-// batch api relational many + one
-test('insert + findMany + findFirst', async () => {
-	const batchResponse = await db.batch([
-		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-		db._query.usersTable.findMany({}),
-		db._query.usersTable.findFirst({}),
-		db.query.usersTable.findMany({}),
-		db.query.usersTable.findFirst({}),
-	]);
-
-	expectTypeOf(batchResponse).toEqualTypeOf<[
-		{
-			id: number;
-		}[],
-		D1Result,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		} | undefined,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		} | undefined,
-	]>();
-
-	expect(batchResponse.length).eq(6);
-
-	expect(batchResponse[0]).toEqual([{
-		id: 1,
-	}]);
-
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
-
-	expect(batchResponse[2]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[3]).toEqual(
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-	);
-
-	expect(batchResponse[4]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[5]).toEqual(
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-	);
-});
-
-test('insert + db.all + db.get + db.values + db.run', async () => {
-	const batchResponse = await db.batch([
-		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-		db.run(sql`insert into users (id, name) values (2, 'Dan')`),
-		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
-		db.values(sql`select * from users`),
-		db.get<typeof usersTable.$inferSelect>(sql`select * from users`),
-	]);
-
-	expectTypeOf(batchResponse).toEqualTypeOf<[
-		{
-			id: number;
-		}[],
-		D1Result,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		unknown[][],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
 		},
-	]>();
-
-	expect(batchResponse.length).eq(5);
-
-	expect(batchResponse[0], 'insert').toEqual([{
-		id: 1,
-	}]);
-
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
-
-	expect(batchResponse[2], 'all').toEqual([
-		{ id: 1, name: 'John', verified: 0, invited_by: null },
-		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
-	]);
-
-	expect(batchResponse[3], 'values').toEqual([[1, 'John', 0, null], [2, 'Dan', 0, null]]);
-
-	expect(batchResponse[4], 'get').toEqual(
-		{ id: 1, name: 'John', verified: 0, invited_by: null },
-	);
-});
-
-// batch api combined rqb + raw call
-test('insert + findManyWith + db.all', async () => {
-	const batchResponse = await db.batch([
-		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-		db._query.usersTable.findMany({}),
-		db.query.usersTable.findMany({}),
-		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
-	]);
-
-	expectTypeOf(batchResponse).toEqualTypeOf<[
-		{
-			id: number;
-		}[],
-		D1Result,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-	]>();
-
-	expect(batchResponse.length).eq(5);
-
-	expect(batchResponse[0]).toEqual([{
-		id: 1,
-	}]);
-
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
@@ -485,11 +493,6 @@ test('insert + findManyWith + db.all', async () => {
 	]);
 
 	expect(batchResponse[3]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[4]).toEqual([
 		{ id: 1, name: 'John', verified: 0, invited_by: null },
 		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
 	]);
@@ -500,7 +503,6 @@ test('insert + update + select + select partial', async () => {
 	const batchResponse = await db.batch([
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.update(usersTable).set({ name: 'Dan' }).where(eq(usersTable.id, 1)),
-		db._query.usersTable.findMany({}),
 		db.query.usersTable.findMany({}),
 		db.select().from(usersTable).where(eq(usersTable.id, 1)),
 		db.select({ id: usersTable.id, invitedBy: usersTable.invitedBy }).from(usersTable),
@@ -525,23 +527,27 @@ test('insert + update + select + select partial', async () => {
 		}[],
 		{
 			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
 			invitedBy: number | null;
 		}[],
 	]>();
 
-	expect(batchResponse.length).eq(6);
+	expect(batchResponse.length).eq(5);
 
 	expect(batchResponse[0]).toEqual([{
 		id: 1,
 	}]);
 
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 1n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 1,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'Dan', verified: 0, invitedBy: null },
@@ -552,10 +558,6 @@ test('insert + update + select + select partial', async () => {
 	]);
 
 	expect(batchResponse[4]).toEqual([
-		{ id: 1, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[5]).toEqual([
 		{ id: 1, invitedBy: null },
 	]);
 });
@@ -566,12 +568,6 @@ test('insert + delete + select + select partial', async () => {
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
 		db.delete(usersTable).where(eq(usersTable.id, 1)).returning({ id: usersTable.id, invitedBy: usersTable.invitedBy }),
-		db._query.usersTable.findFirst({
-			columns: {
-				id: true,
-				invitedBy: true,
-			},
-		}),
 		db.query.usersTable.findFirst({
 			columns: {
 				id: true,
@@ -593,29 +589,31 @@ test('insert + delete + select + select partial', async () => {
 			id: number;
 			invitedBy: number | null;
 		} | undefined,
-		{
-			id: number;
-			invitedBy: number | null;
-		} | undefined,
 	]>();
 
-	expect(batchResponse.length).eq(5);
+	expect(batchResponse.length).eq(4);
 
 	expect(batchResponse[0]).toEqual([{
 		id: 1,
 	}]);
 
-	// expect(batchResponse[1]).toEqual({ columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+	expect(batchResponse[1]).toEqual({
+		meta: {
+			changes: 1,
+			duration: expect.toSatisfy((v) => typeof v === 'number', 'expected number'),
+			internal_stats: null,
+			last_row_id: 2,
+			served_by: 'miniflare.db',
+		},
+		results: [],
+		success: true,
+	});
 
 	expect(batchResponse[2]).toEqual([
 		{ id: 1, invitedBy: null },
 	]);
 
 	expect(batchResponse[3]).toEqual(
-		{ id: 2, invitedBy: null },
-	);
-
-	expect(batchResponse[4]).toEqual(
 		{ id: 2, invitedBy: null },
 	);
 });

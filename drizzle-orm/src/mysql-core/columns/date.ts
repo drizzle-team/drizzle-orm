@@ -1,3 +1,4 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
@@ -24,9 +25,12 @@ export class MySqlDateBuilder extends MySqlColumnBuilder<{
 export class MySqlDate<T extends ColumnBaseConfig<'object date'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlDate';
 
+	/** @internal */
+	override readonly codec = 'date';
+
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']>,
 	) {
 		super(table, config);
 	}
@@ -35,8 +39,9 @@ export class MySqlDate<T extends ColumnBaseConfig<'object date'>> extends MySqlC
 		return `date`;
 	}
 
-	override mapFromDriverValue = (value: string): Date => {
-		return new Date(value);
+	override mapToDriverValue = (value: Date | string): string => {
+		if (typeof value === 'string') return value;
+		return value.toISOString().slice(0, 10);
 	};
 }
 
@@ -63,9 +68,12 @@ export class MySqlDateStringBuilder extends MySqlColumnBuilder<{
 export class MySqlDateString<T extends ColumnBaseConfig<'string date'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlDateString';
 
+	/** @internal */
+	override readonly codec = 'date:string';
+
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateStringBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']>,
 	) {
 		super(table, config);
 	}
@@ -73,12 +81,6 @@ export class MySqlDateString<T extends ColumnBaseConfig<'string date'>> extends 
 	getSQLType(): string {
 		return `date`;
 	}
-
-	override mapFromDriverValue = (value: Date | string): string => {
-		if (typeof value === 'string') return value;
-
-		return value.toISOString().slice(0, -14);
-	};
 }
 
 export interface MySqlDateConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {

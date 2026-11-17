@@ -6,6 +6,7 @@ import {
 	index,
 	IndexBuilder,
 	int4,
+	primaryKey,
 	text,
 	uniqueIndex,
 	uuid,
@@ -464,4 +465,111 @@ test('indexes #5', async ({ dbc: db }) => {
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// The `renames` below swap the index names, so both tables have an index `second_idx` after the first rename.
+// Cockroach refuses that name as ambiguous, so the second rename names the table `dogs`.
+const folder = cockroachSchema('folder');
+
+test.concurrent.for([
+	{ name: 'the public schema', schema: 'public', prefix: '' },
+	{ name: 'another schema', schema: 'folder', prefix: '"folder".' },
+])(
+	'index renames that swap a name between two tables of $name keep the changes of both indexes',
+	async ({ schema, prefix }, { db }) => {
+		const table = (schema === 'folder' ? folder.table : cockroachTable) as typeof cockroachTable;
+		const tables = (catsIndex: string, dogsIndex: string, hasSecondColumn: boolean) => {
+			const on = (name: string) => (t: any) => [hasSecondColumn ? index(name).on(t.id, t.name) : index(name).on(t.id)];
+			return {
+				folder,
+				cats: table('cats', { id: int4(), name: text() }, on(catsIndex)),
+				dogs: table('dogs', { id: int4(), name: text() }, on(dogsIndex)),
+			};
+		};
+		const renames = [
+			`${schema}.cats.first_idx->${schema}.cats.second_idx`,
+			`${schema}.dogs.second_idx->${schema}.dogs.first_idx`,
+		];
+		const from = tables('first_idx', 'second_idx', false);
+		const to = tables('second_idx', 'first_idx', true);
+
+		const { sqlStatements: st } = await diff(from, to, renames);
+		await push({ db, to: from });
+		const { sqlStatements: pst } = await push({ db, to, renames });
+
+		const st0 = [
+			`ALTER INDEX ${prefix}"first_idx" RENAME TO "second_idx";`,
+			`ALTER INDEX ${prefix}"dogs"@"second_idx" RENAME TO "first_idx";`,
+			`DROP INDEX ${prefix}"second_idx";`,
+			`CREATE INDEX "second_idx" ON ${prefix}"cats" ("id","name");`,
+			`DROP INDEX ${prefix}"first_idx";`,
+			`CREATE INDEX "first_idx" ON ${prefix}"dogs" ("id","name");`,
+		];
+		expect(st).toStrictEqual(st0);
+		expect(pst).toStrictEqual(st0);
+	},
+);
+
+test.concurrent.for([
+	{ name: 'an index', create: index, drop: 'DROP INDEX "cats"@"name_idx";' },
+	{ name: 'a unique index', create: uniqueIndex, drop: 'DROP INDEX "cats"@"name_idx" CASCADE;' },
+])(
+	'a drop of $name whose name an index of another table takes writes SQL that runs',
+	async ({ create, drop }, { db }) => {
+		const columns = { id: int4() };
+		const from = {
+			cats: cockroachTable('cats', columns, (t) => [create('name_idx').on(t.id)]),
+			dogs: cockroachTable('dogs', columns, (t) => [index('other_idx').on(t.id)]),
+		};
+		const to = {
+			cats: cockroachTable('cats', columns),
+			dogs: cockroachTable('dogs', columns, (t) => [index('name_idx').on(t.id)]),
+		};
+		const renames = ['public.dogs.other_idx->public.dogs.name_idx'];
+
+		const { sqlStatements: st } = await diff(from, to, renames);
+		await push({ db, to: from });
+		const { sqlStatements: pst } = await push({ db, to, renames });
+
+		const st0 = ['ALTER INDEX "other_idx" RENAME TO "name_idx";', drop];
+		expect(st).toStrictEqual(st0);
+		expect(pst).toStrictEqual(st0);
+	},
+);
+
+test.concurrent('a rename of a unique index whose name a new table takes writes SQL that runs', async ({ db }) => {
+	const columns = { id: int4() };
+	const from = { cats: cockroachTable('cats', columns, (t) => [uniqueIndex('name_idx').on(t.id)]) };
+	const to = {
+		cats: cockroachTable('cats', columns, (t) => [uniqueIndex('other_idx').on(t.id)]),
+		dogs: cockroachTable('dogs', columns, (t) => [uniqueIndex('name_idx').on(t.id)]),
+	};
+	const renames = ['public.cats.name_idx->public.cats.other_idx'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'CREATE TABLE "dogs" (\n\t"id" int4,\n\tCONSTRAINT "name_idx" UNIQUE("id")\n);\n',
+		'ALTER INDEX "cats"@"name_idx" RENAME TO "other_idx";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// In cockroach the primary key `x` of `dogs` owns an index with the name `x`.
+// So `ALTER INDEX "x"` is ambiguous, and the rename must name the table `cats`.
+test.concurrent('an index rename names its table when the primary key of another table has the name', async ({ db }) => {
+	const dogs = cockroachTable('dogs', { id: int4() }, (t) => [primaryKey({ name: 'x', columns: [t.id] })]);
+	const cats = (name: string) => cockroachTable('cats', { id: int4() }, (t) => [index(name).on(t.id)]);
+	const renames = ['public.cats.x->public.cats.y'];
+
+	const { sqlStatements: st } = await diff({ dogs, cats: cats('x') }, { dogs, cats: cats('y') }, renames);
+	await push({ db, to: { dogs, cats: cats('x') } });
+	const { sqlStatements: pst } = await push({ db, to: { dogs, cats: cats('y') }, renames });
+
+	const st0 = ['ALTER INDEX "cats"@"x" RENAME TO "y";'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });

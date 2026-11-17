@@ -17,7 +17,7 @@ export const jsonSchema: v.GenericSchema<Json> = v.union([
 	v.array(v.any()),
 	v.record(v.string(), v.any()),
 ]);
-export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer); // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
+export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer);
 
 export function mapEnumValues(values: string[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
@@ -292,17 +292,6 @@ function arrayColumnToSchema(column: Column, constraint: ColumnDataArrayConstrai
 					v.length(length),
 				)
 				: v.array(v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)));
-		}
-		case 'basecolumn': {
-			// CockroachDB/GEL style: has a separate baseColumn
-			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
-			if (baseColumn) {
-				const { length } = column;
-				const schema = v.array(columnToSchema(baseColumn));
-				if (length) return v.pipe(schema, v.length(length));
-				return schema;
-			}
-			return v.array(v.any());
 		}
 		default: {
 			return v.array(v.any());

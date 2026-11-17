@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 import * as esbuild from 'esbuild';
 import pkg from './package.json';
+import { readSkillsRevisionFromDisk } from './scripts/lib/read-skills-revision';
 
 const driversPackages = [
 	// postgres drivers
@@ -9,6 +10,10 @@ const driversPackages = [
 	'@vercel/postgres',
 	'@neondatabase/serverless',
 	'@electric-sql/pglite',
+	'@drizzle-team/minipg',
+	// dsql drivers
+	'@aws/aurora-dsql-node-postgres-connector',
+	'@aws/aurora-dsql-postgresjs-connector',
 	//  mysql drivers
 	'mysql2',
 	'@planetscale/database',
@@ -30,6 +35,7 @@ esbuild.buildSync({
 	platform: 'node',
 	define: {
 		'process.env.DRIZZLE_KIT_VERSION': `"${pkg.version}"`,
+		'process.env.DRIZZLE_KIT_SKILLS_REVISION': `"${readSkillsRevisionFromDisk('./skills')}"`,
 	},
 	external: [
 		'esbuild',

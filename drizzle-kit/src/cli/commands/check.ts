@@ -1,10 +1,15 @@
 import chalk from 'chalk';
 import { readFileSync } from 'fs';
-import { getCommutativityDialect } from 'src/commutativity';
-import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from 'src/commutativity/types';
+import { getCommutativityDialect } from '../../commutativity';
+import type { ParsedSnapshotInput, SnapshotHeader } from '../../commutativity/engine';
+import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from '../../commutativity/types';
+import { readFolder } from '../../dialects/postgres/folder';
+import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 import type { Dialect } from '../../utils/schemaValidator';
-import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
-import { info } from '../views';
+import { assertSnapshotStatus, prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
+import { CheckCliError, UnsupportedCommandCliError } from '../errors';
+import { humanLog } from '../views';
+import { type ConflictFix, describeConflictFix, planConflictFix } from './fix-conflicts';
 
 export type CheckHandlerResult = {
 	statements: unknown[];
@@ -25,37 +30,14 @@ const selectOpenCommutativeBranch = (report: NonCommutativityReport) => {
 	if (branches.length === 0) return null;
 
 	const leafSet = new Set(report.leafNodes);
-	const candidates = branches.filter(
-		(branch) =>
-			branch.leafs.length > 1
-			&& branch.leafs.length === leafSet.size
-			&& branch.leafs.every((leaf) => leafSet.has(leaf.id)),
+	return (
+		branches.find(
+			(branch) =>
+				branch.leafs.length > 1
+				&& branch.leafs.length === leafSet.size
+				&& branch.leafs.every((leaf) => leafSet.has(leaf.id)),
+		) ?? null
 	);
-
-	if (candidates.length === 0) return null;
-
-	// When multiple commutative branches match (e.g. both a root-level fork and a
-	// deeper fork resolve to the same set of leaves), pick the one closest to the
-	// leaves — i.e. the branch whose combined leaf statements are fewest, meaning
-	// the parent is the most recent common ancestor of the open leaves.
-	if (candidates.length > 1) {
-		let best = candidates[0];
-		let bestTotal = best.leafs.reduce((sum, l) => sum + l.statements.length, 0);
-
-		for (let i = 1; i < candidates.length; i++) {
-			const total = candidates[i].leafs.reduce(
-				(sum, l) => sum + l.statements.length,
-				0,
-			);
-			if (total < bestTotal) {
-				best = candidates[i];
-				bestTotal = total;
-			}
-		}
-		return best;
-	}
-
-	return candidates[0];
 };
 
 const countLeafs = (conflicts: UnifiedBranchConflict[]): number => {
@@ -72,7 +54,7 @@ const countLeafs = (conflicts: UnifiedBranchConflict[]): number => {
 const headerBadge = (conflicts: UnifiedBranchConflict[]): string => {
 	const leafCount = countLeafs(conflicts);
 	return (
-		`${chalk.white.bgRed(' Non-commutative migrations detected ')} `
+		`${chalk.white.bgRed(' Conflicting migrations detected ')} `
 		+ `Found ${chalk.bold(String(conflicts.length))} conflict${conflicts.length === 1 ? '' : 's'} `
 		+ `across ${chalk.bold(String(leafCount))} migration${leafCount === 1 ? '' : 's'}`
 	);
@@ -156,83 +138,112 @@ export const generateReportDirectory = (
 	return lines.join('\n');
 };
 
+export const assertConflictOptions = (
+	command: string,
+	dialect: Dialect,
+	options: { ignoreConflicts?: boolean; fixConflicts?: boolean },
+) => {
+	if (dialect === 'postgresql' && options.ignoreConflicts) {
+		throw new UnsupportedCommandCliError(
+			command,
+			'--ignore-conflicts is not supported for postgresql. '
+				+ 'To delete the conflicting migrations and generate one new migration, run:\n'
+				+ '  drizzle-kit generate --fix-conflicts',
+			{ dialect, option: 'ignore-conflicts' },
+		);
+	}
+	if (dialect !== 'postgresql' && options.fixConflicts) {
+		throw new UnsupportedCommandCliError(
+			command,
+			`--fix-conflicts is supported only for postgresql. For ${dialect}, resolve the conflicts by hand, `
+				+ 'or run generate with --ignore-conflicts to write the merge anyway.',
+			{ dialect, option: 'fix-conflicts' },
+		);
+	}
+};
+
+const readSnapshots = (out: string, dialect: Dialect): ParsedSnapshotInput[] => {
+	if (dialect === 'postgresql') return readFolder(out).files;
+
+	const { snapshots } = prepareOutFolder(out);
+	const validator = validatorForDialect(dialect);
+	return snapshots.map((path) => {
+		let raw: unknown = null;
+		try {
+			raw = JSON.parse(readFileSync(path).toString());
+		} catch {}
+		assertSnapshotStatus(path, typeof raw === 'object' && raw !== null ? validator(raw).status : 'malformed');
+		return { path, snapshot: raw as SnapshotHeader };
+	});
+};
+
 export const checkHandler = async (
 	out: string,
 	dialect: Dialect,
 	ignoreConflicts?: boolean,
 	shouldExitOnConflict = true,
 ): Promise<CheckHandlerResult> => {
-	const { snapshots } = prepareOutFolder(out);
-	const validator = validatorForDialect(dialect);
-
-	for (const snapshot of snapshots) {
-		const raw = JSON.parse(readFileSync(snapshot).toString());
-
-		const res = validator(raw);
-		switch (res.status) {
-			case 'valid':
-				break;
-			case 'unsupported':
-				console.log(
-					info(
-						`${snapshot} snapshot is of unsupported version, please update drizzle-kit`,
-					),
-				);
-				process.exit(0);
-				break;
-			case 'malformed':
-				console.log(`${snapshot} data is malformed`);
-				process.exit(1);
-				break;
-			case 'nonLatest':
-				console.log(
-					`${snapshot} is not of the latest version, please run "drizzle-kit up"`,
-				);
-				process.exit(1);
-				break;
-		}
+	const { report, fix } = await checkSnapshots(readSnapshots(out, dialect), dialect);
+	if (report.conflicts.length > 0 && !ignoreConflicts) {
+		if (shouldExitOnConflict) throw conflictError(report, fix);
+		const nonCommutativityMessage = generateReportDirectory(report);
+		humanLog(nonCommutativityMessage);
+		return emptyResult(nonCommutativityMessage);
 	}
 
-	try {
-		const commutativity = getCommutativityDialect(dialect);
-		if (!commutativity) {
-			return emptyResult();
-		}
-
-		const response = await commutativity.detectNonCommutative(snapshots);
-		if (response.conflicts.length > 0) {
-			const nonCommutativityMessage = generateReportDirectory(response);
-			if (!ignoreConflicts) {
-				console.log(nonCommutativityMessage);
-				if (shouldExitOnConflict) {
-					process.exit(1);
-				}
-				return emptyResult(nonCommutativityMessage);
-			}
-		}
-
-		const selectedBranch = selectOpenCommutativeBranch(response);
-		if (selectedBranch) {
-			const sortedLeafs = [...selectedBranch.leafs].sort((left, right) => left.id.localeCompare(right.id));
-			return {
-				statements: sortedLeafs.flatMap((leaf) => leaf.statements),
-				parentSnapshot: selectedBranch.parentSnapshot,
-				parentId: selectedBranch.parentId,
-				leafIds: sortedLeafs.map((leaf) => leaf.id),
-			};
-		}
-
-		if (ignoreConflicts && response.leafNodes.length > 1) {
-			return {
-				statements: [],
-				parentSnapshot: null,
-				leafIds: [...response.leafNodes].sort((left, right) => left.localeCompare(right)),
-			};
-		}
-
-		return emptyResult();
-	} catch (e) {
-		console.error(e);
-		return emptyResult();
+	const selectedBranch = selectOpenCommutativeBranch(report);
+	if (selectedBranch) {
+		return {
+			statements: selectedBranch.statements,
+			parentSnapshot: selectedBranch.parentSnapshot,
+			parentId: selectedBranch.parentId,
+			leafIds: selectedBranch.leafs.map((leaf) => leaf.id),
+		};
 	}
+
+	if (ignoreConflicts && report.leafNodes.length > 1) {
+		return {
+			statements: [],
+			parentSnapshot: null,
+			leafIds: [...report.leafNodes].sort((left, right) => left.localeCompare(right)),
+		};
+	}
+
+	return emptyResult();
+};
+
+// The result of `checkSnapshots`. `fix` is set only for postgresql, and only when `report` has conflicts.
+export type SnapshotCheck = { report: NonCommutativityReport; fix?: ConflictFix };
+
+// Checks the branches of a migrations folder for conflicts, and plans a fix for postgresql. `inputs` are the
+// valid snapshots of the folder, in folder-name order.
+export const checkSnapshots = async (inputs: ParsedSnapshotInput[], dialect: Dialect): Promise<SnapshotCheck> => {
+	const commutativity = getCommutativityDialect(dialect);
+	if (!commutativity) return { report: { conflicts: [], leafNodes: [] } };
+
+	const report = await commutativity.detectNonCommutative(inputs);
+	if (dialect !== 'postgresql' || report.conflicts.length === 0) return { report };
+	// The cast of `inputs` is safe, because the postgres validator accepted each input.
+	return { report, fix: await planConflictFix(inputs as ParsedSnapshotInput<PostgresSnapshot>[], report) };
+};
+
+export const conflictError = (report: NonCommutativityReport, fix?: ConflictFix) => {
+	const leafOf = (chain: MigrationNode[]) => chain[chain.length - 1];
+	const details = report.conflicts.map((conflict) => ({
+		parentId: conflict.parentId,
+		...(conflict.parentPath !== undefined && { parentPath: conflict.parentPath }),
+		branches: [conflict.branchA, conflict.branchB].map((branch) => ({
+			leafId: leafOf(branch.chain)?.id ?? null,
+			leafPath: leafOf(branch.chain)?.path ?? null,
+			statementDescription: branch.statementDescription,
+			target: branch.target,
+			action: branch.action,
+		})),
+	}));
+	const message = generateReportDirectory(report) + (fix ? `\n${describeConflictFix(fix)}` : '');
+	return new CheckCliError('conflicts', message, {
+		conflicts: report.conflicts.length,
+		details,
+		...(fix && { fix }),
+	});
 };

@@ -2,28 +2,48 @@ import chalk from 'chalk';
 import fs from 'fs';
 import { render } from 'hanji';
 import path, { join } from 'path';
-import type { CockroachSnapshot } from 'src/dialects/cockroach/snapshot';
-import type { MssqlSnapshot } from 'src/dialects/mssql/snapshot';
-import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
-import type { SingleStoreSnapshot } from 'src/dialects/singlestore/snapshot';
+import type { CockroachSnapshot } from '../../dialects/cockroach/snapshot';
+import type { MssqlSnapshot } from '../../dialects/mssql/snapshot';
 import type { MysqlSnapshot } from '../../dialects/mysql/snapshot';
+import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
+import type { SingleStoreSnapshot } from '../../dialects/singlestore/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { BREAKPOINT } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
+import { outputFormat } from '../context';
 import type { Driver } from '../validations/common';
+import { humanLog } from '../views';
 
-export const writeResult = (config: {
+type WriteResultConfigBase = {
 	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
 	sqlStatements: string[];
 	outFolder: string;
 	breakpoints: boolean;
 	name?: string;
 	bundle?: boolean;
-	type?: 'introspect' | 'custom' | 'none';
+	dialect?: string;
 	driver?: Driver;
-	renames: string[];
+	renames?: string[];
 	snapshots: string[];
-}) => {
+	parentFolders?: string[];
+};
+
+export function writeResult(
+	config: WriteResultConfigBase & { type: 'introspect'; init: boolean },
+): { snapshotPath: string; migrationPath: string };
+export function writeResult(
+	config: WriteResultConfigBase & { type?: 'custom' | 'none' },
+):
+	| { status: 'no_changes'; dialect: string | undefined }
+	| { status: 'ok'; dialect: string | undefined; migration_path: string };
+export function writeResult(
+	config:
+		& WriteResultConfigBase
+		& (
+			| { type: 'introspect'; init: boolean }
+			| { type?: 'custom' | 'none'; init?: never }
+		),
+) {
 	const {
 		snapshot,
 		sqlStatements,
@@ -33,20 +53,24 @@ export const writeResult = (config: {
 		renames,
 		bundle = false,
 		type = 'none',
+		init,
+		dialect,
 		driver,
 		snapshots,
+		parentFolders,
 	} = config;
+	const json = outputFormat() === 'json';
 
 	if (type === 'none') {
 		if (sqlStatements.length === 0) {
-			console.log('No schema changes, nothing to migrate 😴');
-			return;
+			humanLog('No schema changes, nothing to migrate 😴');
+			return { status: 'no_changes' as const, dialect };
 		}
 	}
 
-	const { tag } = prepareMigrationMetadata(name);
+	const { tag } = prepareMigrationMetadata(name, parentFolders);
 
-	snapshot.renames = renames;
+	if (renames && 'renames' in snapshot) snapshot.renames = renames;
 
 	fs.mkdirSync(join(outFolder, tag));
 	fs.writeFileSync(
@@ -57,17 +81,18 @@ export const writeResult = (config: {
 	const sqlDelimiter = breakpoints ? BREAKPOINT : '\n';
 	let sql = sqlStatements.join(sqlDelimiter);
 
-	if (type === 'introspect') {
+	if (type === 'introspect' && !init) {
 		sql =
 			`-- Current sql file was generated after introspecting the database\n-- If you want to run this migration please uncomment this code before executing migrations\n/*\n${sql}\n*/`;
 	}
 
 	if (type === 'custom') {
-		console.log('Prepared empty file for your custom SQL migration!');
+		humanLog('Prepared empty file for your custom SQL migration!');
 		sql = '-- Custom SQL migration file, put your code below! --';
 	}
 
 	fs.writeFileSync(join(outFolder, `${tag}/migration.sql`), sql);
+	const migrationPath = path.join(`${outFolder}/${tag}/migration.sql`);
 
 	// js file with .sql imports for React Native / Expo and Durable Sqlite Objects
 	if (bundle) {
@@ -76,18 +101,26 @@ export const writeResult = (config: {
 		fs.writeFileSync(`${outFolder}/migrations.js`, js);
 	}
 
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your SQL migration ➜ ${
-			chalk.bold.underline.blue(
-				path.join(`${outFolder}/${tag}/migration.sql`),
-			)
-		} 🚀`,
-	);
-};
+	if (!json) {
+		render(
+			`[${
+				chalk.green(
+					'✓',
+				)
+			}] Your SQL migration ➜ ${
+				chalk.bold.underline.blue(
+					migrationPath,
+				)
+			} 🚀`,
+		);
+	}
+
+	if (type === 'introspect') {
+		return { snapshotPath: join(outFolder, `${tag}/snapshot.json`), migrationPath };
+	}
+
+	return { status: 'ok' as const, dialect, migration_path: migrationPath };
+}
 
 export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {
 	let content = driver === 'expo'
@@ -114,9 +147,11 @@ export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {
 	return content;
 };
 
+// Builds the time prefix of a migration folder name. The prefix is in UTC, because the drizzle-orm migrator
+// reads it back as a UTC time.
 export const prepareSnapshotFolderName = (ms?: number) => {
 	const now = ms ? new Date(ms) : new Date();
-	return `${now.getFullYear()}${two(now.getUTCMonth() + 1)}${
+	return `${now.getUTCFullYear()}${two(now.getUTCMonth() + 1)}${
 		two(
 			now.getUTCDate(),
 		)
@@ -125,6 +160,11 @@ export const prepareSnapshotFolderName = (ms?: number) => {
 			now.getUTCSeconds(),
 		)
 	}`;
+};
+
+export const snapshotFolderTime = (folder: string) => {
+	const match = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(folder);
+	return match ? Date.UTC(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +match[6]) : 0;
 };
 
 const two = (input: number): string => {

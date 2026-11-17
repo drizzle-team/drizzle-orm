@@ -13,8 +13,10 @@ import {
 	int,
 	json,
 	longblob,
+	longtext,
 	mediumblob,
 	mediumint,
+	mediumtext,
 	type MySqlColumn,
 	mysqlEnum,
 	mysqlSchema,
@@ -28,80 +30,12 @@ import {
 	timestamp,
 	tinyblob,
 	tinyint,
+	tinytext,
 	uniqueIndex,
 	varbinary,
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
-
-export const allTypesTable = mysqlTable('all_types', {
-	serial: serial('serial'),
-	bigint53: bigint('bigint53', {
-		mode: 'number',
-	}),
-	bigint64: bigint('bigint64', {
-		mode: 'bigint',
-	}),
-	bigintString: bigint('bigint_string', {
-		mode: 'string',
-	}),
-	binary: binary('binary'),
-	boolean: boolean('boolean'),
-	char: char('char'),
-	date: date('date', {
-		mode: 'date',
-	}),
-	dateStr: date('date_str', {
-		mode: 'string',
-	}),
-	datetime: datetime('datetime', {
-		mode: 'date',
-	}),
-	datetimeStr: datetime('datetime_str', {
-		mode: 'string',
-	}),
-	decimal: decimal('decimal'),
-	decimalNum: decimal('decimal_num', {
-		precision: 30,
-		mode: 'number',
-	}),
-	decimalBig: decimal('decimal_big', {
-		precision: 30,
-		mode: 'bigint',
-	}),
-	double: double('double'),
-	float: float('float'),
-	int: int('int'),
-	json: json('json'),
-	medInt: mediumint('med_int'),
-	smallInt: smallint('small_int'),
-	real: real('real'),
-	text: text('text'),
-	time: time('time'),
-	timestamp: timestamp('timestamp', {
-		mode: 'date',
-	}),
-	timestampStr: timestamp('timestamp_str', {
-		mode: 'string',
-	}),
-	tinyInt: tinyint('tiny_int'),
-	varbin: varbinary('varbin', {
-		length: 16,
-	}),
-	varchar: varchar('varchar', {
-		length: 255,
-	}),
-	year: year('year'),
-	enum: mysqlEnum('enum', ['enV1', 'enV2']),
-	blob: blob('blob'),
-	tinyblob: tinyblob('tinyblob'),
-	mediumblob: mediumblob('mediumblob'),
-	longblob: longblob('longblob'),
-	stringblob: blob('stringblob', { mode: 'string' }),
-	stringtinyblob: tinyblob('stringtinyblob', { mode: 'string' }),
-	stringmediumblob: mediumblob('stringmediumblob', { mode: 'string' }),
-	stringlongblob: longblob('stringlongblob', { mode: 'string' }),
-});
 
 export const createUserTable = (name: string) => {
 	return mysqlTable(name, {
@@ -126,6 +60,7 @@ export const createUsers2Table = (
 		schema: undefined;
 		dialect: 'mysql';
 		columns: { id: MySqlColumn<any> };
+		isAlias: false;
 	}>,
 ) =>
 	mysqlTable(name, {

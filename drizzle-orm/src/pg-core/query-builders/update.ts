@@ -1,4 +1,3 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -18,22 +17,20 @@ import type {
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import {
 	type ColumnsSelection,
+	type CommentInput,
 	type Placeholder,
 	type Query,
 	SQL,
 	sql,
-	type SqlCommenterInput,
 	type SQLWrapper,
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, type InferInsertModel, Table } from '~/table.ts';
 import {
 	type Assume,
-	type DrizzleTypeError,
 	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
-	type NeonAuthToken,
 	orderSelectedFields,
 	type Simplify,
 	type UpdateSet,
@@ -42,10 +39,10 @@ import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type {
+	CheckTableLikeSelection,
 	PgSelectJoinConfig,
 	SelectedFields,
 	SelectedFieldsOrdered,
-	TableLikeHasEmptySelection,
 } from './select.types.ts';
 
 export interface PgUpdateConfig {
@@ -56,9 +53,10 @@ export interface PgUpdateConfig {
 	joins: PgSelectJoinConfig[];
 	returningFields?: SelectedFields;
 	returning?: SelectedFieldsOrdered;
+	shape?: any;
 	withList?: Subquery[];
 	comment?: SQL;
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type PgUpdateSetSource<
@@ -91,6 +89,9 @@ export class PgUpdateBuilder<
 	TBuilderHKT extends PgUpdateHKTBase = PgUpdateHKT,
 > {
 	static readonly [entityKind]: string = 'PgUpdateBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly table: TTable;
@@ -103,14 +104,6 @@ export class PgUpdateBuilder<
 		private withList?: Subquery[],
 		private builder: PgUpdateBuilderConstructor = PgUpdateBase,
 	) {}
-
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
 
 	set(
 		values: PgUpdateSetSource<TTable>,
@@ -126,10 +119,6 @@ export class PgUpdateBuilder<
 			this.dialect,
 			this.withList,
 		) as AnyPgUpdate;
-
-		if ('setToken' in builder) {
-			(builder.setToken as (authToken?: NeonAuthToken) => typeof builder)(this.authToken);
-		}
 
 		return builder as any;
 	}
@@ -188,10 +177,7 @@ export type PgUpdateJoinFn<
 > = <
 	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
 >(
-	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-		>
-		: TJoinedTable,
+	table: CheckTableLikeSelection<TJoinedTable>,
 	on:
 		| (
 			(
@@ -464,11 +450,13 @@ export class PgUpdateBase<
 	TExcludedMethods extends string = never,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgUpdate';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected config: PgUpdateConfig;
 	protected tableName: string | undefined;
 	protected joinsNotNullableMap: Record<string, boolean>;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -483,10 +471,7 @@ export class PgUpdateBase<
 	}
 
 	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
-		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
-				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-			>
-			: TFrom,
+		source: CheckTableLikeSelection<TFrom>,
 	): PgUpdateWithJoins<this, TDynamic, TFrom> {
 		const src = source as TFrom;
 		const tableName = getTableLikeName(src);
@@ -518,6 +503,8 @@ export class PgUpdateBase<
 			if (typeof tableName === 'string' && this.config.joins.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
+
+			this.config.shape = undefined;
 
 			if (typeof on === 'function') {
 				const from = this.config.from && !is(this.config.from, SQL)
@@ -671,23 +658,26 @@ export class PgUpdateBase<
 			undefined,
 			this.dialect.codecs,
 		);
+		this.config.shape = undefined;
 		return this as any;
 	}
 
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): PgUpdateWithout<this, TDynamic, 'comment'> {
+	comment(comment: CommentInput): PgUpdateWithout<this, TDynamic, 'comment'> {
 		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildUpdateQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	/** @internal */
@@ -704,12 +694,6 @@ export class PgUpdateBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
 	}
 
 	$dynamic(): PgUpdateDynamic<this> {

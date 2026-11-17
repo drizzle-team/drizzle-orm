@@ -1,3 +1,4 @@
+import { ormVersionGt } from 'src/cli/utils';
 import { isTime, splitExpressions, trimChar, wrapWith } from 'src/utils';
 import { expect, test } from 'vitest';
 
@@ -52,6 +53,20 @@ test.each([
 	["((lower(first_name) || ', '::text) || lower(last_name))", [
 		"((lower(first_name) || ', '::text) || lower(last_name))",
 	]],
+	// ARRAY[...] holds commas of its own
+	['ARRAY[lower(first_name), upper(first_name)]', ['ARRAY[lower(first_name), upper(first_name)]']],
+	['ARRAY[lower(first_name), upper(first_name)], lower(last_name)', [
+		'ARRAY[lower(first_name), upper(first_name)]',
+		'lower(last_name)',
+	]],
+	['ARRAY[ARRAY[first_name, last_name], ARRAY[last_name, first_name]]', [
+		'ARRAY[ARRAY[first_name, last_name], ARRAY[last_name, first_name]]',
+	]],
+	[`(ARRAY[first_name, ','::text])[1], lower(last_name)`, [
+		`(ARRAY[first_name, ','::text])[1]`,
+		'lower(last_name)',
+	]],
+	[`ARRAY['a,b'::text, name], ARRAY[name]`, [`ARRAY['a,b'::text, name]`, 'ARRAY[name]']],
 ])('split expression %#: %s', (it, expected) => {
 	expect(splitExpressions(it)).toStrictEqual(expected);
 });
@@ -66,4 +81,12 @@ test('is time', () => {
 	expect.soft(isTime('10:20:30')).toBe(true);
 	expect.soft(isTime('10:20:30+0000')).toBe(true);
 	expect.soft(isTime('now()')).toBe(false);
+});
+
+test('semver checks', async () => {
+	await expect(ormVersionGt('1.0.0-rc.5', '1.0.0-rc.4')).resolves.toBe(false);
+	await expect(ormVersionGt('1.0.0-rc.5', '1.0.0-rc.5')).resolves.toBe(true);
+	await expect(ormVersionGt('1.0.0-rc.5', '1.0.0-rc.6')).resolves.toBe(true);
+	await expect(ormVersionGt('1.0.0-rc.5', '1.0.0')).resolves.toBe(true);
+	await expect(ormVersionGt('1.0.0-rc.5', '1.0.1')).resolves.toBe(true);
 });

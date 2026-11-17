@@ -77,3 +77,38 @@ test('drop enum value. column of enum type; drop default', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5957
+test('Issue #5957. Comma-separated enum values', async () => {
+	const to = {
+		table: mysqlTable('table', {
+			column: mysqlEnum('column', ['a,b', 'a']),
+		}),
+	};
+
+	const { sqlStatements: st, next } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		"CREATE TABLE `table` (\n\t`column` enum('a,b','a')\n);\n",
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(next.columns.list()).toStrictEqual([
+		{
+			autoIncrement: false,
+			charSet: null,
+			collation: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'column',
+			notNull: false,
+			onUpdateNow: false,
+			onUpdateNowFsp: null,
+			table: 'table',
+			type: "enum('a,b','a')",
+		},
+	]);
+	expect(pst).toStrictEqual(st0);
+});

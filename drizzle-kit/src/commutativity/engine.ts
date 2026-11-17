@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
-import { dirname } from 'path';
-import type { NonCommutativityReport, UnifiedBranchConflict } from './types';
+import { basename, dirname } from 'path';
+import { originUUID } from '../utils';
+import type { ConflictTarget, MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from './types';
 
 type SnapshotNode<TSnapshot extends { id: string; prevIds: string[] }> = {
 	id: string;
@@ -9,6 +10,327 @@ type SnapshotNode<TSnapshot extends { id: string; prevIds: string[] }> = {
 	folderPath: string;
 	raw: TSnapshot;
 };
+export type SnapshotHeader = {
+	id: string;
+	prevIds: string[];
+};
+
+export type ParsedSnapshotInput<TSnapshot extends SnapshotHeader = SnapshotHeader> = {
+	path: string;
+	snapshot: TSnapshot;
+};
+
+// What one statement writes, reads and shares, as lists of nodes, with the kind and the target of the statement
+// for the report. Two footprints of two branches conflict when one writes a node that the other writes, shares or
+// reads, or when one shares a node that the other reads. Two shared writes and two reads do not conflict. A shared
+// write is for a fact that several objects guarantee: a drop of a unique constraint and a drop of a unique index
+// on the same columns do not conflict, and either of them conflicts with a new foreign key that reads the
+// uniqueness of those columns.
+// `sqlHash` is set only for a statement whose SQL is idempotent. Two footprints with one
+// `sqlHash` are the same change on two branches, and they do not conflict with each other.
+// Nodes are opaque strings that the dialect builds; the engine only compares them.
+export type Footprint = {
+	statementType: string;
+	statementTarget: [kind: string, firstNamePart: string, ...restNameParts: string[]];
+	writes: string[];
+	reads?: string[];
+	sharedWrites?: string[];
+	sqlHash?: string;
+};
+
+type LeafFootprints<TStatement> = {
+	statementHashes: Array<{ hash: string; statement: TStatement }>;
+	conflictFootprints: Array<{ hash: string; statement: TStatement }>;
+};
+
+function buildPrevToChildren<TNode extends { id: string; prevIds: string[] }>(
+	nodes: Record<string, TNode>,
+): Record<string, string[]> {
+	const prevToChildren: Record<string, string[]> = {};
+	for (const node of Object.values(nodes)) {
+		for (const parentId of node.prevIds) {
+			(prevToChildren[parentId] ??= []).push(node.id);
+		}
+	}
+	return prevToChildren;
+}
+
+function leafIdsOf(nodes: Record<string, { prevIds: string[] }>): string[] {
+	const parents = new Set(Object.values(nodes).flatMap((it) => it.prevIds));
+	return Object.keys(nodes).filter((id) => !parents.has(id));
+}
+
+function collectLeaves(
+	prevToChildren: Record<string, string[]>,
+	startId: string,
+): string[] {
+	const leaves: string[] = [];
+	const visited = new Set<string>();
+	const stack: string[] = [startId];
+
+	while (stack.length) {
+		const id = stack.pop()!;
+		if (visited.has(id)) continue;
+		visited.add(id);
+
+		const children = prevToChildren[id];
+		if (!children || children.length === 0) {
+			leaves.push(id);
+			continue;
+		}
+		for (const child of children) {
+			if (!visited.has(child)) stack.push(child);
+		}
+	}
+
+	return leaves;
+}
+
+function ancestorsOf(
+	nodes: Record<string, { prevIds: string[] }>,
+	startId: string,
+	cache: Map<string, Set<string>>,
+): Set<string> {
+	const cached = cache.get(startId);
+	if (cached) return cached;
+
+	const result = new Set<string>();
+	const stack: string[] = [startId];
+	while (stack.length) {
+		const id = stack.pop()!;
+		if (result.has(id)) continue;
+		const node = nodes[id];
+		// ORIGIN sentinel ids (and any id without a snapshot) are not real
+		// ancestor nodes, so they never qualify as a composition base.
+		if (!node) continue;
+		result.add(id);
+		for (const prev of node.prevIds) stack.push(prev);
+	}
+
+	cache.set(startId, result);
+	return result;
+}
+
+/**
+ * Lowest common ancestor of a set of leaves in the snapshot DAG.
+ *
+ * Returns the deepest node that is an ancestor (inclusive of itself) of every
+ * leaf, i.e. the most recent point the open heads still share. Used as the merge
+ * base so that segments already collapsed by a merge node below it are not
+ * replayed. Returns `null` when the leaves share no real-node ancestor (their
+ * only common ancestor is the ORIGIN sentinel), in which case the caller falls
+ * back to the dry snapshot.
+ *
+ * For two leaves, this node is their fork point. `detectBranchConflicts` reports
+ * it as the parent of a conflict, and it reports ORIGIN when the result is `null`.
+ */
+function lowestCommonAncestor(
+	nodes: Record<string, { prevIds: string[] }>,
+	leafIds: string[],
+): string | null {
+	const cache = new Map<string, Set<string>>();
+
+	let common: Set<string> | null = null;
+	for (const leafId of leafIds) {
+		const ancestors = ancestorsOf(nodes, leafId, cache);
+		if (common === null) {
+			common = new Set(ancestors);
+			continue;
+		}
+		for (const id of common) {
+			if (!ancestors.has(id)) common.delete(id);
+		}
+		if (common.size === 0) return null;
+	}
+	if (!common || common.size === 0) return null;
+
+	// The lowest common ancestor is the common ancestor whose own ancestor set
+	// contains every other common ancestor (the deepest one). Prefer the
+	// candidate reaching the most ancestors to break ties deterministically.
+	let best: string | null = null;
+	let bestSize = -1;
+	for (const candidate of common) {
+		const candidateAncestors = ancestorsOf(nodes, candidate, cache);
+		const containsAllCommon = [...common].every((id) => candidateAncestors.has(id));
+		if (containsAllCommon && candidateAncestors.size > bestSize) {
+			best = candidate;
+			bestSize = candidateAncestors.size;
+		}
+	}
+	if (best !== null) return best;
+
+	// Diamond history with no single deepest common ancestor: fall back to the
+	// common ancestor closest to the leaves (largest ancestor set).
+	for (const candidate of common) {
+		const size = ancestorsOf(nodes, candidate, cache).size;
+		if (size > bestSize) {
+			best = candidate;
+			bestSize = size;
+		}
+	}
+	return best;
+}
+
+function composeMergeStatements<TStatement>(
+	leafStatements: TStatement[][],
+): TStatement[] {
+	const seen = new Set<string>();
+	const composed: TStatement[] = [];
+	for (const statements of leafStatements) {
+		for (const statement of statements) {
+			const key = JSON.stringify(statement);
+			if (seen.has(key)) continue;
+			seen.add(key);
+			composed.push(statement);
+		}
+	}
+	return composed;
+}
+
+export abstract class AbstractCommutativity<
+	TStatement,
+	TSnapshot extends { id: string; prevIds: string[] },
+> {
+	protected abstract describe(statement: TStatement): { description: string; target: ConflictTarget; action: string };
+
+	public abstract detectNonCommutative(
+		snapshots: string[] | ParsedSnapshotInput[],
+	): Promise<NonCommutativityReport>;
+
+	protected branchOf(
+		chain: MigrationNode[],
+		statement: TStatement,
+		source?: MigrationNode,
+	): UnifiedBranchConflict['branchA'] {
+		const { description, target, action } = this.describe(statement);
+		return {
+			chain,
+			statementDescription: source ? `${description} (${basename(source.path)})` : description,
+			target,
+			action,
+			...(source && { source }),
+		};
+	}
+
+	protected buildSnapshotGraph(
+		snapshots: string[] | ParsedSnapshotInput[],
+	): Record<string, SnapshotNode<TSnapshot>> {
+		const byId: Record<string, SnapshotNode<TSnapshot>> = {};
+		for (const input of snapshots) {
+			let file: string;
+			// The cast to `TSnapshot` is not checked. This function reads only `id` and `prevIds`, and the dialect
+			// code that reads `raw` needs the rest of `TSnapshot`.
+			let raw: TSnapshot;
+			if (typeof input === 'string') {
+				file = input;
+				if (!existsSync(file)) continue;
+				raw = JSON.parse(readFileSync(file, 'utf8')) as TSnapshot;
+			} else {
+				file = input.path;
+				raw = input.snapshot as TSnapshot;
+			}
+			byId[raw.id] = {
+				id: raw.id,
+				prevIds: raw.prevIds,
+				path: file,
+				folderPath: dirname(file),
+				raw,
+			};
+		}
+
+		return byId;
+	}
+}
+
+const isSameChange = (a: Footprint, b: Footprint) =>
+	a.sqlHash !== undefined && a.statementType === b.statementType && a.sqlHash === b.sqlHash;
+
+// The new commutativity model, for dialects with format 9 snapshots. Each snapshot stores a `Footprint` for each
+// statement of its migration, and `check` compares the nodes of the footprints of two branches.
+// `ConflictListCommutativity` is the old model.
+export abstract class FootprintCommutativity<
+	TSnapshot extends { id: string; prevIds: string[] },
+> extends AbstractCommutativity<Footprint, TSnapshot> {
+	// Returns a footprint of one branch and a footprint of the other branch that conflict, or undefined. A write or
+	// a shared write of one branch conflicts with a write or a read of the same node on the other branch, so the
+	// search runs in both directions to cover every case in `Footprint`.
+	public findConflict(a: Footprint[], b: Footprint[]) {
+		const firstConflict = (from: Footprint[], to: Footprint[]) => {
+			const touching = new Map<string, Footprint[]>();
+			for (const footprint of to) {
+				for (const node of [...footprint.writes, ...(footprint.reads ?? [])]) {
+					const list = touching.get(node);
+					if (list) list.push(footprint);
+					else touching.set(node, [footprint]);
+				}
+			}
+			for (const footprint of from) {
+				for (const node of [...footprint.writes, ...(footprint.sharedWrites ?? [])]) {
+					const others = touching.get(node) ?? [];
+					for (let idx = others.length - 1; idx >= 0; idx--) {
+						if (!isSameChange(footprint, others[idx])) return { left: footprint, right: others[idx] };
+					}
+				}
+			}
+		};
+		return firstConflict(a, b) ?? firstConflict(b, a);
+	}
+
+	// Finds the conflicts between every pair of leaves. The branch of a leaf is the part of its history that the
+	// other leaf does not have. Every footprint of the branch counts, so a change that a later snapshot of the same
+	// branch reverts still conflicts.
+	protected async detectBranchConflicts(
+		nodes: Record<string, SnapshotNode<TSnapshot>>,
+		footprintsOfSnapshot: (id: string) => Footprint[],
+	): Promise<NonCommutativityReport> {
+		const histories = new Map<string, Set<string>>();
+		const sources = new Map<Footprint, string>();
+		for (const id of Object.keys(nodes)) {
+			for (const footprint of footprintsOfSnapshot(id)) sources.set(footprint, id);
+		}
+
+		const conflicts: UnifiedBranchConflict[] = [];
+		const leafIds = leafIdsOf(nodes);
+		for (let i = 0; i < leafIds.length; i++) {
+			for (let j = i + 1; j < leafIds.length; j++) {
+				const [x, y] = [leafIds[i], leafIds[j]];
+				const historyX = ancestorsOf(nodes, x, histories);
+				const historyY = ancestorsOf(nodes, y, histories);
+				// `branchX` and `branchY` keep the key order of `nodes`, which is folder-name order. A child sorts
+				// after its parent, so each branch lists its snapshots in the order that migrate runs them.
+				const branchX = Object.keys(nodes).filter((id) => historyX.has(id) && !historyY.has(id));
+				const branchY = Object.keys(nodes).filter((id) => historyY.has(id) && !historyX.has(id));
+
+				const found = this.findConflict(
+					branchX.flatMap((id) => footprintsOfSnapshot(id)),
+					branchY.flatMap((id) => footprintsOfSnapshot(id)),
+				);
+				if (!found) continue;
+
+				// `found.left` can come from either branch. Its snapshot in `sources` tells which one.
+				const [footprintX, footprintY] = historyX.has(sources.get(found.left)!)
+					? [found.left, found.right]
+					: [found.right, found.left];
+				const describeLeafBranch = (branch: string[], footprint: Footprint) => {
+					const sourceId = sources.get(footprint)!;
+					return this.branchOf(
+						branch.map((id) => ({ id, path: nodes[id].folderPath })),
+						footprint,
+						{ id: sourceId, path: nodes[sourceId].folderPath },
+					);
+				};
+				const forkId = lowestCommonAncestor(nodes, [x, y]);
+				conflicts.push({
+					parentId: forkId ?? originUUID,
+					parentPath: forkId ? nodes[forkId].folderPath : undefined,
+					branchA: describeLeafBranch(branchX, footprintX),
+					branchB: describeLeafBranch(branchY, footprintY),
+				});
+			}
+		}
+		return { conflicts, leafNodes: leafIds };
+	}
+}
 
 export type CommutativityStatementInfo<
 	TStatement extends { type: string },
@@ -44,11 +366,14 @@ export type CommutativityStatementDefinitions<
 	>;
 };
 
-export abstract class AbstractCommutativity<
+// The old commutativity model, for dialects whose snapshots store a full state. `check` diffs two snapshots to
+// get the statements, and each statement kind lists the statement kinds that it conflicts with. A dialect moves
+// to `FootprintCommutativity` when it gets format 9 snapshots.
+export abstract class ConflictListCommutativity<
 	TStatement extends { type: string },
 	TSnapshot extends { id: string; prevIds: string[] },
 	TTarget,
-> {
+> extends AbstractCommutativity<TStatement, TSnapshot> {
 	private statementDefinitionsCache?: CommutativityStatementDefinitions<
 		TStatement,
 		TTarget
@@ -68,6 +393,11 @@ export abstract class AbstractCommutativity<
 		statement: TStatement,
 		info: CommutativityStatementInfo<TStatement, TTarget>,
 	): string;
+
+	protected abstract describeStatementTarget(
+		statement: TStatement,
+		info: CommutativityStatementInfo<TStatement, TTarget>,
+	): ConflictTarget;
 
 	protected getImplicitAncestors(_target: TTarget): TTarget[] {
 		return [];
@@ -97,10 +427,16 @@ export abstract class AbstractCommutativity<
 		};
 	}
 
-	public footprint(
-		statement: TStatement,
-		_snapshot?: TSnapshot,
-	): [string[], string[]] {
+	protected override describe(statement: TStatement) {
+		const { info } = this.resolveStatement(statement);
+		return {
+			description: this.describeStatement(statement, info),
+			target: this.describeStatementTarget(statement, info),
+			action: statement.type,
+		};
+	}
+
+	public footprint(statement: TStatement): [string[], string[]] {
 		const { info, conflicts } = this.resolveStatement(statement);
 
 		const statementFootprints = this.statementTargets(info).map((target) =>
@@ -112,36 +448,27 @@ export abstract class AbstractCommutativity<
 		return [statementFootprints, conflictFootprints];
 	}
 
-	public async getReasonsFromStatements(
-		aStatements: TStatement[],
-		bStatements: TStatement[],
-		parentSnapshot?: TSnapshot,
-	) {
-		const snapshot = parentSnapshot ?? this.getDrySnapshot();
-		const branchAFootprints = this.generateLeafFootprints(aStatements, snapshot);
-		const branchBFootprints = this.generateLeafFootprints(bStatements, snapshot);
-
-		return this.findFootprintIntersections(
-			branchAFootprints.statementHashes,
-			branchAFootprints.conflictFootprints,
-			branchBFootprints.statementHashes,
-			branchBFootprints.conflictFootprints,
-		);
-	}
-
-	public async detectNonCommutative(
-		snapshots: string[],
+	// Finds the conflicts for a dialect whose snapshots store the full state. It diffs every fork parent against
+	// the leaves under each of its children, so it sees only the net effect of a branch.
+	public override async detectNonCommutative(
+		snapshots: string[] | ParsedSnapshotInput[],
 	): Promise<NonCommutativityReport> {
 		const nodes = this.buildSnapshotGraph(snapshots);
-		const prevToChildren: Record<string, string[]> = {};
+		const prevToChildren = buildPrevToChildren(nodes);
 
-		for (const node of Object.values(nodes)) {
-			for (const parentId of node.prevIds) {
-				const arr = prevToChildren[parentId] ?? [];
-				arr.push(node.id);
-				prevToChildren[parentId] = arr;
-			}
-		}
+		const diffCache = new Map<string, Promise<{ statements: TStatement[] }>>();
+		const drySnapshot = this.getDrySnapshot();
+		const drySnapshotId = '__dry__';
+
+		const diffOnce = (from: TSnapshot, to: TSnapshot) => {
+			const fromId = from === drySnapshot ? drySnapshotId : from.id;
+			const key = `${fromId}::${to.id}`;
+			const cached = diffCache.get(key);
+			if (cached) return cached;
+			const pending = this.diffSnapshots(from, to);
+			diffCache.set(key, pending);
+			return pending;
+		};
 
 		const conflicts: UnifiedBranchConflict[] = [];
 		const commutativeBranches: NonCommutativityReport['commutativeBranches'] = [];
@@ -150,35 +477,29 @@ export abstract class AbstractCommutativity<
 			if (childIds.length <= 1) continue;
 
 			const parentNode = nodes[prevId];
+			const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
 			const childToLeaves: Record<string, string[]> = {};
 
 			for (const childId of childIds) {
-				childToLeaves[childId] = this.collectLeaves(nodes, childId);
+				childToLeaves[childId] = collectLeaves(prevToChildren, childId);
 			}
 
-			const leafStatements: Record<
+			const leafStatementsCache: Record<
 				string,
-				{ statements: TStatement[]; path: string }
+				Promise<{ statements: TStatement[]; path: string }>
 			> = {};
 
-			for (const leaves of Object.values(childToLeaves)) {
-				for (const leafId of leaves) {
-					const leafNode = nodes[leafId]!;
-					const parentSnapshot = parentNode
-						? parentNode.raw
-						: this.getDrySnapshot();
-					const { statements } = await this.diffSnapshots(
-						parentSnapshot,
-						leafNode.raw,
-					);
-					leafStatements[leafId] = {
-						statements,
-						path: leafNode.folderPath,
-					};
-				}
-			}
-
-			let hasConflict = false;
+			const resolveLeaf = (leafId: string) => {
+				const cached = leafStatementsCache[leafId];
+				if (cached) return cached;
+				const leafNode = nodes[leafId]!;
+				const pending = diffOnce(parentSnapshot, leafNode.raw).then((d) => ({
+					statements: d.statements,
+					path: leafNode.folderPath,
+				}));
+				leafStatementsCache[leafId] = pending;
+				return pending;
+			};
 
 			for (let i = 0; i < childIds.length; i++) {
 				for (let j = i + 1; j < childIds.length; j++) {
@@ -192,21 +513,15 @@ export abstract class AbstractCommutativity<
 						for (const bId of groupB) {
 							if (aId === bId) continue;
 
-							const aStatements = leafStatements[aId]!.statements;
-							const bStatements = leafStatements[bId]!.statements;
-							const parentSnapshot = parentNode
-								? parentNode.raw
-								: this.getDrySnapshot();
+							const [{ statements: aStatements }, { statements: bStatements }] = await Promise.all([
+								resolveLeaf(aId),
+								resolveLeaf(bId),
+							]);
 
-							const intersected = await this.getReasonsFromStatements(
-								aStatements,
-								bStatements,
-								parentSnapshot,
-							);
+							const intersected = await this.getReasonsFromStatements(aStatements, bStatements);
 
 							if (!intersected) continue;
 
-							hasConflict = true;
 							const chainA = this.buildChain(
 								nodes,
 								prevToChildren,
@@ -223,49 +538,56 @@ export abstract class AbstractCommutativity<
 							conflicts.push({
 								parentId: prevId,
 								parentPath: parentNode?.folderPath,
-								branchA: {
-									chain: chainA,
-									statementDescription: this.describeStatement(
-										intersected.leftStatement,
-										this.resolveStatement(intersected.leftStatement).info,
-									),
-								},
-								branchB: {
-									chain: chainB,
-									statementDescription: this.describeStatement(
-										intersected.rightStatement,
-										this.resolveStatement(intersected.rightStatement).info,
-									),
-								},
+								branchA: this.branchOf(chainA, intersected.leftStatement),
+								branchB: this.branchOf(chainB, intersected.rightStatement),
 							});
 						}
 					}
 				}
 			}
+		}
 
-			const uniqueLeafIds = Array.from(new Set(Object.values(childToLeaves).flat()));
-			if (hasConflict || uniqueLeafIds.length <= 1) {
-				continue;
-			}
+		const leafNodes: string[] = [];
+		for (const id of Object.keys(nodes)) {
+			if (!prevToChildren[id]) leafNodes.push(id);
+		}
 
-			const parentSnapshot = parentNode ? parentNode.raw : this.getDrySnapshot();
-			const leafs = uniqueLeafIds.map((leafId) => ({
-				id: leafId,
-				path: leafStatements[leafId]?.path ?? nodes[leafId]?.folderPath ?? leafId,
-				statements: leafStatements[leafId]?.statements ?? [],
-			}));
+		// Open commutative merge. When the whole history is conflict-free and more
+		// than one head is open, every pair of open heads is commutative (the loop
+		// above compares every cross-branch leaf pair), so all of them can be merged
+		// at once. The merge base is the lowest common ancestor of the open heads —
+		// not a higher fork — so segments already collapsed by a merge node below it
+		// are never replayed. Each head contributes diff(LCA -> head); statements
+		// inherited from a nested fork below the LCA show up in more than one head's
+		// diff and are de-duplicated by the consumer before they are replayed.
+		if (conflicts.length === 0 && leafNodes.length > 1) {
+			const lcaId = lowestCommonAncestor(nodes, leafNodes);
+			const baseNode = lcaId ? nodes[lcaId] : undefined;
+			const baseSnapshot = baseNode ? baseNode.raw : drySnapshot;
+
+			// Sort heads by id so the composed migration and leaf ids are
+			// deterministic regardless of file read order.
+			const sortedLeafIds = [...leafNodes].sort((a, b) => a.localeCompare(b));
+			const leafs = await Promise.all(
+				sortedLeafIds.map(async (leafId) => {
+					const leafNode = nodes[leafId]!;
+					const { statements } = await diffOnce(baseSnapshot, leafNode.raw);
+					return {
+						id: leafId,
+						path: leafNode.folderPath,
+						statements,
+					};
+				}),
+			);
 
 			commutativeBranches.push({
-				parentId: prevId,
-				parentPath: parentNode?.folderPath,
-				parentSnapshot,
+				parentId: lcaId ?? drySnapshot.id,
+				parentPath: baseNode?.folderPath,
+				parentSnapshot: baseSnapshot,
+				statements: composeMergeStatements(leafs.map((leaf) => leaf.statements)),
 				leafs,
 			});
 		}
-
-		const allNodeIds = new Set(Object.keys(nodes));
-		const parentIds = new Set(Object.keys(prevToChildren));
-		const leafNodes = Array.from(allNodeIds).filter((id) => !parentIds.has(id));
 
 		return { conflicts, leafNodes, commutativeBranches };
 	}
@@ -293,13 +615,46 @@ export abstract class AbstractCommutativity<
 		return [info.primary, ...info.ancestors, ...this.getImplicitAncestors(info.primary)];
 	}
 
-	private generateLeafFootprints(
-		statements: TStatement[],
-		_snapshot?: TSnapshot,
-	): {
-		statementHashes: Array<{ hash: string; statement: TStatement }>;
-		conflictFootprints: Array<{ hash: string; statement: TStatement }>;
-	} {
+	public async getReasonsFromStatements(aStatements: TStatement[], bStatements: TStatement[]) {
+		const branchAFootprints = this.generateLeafFootprints(aStatements);
+		const branchBFootprints = this.generateLeafFootprints(bStatements);
+
+		return this.findFootprintIntersections(
+			branchAFootprints.statementHashes,
+			branchAFootprints.conflictFootprints,
+			branchBFootprints.statementHashes,
+			branchBFootprints.conflictFootprints,
+		);
+	}
+
+	private findFootprintIntersections(
+		branchAHashes: Array<{ hash: string; statement: TStatement }>,
+		branchAConflicts: Array<{ hash: string; statement: TStatement }>,
+		branchBHashes: Array<{ hash: string; statement: TStatement }>,
+		branchBConflicts: Array<{ hash: string; statement: TStatement }>,
+	) {
+		const branchAConflictByHash = new Map<string, TStatement>();
+		for (const c of branchAConflicts) branchAConflictByHash.set(c.hash, c.statement);
+
+		const branchBConflictByHash = new Map<string, TStatement>();
+		for (const c of branchBConflicts) branchBConflictByHash.set(c.hash, c.statement);
+
+		for (const a of branchAHashes) {
+			const match = branchBConflictByHash.get(a.hash);
+			if (match) {
+				return { leftStatement: a.statement, rightStatement: match };
+			}
+		}
+
+		for (const b of branchBHashes) {
+			const match = branchAConflictByHash.get(b.hash);
+			if (match) {
+				return { leftStatement: b.statement, rightStatement: match };
+			}
+		}
+	}
+
+	private generateLeafFootprints(statements: TStatement[]): LeafFootprints<TStatement> {
 		const statementHashes: Array<{ hash: string; statement: TStatement }> = [];
 		const conflictFootprints: Array<{ hash: string; statement: TStatement }> = [];
 
@@ -316,83 +671,6 @@ export abstract class AbstractCommutativity<
 		}
 
 		return { statementHashes, conflictFootprints };
-	}
-
-	private findFootprintIntersections(
-		branchAHashes: Array<{ hash: string; statement: TStatement }>,
-		branchAConflicts: Array<{ hash: string; statement: TStatement }>,
-		branchBHashes: Array<{ hash: string; statement: TStatement }>,
-		branchBConflicts: Array<{ hash: string; statement: TStatement }>,
-	) {
-		for (const hashInfoA of branchAHashes) {
-			for (const conflictInfoB of branchBConflicts) {
-				if (hashInfoA.hash === conflictInfoB.hash) {
-					return {
-						leftStatement: hashInfoA.statement,
-						rightStatement: conflictInfoB.statement,
-					};
-				}
-			}
-		}
-
-		for (const hashInfoB of branchBHashes) {
-			for (const conflictInfoA of branchAConflicts) {
-				if (hashInfoB.hash === conflictInfoA.hash) {
-					return {
-						leftStatement: hashInfoB.statement,
-						rightStatement: conflictInfoA.statement,
-					};
-				}
-			}
-		}
-	}
-
-	private buildSnapshotGraph(
-		snapshotFiles: string[],
-	): Record<string, SnapshotNode<TSnapshot>> {
-		const byId: Record<string, SnapshotNode<TSnapshot>> = {};
-		for (const file of snapshotFiles) {
-			if (!existsSync(file)) continue;
-			const raw = JSON.parse(readFileSync(file, 'utf8')) as TSnapshot;
-			byId[raw.id] = {
-				id: raw.id,
-				prevIds: raw.prevIds,
-				path: file,
-				folderPath: dirname(file),
-				raw,
-			};
-		}
-
-		return byId;
-	}
-
-	private collectLeaves(
-		graph: Record<string, SnapshotNode<TSnapshot>>,
-		startId: string,
-	): string[] {
-		const leaves: string[] = [];
-		const stack: string[] = [startId];
-		const prevToChildren: Record<string, string[]> = {};
-
-		for (const node of Object.values(graph)) {
-			for (const parentId of node.prevIds) {
-				const arr = prevToChildren[parentId] ?? [];
-				arr.push(node.id);
-				prevToChildren[parentId] = arr;
-			}
-		}
-
-		while (stack.length) {
-			const id = stack.pop()!;
-			const children = prevToChildren[id] ?? [];
-			if (children.length === 0) {
-				leaves.push(id);
-			} else {
-				for (const child of children) stack.push(child);
-			}
-		}
-
-		return leaves;
 	}
 
 	private buildChain(

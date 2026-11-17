@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { TableName } from '~/table.utils.ts';
 import type { SingleStoreColumn } from './columns/index.ts';
 import type { SingleStoreTable } from './table.ts';
@@ -13,6 +13,9 @@ export function uniqueKeyName(table: SingleStoreTable, columns: string[]) {
 
 export class UniqueConstraintBuilder {
 	static readonly [entityKind]: string = 'SingleStoreUniqueConstraintBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	columns: SingleStoreColumn[];
@@ -32,6 +35,9 @@ export class UniqueConstraintBuilder {
 
 export class UniqueOnConstraintBuilder {
 	static readonly [entityKind]: string = 'SingleStoreUniqueOnConstraintBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	name?: string;
@@ -49,6 +55,9 @@ export class UniqueOnConstraintBuilder {
 
 export class UniqueConstraint {
 	static readonly [entityKind]: string = 'SingleStoreUniqueConstraint';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly columns: SingleStoreColumn[];
 	readonly name: string;

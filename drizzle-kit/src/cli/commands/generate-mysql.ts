@@ -1,15 +1,20 @@
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
-import { prepareSnapshot } from 'src/dialects/mysql/serializer';
-import type { JsonStatement } from 'src/dialects/mysql/statements';
-import { prepareOutFolder } from 'src/utils/utils-node';
 import { type Column, createDDL, interimToDDL, type MysqlDDL, type Table, type View } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mysql/drizzle';
+import { prepareSnapshot } from '../../dialects/mysql/serializer';
+import type { JsonStatement } from '../../dialects/mysql/statements';
+import { prepareOutFolder } from '../../utils/utils-node';
+import { outputFormat } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
-import { explain, mysqlSchemaError } from '../views';
+import { explain, explainJsonOutput, humanLog, mysqlSchemaError } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
+import { dropReferencedPrimaryKeyWarning } from './warnings';
+
+const quote = (name: string) => `\`${name}\``;
 
 export const suggestions = (
 	jsonStatements: JsonStatement[],
@@ -45,11 +50,11 @@ export const suggestions = (
 
 			let composite = columnsTo.length > 1 ? 'composite ' : '';
 			grouped.errors.push(
-				`· You are trying to add reference from "${table}" ("${columns.join('", ')}") to "${tableTo}" ("${
-					columnsTo.join(
-						'", ',
-					)
-				}"). The referenced columns are not guaranteed to be unique together. A foreign key must point to a PRIMARY KEY or a set of columns with a UNIQUE constraint. You should add a ${composite}unique constraint to the referenced columns`,
+				`You are trying to add reference from ${quote(table)} (${columns.map(quote).join(', ')}) to ${
+					quote(tableTo)
+				} (${
+					columnsTo.map(quote).join(', ')
+				}). The referenced columns are not guaranteed to be unique together. A foreign key must point to a PRIMARY KEY or a set of columns with a UNIQUE constraint. You should add a ${composite}unique constraint to the referenced columns`,
 			);
 
 			continue;
@@ -79,17 +84,7 @@ export const suggestions = (
 
 			if (indexesFound) continue;
 
-			grouped.errors.push(
-				`· You are trying to drop primary key from "${table}" ("${
-					columns.join(
-						'", ',
-					)
-				}"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("${
-					columns.join(
-						'", ',
-					)
-				}") or drop the foreign key constraint that references this column.`,
-			);
+			grouped.errors.push(dropReferencedPrimaryKeyWarning(quote(table), columns.map(quote)));
 
 			continue;
 		}
@@ -103,52 +98,72 @@ export const handle = async (
 	checkResult?: CheckHandlerResult,
 ) => {
 	const { out: outFolder, filenames } = config;
+	const json = outputFormat() === 'json';
 
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
+	const { ddlCur, ddlPrev, metadata, snapshot, custom } = await prepareSnapshot(
 		snapshots,
 		filenames,
 		checkResult,
 	);
 
 	if (config.custom) {
-		writeResult({
+		return writeResult({
 			snapshot: custom,
 			sqlStatements: [],
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			dialect: 'mysql',
 			type: 'custom',
 			renames: [],
 			snapshots,
 		});
-		return;
 	}
 
 	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
-		resolver<Table>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
+		resolver<Table>('table', config.hints),
+		resolver<Column>('column', config.hints),
+		resolver<View>('view', config.hints),
 		'default',
+		metadata,
 	);
+
+	if (config.hints.hasMissingHints()) {
+		return config.hints.toResponse();
+	}
 
 	const { errors } = suggestions(statements, ddlCur);
 	if (errors.length) {
-		console.log(errors.map((err) => withStyle.errorWarning(err)).join('\n\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('generate', errors.map((err) => withStyle.errorWarning(err)).join('\n\n'), {
+			stage: 'suggestions',
+			dialect: 'mysql',
+		});
 	}
 
-	const explainMessage = explain('mysql', groupedStatements, false, []);
-	if (explainMessage) console.log(explainMessage);
+	if (config.explain) {
+		if (json) {
+			if (sqlStatements.length === 0) {
+				return { status: 'no_changes' as const, dialect: 'mysql' };
+			}
+			return explainJsonOutput('mysql', statements, []);
+		}
+		const explainMessage = explain('mysql', groupedStatements, []);
+		if (explainMessage) {
+			humanLog(explainMessage);
+		}
+		return { status: 'ok' as const, dialect: 'mysql' };
+	}
 
-	writeResult({
+	return writeResult({
 		snapshot,
 		sqlStatements,
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,
+		dialect: 'mysql',
 		renames,
 		snapshots,
 	});
@@ -156,14 +171,16 @@ export const handle = async (
 
 export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(config.filenames);
-	const schema = fromDrizzleSchema(res.tables, res.views);
+	const { schema, metadata } = fromDrizzleSchema(res.tables, res.views);
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => mysqlSchemaError(it)).join('\n'));
-		process.exit(1);
+		throw new CommandOutputCliError('export', errors.map((it) => mysqlSchemaError(it)).join('\n'), {
+			stage: 'ddl',
+			dialect: 'mysql',
+		});
 	}
 
-	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
-	console.log(sqlStatements.join('\n'));
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default', metadata);
+	return { statements: sqlStatements, warnings: [] };
 };

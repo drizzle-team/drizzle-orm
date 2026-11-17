@@ -100,53 +100,8 @@ const users = sqliteTable(
 }
 
 {
-	const db = drizzle({} as any, { schema: { users } });
-
-	const dbUser = await db._query.users.findFirst();
-
-	Expect<
-		Equal<
-			{
-				id: number;
-				firstName: string | null;
-				lastName: string | null;
-				email: string;
-				fullName: string | null;
-				upperName: string | null;
-			} | undefined,
-			typeof dbUser
-		>
-	>();
-}
-
-{
-	const db = drizzle({} as any, { schema: { users } });
-
-	const dbUser = await db._query.users.findMany();
-
-	Expect<
-		Equal<
-			{
-				id: number;
-				firstName: string | null;
-				lastName: string | null;
-				email: string;
-				fullName: string | null;
-				upperName: string | null;
-			}[],
-			typeof dbUser
-		>
-	>();
-}
-
-{
 	// @ts-expect-error - Can't use the fullName because it's a generated column
-	await db.insert(users).values({
-		firstName: 'test',
-		lastName: 'test',
-		email: 'test',
-		fullName: 'test',
-	});
+	await db.insert(users).values({ firstName: 'test', lastName: 'test', email: 'test', fullName: 'test' });
 }
 
 {

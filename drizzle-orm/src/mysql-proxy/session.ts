@@ -1,32 +1,36 @@
-import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
+import type { FieldPacket, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { MySqlAsyncPreparedQuery, MySqlAsyncSession, type MySqlAsyncTransaction } from '~/mysql-core/async/session.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { MySqlTransaction } from '~/mysql-core/index.ts';
 import type {
 	AnyMySqlMapper,
 	MySqlPreparedQueryConfig,
 	MySqlQueryResultHKT,
 	MySqlTransactionConfig,
 } from '~/mysql-core/session.ts';
-import { MySqlPreparedQuery, MySqlSession } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { RemoteCallback } from './driver.ts';
 
-export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
+export type MySqlRawQueryResult = [ResultSetHeader, undefined];
+export type MySqlRemoteRawExecuteResult =
+	| MySqlRawQueryResult
+	| [RowDataPacket[], FieldPacket[]]
+	| [(ResultSetHeader | RowDataPacket[])[], (FieldPacket[] | undefined)[]];
 
 export interface MySqlRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class MySqlRemoteSession<
 	TRelations extends AnyRelations,
-> extends MySqlSession<
+> extends MySqlAsyncSession<
 	MySqlRemoteQueryResultHKT,
 	TRelations
 > {
@@ -50,12 +54,9 @@ export class MySqlRemoteSession<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: AnyMySqlMapper,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
-	): MySqlPreparedQuery<T> {
+	): MySqlAsyncPreparedQuery<T> {
 		const executor = async (params: any[] = []) => {
 			const raw = this.client(query.sql, params, mode === 'arrays' ? 'all' : 'execute');
 
@@ -68,7 +69,7 @@ export class MySqlRemoteSession<
 			}));
 		};
 
-		return new MySqlPreparedQuery(
+		return new MySqlAsyncPreparedQuery(
 			executor,
 			undefined,
 			query,
@@ -78,11 +79,12 @@ export class MySqlRemoteSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
 	override async transaction<T>(
-		_transaction: (tx: MySqlTransaction<MySqlRemoteQueryResultHKT, TRelations>) => Promise<T>,
+		_transaction: (tx: MySqlAsyncTransaction<MySqlRemoteQueryResultHKT, TRelations>) => Promise<T>,
 		_config?: MySqlTransactionConfig,
 	): Promise<T> {
 		throw new Error('Transactions are not supported by the MySql Proxy driver');
@@ -90,5 +92,7 @@ export class MySqlRemoteSession<
 }
 
 export interface MySqlRemoteQueryResultHKT extends MySqlQueryResultHKT {
-	type: MySqlRawQueryResult;
+	type: [this['row']] extends [never] ? MySqlRawQueryResult
+		: [this['row']] extends ['unknown'] ? MySqlRemoteRawExecuteResult
+		: [this['row'][], FieldPacket[]];
 }

@@ -5,7 +5,7 @@ import { defineRelations, eq, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { SqliteRemoteDatabase, SqliteRemoteResult } from 'drizzle-orm/sqlite-proxy';
+import type { SqliteProxyBatchItem, SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 
@@ -136,66 +136,60 @@ const schema = {
 
 const relationsV2 = defineRelations(schema);
 
+type RawUser = { id: number; name: string; verified: number; invited_by: number | null };
+
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
 
-	async batch(queries: { sql: string; params: any[]; method: string }[]) {
-		const results: { rows: any }[] = [];
-		for (const query of queries) {
-			const { method, sql, params } = query;
+	async batch(queries: SqliteProxyBatchItem[]) {
+		try {
+			const results: any[] = [];
+			this.db.transaction(() => {
+				for (const query of queries) {
+					const { method, sql, params, rowMode } = query;
 
-			if (method === 'run') {
-				try {
-					const result = this.db.prepare(sql).run(params);
-					results.push(result as any);
-				} catch (e: any) {
-					return { error: e.message };
+					const statement = this.db.prepare(sql);
+
+					switch (method) {
+						case 'run': {
+							results.push(statement.run(params));
+							break;
+						}
+						case 'all': {
+							results.push(rowMode === 'object' ? statement.all(params) : statement.raw().all(params));
+							break;
+						}
+						case 'get': {
+							results.push(rowMode === 'object' ? statement.get(params) : statement.raw().get(params));
+							break;
+						}
+					}
 				}
-			} else if (method === 'all' || method === 'values') {
-				try {
-					const rows = this.db.prepare(sql).raw().all(params);
-					results.push({ rows: rows });
-				} catch (e: any) {
-					return { error: e.message };
-				}
-			} else if (method === 'get') {
-				try {
-					const row = this.db.prepare(sql).raw().get(params);
-					results.push({ rows: row });
-				} catch (e: any) {
-					return { error: e.message };
-				}
-			} else {
-				return { error: 'Unknown method value' };
-			}
+			})();
+
+			return { data: results };
+		} catch (e: any) {
+			return { error: e.message };
 		}
-		return results;
 	}
 
-	async query(sql: string, params: any[], method: string) {
-		if (method === 'run') {
-			try {
-				const result = this.db.prepare(sql).run(params);
-				return { data: result as any };
-			} catch (e: any) {
-				return { error: e.message };
+	async query(sql: string, params: any[], method: 'run' | 'all' | 'get', rowMode: 'array' | 'object' = 'object') {
+		try {
+			const statement = this.db.prepare(sql);
+
+			switch (method) {
+				case 'run': {
+					return { data: statement.run(params) };
+				}
+				case 'all': {
+					return { data: rowMode === 'object' ? statement.all(params) : statement.raw().all(params) };
+				}
+				case 'get': {
+					return { data: rowMode === 'object' ? statement.get(params) : statement.raw().get(params) };
+				}
 			}
-		} else if (method === 'all' || method === 'values') {
-			try {
-				const rows = this.db.prepare(sql).raw().all(params);
-				return { data: rows };
-			} catch (e: any) {
-				return { error: e.message };
-			}
-		} else if (method === 'get') {
-			try {
-				const row = this.db.prepare(sql).raw().get(params);
-				return { data: row };
-			} catch (e: any) {
-				return { error: e.message };
-			}
-		} else {
-			return { error: 'Unknown method value' };
+		} catch (e: any) {
+			return { error: e.message };
 		}
 	}
 
@@ -214,7 +208,7 @@ class ServerSimulator {
 	}
 }
 
-let db: SqliteRemoteDatabase<typeof schema, typeof relationsV2>;
+let db: SqliteRemoteDatabase<BetterSqlite3.RunResult, typeof relationsV2>;
 let client: Database.Database;
 let serverSimulator: ServerSimulator;
 
@@ -223,36 +217,41 @@ beforeAll(async () => {
 	client = new Database(dbPath);
 	serverSimulator = new ServerSimulator(client);
 
-	db = proxyDrizzle(async (sql, params, method) => {
-		try {
-			// console.log(sql, params, method);
-			const rows = await serverSimulator.query(sql, params, method);
+	db = proxyDrizzle(
+		{
+			all: async (sql: string, params: any[], rowMode?: 'array' | 'object') => {
+				const response: any = await serverSimulator.query(sql, params, 'all', rowMode);
 
-			// console.log('rowsTest', rows);
+				if (response.error !== undefined) throw new Error(response.error);
 
-			if (rows.error !== undefined) {
-				throw new Error(rows.error);
-			}
+				return response.data;
+			},
+			get: async (sql: string, params: any[], rowMode?: 'array' | 'object') => {
+				const response: any = await serverSimulator.query(sql, params, 'get', rowMode);
 
-			return { rows: rows.data };
-		} catch (e: any) {
-			console.error('Error from sqlite proxy server:', e.response.data);
-			throw e;
-		}
-	}, async (queries) => {
-		try {
-			const result = await serverSimulator.batch(queries);
+				if (response.error !== undefined) throw new Error(response.error);
 
-			if ((result as any).error !== undefined) {
-				throw new Error((result as any).error);
-			}
+				return response.data;
+			},
+			run: async (sql: string, params: any[]) => {
+				const response: any = await serverSimulator.query(sql, params, 'run');
 
-			return result as { rows: any }[];
-		} catch (e: any) {
-			console.error('Error from sqlite proxy server:', e);
-			throw e;
-		}
-	}, { schema, relations: relationsV2 });
+				if (response.error !== undefined) throw new Error(response.error);
+
+				return response.data as BetterSqlite3.RunResult;
+			},
+			batch: async (queries) => {
+				const result = await serverSimulator.batch(queries);
+
+				if (result.error !== undefined) {
+					throw new Error((result as any).error);
+				}
+
+				return result.data!;
+			},
+		},
+		{ relations: relationsV2 },
+	);
 });
 
 beforeEach(async () => {
@@ -338,8 +337,6 @@ afterAll(async () => {
 test('findMany + findOne api example', async () => {
 	const user = await db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id });
 	const insertRes = await db.insert(usersTable).values({ id: 2, name: 'Dan' });
-	const manyUsers = await db._query.usersTable.findMany({});
-	const oneUser = await db._query.usersTable.findFirst({});
 	const manyUsersV2 = await db.query.usersTable.findMany({});
 	const oneUserV2 = await db.query.usersTable.findFirst({});
 
@@ -349,23 +346,7 @@ test('findMany + findOne api example', async () => {
 		}[]
 	>;
 
-	expectTypeOf(insertRes).toEqualTypeOf<SqliteRemoteResult>;
-
-	expectTypeOf(manyUsers).toEqualTypeOf<{
-		id: number;
-		name: string;
-		verified: number;
-		invitedBy: number | null;
-	}[]>;
-
-	expectTypeOf(oneUser).toEqualTypeOf<
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		} | undefined
-	>;
+	expectTypeOf(insertRes).toEqualTypeOf<BetterSqlite3.RunResult>;
 
 	expectTypeOf(manyUsersV2).toEqualTypeOf<{
 		id: number;
@@ -387,16 +368,7 @@ test('findMany + findOne api example', async () => {
 		id: 1,
 	}]);
 
-	expect(insertRes).toEqual({ rows: { changes: 1, lastInsertRowid: 2 } });
-
-	expect(manyUsers).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(oneUser).toEqual(
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-	);
+	expect(insertRes).toEqual({ changes: 1, lastInsertRowid: 2 });
 
 	expect(manyUsersV2).toEqual([
 		{ id: 1, name: 'John', verified: 0, invitedBy: null },
@@ -423,7 +395,7 @@ test('batch api example', async () => {
 			id: number;
 			invitedBy: number | null;
 		}[],
-		SqliteRemoteResult,
+		BetterSqlite3.RunResult,
 		{
 			id: number;
 			name: string;
@@ -452,7 +424,6 @@ test('insert + findMany', async () => {
 	const batchResponse = await db.batch([
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-		db._query.usersTable.findMany({}),
 		db.query.usersTable.findMany({}),
 	]);
 
@@ -460,7 +431,43 @@ test('insert + findMany', async () => {
 		{
 			id: number;
 		}[],
-		SqliteRemoteResult,
+		BetterSqlite3.RunResult,
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[],
+	]>();
+
+	expect(batchResponse.length).eq(3);
+
+	expect(batchResponse[0]).toEqual([{
+		id: 1,
+	}]);
+
+	expect(batchResponse[1]).toEqual({ changes: 1, lastInsertRowid: 2 });
+
+	expect(batchResponse[2]).toEqual([
+		{ id: 1, name: 'John', verified: 0, invitedBy: null },
+		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
+	]);
+});
+
+// batch api relational many + one
+test('insert + findMany + findFirst', async () => {
+	const batchResponse = await db.batch([
+		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
+		db.query.usersTable.findMany({}),
+		db.query.usersTable.findFirst({}),
+	]);
+
+	expectTypeOf(batchResponse).toEqualTypeOf<[
+		{
+			id: number;
+		}[],
+		BetterSqlite3.RunResult,
 		{
 			id: number;
 			name: string;
@@ -472,7 +479,100 @@ test('insert + findMany', async () => {
 			name: string;
 			verified: number;
 			invitedBy: number | null;
+		} | undefined,
+	]>();
+
+	expect(batchResponse.length).eq(4);
+
+	expect(batchResponse[0]).toEqual([{
+		id: 1,
+	}]);
+
+	expect(batchResponse[1]).toEqual({ changes: 1, lastInsertRowid: 2 });
+
+	expect(batchResponse[2]).toEqual([
+		{ id: 1, name: 'John', verified: 0, invitedBy: null },
+		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
+	]);
+
+	expect(batchResponse[3]).toEqual(
+		{ id: 1, name: 'John', verified: 0, invitedBy: null },
+	);
+});
+
+test('insert + db.all + db.get + db.values + db.run', async () => {
+	const batchResponse = await db.batch([
+		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+		db.run(sql`insert into users (id, name) values (2, 'Dan')`),
+		db.all<RawUser>(sql`select * from users`),
+		db.values(sql`select * from users`),
+		db.get<RawUser>(sql`select * from users`),
+		db.all<[number, string, number, number | null]>(sql`select * from users`, 'arrays'),
+		db.get<[number, string, number, number | null]>(sql`select * from users`, 'arrays'),
+	]);
+
+	expectTypeOf(batchResponse).toEqualTypeOf<[
+		{
+			id: number;
 		}[],
+		BetterSqlite3.RunResult,
+		RawUser[],
+		unknown[][],
+		RawUser | undefined,
+		[number, string, number, number | null][],
+		[number, string, number, number | null] | undefined,
+	]>();
+
+	expect(batchResponse.length).eq(7);
+
+	expect(batchResponse[0]).toEqual([{
+		id: 1,
+	}]);
+
+	expect(batchResponse[1]).toEqual({ changes: 1, lastInsertRowid: 2 });
+
+	expect(batchResponse[2]).toEqual([
+		{ id: 1, name: 'John', verified: 0, invited_by: null },
+		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
+	]);
+
+	expect(batchResponse[3]).toEqual([
+		[1, 'John', 0, null],
+		[2, 'Dan', 0, null],
+	]);
+
+	expect(batchResponse[4]).toEqual(
+		{ id: 1, name: 'John', verified: 0, invited_by: null },
+	);
+	expect(batchResponse[5]).toEqual([
+		[1, 'John', 0, null],
+		[2, 'Dan', 0, null],
+	]);
+
+	expect(batchResponse[6]).toEqual([1, 'John', 0, null]);
+});
+
+// batch api combined rqb + raw call
+test('insert + findManyWith + db.all', async () => {
+	const batchResponse = await db.batch([
+		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
+		db.query.usersTable.findMany({}),
+		db.all<RawUser>(sql`select * from users`),
+	]);
+
+	expectTypeOf(batchResponse).toEqualTypeOf<[
+		{
+			id: number;
+		}[],
+		BetterSqlite3.RunResult,
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[],
+		RawUser[],
 	]>();
 
 	expect(batchResponse.length).eq(4);
@@ -489,190 +589,8 @@ test('insert + findMany', async () => {
 	]);
 
 	expect(batchResponse[3]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-});
-
-// batch api relational many + one
-test('insert + findMany + findFirst', async () => {
-	const batchResponse = await db.batch([
-		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-		db._query.usersTable.findMany({}),
-		db._query.usersTable.findFirst({}),
-		db.query.usersTable.findMany({}),
-		db.query.usersTable.findFirst({}),
-	]);
-
-	expectTypeOf(batchResponse).toEqualTypeOf<[
-		{
-			id: number;
-		}[],
-		SqliteRemoteResult,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		} | undefined,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		} | undefined,
-	]>();
-
-	expect(batchResponse.length).eq(6);
-
-	expect(batchResponse[0]).toEqual([{
-		id: 1,
-	}]);
-
-	expect(batchResponse[1]).toEqual({ changes: 1, lastInsertRowid: 2 });
-
-	expect(batchResponse[2]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[3]).toEqual(
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-	);
-
-	expect(batchResponse[4]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[5]).toEqual(
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-	);
-});
-
-test.skip('insert + db.all + db.get + db.values + db.run', async () => {
-	const batchResponse = await db.batch([
-		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-		db.run(sql`insert into users (id, name) values (2, 'Dan')`),
-		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
-		db.values(sql`select * from users`),
-		db.get<typeof usersTable.$inferSelect>(sql`select * from users`),
-	]);
-
-	expectTypeOf(batchResponse).toEqualTypeOf<[
-		{
-			id: number;
-		}[],
-		SqliteRemoteResult,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		unknown[][],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		},
-	]>();
-
-	expect(batchResponse.length).eq(5);
-
-	expect(batchResponse[0]).toEqual([{
-		id: 1,
-	}]);
-
-	expect(batchResponse[1]).toEqual({ changes: 1, lastInsertRowid: 2 });
-
-	expect(batchResponse[2]).toEqual([
 		{ id: 1, name: 'John', verified: 0, invited_by: null },
 		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
-	]);
-
-	expect(batchResponse[3].map((row) => Array.prototype.slice.call(row))).toEqual([
-		[1, 'John', 0, null],
-		[2, 'Dan', 0, null],
-	]);
-
-	expect(batchResponse[4]).toEqual(
-		{ id: 1, name: 'John', verified: 0, invited_by: null },
-	);
-});
-
-// batch api combined rqb + raw call
-test('insert + findManyWith + db.all', async () => {
-	const batchResponse = await db.batch([
-		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-		db._query.usersTable.findMany({}),
-		db.query.usersTable.findMany({}),
-		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
-	]);
-
-	expectTypeOf(batchResponse).toEqualTypeOf<[
-		{
-			id: number;
-		}[],
-		SqliteRemoteResult,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-	]>();
-
-	expect(batchResponse.length).eq(5);
-
-	expect(batchResponse[0]).toEqual([{
-		id: 1,
-	}]);
-
-	expect(batchResponse[1]).toEqual({ changes: 1, lastInsertRowid: 2 });
-
-	expect(batchResponse[2]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[3]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[4]).toEqual([
-		[1, 'John', 0, null],
-		[2, 'Dan', 0, null],
-		// { id: 1, name: 'John', verified: 0, invited_by: null },
-		// { id: 2, name: 'Dan', verified: 0, invited_by: null },
 	]);
 });
 
@@ -681,7 +599,6 @@ test('insert + update + select + select partial', async () => {
 	const batchResponse = await db.batch([
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.update(usersTable).set({ name: 'Dan' }).where(eq(usersTable.id, 1)),
-		db._query.usersTable.findMany({}),
 		db.query.usersTable.findMany({}),
 		db.select().from(usersTable).where(eq(usersTable.id, 1)),
 		db.select({ id: usersTable.id, invitedBy: usersTable.invitedBy }).from(usersTable),
@@ -691,13 +608,7 @@ test('insert + update + select + select partial', async () => {
 		{
 			id: number;
 		}[],
-		SqliteRemoteResult,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
+		BetterSqlite3.RunResult,
 		{
 			id: number;
 			name: string;
@@ -716,7 +627,7 @@ test('insert + update + select + select partial', async () => {
 		}[],
 	]>();
 
-	expect(batchResponse.length).eq(6);
+	expect(batchResponse.length).eq(5);
 
 	expect(batchResponse[0]).toEqual([{
 		id: 1,
@@ -733,10 +644,6 @@ test('insert + update + select + select partial', async () => {
 	]);
 
 	expect(batchResponse[4]).toEqual([
-		{ id: 1, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[5]).toEqual([
 		{ id: 1, invitedBy: null },
 	]);
 });
@@ -747,12 +654,6 @@ test('insert + delete + select + select partial', async () => {
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
 		db.delete(usersTable).where(eq(usersTable.id, 1)).returning({ id: usersTable.id, invitedBy: usersTable.invitedBy }),
-		db._query.usersTable.findFirst({
-			columns: {
-				id: true,
-				invitedBy: true,
-			},
-		}),
 		db.query.usersTable.findFirst({
 			columns: {
 				id: true,
@@ -765,7 +666,7 @@ test('insert + delete + select + select partial', async () => {
 		{
 			id: number;
 		}[],
-		SqliteRemoteResult,
+		BetterSqlite3.RunResult,
 		{
 			id: number;
 			invitedBy: number | null;
@@ -774,13 +675,9 @@ test('insert + delete + select + select partial', async () => {
 			id: number;
 			invitedBy: number | null;
 		} | undefined,
-		{
-			id: number;
-			invitedBy: number | null;
-		} | undefined,
 	]>();
 
-	expect(batchResponse.length).eq(5);
+	expect(batchResponse.length).eq(4);
 
 	expect(batchResponse[0]).toEqual([{
 		id: 1,
@@ -793,10 +690,6 @@ test('insert + delete + select + select partial', async () => {
 	]);
 
 	expect(batchResponse[3]).toEqual(
-		{ id: 2, invitedBy: null },
-	);
-
-	expect(batchResponse[4]).toEqual(
 		{ id: 2, invitedBy: null },
 	);
 });

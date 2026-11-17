@@ -3,9 +3,6 @@ import { writeFileSync } from 'fs';
 import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import { toJsonSnapshot } from 'src/dialects/cockroach/snapshot';
-import type { EntityFilter } from 'src/dialects/pull-utils';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -22,17 +19,22 @@ import type {
 import { cockroachToRelationsPull, createDDL, interimToDDL } from '../../dialects/cockroach/ddl';
 import { ddlDiff } from '../../dialects/cockroach/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/cockroach/introspect';
+import { toJsonSnapshot } from '../../dialects/cockroach/snapshot';
 import { ddlToTypeScript as cockroachSequenceSchemaToTypeScript } from '../../dialects/cockroach/typescript';
+import type { EntityFilter } from '../../dialects/pull-utils';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
 import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { prepareCockroach } from '../connections';
+import { outputFormat } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import type { CockroachCredentials } from '../validations/cockroach';
 import type { Casing, EntitiesFilterConfig } from '../validations/common';
-import { IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
+import { humanLog, IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
 import { writeResult } from './generate-common';
-import { relationsToTypeScript } from './pull-common';
+import { relationsToTypeScript, summarizeSchemaMappingErrors } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
@@ -44,6 +46,7 @@ export const handle = async (
 		schema: string;
 		table: string;
 	},
+	init: boolean,
 	db?: Awaited<ReturnType<typeof prepareCockroach>>,
 ) => {
 	if (!db) {
@@ -51,25 +54,31 @@ export const handle = async (
 		db = await prepareCockroach(credentials);
 	}
 
+	const text = outputFormat() === 'text';
 	const filter = prepareEntityFilter('cockroach', filters, []);
 
-	const progress = new IntrospectProgress(true);
-	const task = fromDatabaseForDrizzle(
-		db,
-		filter,
-		(stage, count, status) => {
-			progress.update(stage, count, status);
-		},
-		migrations,
-	);
-	const res = await renderWithTask(progress, task);
+	let res: Awaited<ReturnType<typeof fromDatabaseForDrizzle>>;
+	if (text) {
+		const progress = new IntrospectProgress(true);
+		const task = fromDatabaseForDrizzle(
+			db,
+			filter,
+			(stage, count, status) => {
+				progress.update(stage, count, status);
+			},
+			migrations,
+		);
+		res = await renderWithTask(progress, task);
+	} else {
+		res = await fromDatabaseForDrizzle(db, filter, () => {}, migrations);
+	}
 
 	const { ddl: ddl2, errors } = interimToDDL(res);
 
 	if (errors.length > 0) {
-		// TODO: print errors
-		console.error(errors);
-		process.exit(1);
+		throw new CommandOutputCliError('pull', 'Failed to map the introspected schema', {
+			errors: summarizeSchemaMappingErrors(errors),
+		});
 	}
 
 	const ts = cockroachSequenceSchemaToTypeScript(ddl2, res.viewColumns, casing);
@@ -79,8 +88,10 @@ export const handle = async (
 	writeFileSync(schemaFile, ts.file);
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relationsTs.file);
-	console.log();
+	humanLog();
 
+	let snapshotPath: string;
+	let migrationPath: string | undefined;
 	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {
 		const { sqlStatements, renames } = await ddlDiff(
@@ -95,48 +106,61 @@ export const handle = async (
 			resolver<View>('view'),
 			resolver<Index>('index'),
 			resolver<CheckConstraint>('check'),
-			resolver<PrimaryKey>('primary key'),
+			resolver<PrimaryKey>('primary_key'),
 			resolver<ForeignKey>('foreign key'),
 			'push',
 		);
 
-		writeResult({
+		({ snapshotPath, migrationPath } = writeResult({
 			snapshot: toJsonSnapshot(ddl2, [originUUID], renames),
 			sqlStatements,
 			renames,
+			init,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
 			snapshots,
-		});
+		}));
 	} else {
+		snapshotPath = snapshots[snapshots.length - 1];
+		if (text) {
+			render(
+				`[${
+					chalk.blue(
+						'i',
+					)
+				}] No SQL generated, you already have migrations in project`,
+			);
+		}
+	}
+
+	if (text) {
 		render(
 			`[${
-				chalk.blue(
-					'i',
+				chalk.green(
+					'✓',
 				)
-			}] No SQL generated, you already have migrations in project`,
+			}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		);
+		render(
+			`[${
+				chalk.green(
+					'✓',
+				)
+			}] Your relations file is ready ➜ ${
+				chalk.bold.underline.blue(
+					relationsFile,
+				)
+			} 🚀`,
 		);
 	}
 
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
-	);
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your relations file is ready ➜ ${
-			chalk.bold.underline.blue(
-				relationsFile,
-			)
-		} 🚀`,
-	);
+	return {
+		schemaPath: schemaFile,
+		relationsPath: relationsFile,
+		snapshotPath,
+		...(migrationPath ? { migrationPath } : {}),
+	};
 };
 
 export const introspect = async (

@@ -162,12 +162,13 @@ export const newParse = (
 
 	const pError = (m: string) => {
 		// Call error when something is wrong.
-		throw {
-			name: `SyntaxError`,
-			message: m,
-			at: p_current_char_index,
-			text: p_text,
+		const error = new SyntaxError(m) as SyntaxError & {
+			at: number;
+			text: string;
 		};
+		error.at = p_current_char_index;
+		error.text = p_text;
+		throw error;
 	};
 	const pCurrentCharIs = (c: string) => {
 		// Verify that it matches the current character.

@@ -3,13 +3,18 @@ import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs'
 import { getTsconfig } from 'get-tsconfig';
 import { sync as globSync } from 'glob';
 import { dirname, join, resolve } from 'path';
-import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/snapshot';
-import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/singlestore/snapshot';
 import { parse, pathToFileURL } from 'url';
-import { error, info } from '../cli/views';
+import {
+	CheckCliError,
+	MigrationsOutdatedCliError,
+	SchemaFilesNotFoundCliError,
+	UnsupportedSnapshotVersionCliError,
+} from '../cli/errors';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
+import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
+import { snapshotValidator as singlestoreSnapshotValidator } from '../dialects/singlestore/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
 import { assertUnreachable } from '.';
 import type { Journal } from '.';
@@ -70,21 +75,7 @@ export const prepareFilenames = (path: string | string[]) => {
 
 	// when schema: "./schema" and not "./schema.ts"
 	if (res.length === 0) {
-		console.log(
-			error(
-				`No schema files found for path config [${
-					path
-						.map((it) => `'${it}'`)
-						.join(', ')
-				}]`,
-			),
-		);
-		console.log(
-			error(
-				`If path represents a file - please make sure to use .ts or other extension in the path`,
-			),
-		);
-		process.exit(1);
+		throw new SchemaFilesNotFoundCliError(path);
 	}
 
 	return res;
@@ -98,14 +89,7 @@ export const assertV1OutFolder = (out: string) => {
 	);
 
 	if (oldMigrationFolders.length > 0) {
-		console.log(
-			`Your migrations folder format is outdated, please run ${
-				chalk.green.bold(
-					`drizzle-kit up`,
-				)
-			}`,
-		);
-		process.exit(1);
+		throw new MigrationsOutdatedCliError(out);
 	}
 };
 
@@ -113,14 +97,7 @@ export const assertV3OutFolder = (out: string) => {
 	if (!existsSync(out)) return;
 
 	if (existsSync(join(out, 'meta/_journal.json'))) {
-		console.log(
-			`Your migrations folder format is outdated, please run ${
-				chalk.green.bold(
-					`drizzle-kit up`,
-				)
-			}`,
-		);
-		process.exit(1);
+		throw new MigrationsOutdatedCliError(out);
 	}
 };
 
@@ -245,7 +222,7 @@ const assertVersion = (
 };
 
 const postgresValidator = (snapshot: object): ValidationResult => {
-	const versionError = assertVersion(snapshot, 8);
+	const versionError = assertVersion(snapshot, 9);
 	if (versionError) return { status: versionError };
 
 	const res = pgSnapshotValidator.parse(snapshot);
@@ -311,6 +288,31 @@ const singlestoreValidator = (snapshot: object): ValidationResult => {
 	return { status: 'valid' };
 };
 
+export const assertSnapshotStatus = (snapshot: string, status: ValidationResult['status']) => {
+	switch (status) {
+		case 'valid':
+			return;
+		case 'unsupported':
+			throw new CheckCliError(
+				'unsupported',
+				`${snapshot} snapshot is of unsupported version, please update drizzle-kit`,
+				{ snapshot },
+			);
+		case 'nonLatest':
+			throw new CheckCliError(
+				'non_latest',
+				`${snapshot} is not of the latest version, please run "drizzle-kit up"`,
+				{ snapshot },
+			);
+		case 'malformed':
+			throw new CheckCliError(
+				'malformed',
+				`${snapshot} data is malformed. Restore the file from git, or fix the JSON in it by hand.`,
+				{ snapshot },
+			);
+	}
+};
+
 export const validatorForDialect = (
 	dialect: Dialect,
 ): (snapshot: object) => ValidationResult => {
@@ -345,18 +347,13 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 
 	const result = snapshots.reduce(
 		(accum, it) => {
-			const raw = JSON.parse(readFileSync(`./${it}`).toString());
+			const raw = JSON.parse(readFileSync(it).toString());
 
 			accum.rawMap[it] = raw;
 
 			const res = validator(raw);
 			if (res.status === 'unsupported') {
-				console.log(
-					info(
-						`${it} snapshot is of unsupported version, please update drizzle-kit`,
-					),
-				);
-				process.exit(0);
+				throw new UnsupportedSnapshotVersionCliError(it);
 			}
 			if (res.status === 'malformed') {
 				accum.malformed.push(it);
@@ -365,29 +362,16 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 
 			if (res.status === 'nonLatest') {
 				accum.nonLatest.push(it);
-				return accum;
 			}
-
-			// only if latest version here
-			const idEntry = accum.idsMap[raw['prevId']] ?? {
-				parent: it,
-				snapshots: [],
-			};
-
-			idEntry.snapshots.push(it);
-			accum.idsMap[raw['prevId']] = idEntry;
 			return accum;
 		},
 		{
 			malformed: [],
 			nonLatest: [],
-			idToNameMap: {},
-			idsMap: {},
 			rawMap: {},
 		} as {
 			malformed: string[];
 			nonLatest: string[];
-			idsMap: Record<string, { parent: string; snapshots: string[] }>;
 			rawMap: Record<string, any>;
 		},
 	);
@@ -457,11 +441,12 @@ const isDeno = typeof (globalThis as any).Deno !== 'undefined';
 
 export const loadModule = async <T = unknown>(
 	modulePath: string,
+	{ defaultExport = false }: { defaultExport?: boolean } = {},
 ): Promise<T> => {
 	if (isBun || isDeno) {
 		const fileUrl = pathToFileURL(modulePath).href;
 		const mod = await import(fileUrl);
-		return mod.default ?? mod;
+		return defaultExport ? (mod?.default ?? mod) : mod;
 	}
 
 	const [major, minor] = process.versions.node.split('.').map(Number);
@@ -494,9 +479,10 @@ export const loadModule = async <T = unknown>(
 			alias: aliases,
 			requireCache: false,
 		});
-		return jiti.import(absoluteModulePath);
+		const mod = await jiti.import<any>(absoluteModulePath);
+		return defaultExport ? (mod?.default ?? mod) : mod;
 	}
 	const fileUrl = pathToFileURL(absoluteModulePath).href;
 	const mod = await import(fileUrl);
-	return mod.default ?? mod;
+	return defaultExport ? (mod?.default ?? mod) : mod;
 };

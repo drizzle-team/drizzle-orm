@@ -1,10 +1,15 @@
 import type { TypeOf } from 'zod';
 import { boolean, coerce, object, string, union } from 'zod';
-import { error } from '../views';
-import { wrapParam } from './common';
+import { ConfigConnectionCliError } from '../errors';
+import { error, humanLog } from '../views';
+import { warnOnUrlConflict, wrapParam } from './common';
 import { outputs } from './outputs';
 
 export const mysqlCredentials = union([
+	// "url" goes first: when it's provided along with individual params, it wins
+	object({
+		url: string().min(1),
+	}),
 	object({
 		host: string().min(1),
 		port: coerce.number().min(1).optional(),
@@ -25,38 +30,48 @@ export const mysqlCredentials = union([
 			}),
 		]).optional(),
 	}),
-	object({
-		url: string().min(1),
-	}),
 ]);
 
 export type MysqlCredentials = TypeOf<typeof mysqlCredentials>;
+
+export const warnOnConflictingCredentials = (options: Record<string, unknown>) =>
+	warnOnUrlConflict(options, ['host', 'port', 'user', 'password', 'database', 'ssl']);
 
 export const printCliConnectionIssues = (options: any) => {
 	const { uri, host, database } = options || {};
 
 	if (!uri && (!host || !database)) {
-		console.log(outputs.mysql.connection.required());
+		humanLog(outputs.mysql.connection.required());
 	}
 };
 
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
-) => {
+): never => {
 	if ('url' in options) {
 		let text = `Please provide required params for MySQL driver:\n`;
-		console.log(error(text));
-		console.log(wrapParam('url', options.url, false, 'url'));
-		process.exit(1);
+		throw new ConfigConnectionCliError(
+			'mysql',
+			['url'],
+			[
+				error(text),
+				wrapParam('url', options.url, false, 'url'),
+			].join('\n'),
+		);
 	}
 
 	let text = `Please provide required params for MySQL driver:\n`;
-	console.log(error(text));
-	console.log(wrapParam('host', options.host));
-	console.log(wrapParam('port', options.port, true));
-	console.log(wrapParam('user', options.user, true));
-	console.log(wrapParam('password', options.password, true, 'secret'));
-	console.log(wrapParam('database', options.database));
-	console.log(wrapParam('ssl', options.ssl, true));
-	process.exit(1);
+	throw new ConfigConnectionCliError(
+		'mysql',
+		['host', 'database'],
+		[
+			error(text),
+			wrapParam('host', options.host),
+			wrapParam('port', options.port, true),
+			wrapParam('user', options.user, true),
+			wrapParam('password', options.password, true, 'secret'),
+			wrapParam('database', options.database),
+			wrapParam('ssl', options.ssl, true),
+		].join('\n'),
+	);
 };

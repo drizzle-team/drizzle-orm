@@ -135,15 +135,12 @@ const schema = {
 
 const relationsV2 = defineRelations(schema);
 
-let db: LibSQLDatabase<typeof schema, typeof relationsV2>;
+let db: LibSQLDatabase<typeof relationsV2>;
 let client: Client;
 
 beforeAll(async () => {
-	const url = process.env['LIBSQL_URL'];
+	const url = process.env['LIBSQL_URL'] ?? 'file::memory:?cache=shared';
 	const authToken = process.env['LIBSQL_AUTH_TOKEN'];
-	if (!url) {
-		throw new Error('LIBSQL_URL is not set');
-	}
 	client = await retry(async () => {
 		client = createClient({ url, authToken });
 		return client;
@@ -157,7 +154,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle({ client, schema, logger: ENABLE_LOGGING, relations: relationsV2 });
+	db = drizzle({ client, logger: ENABLE_LOGGING, relations: relationsV2 });
 });
 
 afterAll(async () => {
@@ -288,8 +285,151 @@ test('insert + findMany', async () => {
 	const batchResponse = await db.batch([
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-		db._query.usersTable.findMany({}),
 		db.query.usersTable.findMany({}),
+	]);
+
+	expectTypeOf(batchResponse).toEqualTypeOf<[
+		{
+			id: number;
+		}[],
+		ResultSet,
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[],
+	]>();
+
+	expect(batchResponse.length).eq(3);
+
+	expect(batchResponse[0]).toEqual([{
+		id: 1,
+	}]);
+
+	expect(batchResponse[1]).toEqual({ columnTypes: [], columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+
+	expect(batchResponse[2]).toEqual([
+		{ id: 1, name: 'John', verified: 0, invitedBy: null },
+		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
+	]);
+});
+
+// batch api relational many + one
+test('insert + findMany + findFirst', async () => {
+	const batchResponse = await db.batch([
+		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
+		db.query.usersTable.findMany({}),
+		db.query.usersTable.findFirst({}),
+	]);
+
+	expectTypeOf(batchResponse).toEqualTypeOf<[
+		{
+			id: number;
+		}[],
+		ResultSet,
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[],
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		} | undefined,
+	]>();
+
+	expect(batchResponse.length).eq(4);
+
+	expect(batchResponse[0]).toEqual([{
+		id: 1,
+	}]);
+
+	expect(batchResponse[1]).toEqual({ columnTypes: [], columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+
+	expect(batchResponse[2]).toEqual([
+		{ id: 1, name: 'John', verified: 0, invitedBy: null },
+		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
+	]);
+
+	expect(batchResponse[3]).toEqual(
+		{ id: 1, name: 'John', verified: 0, invitedBy: null },
+	);
+});
+
+test('insert + db.all + db.get + db.values + db.run', async () => {
+	const batchResponse = await db.batch([
+		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+		db.run(sql`insert into users (id, name) values (2, 'Dan')`),
+		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
+		db.values(sql`select * from users`),
+		db.get<typeof usersTable.$inferSelect>(sql`select * from users`),
+		db.all<[number, string, number, number | null]>(sql`select * from users`, 'arrays'),
+		db.get<[number, string, number, number | null]>(sql`select * from users`, 'arrays'),
+	]);
+
+	expectTypeOf(batchResponse).toEqualTypeOf<[
+		{
+			id: number;
+		}[],
+		ResultSet,
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[],
+		unknown[][],
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		} | undefined,
+		[number, string, number, number | null][],
+		[number, string, number, number | null] | undefined,
+	]>();
+
+	expect(batchResponse.length).eq(7);
+
+	expect(batchResponse[0]).toEqual([{
+		id: 1,
+	}]);
+
+	expect(batchResponse[1]).toEqual({ columnTypes: [], columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
+
+	expect(batchResponse[2]).toEqual([
+		{ id: 1, name: 'John', verified: 0, invited_by: null },
+		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
+	]);
+
+	expect(batchResponse[3]).toEqual([
+		[1, 'John', 0, null],
+		[2, 'Dan', 0, null],
+	]);
+
+	expect(batchResponse[4]).toEqual(
+		{ id: 1, name: 'John', verified: 0, invited_by: null },
+	);
+	expect(batchResponse[5]).toEqual([
+		[1, 'John', 0, null],
+		[2, 'Dan', 0, null],
+	]);
+
+	expect(batchResponse[6]).toEqual([1, 'John', 0, null]);
+});
+
+// batch api combined rqb + raw call
+test('insert + findManyWith + db.all', async () => {
+	const batchResponse = await db.batch([
+		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
+		db.query.usersTable.findMany({}),
+		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
 	]);
 
 	expectTypeOf(batchResponse).toEqualTypeOf<[
@@ -325,186 +465,6 @@ test('insert + findMany', async () => {
 	]);
 
 	expect(batchResponse[3]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-});
-
-// batch api relational many + one
-test('insert + findMany + findFirst', async () => {
-	const batchResponse = await db.batch([
-		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-		db._query.usersTable.findMany({}),
-		db._query.usersTable.findFirst({}),
-		db.query.usersTable.findMany({}),
-		db.query.usersTable.findFirst({}),
-	]);
-
-	expectTypeOf(batchResponse).toEqualTypeOf<[
-		{
-			id: number;
-		}[],
-		ResultSet,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		} | undefined,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		} | undefined,
-	]>();
-
-	expect(batchResponse.length).eq(6);
-
-	expect(batchResponse[0]).toEqual([{
-		id: 1,
-	}]);
-
-	expect(batchResponse[1]).toEqual({ columnTypes: [], columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
-
-	expect(batchResponse[2]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[3]).toEqual(
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-	);
-
-	expect(batchResponse[4]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[5]).toEqual(
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-	);
-});
-
-test('insert + db.all + db.get + db.values + db.run', async () => {
-	const batchResponse = await db.batch([
-		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-		db.run(sql`insert into users (id, name) values (2, 'Dan')`),
-		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
-		db.values(sql`select * from users`),
-		db.get<typeof usersTable.$inferSelect>(sql`select * from users`),
-	]);
-
-	expectTypeOf(batchResponse).toEqualTypeOf<[
-		{
-			id: number;
-		}[],
-		ResultSet,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		unknown[][],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		},
-	]>();
-
-	expect(batchResponse.length).eq(5);
-
-	expect(batchResponse[0]).toEqual([{
-		id: 1,
-	}]);
-
-	expect(batchResponse[1]).toEqual({ columnTypes: [], columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
-
-	expect(batchResponse[2]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invited_by: null },
-		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
-	]);
-
-	expect(batchResponse[3].map((row) => Array.prototype.slice.call(row))).toEqual([
-		[1, 'John', 0, null],
-		[2, 'Dan', 0, null],
-	]);
-
-	expect(batchResponse[4]).toEqual(
-		{ id: 1, name: 'John', verified: 0, invited_by: null },
-	);
-});
-
-// batch api combined rqb + raw call
-test('insert + findManyWith + db.all', async () => {
-	const batchResponse = await db.batch([
-		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-		db._query.usersTable.findMany({}),
-		db.query.usersTable.findMany({}),
-		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
-	]);
-
-	expectTypeOf(batchResponse).toEqualTypeOf<[
-		{
-			id: number;
-		}[],
-		ResultSet,
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-	]>();
-
-	expect(batchResponse.length).eq(5);
-
-	expect(batchResponse[0]).toEqual([{
-		id: 1,
-	}]);
-
-	expect(batchResponse[1]).toEqual({ columnTypes: [], columns: [], rows: [], rowsAffected: 1, lastInsertRowid: 2n });
-
-	expect(batchResponse[2]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[3]).toEqual([
-		{ id: 1, name: 'John', verified: 0, invitedBy: null },
-		{ id: 2, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[4]).toEqual([
 		{ id: 1, name: 'John', verified: 0, invited_by: null },
 		{ id: 2, name: 'Dan', verified: 0, invited_by: null },
 	]);
@@ -541,7 +501,6 @@ test('insert + update + select + select partial', async () => {
 	const batchResponse = await db.batch([
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.update(usersTable).set({ name: 'Dan' }).where(eq(usersTable.id, 1)),
-		db._query.usersTable.findMany({}),
 		db.query.usersTable.findMany({}),
 		db.select().from(usersTable).where(eq(usersTable.id, 1)),
 		db.select({ id: usersTable.id, invitedBy: usersTable.invitedBy }).from(usersTable),
@@ -566,17 +525,11 @@ test('insert + update + select + select partial', async () => {
 		}[],
 		{
 			id: number;
-			name: string;
-			verified: number;
-			invitedBy: number | null;
-		}[],
-		{
-			id: number;
 			invitedBy: number | null;
 		}[],
 	]>();
 
-	expect(batchResponse.length).eq(6);
+	expect(batchResponse.length).eq(5);
 
 	expect(batchResponse[0]).toEqual([{
 		id: 1,
@@ -593,10 +546,6 @@ test('insert + update + select + select partial', async () => {
 	]);
 
 	expect(batchResponse[4]).toEqual([
-		{ id: 1, name: 'Dan', verified: 0, invitedBy: null },
-	]);
-
-	expect(batchResponse[5]).toEqual([
 		{ id: 1, invitedBy: null },
 	]);
 });
@@ -607,12 +556,6 @@ test('insert + delete + select + select partial', async () => {
 		db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
 		db.insert(usersTable).values({ id: 2, name: 'Dan' }),
 		db.delete(usersTable).where(eq(usersTable.id, 1)).returning({ id: usersTable.id, invitedBy: usersTable.invitedBy }),
-		db._query.usersTable.findFirst({
-			columns: {
-				id: true,
-				invitedBy: true,
-			},
-		}),
 		db.query.usersTable.findFirst({
 			columns: {
 				id: true,
@@ -634,13 +577,9 @@ test('insert + delete + select + select partial', async () => {
 			id: number;
 			invitedBy: number | null;
 		} | undefined,
-		{
-			id: number;
-			invitedBy: number | null;
-		} | undefined,
 	]>();
 
-	expect(batchResponse.length).eq(5);
+	expect(batchResponse.length).eq(4);
 
 	expect(batchResponse[0]).toEqual([{
 		id: 1,
@@ -653,10 +592,6 @@ test('insert + delete + select + select partial', async () => {
 	]);
 
 	expect(batchResponse[3]).toEqual(
-		{ id: 2, invitedBy: null },
-	);
-
-	expect(batchResponse[4]).toEqual(
 		{ id: 2, invitedBy: null },
 	);
 });

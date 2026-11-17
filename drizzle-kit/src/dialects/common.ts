@@ -1,7 +1,13 @@
+export type ResolverOutput<T> = {
+	created: T[];
+	deleted: T[];
+	renamedOrMoved: { from: T; to: T }[];
+};
+
 export type Resolver<T extends { name: string; schema?: string; table?: string }> = (it: {
 	created: T[];
 	deleted: T[];
-}) => Promise<{ created: T[]; deleted: T[]; renamedOrMoved: { from: T; to: T }[] }>;
+}) => Promise<ResolverOutput<T>>;
 
 const dictionary = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 

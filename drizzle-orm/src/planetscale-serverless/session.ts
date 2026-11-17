@@ -1,26 +1,22 @@
 import type { Client, Connection, ExecutedQuery, Transaction } from '@planetscale/database';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { MySqlAsyncPreparedQuery, MySqlAsyncSession, MySqlAsyncTransaction } from '~/mysql-core/async/session.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import {
-	MySqlPreparedQuery,
-	type MySqlPreparedQueryConfig,
-	type MySqlQueryResultHKT,
-	MySqlSession,
-	MySqlTransaction,
-} from '~/mysql-core/session.ts';
+import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 
 export interface PlanetscaleSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
-export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlSession<
+export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAsyncSession<
 	MySqlQueryResultHKT,
 	TRelations
 > {
@@ -47,12 +43,9 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlSe
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (response: Record<string, unknown>[] | unknown[][] | { insertId: number; affectedRows: number }) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
-	): MySqlPreparedQuery<T> {
+	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;
 		const queryConfig = {
 			as: mode === 'arrays' ? 'array' : 'object' as any,
@@ -70,7 +63,7 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlSe
 			}));
 		};
 
-		return new MySqlPreparedQuery(
+		return new MySqlAsyncPreparedQuery(
 			executor,
 			undefined,
 			query,
@@ -80,6 +73,7 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlSe
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -96,7 +90,7 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlSe
 			);
 			const tx = new PlanetScaleTransaction<TRelations>(
 				this.dialect,
-				session as MySqlSession<any, any>,
+				session as MySqlAsyncSession<any, any>,
 				this.relations,
 			);
 			return transaction(tx);
@@ -106,7 +100,7 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlSe
 
 export class PlanetScaleTransaction<
 	TRelations extends AnyRelations,
-> extends MySqlTransaction<
+> extends MySqlAsyncTransaction<
 	PlanetscaleQueryResultHKT,
 	TRelations
 > {
@@ -114,7 +108,7 @@ export class PlanetScaleTransaction<
 
 	constructor(
 		dialect: MySqlDialect,
-		session: MySqlSession,
+		session: MySqlAsyncSession,
 		relations: TRelations,
 		nestedIndex = 0,
 	) {
@@ -137,12 +131,14 @@ export class PlanetScaleTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}
 }
 
 export interface PlanetscaleQueryResultHKT extends MySqlQueryResultHKT {
-	type: ExecutedQuery;
+	type: [this['row']] extends [never] ? ExecutedQuery<never>
+		: [this['row']] extends ['unknown'] ? ExecutedQuery
+		: ExecutedQuery<this['row']>;
 }

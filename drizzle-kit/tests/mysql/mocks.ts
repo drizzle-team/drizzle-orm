@@ -1,22 +1,21 @@
-import Docker, { Container } from 'dockerode';
 import { is } from 'drizzle-orm';
 import { int, MySqlColumnBuilder, MySqlSchema, MySqlTable, mysqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import {
 	MySqlSchema as MySqlSchemaOld,
 	MySqlTable as MysqlTableOld,
 	MySqlView as MysqlViewOld,
 } from 'orm044/mysql-core';
-import { v4 as uuid } from 'uuid';
 import { suggestions as diffSuggestions } from '../../src/cli/commands/generate-mysql';
 import { introspect } from '../../src/cli/commands/pull-mysql';
 import { suggestions } from '../../src/cli/commands/push-mysql';
 import { upToV6 } from '../../src/cli/commands/up-mysql';
+import { runWithCliContext } from '../../src/cli/context';
+import { HintsHandler } from '../../src/cli/hints';
 import { configMigrations } from '../../src/cli/validations/common';
 import { mysqlSchemaError as schemaError } from '../../src/cli/views';
-import { EmptyProgressView } from '../../src/cli/views';
+import { EmptyProgressView, explain } from '../../src/cli/views';
 import { hash } from '../../src/dialects/common';
 import { MysqlDDL, MysqlEntity, mysqlToRelationsPull } from '../../src/dialects/mysql/ddl';
 import { createDDL, interimToDDL } from '../../src/dialects/mysql/ddl';
@@ -29,11 +28,11 @@ import { diff as legacyDiff } from '../../src/legacy/mysql-v5/mysqlDiff';
 import { serializeMysql } from '../../src/legacy/mysql-v5/serializer';
 import { DB } from '../../src/utils';
 import { mockResolver } from '../../src/utils/mocks';
+import { loadModule } from '../../src/utils/utils-node';
 import { tsc } from '../utils';
 import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { mysqlCommutativity } from 'src/dialects/mysql/commutativity';
-import type { MysqlSnapshot } from 'src/dialects/mysql/snapshot';
 import { expect } from 'vitest';
 
 mkdirSync('tests/mysql/tmp', { recursive: true });
@@ -59,7 +58,8 @@ export const fromEntities = (entities: MysqlEntity[]) => {
 export const drizzleToDDL = (sch: MysqlSchema) => {
 	const tables = Object.values(sch).filter((it) => is(it, MySqlTable)) as MySqlTable[];
 	const views = Object.values(sch).filter((it) => is(it, MySqlView)) as MySqlView[];
-	return interimToDDL(fromDrizzleSchema(tables, views));
+	const { schema, metadata } = fromDrizzleSchema(tables, views);
+	return { ...interimToDDL(schema), metadata };
 };
 
 export const diff = async (
@@ -70,8 +70,8 @@ export const diff = async (
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as MysqlDDL, errors: [] }
 		: drizzleToDDL(left);
-	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
-		? { ddl: right as MysqlDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in right && '_' in right
+		? { ddl: right as MysqlDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(right);
 
 	const renames = new Set(renamesArr);
@@ -86,6 +86,7 @@ export const diff = async (
 		mockResolver(renames),
 		mockResolver(renames),
 		'default',
+		metadata,
 	);
 
 	const { errors } = diffSuggestions(statements, ddl2);
@@ -108,7 +109,7 @@ export const diffIntrospect = async (
 	testName: string,
 ) => {
 	const { ddl: initDDL } = drizzleToDDL(initSchema);
-	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL);
+	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL, 'default');
 	for (const st of init) await db.query(st);
 
 	// introspect to schema
@@ -118,51 +119,88 @@ export const diffIntrospect = async (
 	});
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
+	// schema
 	const filePath = `tests/mysql/tmp/${testName}.ts`;
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'mysql');
-	const filePathRelations = `tests/mysql/tmp/${testName}-relations.ts`;
-	// path
-	const relations = relationsToTypeScript(mysqlToRelationsPull(ddl1), 'camel', `./tests/mysql/tmp/${testName}`);
-
 	writeFileSync(filePath, file.file);
-	writeFileSync(filePathRelations, relations.file);
-	await tsc(file.file);
-	await tsc(relations.file);
+	await tsc(file.file).catch((e) => {
+		throw new Error(`tsc error in file ${filePath}`, { cause: e });
+	});
+
+	// relations
+	const relationsPath = `tests/mysql/tmp/${testName}-relations.ts`;
+	const schemaAbsolutePath = path.resolve('tests/mysql/tmp', testName);
+	const relationsForTsc = relationsToTypeScript(
+		mysqlToRelationsPull(ddl1),
+		'camel',
+		schemaAbsolutePath,
+	);
+	writeFileSync(relationsPath, relationsForTsc.file);
+	await tsc(relationsForTsc.file).catch((e) => {
+		throw new Error(`tsc error in file ${relationsPath}`, { cause: e });
+	});
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
 		filePath,
 	]);
 
-	const interim = fromDrizzleSchema(
+	const { schema: interim } = fromDrizzleSchema(
 		response.tables,
 		response.views,
 	);
 
 	const { ddl: ddl2, errors: e3 } = interimToDDL(interim);
-
 	// TODO: handle errors
-	const renames = new Set<string>();
+
+	// we need to create copies, since first ddlDiffDry makes preserve entity names logic
+	const ddl1Copy = fromEntities(ddl1.entities.list());
+	const ddl2Copy = fromEntities(ddl2.entities.list());
 
 	const {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
-	} = await ddlDiff(
-		ddl1,
-		ddl2,
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		'push',
-	);
+		sqlStatements: pushAfterFileSqlStatements,
+		statements: pushAfterFileStatements,
+		groupedStatements: pushAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1, ddl2, 'push');
 
-	rmSync(`tests/mysql/tmp/${testName}.ts`);
-	rmSync(`tests/mysql/tmp/${testName}-relations.ts`);
+	if (pushAfterFileSqlStatements.length > 0) {
+		console.log(chalk.bgRed('After push: ') + '\n' + explain('mysql', pushAfterFileGroupedStatements, []));
+	}
+
+	const {
+		sqlStatements: generateAfterFileSqlStatements,
+		statements: generateAfterFileStatements,
+		groupedStatements: generateAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1Copy, ddl2Copy, 'default');
+
+	if (generateAfterFileSqlStatements.length > 0) {
+		console.log(
+			chalk.bgRed('After generate: ') + '\n' + explain('mysql', generateAfterFileGroupedStatements, []),
+		);
+	}
+
+	let relationsError: Error | null = null;
+	try {
+		await loadModule(path.relative(process.cwd(), relationsPath));
+		rmSync(relationsPath);
+	} catch (error: any) {
+		relationsError = error;
+	}
+
+	if (
+		[...generateAfterFileSqlStatements, ...pushAfterFileSqlStatements].length === 0
+	) {
+		rmSync(filePath);
+	}
 
 	return {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
+		pushSqlStatements: pushAfterFileSqlStatements,
+		pushStatements: pushAfterFileStatements,
+		generateSqlStatements: generateAfterFileSqlStatements,
+		generateStatements: generateAfterFileStatements,
 		ddlAfterPull: ddl1,
+		ddlFromPulledTsSchema: ddl2,
+		relationsError,
 	};
 };
 
@@ -188,8 +226,8 @@ export const push = async (config: {
 		migrations,
 	});
 	const { ddl: ddl1, errors: err1 } = interimToDDL(schema);
-	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
-		? { ddl: to as MysqlDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in to && '_' in to
+		? { ddl: to as MysqlDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(to);
 
 	if (err2.length > 0) {
@@ -214,9 +252,13 @@ export const push = async (config: {
 		mockResolver(renames),
 		mockResolver(renames),
 		'push',
+		metadata,
 	);
 
-	const res = await suggestions(db, statements, ddl2);
+	const res = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, ddl2, new HintsHandler()),
+	);
 
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
@@ -310,7 +352,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const sch = fromDrizzleSchema(response.tables, response.views);
+	const { schema: sch } = fromDrizzleSchema(response.tables, response.views);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
@@ -367,34 +409,6 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	return res;
 };
 
-export const createDockerDB = async (): Promise<{ url: string; container: Container }> => {
-	const docker = new Docker();
-	const port = await getPort({ port: 3306 });
-	const image = 'mysql:8';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
-	);
-
-	const mysqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'3306/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await mysqlContainer.start();
-
-	return { url: `mysql://root:mysql@127.0.0.1:${port}/drizzle`, container: mysqlContainer };
-};
-
 export type TestDatabase = {
 	db: DB;
 	client: Connection;
@@ -404,8 +418,12 @@ export type TestDatabase = {
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	const envUrl = process.env['MYSQL_CONNECTION_STRING'];
-	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
+	const url = process.env['MYSQL_CONNECTION_STRING'];
+	if (!url) {
+		throw new Error(
+			'MYSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mysql` and export the connection string before running tests.',
+		);
+	}
 
 	const sleep = 1000;
 	let timeLeft = 20000;
@@ -425,7 +443,6 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 			};
 			const close = async () => {
 				await client?.end().catch(console.error);
-				await container?.stop().catch(console.error);
 			};
 			const clear = async () => {
 				await client.query(`drop database if exists \`drizzle\`;`);
@@ -481,20 +498,8 @@ export async function conflictsFromSchema(
 		child2: SchemaShape;
 	},
 ) {
-	const parentInterim = fromDrizzleSchema(Object.values(parent.schema), []);
-	const { ddl: parentDDL } = interimToDDL(parentInterim);
-
-	const parentSnapshot = {
-		version: '6',
-		dialect: 'mysql',
-		id: parent.id,
-		prevIds: parent.prevId ? [parent.prevId] : [],
-		ddl: parentDDL.entities.list(),
-		renames: [],
-	} satisfies MysqlSnapshot;
-
 	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
 	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
 
-	return await mysqlCommutativity.getReasonsFromStatements(st1, st2, parentSnapshot);
+	return await mysqlCommutativity.getReasonsFromStatements(st1, st2);
 }

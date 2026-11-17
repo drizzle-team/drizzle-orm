@@ -191,6 +191,39 @@ await db.refreshMaterializedView(newYorkers2).withNoData();
 await db.refreshMaterializedView(newYorkers2).concurrently().withNoData();
 await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 
+export const newYorkersWithSubquery = cockroachView('new_yorkers_with_sq')
+	.as((qb) =>
+		qb
+			.select({
+				id: users.id,
+				class: users.class,
+				cityCount: qb
+					.select({ count: sql<number>`count(*)`.as('count') })
+					.from(cities)
+					.as('city_count'),
+				lastCityId: qb
+					.select({ id: cities.id })
+					.from(cities)
+					.orderBy(cities.id)
+					.limit(1)
+					.as('last_city'),
+			})
+			.from(users)
+	);
+
+export const newYorkersWithSubquery2 = cockroachMaterializedView('new_yorkers_with_sq_mv')
+	.as((qb) =>
+		qb
+			.select({
+				id: users.id,
+				cityCount: qb
+					.select({ count: sql<number>`count(*)`.as('count') })
+					.from(cities)
+					.as('city_count'),
+			})
+			.from(users)
+	);
+
 // await migrate(db, {
 // 	migrationsFolder: './drizzle/cockroach',
 // 	onMigrationError(error) {
@@ -672,4 +705,16 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 	const schemaRes = await db.select().from(schemaTable);
 
 	Expect<Equal<{ enum: Role | null }[], typeof schemaRes>>;
+}
+
+{
+	// https://github.com/drizzle-team/drizzle-orm/issues/4294
+	const test = cockroachTable('test', {
+		id: text('id').primaryKey().unique(),
+		parentRef: text('parentRef').$type<string | null>(),
+	});
+
+	type InsertTest = typeof test.$inferInsert;
+
+	Expect<Equal<InsertTest, { id: string; parentRef?: string | null }>>;
 }

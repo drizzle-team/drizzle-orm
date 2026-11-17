@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { SQLiteColumn } from './columns/index.ts';
 import type { SQLiteTable } from './table.ts';
@@ -14,6 +14,9 @@ export type IndexColumn = SQLiteColumn | SQL;
 
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'SQLiteIndexBuilderOn';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(private name: string, private unique: boolean) {}
 
@@ -24,6 +27,9 @@ export class IndexBuilderOn {
 
 export class IndexBuilder {
 	static readonly [entityKind]: string = 'SQLiteIndexBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: {
 		brand: 'SQLiteIndexBuilder';
@@ -57,6 +63,9 @@ export class IndexBuilder {
 
 export class Index {
 	static readonly [entityKind]: string = 'SQLiteIndex';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: {
 		brand: 'SQLiteIndex';

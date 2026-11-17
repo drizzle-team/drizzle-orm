@@ -110,6 +110,27 @@ export const newYorkers = mssqlView('new_yorkers')
 		return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
 	});
 
+export const newYorkersWithSubquery = mssqlView('new_yorkers_with_sq')
+	.as((qb) =>
+		qb
+			.select({
+				id: users.id,
+				class: users.class,
+				cityCount: qb
+					.select({ count: sql<number>`count(*)`.as('count') })
+					.from(cities)
+					.as('city_count'),
+				lastCityId: qb
+					.select({ id: cities.id })
+					.from(cities)
+					.orderBy(cities.id)
+					.offset(0)
+					.fetch(1)
+					.as('last_city'),
+			})
+			.from(users)
+	);
+
 {
 	mssqlTable('test', {
 		bigint: bigint('bigint', { mode: 'bigint' }),
@@ -262,4 +283,16 @@ export const newYorkers = mssqlView('new_yorkers')
 		// @ts-expect-error - should be number
 		id4: int('id').$defaultFn(() => '1'),
 	});
+}
+
+{
+	// https://github.com/drizzle-team/drizzle-orm/issues/4294
+	const test = mssqlTable('test', {
+		id: text('id').primaryKey().unique(),
+		parentRef: text('parentRef').$type<string | null>(),
+	});
+
+	type InsertTest = typeof test.$inferInsert;
+
+	Expect<Equal<InsertTest, { id: string; parentRef?: string | null }>>;
 }

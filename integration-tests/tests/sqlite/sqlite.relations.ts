@@ -6,6 +6,10 @@ export default defineRelations(schema, (r) => ({
 		posts: r.many.postsTable(),
 		groups: r.many.groupsTable(),
 	},
+	usersSubquery: {
+		posts: r.many.postsTable(),
+		groups: r.many.groupsTable(),
+	},
 	usersTable: {
 		alltypes: r.many.allTypesTable({
 			from: r.usersTable.id,
@@ -78,6 +82,15 @@ export default defineRelations(schema, (r) => ({
 				},
 			},
 		}),
+		usersSubquery: r.many.usersSubquery({
+			from: r.groupsTable.id.through(r.usersToGroupsTable.groupId),
+			to: r.usersSubquery.id.through(r.usersToGroupsTable.userId),
+			where: {
+				id: {
+					gt: 1,
+				},
+			},
+		}),
 	},
 	usersToGroupsTable: {
 		group: r.one.groupsTable({
@@ -100,6 +113,16 @@ export default defineRelations(schema, (r) => ({
 		viewAuthor: r.one.usersView({
 			from: r.postsTable.ownerId,
 			to: r.usersView.id,
+			optional: false,
+			where: {
+				id: {
+					gt: 1,
+				},
+			},
+		}),
+		subqueryAuthor: r.one.usersSubquery({
+			from: r.postsTable.ownerId,
+			to: r.usersSubquery.id,
 			optional: false,
 			where: {
 				id: {

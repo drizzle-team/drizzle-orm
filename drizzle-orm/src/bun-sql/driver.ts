@@ -2,7 +2,7 @@ import type { SQL } from 'bun';
 import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
+import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { type BunMySqlDatabase, drizzle as mysqlConstructor } from './mysql/driver.ts';
 import { type BunSQLDatabase, drizzle as postgresConstructor } from './postgres/driver.ts';
 import { type BunSQLiteDatabase, drizzle as sqliteConstructor } from './sqlite/driver.ts';
@@ -77,7 +77,6 @@ export namespace drizzle {
 	}
 
 	export function sqlite<
-		TSchema extends Record<string, unknown> = Record<string, never>,
 		TRelations extends AnyRelations = EmptyRelations,
 		TClient extends SQL = SQL,
 	>(
@@ -85,10 +84,10 @@ export namespace drizzle {
 			string,
 		] | [
 			string,
-			DrizzleConfig<TSchema, TRelations>,
+			DrizzleSQLiteConfig<TRelations>,
 		] | [
 			(
-				& DrizzleConfig<TSchema, TRelations>
+				& DrizzleSQLiteConfig<TRelations>
 				& ({
 					connection: string | ({ url?: string } & SQL.Options);
 				} | {
@@ -96,7 +95,7 @@ export namespace drizzle {
 				})
 			),
 		]
-	): BunSQLiteDatabase<TSchema, TRelations> & {
+	): BunSQLiteDatabase<TRelations> & {
 		$client: TClient;
 	} {
 		return sqliteConstructor(...params);
@@ -104,9 +103,8 @@ export namespace drizzle {
 
 	export namespace sqlite {
 		export function mock<
-			TSchema extends Record<string, unknown> = Record<string, never>,
 			TRelations extends AnyRelations = EmptyRelations,
-		>(config?: DrizzleConfig<TSchema, TRelations>): BunSQLiteDatabase<TSchema, TRelations> & {
+		>(config?: DrizzleSQLiteConfig<TRelations>): BunSQLiteDatabase<TRelations> & {
 			$client: '$client is not available on drizzle.mock()';
 		} {
 			return sqliteConstructor.mock(config);

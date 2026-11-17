@@ -1,19 +1,11 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import {
-	type ColumnsSelection,
-	type Query,
-	type SQL,
-	sql,
-	type SqlCommenterInput,
-	type SQLWrapper,
-} from '~/sql/sql.ts';
+import { type ColumnsSelection, type CommentInput, type Query, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { type Assume, orderSelectedFields } from '~/utils.ts';
@@ -50,9 +42,10 @@ export interface PgDeleteConfig {
 	table: PgTable;
 	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
+	shape?: any;
 	withList?: Subquery[];
 	comment?: SQL;
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type PgDeleteReturningAll<
@@ -189,9 +182,11 @@ export class PgDeleteBase<
 	SQLWrapper
 {
 	static readonly [entityKind]: string = 'PgDelete';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected config: PgDeleteConfig;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -269,23 +264,26 @@ export class PgDeleteBase<
 			undefined,
 			this.dialect.codecs,
 		);
+		this.config.shape = undefined;
 		return this as any;
 	}
 
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): PgDeleteWithout<this, TDynamic, 'comment'> {
+	comment(comment: CommentInput): PgDeleteWithout<this, TDynamic, 'comment'> {
 		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildDeleteQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildDeleteQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	/** @internal */
@@ -302,12 +300,6 @@ export class PgDeleteBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
 	}
 
 	$dynamic(): PgDeleteDynamic<this> {

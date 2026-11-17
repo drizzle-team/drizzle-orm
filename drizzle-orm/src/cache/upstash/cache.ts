@@ -2,7 +2,7 @@ import { Redis } from '@upstash/redis';
 import type { MutationOption } from '~/cache/core/index.ts';
 import { Cache } from '~/cache/core/index.ts';
 import { entityKind, is } from '~/entity.ts';
-import { OriginalName, Table } from '~/table.ts';
+import { getCacheKey, Table } from '~/table.ts';
 import type { CacheConfig } from '../core/types.ts';
 
 const getByTagScript = `
@@ -191,7 +191,7 @@ export class UpstashCache extends Cache {
 	override async onMutate(params: MutationOption) {
 		const tags = Array.isArray(params.tags) ? params.tags : params.tags ? [params.tags] : [];
 		const tables = Array.isArray(params.tables) ? params.tables : params.tables ? [params.tables] : [];
-		const tableNames: string[] = tables.map((table) => is(table, Table) ? table[OriginalName] : table as string);
+		const tableNames: string[] = tables.map((table) => is(table, Table) ? getCacheKey(table) : table as string);
 
 		const compositeTableSets = tableNames.map((table) => this.addTablePrefix(table));
 		await this.luaScripts.onMutateScript.exec([UpstashCache.tagsMapKey, ...compositeTableSets], tags);

@@ -1,7 +1,9 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
+import type { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 import { int, singlestoreTable, text } from '~/singlestore-core/index.ts';
 import type { SingleStoreInsert } from '~/singlestore-core/index.ts';
+import type { PreparedQueryHKTBase, SingleStoreQueryResultHKT } from '~/singlestore-core/session.ts';
 import type { SingleStoreRawQueryResult } from '~/singlestore/index.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
@@ -132,4 +134,67 @@ Expect<Equal<SingleStoreRawQueryResult, typeof insertReturningSqlPrepared>>;
 		.onDuplicateKeyUpdate({ set: {} })
 		// @ts-expect-error method was already called
 		.onDuplicateKeyUpdate({ set: {} });
+}
+
+// Insert with explicit column selection
+{
+	// All required columns listed -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol').values([
+		{ homeCity: 1, class: 'A', age1: 1, enumCol: 'a' },
+	]);
+
+	// Required columns + an extra optional column -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'currentCity').values([
+		{ homeCity: 1, class: 'A', age1: 1, enumCol: 'a', currentCity: 2 },
+	]);
+
+	// Single-object values -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol').values({ homeCity: 1, class: 'A', age1: 1, enumCol: 'a' });
+
+	// SQL values in listed columns -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol').values({
+		homeCity: sql`1`,
+		class: 'A',
+		age1: sql`2 + 2`,
+		enumCol: 'a',
+	});
+
+	// The column list is order-independent -> ok
+	db.insert(users, 'enumCol', 'age1', 'class', 'homeCity').values([
+		{ homeCity: 1, class: 'A', age1: 1, enumCol: 'a' },
+	]);
+
+	// values() rejects a column that was not part of the selection
+	db
+		.insert(users, 'homeCity', 'class', 'age1', 'enumCol')
+		// @ts-expect-error currentCity was not included in the column selection
+		.values([{ homeCity: 1, class: 'A', age1: 1, enumCol: 'a', currentCity: 2 }]);
+
+	// values() still requires the listed required columns to be provided
+	db
+		.insert(users, 'homeCity', 'class', 'age1', 'enumCol')
+		// @ts-expect-error enumCol is missing from values
+		.values([{ homeCity: 1, class: 'A', age1: 1 }]);
+
+	// @ts-expect-error missing required column `age1` from the selection
+	db.insert(users, 'homeCity', 'class', 'enumCol');
+
+	// @ts-expect-error unknown column `nope`
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'nope');
+
+	// @ts-expect-error duplicate column `homeCity`
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'homeCity');
+}
+
+{
+	interface HKT1 extends SingleStoreQueryResultHKT {
+		readonly type: 1;
+	}
+	interface HKT2 extends SingleStoreQueryResultHKT {
+		readonly type: 2;
+	}
+	const unionDb = {} as
+		| SingleStoreDatabase<HKT1, PreparedQueryHKTBase>
+		| SingleStoreDatabase<HKT2, PreparedQueryHKTBase>;
+	await unionDb.insert(users).values({ homeCity: 1, class: 'A', age1: 1, enumCol: 'a' });
 }

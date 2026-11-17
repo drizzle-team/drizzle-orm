@@ -1,8 +1,21 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'fs';
-import { assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test } from 'vitest';
 import { migrate } from '../../src/cli/schema';
+import { wrapParam } from '../../src/cli/validations/common';
+import { error } from '../../src/cli/views';
 import { createConfig } from './utils';
+
+const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+
+afterEach(() => {
+	if (originalPrefix === undefined) {
+		process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+	} else {
+		process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
+	}
+});
 
 // good:
 // #1 drizzle-kit generate
@@ -112,7 +125,7 @@ test('validate config #1', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: 'test_url' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 	}, prefix);
@@ -141,7 +154,7 @@ test('validate config #2', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: 'test_url' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 		entities: {
@@ -178,7 +191,7 @@ test('validate config #3', async (t) => {
 		// schema: 'schema.ts',
 		dbCredentials: { url: 'test_url' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 		entities: {
@@ -210,8 +223,6 @@ test('validate config #3', async (t) => {
 });
 
 test('validate config #3', async (t) => {
-	const spy = vi.spyOn(console, 'log');
-
 	const { path, name } = createConfig(
 		// @ts-expect-error
 		{ driver: 'aws-data-api', out: 'test' },
@@ -223,18 +234,8 @@ test('validate config #3', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-
-	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	expect(spy).toHaveBeenNthCalledWith(
-		2,
-		`Error  Please provide required params:
-    [x] dialect: undefined`,
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toBe(
+		[error('Please provide required params:'), wrapParam('dialect', undefined)].join('\n'),
 	);
-
-	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
-	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
-
-	spy.mockRestore();
 });

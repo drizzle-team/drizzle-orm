@@ -2,17 +2,18 @@ import type { Config } from '@planetscale/database';
 import { Client } from '@planetscale/database';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MySqlDatabase } from '~/mysql-core/db.ts';
+import { MySqlAsyncDatabase } from '~/mysql-core/async/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { planetscaleServerlessCodecs } from './codecs.ts';
 import type { PlanetscaleQueryResultHKT } from './session.ts';
 import { PlanetscaleSession } from './session.ts';
 
 export class PlanetScaleDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
-> extends MySqlDatabase<PlanetscaleQueryResultHKT, TRelations> {
+> extends MySqlAsyncDatabase<PlanetscaleQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'PlanetScaleDatabase';
 }
 
@@ -25,8 +26,6 @@ function construct<
 ): PlanetScaleDatabase<TRelations> & {
 	$client: TClient;
 } {
-	// Client is not Drizzle Object, so we can ignore this rule here
-	// oxlint-disable-next-line drizzle-internal/no-instanceof
 	if (!(client instanceof Client)) {
 		throw new Error(`Warning: You need to pass an instance of Client:
 
@@ -44,6 +43,7 @@ const db = drizzle({ client });
 
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? planetscaleServerlessCodecs,
 	});
 	let logger;
 	if (config.logger === true) {
@@ -56,6 +56,7 @@ const db = drizzle({ client });
 	const session = new PlanetscaleSession(client, dialect, undefined, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new PlanetScaleDatabase(
 		dialect,

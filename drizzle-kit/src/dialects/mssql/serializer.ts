@@ -1,5 +1,6 @@
-import { mssqlSchemaError } from 'src/cli/views';
+import { humanLog, mssqlSchemaError } from '../../cli/views';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
+import type { SchemaMetadata } from '../utils';
 import type { MssqlDDL } from './ddl';
 import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
@@ -12,6 +13,7 @@ export const prepareSnapshot = async (
 ): Promise<{
 	ddlPrev: MssqlDDL;
 	ddlCur: MssqlDDL;
+	metadata: SchemaMetadata;
 	snapshot: MssqlSnapshot;
 	snapshotPrev: MssqlSnapshot;
 	custom: MssqlSnapshot;
@@ -32,17 +34,17 @@ export const prepareSnapshot = async (
 	const res = await prepareFromSchemaFiles(filenames);
 
 	// DO we wanna respect entity filter here?
-	const { schema, errors } = fromDrizzleSchema(res, () => true);
+	const { schema, metadata, errors } = fromDrizzleSchema(res, () => true);
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		humanLog(errors.map((it) => mssqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => mssqlSchemaError(it)).join('\n'));
+		humanLog(errors2.map((it) => mssqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
@@ -71,5 +73,5 @@ export const prepareSnapshot = async (
 		...prevRest,
 	};
 
-	return { ddlPrev, ddlCur, snapshot, snapshotPrev: prevSnapshot, custom };
+	return { ddlPrev, ddlCur, metadata, snapshot, snapshotPrev: prevSnapshot, custom };
 };

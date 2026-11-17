@@ -4,11 +4,17 @@
 !src
 !imports-checker
 !scripts
+!skills
 !tests
 tests/**/tmp/
 !vitest.config.ts
 !README.md
 !CONTRIBUTING.md
+!JSON_CONTRACT.md
+!SDK.md
+!MCP.md
+!OUTPUT_MODES.md
+!HINTS.md
 
 !.eslint
 !.gitignore
@@ -27,3 +33,5 @@ tests/**/tmp/
 tests/test.ts
 
 !patches
+
+!.env.example

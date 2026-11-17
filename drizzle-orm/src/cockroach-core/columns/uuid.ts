@@ -1,10 +1,9 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { sql } from '~/sql/sql.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig, CockroachColumnBuilder } from './common.ts';
 
-export class CockroachUUIDBuilder extends CockroachColumnWithArrayBuilder<{
+export class CockroachUUIDBuilder extends CockroachColumnBuilder<{
 	dataType: 'string uuid';
 	data: string;
 	driverParam: string;
@@ -33,8 +32,13 @@ export class CockroachUUIDBuilder extends CockroachColumnWithArrayBuilder<{
 	}
 }
 
-export class CockroachUUID<T extends ColumnBaseConfig<'string uuid'>> extends CockroachColumn<T> {
+export class CockroachUUID<T extends CockroachColumnBaseConfig<'string uuid'>>
+	extends CockroachColumn<'string uuid', T>
+{
 	static override readonly [entityKind]: string = 'CockroachUUID';
+
+	/** @internal */
+	override readonly codec = 'uuid';
 
 	getSQLType(): string {
 		return 'uuid';

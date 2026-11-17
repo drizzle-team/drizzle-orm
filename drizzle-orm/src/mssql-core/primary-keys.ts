@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnyMsSqlColumn, MsSqlColumn } from './columns/index.ts';
 import type { MsSqlTable } from './table.ts';
 
@@ -12,6 +12,13 @@ export function primaryKey<
 
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'MsSqlPrimaryKeyBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	declare _: {
+		brand: 'MsSqlPrimaryKeyBuilder';
+	};
 
 	/** @internal */
 	columns: MsSqlColumn[];
@@ -35,6 +42,9 @@ export class PrimaryKeyBuilder {
 
 export class PrimaryKey {
 	static readonly [entityKind]: string = 'MsSqlPrimaryKey';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly columns: MsSqlColumn[];
 	readonly name?: string;

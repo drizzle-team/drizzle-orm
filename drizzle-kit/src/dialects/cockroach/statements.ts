@@ -289,13 +289,16 @@ export interface JsonAlterTableSetNewSchema {
 export interface JsonDropIndex {
 	type: 'drop_index';
 	index: Index;
+	isNameShared: boolean;
 }
 
 export interface JsonRenameIndex {
 	type: 'rename_index';
 	schema: string;
+	table: string;
 	from: string;
 	to: string;
+	isNameShared: boolean;
 }
 
 export interface JsonRenameColumn {
@@ -348,6 +351,9 @@ export interface JsonCreateView {
 export interface JsonDropView {
 	type: 'drop_view';
 	view: View;
+	// Marks a drop that is part of a recreate, for `--explain` and for the hints of push. It holds the view that
+	// is created again, and it is null for a view that is deleted.
+	cause: View | null;
 }
 
 export interface JsonRenameView {
@@ -369,12 +375,6 @@ export interface JsonAlterView {
 	view: View;
 }
 
-export interface JsonRecreateView {
-	type: 'recreate_view';
-	from: View;
-	to: View;
-}
-
 export type JsonStatement =
 	| JsonCreateTable
 	| JsonDropTable
@@ -384,7 +384,6 @@ export type JsonStatement =
 	| JsonRecreateColumn
 	| JsonMoveView
 	| JsonAlterView
-	| JsonRecreateView
 	| JsonCreateEnum
 	| JsonDropEnum
 	| JsonMoveEnum

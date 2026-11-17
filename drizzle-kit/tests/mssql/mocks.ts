@@ -1,25 +1,24 @@
 import { is } from 'drizzle-orm';
 import { int, MsSqlColumnBuilder, MsSqlSchema, MsSqlTable, mssqlTable, MsSqlView } from 'drizzle-orm/mssql-core';
 import { configMigrations } from 'src/cli/validations/common';
-import { interimToDDL, MssqlDDL, SchemaError } from 'src/dialects/mssql/ddl';
+import { fromEntities, interimToDDL, MssqlDDL, SchemaError } from 'src/dialects/mssql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
 import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
-import Docker from 'dockerode';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
 import mssql from 'mssql';
 import { introspect } from 'src/cli/commands/pull-mssql';
+import { HintsHandler } from 'src/cli/hints';
 import { EmptyProgressView, explain } from 'src/cli/views';
 import { createDDL } from 'src/dialects/mssql/ddl';
 import { defaultNameForDefault } from 'src/dialects/mssql/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/mssql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mssql/typescript';
 import { DB } from 'src/utils';
-import { v4 as uuid } from 'uuid';
 import 'zx/globals';
 import { suggestions } from 'src/cli/commands/push-mssql';
+import { runWithCliContext } from 'src/cli/context';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { hash } from 'src/dialects/common';
 import { extractMssqlExisting } from 'src/dialects/drizzle';
@@ -55,7 +54,7 @@ export const drizzleToDDL = (
 
 	const existing = extractMssqlExisting(schemas, views);
 	const filter = prepareEntityFilter('mssql', filterConfig, existing);
-	const { schema: res, errors } = fromDrizzleSchema(
+	const { schema: res, metadata, errors } = fromDrizzleSchema(
 		{ schemas, tables, views },
 		filter,
 	);
@@ -64,7 +63,7 @@ export const drizzleToDDL = (
 		throw new Error();
 	}
 
-	return { ...interimToDDL(res), existing };
+	return { ...interimToDDL(res), existing, metadata };
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -76,7 +75,7 @@ export const diff = async (
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as MssqlDDL, errors: [] }
 		: drizzleToDDL(left);
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(right);
+	const { ddl: ddl2, errors: err2, metadata } = drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
 		throw new MockError([...err1, ...err2]);
@@ -98,6 +97,7 @@ export const diff = async (
 		mockResolver(renames), // fks
 		mockResolver(renames), // defaults
 		'default',
+		metadata,
 	);
 
 	return { sqlStatements, statements, groupedStatements, next: ddl2 };
@@ -108,12 +108,13 @@ export const diffIntrospect = async (
 	initSchema: MssqlDBSchema,
 	testName: string,
 	schemas: string[] = [],
+	tables: string[] = [],
 	entities?: EntitiesFilter,
 ) => {
 	const filterConfig: EntitiesFilterConfig = {
 		schemas,
 		entities,
-		tables: [],
+		tables,
 		extensions: [],
 	};
 
@@ -138,11 +139,6 @@ export const diffIntrospect = async (
 	writeFileSync(filePath, file.file);
 	await tsc(file.file);
 
-	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
-	if (typeCheckResult.exitCode !== 0) {
-		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
-	}
-
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
 		filePath,
@@ -151,18 +147,49 @@ export const diffIntrospect = async (
 	const { schema: schema2, errors: e2 } = fromDrizzleSchema(response, filter);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
+	if (e1.length > 0 || e2.length > 0 || e3.length > 0) {
+		throw new MockError([...e1, ...e2, ...e3]);
+	}
+
+	// we need to create copies, since first ddlDiffDry makes preserve entity names logic
+	const ddl1Copy = fromEntities(ddl1.entities.list());
+	const ddl2Copy = fromEntities(ddl2.entities.list());
+
 	const {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
+		sqlStatements: pushAfterFileSqlStatements,
+		statements: pushAfterFileStatements,
+		groupedStatements: pushAfterFileGroupedStatements,
 	} = await ddlDiffDry(ddl1, ddl2, 'push');
 
-	rmSync(`tests/mssql/tmp/${testName}.ts`);
+	if (pushAfterFileSqlStatements.length > 0) {
+		console.log(chalk.bgRed('After push: ') + '\n' + explain('mssql', pushAfterFileGroupedStatements, []));
+	}
+
+	const {
+		sqlStatements: generateAfterFileSqlStatements,
+		statements: generateAfterFileStatements,
+		groupedStatements: generateAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1Copy, ddl2Copy, 'default');
+
+	if (generateAfterFileSqlStatements.length > 0) {
+		console.log(
+			chalk.bgRed('After generate: ') + '\n' + explain('mssql', generateAfterFileGroupedStatements, []),
+		);
+	}
+
+	if (
+		[...generateAfterFileSqlStatements, ...pushAfterFileSqlStatements].length === 0
+	) {
+		rmSync(`tests/mssql/tmp/${testName}.ts`);
+	}
 
 	return {
 		introspectDDL: ddl1,
 		fromFileDDL: ddl2,
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
+		pushSqlStatements: pushAfterFileSqlStatements,
+		pushStatements: pushAfterFileStatements,
+		generateSqlStatements: generateAfterFileSqlStatements,
+		generateStatements: generateAfterFileStatements,
 	};
 };
 
@@ -192,8 +219,8 @@ export const push = async (config: {
 		tables: [],
 		extensions: [],
 	};
-	const { ddl: ddl2, errors: err2, existing } = 'entities' in to && '_' in to
-		? { ddl: to as MssqlDDL, errors: [], existing: [] }
+	const { ddl: ddl2, errors: err2, existing, metadata } = 'entities' in to && '_' in to
+		? { ddl: to as MssqlDDL, errors: [], existing: [], metadata: undefined }
 		: drizzleToDDL(to, filterConfig);
 
 	const filter = prepareEntityFilter('mssql', filterConfig, existing);
@@ -231,12 +258,16 @@ export const push = async (config: {
 		mockResolver(renames), // fks
 		mockResolver(renames), // defaults
 		'push',
+		metadata,
 	);
 
-	const hints = await suggestions(db, statements, ddl2);
+	const hints = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, ddl2, new HintsHandler()),
+	);
 
 	if (config.explain) {
-		const explainMessage = explain('mssql', groupedStatements, false, []);
+		const explainMessage = explain('mssql', groupedStatements, []);
 		console.log(explainMessage);
 		return { sqlStatements, statements, hints };
 	}
@@ -430,108 +461,70 @@ export function parseMssqlUrl(urlString: string) {
 }
 
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
-	const envUrl = process.env.MSSQL_CONNECTION_STRING;
-	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
+	const url = process.env.MSSQL_CONNECTION_STRING;
+	if (!url) {
+		throw new Error(
+			'MSSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mssql` and export the connection string (e.g. `mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true`) before running tests.',
+		);
+	}
 	const params = parseMssqlUrl(url);
 
-	const sleep = 1000;
-	let timeLeft = 20000;
-	do {
-		try {
-			const client = await mssql.connect({
-				...params,
-				pool: { max: 1 },
-				requestTimeout: 30_000,
-			});
+	try {
+		const client = await mssql.connect({
+			...params,
+			pool: { max: 1 },
+			requestTimeout: 30_000,
+		});
+
+		await client.query(`use [master];`);
+		await client.query(`drop database if exists [drizzle];`);
+		await client.query(`create database [drizzle];`);
+		await client.query(`use [drizzle];`);
+
+		let transaction: mssql.Transaction | null = null;
+		let req: mssql.Request | null = null;
+		if (tx) {
+			transaction = client.transaction();
+			req = new mssql.Request(transaction);
+			await transaction.begin();
+		}
+
+		const db = {
+			query: async (sql: string, params: any[] = []) => {
+				const res = await (req ?? client).query(sql).catch((e) => {
+					throw new Error(e.message);
+				});
+				return res.recordset as any[];
+			},
+		};
+		const close = async () => {
+			if (transaction) {
+				await transaction.rollback().catch((e) => {});
+			}
+			await client?.close().catch(console.error);
+		};
+
+		const clear = async () => {
+			if (transaction) {
+				try {
+					await transaction.rollback();
+					await transaction.begin();
+				} catch {
+					transaction = client.transaction();
+					await transaction.begin();
+					req = new mssql.Request(transaction);
+				}
+				return;
+			}
 
 			await client.query(`use [master];`);
 			await client.query(`drop database if exists [drizzle];`);
 			await client.query(`create database [drizzle];`);
 			await client.query(`use [drizzle];`);
-
-			let transaction: mssql.Transaction | null = null;
-			let req: mssql.Request | null = null;
-			if (tx) {
-				transaction = client.transaction();
-				req = new mssql.Request(transaction);
-				await transaction.begin();
-			}
-
-			const db = {
-				query: async (sql: string, params: any[] = []) => {
-					const res = await (req ?? client).query(sql).catch((e) => {
-						throw new Error(e.message);
-					});
-					return res.recordset as any[];
-				},
-			};
-			const close = async () => {
-				if (transaction) {
-					await transaction.rollback().catch((e) => {});
-				}
-				await client?.close().catch(console.error);
-				await container?.stop().catch(console.error);
-			};
-
-			const clear = async () => {
-				if (transaction) {
-					try {
-						await transaction.rollback();
-						await transaction.begin();
-					} catch {
-						transaction = client.transaction();
-						await transaction.begin();
-						req = new mssql.Request(transaction);
-					}
-					return;
-				}
-
-				await client.query(`use [master];`);
-				await client.query(`drop database if exists [drizzle];`);
-				await client.query(`create database [drizzle];`);
-				await client.query(`use [drizzle];`);
-			};
-			return { db, close, clear, client };
-		} catch (e) {
-			console.error(e);
-			throw e;
-			// await new Promise((resolve) => setTimeout(resolve, sleep));
-			// timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-
-	throw new Error();
+		};
+		return { db, close, clear, client };
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
 };
-
-export async function createDockerDB(): Promise<
-	{ container: Docker.Container; url: string }
-> {
-	let mssqlContainer: Docker.Container;
-
-	const docker = new Docker();
-	const port = await getPort({ port: 1433 });
-	const image = 'mcr.microsoft.com/azure-sql-edge';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	mssqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['ACCEPT_EULA=1', 'MSSQL_SA_PASSWORD=drizzle123PASSWORD!'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'1433/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await mssqlContainer.start();
-	return {
-		url: 'mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true',
-		container: mssqlContainer,
-	};
-}

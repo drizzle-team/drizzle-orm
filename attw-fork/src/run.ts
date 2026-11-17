@@ -42,7 +42,13 @@ try {
 				bundler: true,
 			}
 			: undefined
-		: undefined;
+		// no explicit mode: check node16-cjs/esm + bundler, but not legacy node10 resolution
+		: {
+			node10: false,
+			'node16-cjs': true,
+			'node16-esm': true,
+			bundler: true,
+		};
 
 	const ignoreResolutions = modes
 		? Object.entries(modes)

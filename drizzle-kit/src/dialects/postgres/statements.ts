@@ -47,8 +47,8 @@ export interface JsonDropEnum {
 
 export interface JsonMoveEnum {
 	type: 'move_enum';
-	from: { name: string; schema: string | null };
-	to: { name: string; schema: string | null };
+	from: { name: string; schema: string };
+	to: { name: string; schema: string };
 }
 
 export interface JsonRenameEnum {
@@ -118,13 +118,6 @@ export interface JsonRegrantPrivilege {
 	diff: DiffEntities['privileges'];
 }
 
-export interface JsonDropValueFromEnum {
-	type: 'alter_type_drop_value';
-	deletedValues: string[];
-	enum: Enum;
-	columns: Column[];
-}
-
 export interface JsonCreateSequence {
 	type: 'create_sequence';
 	sequence: Sequence;
@@ -137,8 +130,8 @@ export interface JsonDropSequence {
 
 export interface JsonMoveSequence {
 	type: 'move_sequence';
-	from: { name: string; schema: string | null };
-	to: { name: string; schema: string | null };
+	from: { name: string; schema: string };
+	to: { name: string; schema: string };
 }
 
 export interface JsonRenameSequence {
@@ -244,16 +237,20 @@ export interface JsonAlterUnique {
 export interface JsonAddCheck {
 	type: 'add_check';
 	check: CheckConstraint;
+	columns: string[];
 }
 
 export interface JsonDropCheck {
 	type: 'drop_check';
 	check: CheckConstraint;
+	columns: string[];
 }
 
 export interface JsonAlterCheck {
 	type: 'alter_check';
 	diff: DiffEntities['checks'];
+	newColumns: string[];
+	oldColumns: string[];
 }
 
 export interface JsonAddPrimaryKey {
@@ -268,10 +265,12 @@ export interface JsonDropPrimaryKey {
 
 export interface JsonRenameConstraint {
 	type: 'rename_constraint';
+	entityType: 'pks' | 'uniques' | 'checks' | 'fks';
 	schema: string;
 	table: string;
 	from: string;
 	to: string;
+	columns: string[];
 }
 
 export interface JsonAlterPrimaryKey {
@@ -286,6 +285,9 @@ export interface JsonMoveTable {
 	name: string;
 	from: string;
 	to: string;
+	// The names that the move takes into the new schema: the indexes of the table, its primary key and its
+	// unique constraints.
+	indexNames: string[];
 }
 
 export interface JsonDropIndex {
@@ -296,8 +298,10 @@ export interface JsonDropIndex {
 export interface JsonRenameIndex {
 	type: 'rename_index';
 	schema: string;
+	table: string;
 	from: string;
 	to: string;
+	columns: string[];
 }
 
 export interface JsonRenameColumn {
@@ -441,7 +445,6 @@ export type JsonStatement =
 	| JsonCreateView
 	| JsonDropView
 	| JsonRenameView
-	| JsonDropValueFromEnum
 	| JsonAlterCheck
 	| JsonRecreateIndex;
 

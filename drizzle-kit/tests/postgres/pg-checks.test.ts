@@ -1,4 +1,4 @@
-import { gte, sql } from 'drizzle-orm';
+import { eq, gte, isNotNull, sql } from 'drizzle-orm';
 import { check, integer, pgTable, serial, varchar } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -249,4 +249,43 @@ test('alter check value', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6010
+test('Issue No6010', async () => {
+	const schema1 = {
+		test: pgTable('test', {
+			a: integer(),
+			b: integer(),
+		}, (table) => [check('a_and_b_same_nullability', eq(isNotNull(table.a), isNotNull(table.b)))]),
+	};
+
+	const { sqlStatements: st } = await diff({}, schema1, []);
+
+	const { sqlStatements: pst } = await push({ db, to: schema1 });
+
+	const st0: string[] = [
+		`CREATE TABLE "test" (
+\t"a" integer,
+\t"b" integer,
+\tCONSTRAINT "a_and_b_same_nullability" CHECK (("a" is not null) = ("b" is not null))
+);\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('a check rename on one table keeps the change of a check with the same name on another table', async () => {
+	const tables = (first: string, minimum: number) => ({
+		users: pgTable('users', { age: integer() }, (t) => [check(first, sql`${t.age} > 0`)]),
+		pets: pgTable('pets', { age: integer() }, (t) => [check('age_check', sql.raw(`"age" > ${minimum}`))]),
+	});
+	const renames = ['public.users.age_check->public.users.adult_check'];
+
+	const { sqlStatements: st } = await diff(tables('age_check', 0), tables('adult_check', 5), renames);
+
+	expect(st).toStrictEqual([
+		'ALTER TABLE "users" RENAME CONSTRAINT "age_check" TO "adult_check";',
+		'ALTER TABLE "pets" DROP CONSTRAINT "age_check", ADD CONSTRAINT "age_check" CHECK ("age" > 5);',
+	]);
 });

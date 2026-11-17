@@ -1,4 +1,4 @@
-import { type DB, type Simplify, trimChar } from '../utils';
+import type { DB, Simplify } from '../utils';
 import type { CockroachDDL } from './cockroach/ddl';
 import type { MssqlDDL } from './mssql/ddl';
 import type { MysqlDDL } from './mysql/ddl';
@@ -90,36 +90,6 @@ export const groupDiffs = <
 		}
 	}
 	return res;
-};
-
-export const numberForTs = (value: string): { mode: 'number' | 'bigint'; value: string } => {
-	const check = Number(value);
-	if (Number.isNaN(check)) return { mode: 'number', value: `sql\`${trimChar(escapeForTsLiteral(value), '"')}\`` };
-
-	if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return { mode: 'number', value: value };
-	return { mode: 'bigint', value: `${value}n` };
-};
-
-// numeric precision can be bigger than 9 as it was before here
-export const parseParams = (type: string) => {
-	return type.match(/\(((?:\d+(?:\s*,\s*\d+)*)|max)\)/i)?.[1].split(',').map((x) => x.trim()) ?? [];
-};
-
-export const escapeForSqlDefault = (input: string, mode: 'default' | 'pg-arr' = 'default') => {
-	let value = input.replace(/\\/g, '\\\\').replace(/'/g, "''");
-	if (mode === 'pg-arr') value = value.replaceAll('"', '\\"');
-	return value;
-};
-
-export const unescapeFromSqlDefault = (input: string, mode: 'default' | 'arr' = 'default') => {
-	let res = input.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-
-	if (mode === 'arr') return res;
-	return res.replace(/''/g, "'");
-};
-
-export const escapeForTsLiteral = (input: string) => {
-	return JSON.stringify(input);
 };
 
 export function inspect(it: any): string {
@@ -241,4 +211,46 @@ export const batchQuery = async <T>(
 		cursor = batch[batch.length - 1];
 	}
 	return results;
+};
+
+export type EntityKey = string;
+// names may contain `.` or `"`, so `${schema}.${name}` would be ambiguous
+// schema is null for dialects without schemas (mysql, sqlite)
+export const entityKey = (schema: string | null, name: string): EntityKey => JSON.stringify([schema, name]);
+
+export interface SchemaMetadata {
+	viewDependencies: Map<EntityKey, readonly EntityKey[]>;
+}
+
+/*
+	DFS topological sort of create_view statements
+	Every view goes after the views it reads from (direct dependencies from metadata, see `findViewDependencies` in dialects/drizzle.ts)
+	dependencies that are not created in this migration are skipped, without metadata the order is kept as is
+
+	fixes https://github.com/drizzle-team/drizzle-orm/issues/4520 and https://github.com/drizzle-team/drizzle-orm/issues/6176
+*/
+export const sortCreateViews = <T extends { view: { schema?: string; name: string } }>(
+	statements: T[],
+	viewDependencies: SchemaMetadata['viewDependencies'] | undefined,
+): T[] => {
+	if (!viewDependencies) return statements;
+
+	const byKey = new Map<EntityKey, T>(statements.map((it) => [entityKey(it.view.schema ?? null, it.view.name), it]));
+	const visited = new Set<EntityKey>();
+	const sorted: T[] = [];
+
+	const visit = (key: EntityKey) => {
+		if (visited.has(key)) return; // marked on enter, so a dependency cycle can't loop forever
+		visited.add(key);
+
+		for (const dependency of viewDependencies.get(key) ?? []) {
+			if (byKey.has(dependency)) visit(dependency);
+		}
+
+		sorted.push(byKey.get(key)!);
+	};
+
+	for (const key of byKey.keys()) visit(key);
+
+	return sorted;
 };
