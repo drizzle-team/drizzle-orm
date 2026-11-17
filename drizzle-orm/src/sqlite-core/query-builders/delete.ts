@@ -3,6 +3,7 @@ import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLitePreparedQuery } from '~/sqlite-core/session.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -280,5 +281,20 @@ export class SQLiteDeleteBase<
 
 	$dynamic(): SQLiteDeleteDynamic<this> {
 		return this as any;
+	}
+
+	/**
+	 * Prepares the query on the session, for every runtime. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(prepare = false): SQLitePreparedQuery {
+		return this.session.prepareQuery(
+			this.dialect.sqlToQuery(this.getSQL()),
+			'arrays',
+			prepare,
+			this.config.returning ? 'all' : 'run',
+			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
+		);
 	}
 }

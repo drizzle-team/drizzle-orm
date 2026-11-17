@@ -2,12 +2,15 @@ import { entityKind } from '~/entity.ts';
 import { MySqlInsertBase, type MySqlInsertHKTBase } from '~/mysql-core/query-builders/insert.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
+import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
-import type { MySqlAsyncPreparedQuery, MySqlAsyncSession } from './session.ts';
+import { MySqlAsyncIterableQuery } from './iterable.ts';
+import type { MySqlAsyncPreparedQuery, MySqlAsyncRuntimeHKT, MySqlAsyncSession } from './session.ts';
 
 export interface MySqlAsyncInsertHKT extends MySqlInsertHKTBase {
+	runtime: MySqlAsyncRuntimeHKT;
 	_type: MySqlAsyncInsertBase<
 		Assume<this['table'], MySqlTable>,
 		Assume<this['queryResult'], MySqlQueryResultHKT>,
@@ -44,7 +47,13 @@ export interface MySqlAsyncInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[]> {}
+> extends QueryPromise<TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[]> {
+	/**
+	 * Runs the query and returns an async iterator over it's rows, with values for any `sql.placeholder()` it contains.
+	 * Streams rows when the driver supports it
+	 */
+	iterator(placeholderValues?: Record<string, unknown>): AsyncGenerator<never>;
+}
 
 export class MySqlAsyncInsertBase<
 	TTable extends MySqlTable,
@@ -59,33 +68,6 @@ export class MySqlAsyncInsertBase<
 	static override readonly [entityKind]: string = 'MySqlAsyncInsert';
 
 	declare protected session: MySqlAsyncSession<TQueryResult, any>;
-
-	/** @internal */
-	_prepare(): MySqlAsyncInsertPrepare<this, TReturning> {
-		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config);
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(sql),
-			'raw',
-			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
-		) as MySqlAsyncInsertPrepare<this, TReturning>;
-	}
-
-	prepare(): MySqlAsyncInsertPrepare<this, TReturning> {
-		return this._prepare();
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	};
-
-	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
-		const self = this;
-		return async function*(placeholderValues) {
-			yield* self.prepare().iterator(placeholderValues);
-		};
-	};
-
-	iterator = this.createIterator();
 }
 
-applyMixins(MySqlAsyncInsertBase, [QueryPromise]);
+applyMixins(MySqlAsyncInsertBase, [QueryPromise, RunnableQueryMixin, MySqlAsyncIterableQuery]);

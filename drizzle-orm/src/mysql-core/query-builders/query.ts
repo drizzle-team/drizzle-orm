@@ -9,7 +9,7 @@ import type {
 } from '~/relations.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { MySqlDialect } from '../dialect.ts';
-import type { MySqlSession } from '../session.ts';
+import type { MySqlBasePreparedQuery, MySqlRunnableQueryMethods, MySqlRuntimeHKT, MySqlSession } from '../session.ts';
 import type { MySqlTable } from '../table.ts';
 import type { MySqlView } from '../view.ts';
 
@@ -84,6 +84,8 @@ export class RelationalQueryBuilder<
 }
 
 export interface MySqlRelationalQueryHKTBase {
+	/** How the builder's runtime wraps it's results */
+	runtime: MySqlRuntimeHKT;
 	result: unknown;
 	_type: unknown;
 }
@@ -98,6 +100,11 @@ export type MySqlRelationalQueryKind<
 > = (T & {
 	result: TResult;
 })['_type'];
+
+export interface MySqlRelationalQuery<THKT extends MySqlRelationalQueryHKTBase, TResult>
+	extends MySqlRunnableQueryMethods<THKT['runtime'], TResult, never>
+{
+}
 
 export class MySqlRelationalQuery<THKT extends MySqlRelationalQueryHKTBase, TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'MySqlRelationalQueryV2';
@@ -150,5 +157,24 @@ export class MySqlRelationalQuery<THKT extends MySqlRelationalQueryHKTBase, TRes
 
 	toSQL(): Query {
 		return this._toSQL().builtQuery;
+	}
+
+	/**
+	 * Prepares the query on the session, for both runtimes. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(): MySqlBasePreparedQuery {
+		const { query, builtQuery } = this._toSQL();
+		const mapper = this.mapper ??= this.dialect.mapperGenerators.relationalRows({
+			isFirst: this.mode === 'first',
+			parseJson: false,
+			parseJsonIfString: false,
+			rootJsonMappers: false,
+			arrayModeRoot: true,
+			selection: query.selection,
+		});
+
+		return this.session.prepareQuery(builtQuery, 'arrays', mapper);
 	}
 }

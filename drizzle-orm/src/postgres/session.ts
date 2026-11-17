@@ -16,6 +16,7 @@ import {
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { setTransactionSnapshotSQL } from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -87,7 +88,7 @@ const bulkTypes: Record<string, PgType> = {
 export type PostgresBatchOptions = PostgresBatchTransactionOptions & {
 	/**
 	 * Return the batch's telemetry from the driver as `response.metrics`: each query's metrics plus what the batch
-	 * did as a whole, such as its network round trips and how many statements the server parsed or reused.
+	 * did as a whole, such as it's network round trips and how many statements the server parsed or reused.
 	 * `true` gives milliseconds as floats, `'ms'` whole milliseconds, `'us'` whole microseconds.
 	 */
 	metrics?: boolean | 'ms' | 'us';
@@ -117,7 +118,7 @@ type PostgresBatchTransactionOptions =
  */
 export type PostgresBatchItem = BatchItem<'pg'> | PgAsyncPreparedQuery<any> | PgAsyncBoundQuery<any>;
 
-/** What one {@link PostgresBatchItem} resolves to, the same value awaiting it on its own would give. */
+/** What one {@link PostgresBatchItem} resolves to, the same value awaiting it on it's own would give. */
 export type PostgresBatchItemResult<TItem> = TItem extends { readonly _: { readonly result: infer TResult } } ? TResult
 	: TItem extends { readonly prepared: { execute(...args: any[]): Promise<infer TResult> } } ? TResult
 	: TItem extends { execute(...args: any[]): Promise<infer TResult> } ? TResult
@@ -308,7 +309,7 @@ export class PostgresSession<
 		const built: PoolQuery[] = new Array(queries.length);
 		for (let i = 0; i < queries.length; ++i) {
 			const item = queries[i]!;
-			// A prepared query is used as is, so its statement name reaches the driver; a builder is prepared unnamed.
+			// A prepared query is used as is, so it's statement name reaches the driver; a builder is prepared unnamed.
 			const preparedQuery = (is(item, PgAsyncBoundQuery)
 				? item.prepared
 				: is(item, PgAsyncPreparedQuery)
@@ -316,7 +317,7 @@ export class PostgresSession<
 				: (item as BatchItem<'pg'>)._prepare()) as PostgresPreparedQuery<any>;
 			const builtQuery = preparedQuery.getQuery();
 			const params = batchParams(builtQuery.params, boundValues(item));
-			// logged like a query that is run on its own
+			// logged like a query that is run on it's own
 			this.logger.logQuery(builtQuery.sql, params);
 			prepared[i] = preparedQuery;
 			built[i] = preparedQuery.mode === 'arrays'
@@ -354,7 +355,7 @@ export class PostgresSession<
 			);
 
 			if (typeof config?.snapshot === 'string') {
-				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
+				await tx.execute(setTransactionSnapshotSQL(config.snapshot));
 			}
 
 			return transaction(tx);
@@ -395,7 +396,7 @@ function bulkParam(method: string, value: unknown, col: PgColumn, codecs: PgDial
 	let mapped: unknown = col.mapToDriverValue.isNoop ? value : col.mapToDriverValue(value);
 	if (chunkKindOf(mapped) !== chunkKinds.other) {
 		throw new Error(
-			`\`${method}\`: column "${col.name}" maps its value to an SQL expression, bulk operations only accept values`,
+			`\`${method}\`: column "${col.name}" maps it's value to an SQL expression, bulk operations only accept values`,
 		);
 	}
 
@@ -409,7 +410,7 @@ function bulkParam(method: string, value: unknown, col: PgColumn, codecs: PgDial
  * The driver's `bulkInsert` arguments for the given rows.
  *
  * They are for the driver's multi-row `values` insert (`defaults: true`), which every `bulkInsert` uses. It is the
- * only one that can leave a single cell to its database default, written as `DEFAULT` in the statement: an
+ * only one that can leave a single cell to it's database default, written as `DEFAULT` in the statement: an
  * `unnest` over arrays sends every column for every row, so a missing cell would arrive as NULL and override the
  * default. With one kind of statement for every call, the rows are not inspected to choose between two paths that
  * behave differently, and column types that have no array form (arrays, enums, custom types) need no fallback.
@@ -463,7 +464,7 @@ export function buildBulkInsert(dialect: PgDialect, table: PgTable, rows: readon
 	}
 
 	// The driver's `values` statement infers parameter types from the target columns: the types here only
-	// complete the column record its API takes
+	// complete the column record it's API takes
 	const columns: Record<string, PgType> = {};
 	for (const c of included) {
 		const col = entries[c]![1];

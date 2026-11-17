@@ -1,28 +1,18 @@
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import type { BasePgAsyncSession, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import {
-	type NoDuplicateColumns,
-	PgInsertBuilder,
-	PgSelectBuilder,
-	PgUpdateBuilder,
-	QueryBuilder,
-} from '~/pg-core/query-builders/index.ts';
+import type { PgInsertBuilder, PgUpdateBuilder } from '~/pg-core/query-builders/index.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
-import { WithSubquery } from '~/subquery.ts';
+import type { SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { WithSubquery } from '~/subquery.ts';
 import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
-import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import type { PgColumn } from '../columns/index.ts';
+import { PgDatabase, type PgDatabaseBuilders, type PgInsertColumns } from '../db.ts';
 import type { PgProcedure, PgProcedureCallParams } from '../procedure.ts';
-import { RelationalQueryBuilder } from '../query-builders/query.ts';
+import type { RelationalQueryBuilder } from '../query-builders/query.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
-import type { PreparedQueryConfig } from '../session.ts';
-import type { WithBuilder } from '../subquery.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgMaterializedView } from '../view.ts';
 import { PgAsyncCountBuilder } from './count.ts';
@@ -34,403 +24,27 @@ import { PgAsyncRefreshMaterializedView } from './refresh-materialized-view.ts';
 import { PgAsyncSelectBase, type PgAsyncSelectBuilder } from './select.ts';
 import { PgAsyncUpdateBase, type PgAsyncUpdateHKT } from './update.ts';
 
-/** Transactionless definition -  branches out into `PostgreSQL` & `DSQL` variants */
-export class BasePgAsyncDatabase<
+const pgAsyncBuilders: PgDatabaseBuilders = {
+	select: PgAsyncSelectBase,
+	insert: PgAsyncInsertBase,
+	update: PgAsyncUpdateBase,
+	delete: PgAsyncDeleteBase,
+	count: PgAsyncCountBuilder,
+	raw: PgAsyncRaw,
+	refreshMaterializedView: PgAsyncRefreshMaterializedView,
+	relationalQuery: PgAsyncRelationalQuery,
+};
+
+/** The query builders of {@link BasePgAsyncDatabase.with}: they run with it's CTEs */
+export type PgAsyncWithBuilders<TQueryResult extends PgQueryResultHKT> = Pick<
+	BasePgAsyncDatabase<TQueryResult, any>,
+	'select' | 'selectDistinct' | 'selectDistinctOn' | 'update' | 'insert' | 'delete'
+>;
+
+export interface BasePgAsyncDatabase<
 	TQueryResult extends PgQueryResultHKT,
 	TRelations extends AnyRelations = EmptyRelations,
 > {
-	static readonly [entityKind]: string = 'BasePgAsyncDatabase';
-	static [Symbol.hasInstance](value: unknown): boolean {
-		return is(value, this);
-	}
-
-	declare readonly _: {
-		readonly relations: TRelations;
-		readonly session: BasePgAsyncSession;
-	};
-
-	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
-	query: {
-		[K in keyof TRelations]: RelationalQueryBuilder<
-			TRelations,
-			TRelations[K],
-			PgAsyncRelationalQueryHKT
-		>;
-	};
-
-	constructor(
-		/** @internal */
-		readonly dialect: PgDialect,
-		/** @internal */
-		readonly session: BasePgAsyncSession,
-		relations: TRelations,
-		parseRqbJson: boolean = false,
-		readonly tagged: boolean = false,
-	) {
-		this._ = {
-			relations: relations,
-			session,
-		};
-
-		this.query = {} as typeof this['query'];
-		for (const [tableName, relation] of Object.entries(relations)) {
-			(this.query as PgAsyncDatabase<
-				TQueryResult,
-				AnyRelations
-			>['query'])[tableName] = new RelationalQueryBuilder(
-				relations,
-				relations[relation.name]!.table as PgTable,
-				relation,
-				dialect,
-				session,
-				parseRqbJson,
-				PgAsyncRelationalQuery,
-			);
-		}
-	}
-
-	/**
-	 * Creates a subquery that defines a temporary named result set as a CTE.
-	 *
-	 * It is useful for breaking down complex queries into simpler parts and for reusing the result set in subsequent parts of the query.
-	 *
-	 * See docs: {@link https://orm.drizzle.team/docs/select#with-clause}
-	 *
-	 * @param alias The alias for the subquery.
-	 *
-	 * Failure to provide an alias will result in a DrizzleTypeError, preventing the subquery from being referenced in other queries.
-	 *
-	 * @example
-	 *
-	 * ```ts
-	 * // Create a subquery with alias 'sq' and use it in the select query
-	 * const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
-	 *
-	 * const result = await db.with(sq).select().from(sq);
-	 * ```
-	 *
-	 * To select arbitrary SQL values as fields in a CTE and reference them in other CTEs or in the main query, you need to add aliases to them:
-	 *
-	 * ```ts
-	 * // Select an arbitrary SQL value as a field in a CTE and reference it in the main query
-	 * const sq = db.$with('sq').as(db.select({
-	 *   name: sql<string>`upper(${users.name})`.as('name'),
-	 * })
-	 * .from(users));
-	 *
-	 * const result = await db.with(sq).select({ name: sq.name }).from(sq);
-	 * ```
-	 */
-	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
-		const as = (
-			qb:
-				| TypedQueryBuilder<ColumnsSelection | undefined>
-				| SQL
-				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
-		) => {
-			if (typeof qb === 'function') {
-				qb = qb(new QueryBuilder(this.dialect));
-			}
-
-			const sql = qb.getSQL();
-			return new Proxy(
-				new WithSubquery(
-					sql,
-					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
-					alias,
-					true,
-				),
-				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-			);
-		};
-		return { as };
-	};
-
-	$count(
-		source: PgTable | PgViewBase | SQL | SQLWrapper,
-		filters?: SQL<unknown>,
-	) {
-		return new PgAsyncCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
-	}
-
-	/**
-	 * Incorporates a previously defined CTE (using `$with`) into the main query.
-	 *
-	 * This method allows the main query to reference a temporary named result set.
-	 *
-	 * See docs: {@link https://orm.drizzle.team/docs/select#with-clause}
-	 *
-	 * @param queries The CTEs to incorporate into the main query.
-	 *
-	 * @example
-	 *
-	 * ```ts
-	 * // Define a subquery 'sq' as a CTE using $with
-	 * const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
-	 *
-	 * // Incorporate the CTE 'sq' into the main query and select from it
-	 * const result = await db.with(sq).select().from(sq);
-	 * ```
-	 */
-	with(...queries: WithSubquery[]) {
-		const self = this;
-
-		/**
-		 * Creates a select query.
-		 *
-		 * Calling this method with no arguments will select all columns from the table. Pass a selection object to specify the columns you want to select.
-		 *
-		 * Use `.from()` method to specify which table to select from.
-		 *
-		 * See docs: {@link https://orm.drizzle.team/docs/select}
-		 *
-		 * @param fields The selection object.
-		 *
-		 * @example
-		 *
-		 * ```ts
-		 * // Select all columns and all rows from the 'cars' table
-		 * const allCars: Car[] = await db.select().from(cars);
-		 *
-		 * // Select specific columns and all rows from the 'cars' table
-		 * const carsIdsAndBrands: { id: number; brand: string }[] = await db.select({
-		 *   id: cars.id,
-		 *   brand: cars.brand
-		 * })
-		 *   .from(cars);
-		 * ```
-		 *
-		 * Like in SQL, you can use arbitrary expressions as selection fields, not just table columns:
-		 *
-		 * ```ts
-		 * // Select specific columns along with expression and all rows from the 'cars' table
-		 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = await db.select({
-		 *   id: cars.id,
-		 *   lowerBrand: sql<string>`lower(${cars.brand})`,
-		 * })
-		 *   .from(cars);
-		 * ```
-		 */
-		function select(): PgAsyncSelectBuilder<undefined>;
-		function select<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectBuilder<TSelection>;
-		function select<TSelection extends SelectedFields>(
-			fields?: TSelection,
-		): PgAsyncSelectBuilder<TSelection | undefined> {
-			return new PgSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-				tagged: self.tagged,
-			}, PgAsyncSelectBase);
-		}
-
-		/**
-		 * Adds `distinct` expression to the select query.
-		 *
-		 * Calling this method will return only unique values. When multiple columns are selected, it returns rows with unique combinations of values in these columns.
-		 *
-		 * Use `.from()` method to specify which table to select from.
-		 *
-		 * See docs: {@link https://orm.drizzle.team/docs/select#distinct}
-		 *
-		 * @param fields The selection object.
-		 *
-		 * @example
-		 * ```ts
-		 * // Select all unique rows from the 'cars' table
-		 * await db.selectDistinct()
-		 *   .from(cars)
-		 *   .orderBy(cars.id, cars.brand, cars.color);
-		 *
-		 * // Select all unique brands from the 'cars' table
-		 * await db.selectDistinct({ brand: cars.brand })
-		 *   .from(cars)
-		 *   .orderBy(cars.brand);
-		 * ```
-		 */
-		function selectDistinct(): PgAsyncSelectBuilder<undefined>;
-		function selectDistinct<TSelection extends SelectedFields>(
-			fields: TSelection,
-		): PgAsyncSelectBuilder<TSelection>;
-		function selectDistinct<TSelection extends SelectedFields>(
-			fields?: TSelection,
-		): PgAsyncSelectBuilder<TSelection | undefined> {
-			return new PgSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-				distinct: true,
-				tagged: self.tagged,
-			}, PgAsyncSelectBase);
-		}
-
-		/**
-		 * Adds `distinct on` expression to the select query.
-		 *
-		 * Calling this method will specify how the unique rows are determined.
-		 *
-		 * Use `.from()` method to specify which table to select from.
-		 *
-		 * See docs: {@link https://orm.drizzle.team/docs/select#distinct}
-		 *
-		 * @param on The expression defining uniqueness.
-		 * @param fields The selection object.
-		 *
-		 * @example
-		 * ```ts
-		 * // Select the first row for each unique brand from the 'cars' table
-		 * await db.selectDistinctOn([cars.brand])
-		 *   .from(cars)
-		 *   .orderBy(cars.brand);
-		 *
-		 * // Selects the first occurrence of each unique car brand along with its color from the 'cars' table
-		 * await db.selectDistinctOn([cars.brand], { brand: cars.brand, color: cars.color })
-		 *   .from(cars)
-		 *   .orderBy(cars.brand, cars.color);
-		 * ```
-		 */
-		function selectDistinctOn(on: (PgColumn | SQLWrapper)[]): PgAsyncSelectBuilder<undefined>;
-		function selectDistinctOn<TSelection extends SelectedFields>(
-			on: (PgColumn | SQLWrapper)[],
-			fields: TSelection,
-		): PgAsyncSelectBuilder<TSelection>;
-		function selectDistinctOn<TSelection extends SelectedFields>(
-			on: (PgColumn | SQLWrapper)[],
-			fields?: TSelection,
-		): PgAsyncSelectBuilder<TSelection | undefined> {
-			return new PgSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-				distinct: { on },
-				tagged: self.tagged,
-			}, PgAsyncSelectBase);
-		}
-
-		/**
-		 * Creates an update query.
-		 *
-		 * Calling this method without `.where()` clause will update all rows in a table. The `.where()` clause specifies which rows should be updated.
-		 *
-		 * Use `.set()` method to specify which values to update.
-		 *
-		 * See docs: {@link https://orm.drizzle.team/docs/update}
-		 *
-		 * @param table The table to update.
-		 *
-		 * @example
-		 *
-		 * ```ts
-		 * // Update all rows in the 'cars' table
-		 * await db.update(cars).set({ color: 'red' });
-		 *
-		 * // Update rows with filters and conditions
-		 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
-		 *
-		 * // Update with returning clause
-		 * const updatedCar: Car[] = await db.update(cars)
-		 *   .set({ color: 'red' })
-		 *   .where(eq(cars.id, 1))
-		 *   .returning();
-		 * ```
-		 */
-		function update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult, PgAsyncUpdateHKT> {
-			return new PgUpdateBuilder(table, self.session, self.dialect, queries, PgAsyncUpdateBase);
-		}
-
-		/**
-		 * Creates an insert query.
-		 *
-		 * Calling this method will create new rows in a table. Use `.values()` method to specify which values to insert.
-		 *
-		 * See docs: {@link https://orm.drizzle.team/docs/insert}
-		 *
-		 * @param table The table to insert into.
-		 *
-		 * @example
-		 *
-		 * ```ts
-		 * // Insert one row
-		 * await db.insert(cars).values({ brand: 'BMW' });
-		 *
-		 * // Insert multiple rows
-		 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
-		 *
-		 * // Insert only selected columns
-		 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
-		 *
-		 * // Insert with returning clause
-		 * const insertedCar: Car[] = await db.insert(cars)
-		 *   .values({ brand: 'BMW' })
-		 *   .returning();
-		 * ```
-		 */
-
-		function insert<
-			TTable extends PgTable,
-			TColumnList extends (keyof InferInsertModel<TTable, { override: true }>)[] = [],
-			TRequiredKeys extends string = RequiredInsertKeys<TTable>,
-		>(
-			table: TTable,
-			...columns: TColumnList extends [] ? []
-				: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
-				: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
-				: DrizzleTypeError<
-					`Column selection is missing following required columns: ${JoinUnion<
-						`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
-						', '
-					>}`
-				>[]
-		): PgInsertBuilder<TTable, TQueryResult, TColumnList extends [] ? 'all' : TColumnList, false, PgAsyncInsertHKT>;
-		function insert<TTable extends PgTable>(
-			table: TTable,
-			...columns: string[]
-		): PgInsertBuilder<TTable, TQueryResult, 'all', false, PgAsyncInsertHKT> {
-			return new PgInsertBuilder(
-				table,
-				self.session,
-				self.dialect,
-				queries,
-				undefined,
-				columns.length ? columns : undefined,
-				PgAsyncInsertBase,
-			);
-		}
-
-		/**
-		 * Creates a delete query.
-		 *
-		 * Calling this method without `.where()` clause will delete all rows in a table. The `.where()` clause specifies which rows should be deleted.
-		 *
-		 * See docs: {@link https://orm.drizzle.team/docs/delete}
-		 *
-		 * @param table The table to delete from.
-		 *
-		 * @example
-		 *
-		 * ```ts
-		 * // Delete all rows in the 'cars' table
-		 * await db.delete(cars);
-		 *
-		 * // Delete rows with filters and conditions
-		 * await db.delete(cars).where(eq(cars.color, 'green'));
-		 *
-		 * // Delete with returning clause
-		 * const deletedCar: Car[] = await db.delete(cars)
-		 *   .where(eq(cars.id, 1))
-		 *   .returning();
-		 * ```
-		 */
-		function delete_<TTable extends PgTable>(table: TTable): PgAsyncDeleteBase<TTable, TQueryResult> {
-			return new PgAsyncDeleteBase(table, self.session, self.dialect, queries);
-		}
-
-		return { select, selectDistinct, selectDistinctOn, update, insert, delete: delete_ };
-	}
-
 	/**
 	 * Creates a select query.
 	 *
@@ -469,16 +83,6 @@ export class BasePgAsyncDatabase<
 	 */
 	select(): PgAsyncSelectBuilder<undefined>;
 	select<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectBuilder<TSelection>;
-	select<TSelection extends SelectedFields | undefined>(
-		fields?: TSelection,
-	): PgAsyncSelectBuilder<TSelection> {
-		return new PgSelectBuilder({
-			fields: fields ?? undefined,
-			session: this.session,
-			dialect: this.dialect,
-			tagged: this.tagged,
-		}, PgAsyncSelectBase) as PgAsyncSelectBuilder<TSelection>;
-	}
 
 	/**
 	 * Adds `distinct` expression to the select query.
@@ -506,17 +110,6 @@ export class BasePgAsyncDatabase<
 	 */
 	selectDistinct(): PgAsyncSelectBuilder<undefined>;
 	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgAsyncSelectBuilder<TSelection>;
-	selectDistinct<TSelection extends SelectedFields | undefined>(
-		fields?: TSelection,
-	): PgAsyncSelectBuilder<TSelection | undefined> {
-		return new PgSelectBuilder({
-			fields: fields ?? undefined,
-			session: this.session,
-			dialect: this.dialect,
-			distinct: true,
-			tagged: this.tagged,
-		}, PgAsyncSelectBase);
-	}
 
 	/**
 	 * Adds `distinct on` expression to the select query.
@@ -537,7 +130,7 @@ export class BasePgAsyncDatabase<
 	 *   .from(cars)
 	 *   .orderBy(cars.brand);
 	 *
-	 * // Selects the first occurrence of each unique car brand along with its color from the 'cars' table
+	 * // Selects the first occurrence of each unique car brand along with it's color from the 'cars' table
 	 * await db.selectDistinctOn([cars.brand], { brand: cars.brand, color: cars.color })
 	 *   .from(cars)
 	 *   .orderBy(cars.brand, cars.color);
@@ -548,18 +141,6 @@ export class BasePgAsyncDatabase<
 		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
 	): PgAsyncSelectBuilder<TSelection>;
-	selectDistinctOn<TSelection extends SelectedFields | undefined>(
-		on: (PgColumn | SQLWrapper)[],
-		fields?: TSelection,
-	): PgAsyncSelectBuilder<TSelection> {
-		return new PgSelectBuilder({
-			fields: fields ?? undefined,
-			session: this.session,
-			dialect: this.dialect,
-			distinct: { on },
-			tagged: this.tagged,
-		}, PgAsyncSelectBase) as PgAsyncSelectBuilder<TSelection>;
-	}
 
 	/**
 	 * Creates an update query.
@@ -588,9 +169,7 @@ export class BasePgAsyncDatabase<
 	 *   .returning();
 	 * ```
 	 */
-	update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult, PgAsyncUpdateHKT> {
-		return new PgUpdateBuilder(table, this.session, this.dialect, undefined, PgAsyncUpdateBase);
-	}
+	update<TTable extends PgTable>(table: TTable): PgUpdateBuilder<TTable, TQueryResult, PgAsyncUpdateHKT>;
 
 	/**
 	 * Creates an insert query.
@@ -625,30 +204,8 @@ export class BasePgAsyncDatabase<
 		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
 	>(
 		table: TTable,
-		...columns: TColumnList extends [] ? []
-			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
-			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
-			: DrizzleTypeError<
-				`Column selection is missing following required columns: ${JoinUnion<
-					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
-					', '
-				>}`
-			>[]
+		...columns: PgInsertColumns<TColumnList, TRequiredKeys>
 	): PgInsertBuilder<TTable, TQueryResult, TColumnList extends [] ? 'all' : TColumnList, false, PgAsyncInsertHKT>;
-	insert<TTable extends PgTable>(
-		table: TTable,
-		...columns: string[]
-	): PgInsertBuilder<TTable, TQueryResult, 'all', false, PgAsyncInsertHKT> {
-		return new PgInsertBuilder(
-			table,
-			this.session,
-			this.dialect,
-			undefined,
-			undefined,
-			columns.length ? columns : undefined,
-			PgAsyncInsertBase,
-		);
-	}
 
 	/**
 	 * Creates a delete query.
@@ -674,13 +231,41 @@ export class BasePgAsyncDatabase<
 	 *   .returning();
 	 * ```
 	 */
-	delete<TTable extends PgTable>(table: TTable): PgAsyncDeleteBase<TTable, TQueryResult> {
-		return new PgAsyncDeleteBase(table, this.session, this.dialect);
-	}
+	delete<TTable extends PgTable>(table: TTable): PgAsyncDeleteBase<TTable, TQueryResult>;
 
-	refreshMaterializedView<TView extends PgMaterializedView>(view: TView): PgAsyncRefreshMaterializedView<TQueryResult> {
-		return new PgAsyncRefreshMaterializedView(view, this.session, this.dialect);
-	}
+	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
+	query: {
+		[K in keyof TRelations]: RelationalQueryBuilder<
+			TRelations,
+			TRelations[K],
+			PgAsyncRelationalQueryHKT
+		>;
+	};
+
+	$count(source: PgTable | PgViewBase | SQL | SQLWrapper, filters?: SQL<unknown>): PgAsyncCountBuilder;
+
+	/**
+	 * Incorporates a previously defined CTE (using `$with`) into the main query.
+	 *
+	 * This method allows the main query to reference a temporary named result set.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/select#with-clause}
+	 *
+	 * @param queries The CTEs to incorporate into the main query.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Define a subquery 'sq' as a CTE using $with
+	 * const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
+	 *
+	 * // Incorporate the CTE 'sq' into the main query and select from it
+	 * const result = await db.with(sq).select().from(sq);
+	 * ```
+	 */
+	with(...queries: WithSubquery[]): PgAsyncWithBuilders<TQueryResult>;
+
+	refreshMaterializedView<TView extends PgMaterializedView>(view: TView): PgAsyncRefreshMaterializedView<TQueryResult>;
 
 	/**
 	 * Executes raw SQL query, responding with rows as arrays of values
@@ -747,22 +332,11 @@ export class BasePgAsyncDatabase<
 		query: SQLWrapper | string,
 		mode?: 'raw' | undefined,
 	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>>;
-	execute(
-		query: SQLWrapper | string,
-		mode?: 'raw' | 'objects' | 'arrays' | undefined,
-	): unknown {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
-		const builtQuery = this.dialect.sqlToQuery(sequel);
-		const prepared = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: unknown }
-		>(builtQuery, mode ?? 'raw', false);
-		return new PgAsyncRaw(prepared, sequel, builtQuery);
-	}
 
 	/**
 	 * Calls a procedure declared with {@link procedure}: `CALL "name"(p_a => $1, ...)`.
 	 *
-	 * Resolves to the record the procedure body returns (one row of its INOUT parameters), or
+	 * Resolves to the record the procedure body returns (one row of it's INOUT parameters), or
 	 * `undefined` for procedures that return nothing. Values are returned as the driver produces
 	 * them: no codecs run on `CALL` results, so `numeric`/`bigint` fields typically arrive as strings.
 	 *
@@ -776,18 +350,34 @@ export class BasePgAsyncDatabase<
 	call<TProcedure extends PgProcedure<any, any>>(
 		procedure: TProcedure,
 		...args: PgProcedureCallParams<TProcedure>
-	): PgAsyncRaw<TProcedure['_']['result']> {
-		const sequel = procedure.getCallSQL((args[0] ?? {}) as Record<string, unknown>);
-		const builtQuery = this.dialect.sqlToQuery(sequel);
-		// CALL yields one row of the INOUT result parameters, or none for a procedure that returns nothing. `call` mode
-		// runs as `objects`, but without the typecasts drivers apply to codec-decoded (mapped) queries: no codecs run here
-		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: TProcedure['_']['result'] }>(
-			builtQuery,
-			'call',
-			false,
-			(rows) => rows[0],
-		);
-		return new PgAsyncRaw(prepared, sequel, builtQuery);
+	): PgAsyncRaw<TProcedure['_']['result']>;
+}
+
+/** Transactionless definition -  branches out into `PostgreSQL` & `DSQL` variants */
+export class BasePgAsyncDatabase<
+	TQueryResult extends PgQueryResultHKT,
+	TRelations extends AnyRelations = EmptyRelations,
+> extends PgDatabase<TQueryResult, TRelations> {
+	static override readonly [entityKind]: string = 'BasePgAsyncDatabase';
+
+	declare readonly _: {
+		readonly relations: TRelations;
+		readonly session: BasePgAsyncSession;
+	};
+
+	/** @internal */
+	declare readonly session: BasePgAsyncSession;
+
+	constructor(
+		/** @internal */
+		dialect: PgDialect,
+		/** @internal */
+		session: BasePgAsyncSession,
+		relations: TRelations,
+		parseRqbJson: boolean = false,
+		tagged: boolean = false,
+	) {
+		super(pgAsyncBuilders, dialect, session, relations, parseRqbJson, tagged);
 	}
 }
 
@@ -802,11 +392,14 @@ export class PgAsyncDatabase<
 		readonly session: PgAsyncSession<TQueryResult, TRelations>;
 	};
 
+	/** @internal */
+	declare readonly session: PgAsyncSession<TQueryResult, TRelations>;
+
 	constructor(
 		/** @internal */
 		dialect: PgDialect,
 		/** @internal */
-		override readonly session: PgAsyncSession<TQueryResult, TRelations>,
+		session: PgAsyncSession<TQueryResult, TRelations>,
 		relations: TRelations,
 		parseRqbJson: boolean = false,
 		tagged: boolean = false,

@@ -159,6 +159,26 @@ describe('batch', () => {
 		);
 	});
 
+	test('$count as a batch item', async ({ db }) => {
+		await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }, { id: 3, name: 'Jane' }]);
+
+		const batchResponse = await db.batch([
+			db.$count(usersTable),
+			db.$count(usersTable, eq(usersTable.name, 'Dan')),
+			db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, 1)),
+		]);
+		expectTypeOf(batchResponse).toEqualTypeOf<[number, number, { id: number }[]]>();
+		expect(batchResponse).toEqual([3, 1, [{ id: 1 }]]);
+
+		const pipelineResponse = await db.pipeline([db.$count(usersTable), db.$count(usersTable, eq(usersTable.id, 9))]);
+		expect(pipelineResponse).toEqual([{ status: 'fulfilled', value: 3 }, { status: 'fulfilled', value: 0 }]);
+
+		const parallelResponse = await db.parallel([db.$count(usersTable, eq(usersTable.id, 2))]);
+		expect(parallelResponse).toEqual([{ status: 'fulfilled', value: 1 }]);
+
+		expect(await db.batch([db.$count(usersTable)])).toEqual([3]);
+	});
+
 	test('batch api example', async ({ db }) => {
 		const batchResponse = await db.batch([
 			db.insert(usersTable).values({ id: 1, name: 'John' }).returning({

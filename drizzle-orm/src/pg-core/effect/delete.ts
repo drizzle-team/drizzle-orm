@@ -4,11 +4,12 @@ import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
-import type { Assume } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
-import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
+import type { PgEffectPreparedQuery, PgEffectRuntimeHKT, PgEffectSession } from './session.ts';
 
 export type PgEffectDelete<
 	TTable extends PgTable = PgTable,
@@ -32,6 +33,7 @@ export type PgEffectDeletePrepare<
 export type AnyEffectPgDelete = PgEffectDeleteBase<any, any, any, any, any, any, any>;
 
 export interface PgEffectDeleteHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgDeleteHKTBase {
+	runtime: PgEffectRuntimeHKT<TEffectHKT>;
 	_type: PgEffectDeleteBase<
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
@@ -61,7 +63,8 @@ export interface PgEffectDeleteBase<
 		TEffectHKT['error'],
 		TEffectHKT['context']
 	>
-{}
+{
+}
 
 export class PgEffectDeleteBase<
 	TTable extends PgTable,
@@ -90,19 +93,7 @@ export class PgEffectDeleteBase<
 	static override readonly [entityKind]: string = 'PgEffectDelete';
 
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
-
-	/** @internal */
-	override _prepare(name?: string, generateName = false): PgEffectDeletePrepare<this, TEffectHKT> {
-		return super._prepare(name, generateName) as PgEffectDeletePrepare<this, TEffectHKT>;
-	}
-
-	prepare(name?: string): PgEffectDeletePrepare<this, TEffectHKT> {
-		return this._prepare(name, true);
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
-	};
 }
 
+applyMixins(PgEffectDeleteBase, [RunnableQueryMixin]);
 applyEffectWrapper(PgEffectDeleteBase);

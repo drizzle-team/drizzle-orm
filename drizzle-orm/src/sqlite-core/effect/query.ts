@@ -2,6 +2,8 @@ import { applyEffectWrapper, type QueryEffectHKTBase, type QueryEffectKind } fro
 import { entityKind } from '~/entity.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SQLiteRelationalQuery, type SQLiteRelationalQueryHKTBase } from '~/sqlite-core/query-builders/query.ts';
+import { applyMixins } from '~/utils.ts';
+import { SQLiteRunnableQuery } from '../query-builders/runnable.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { SQLiteEffectPreparedQuery, SQLiteEffectSession } from './session.ts';
 
@@ -15,7 +17,22 @@ export interface SQLiteEffectRelationalQueryHKT<TEffectHKT extends QueryEffectHK
 
 export interface SQLiteEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
 	extends QueryEffectKind<TEffectHKT, TResult>
-{}
+{
+	/** @internal */
+	_prepare(
+		prepare?: boolean,
+	): SQLiteEffectPreparedQuery<
+		PreparedQueryConfig & { type: unknown; all: TResult; get: TResult; execute: TResult },
+		TEffectHKT
+	>;
+
+	prepare(): SQLiteEffectPreparedQuery<
+		PreparedQueryConfig & { type: unknown; all: TResult; get: TResult; execute: TResult },
+		TEffectHKT
+	>;
+
+	execute(placeholderValues?: Record<string, unknown>): QueryEffectKind<TEffectHKT, TResult>;
+}
 
 export class SQLiteEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
 	extends SQLiteRelationalQuery<SQLiteEffectRelationalQueryHKT<TEffectHKT>, TResult>
@@ -24,47 +41,7 @@ export class SQLiteEffectRelationalQuery<TResult, TEffectHKT extends QueryEffect
 	static override readonly [entityKind]: string = 'SQLiteEffectRelationalQueryV2';
 
 	declare protected session: SQLiteEffectSession<any, TEffectHKT, any>;
-
-	/** @internal */
-	_prepare(
-		prepare = false,
-	): SQLiteEffectPreparedQuery<
-		PreparedQueryConfig & { type: unknown; all: TResult; get: TResult; execute: TResult },
-		TEffectHKT
-	> {
-		const { query, builtQuery } = this._toSQL();
-
-		const mapper = this.dialect.mapperGenerators.relationalRows({
-			isFirst: this.mode === 'first',
-			parseJson: true,
-			parseJsonIfString: false,
-			rootJsonMappers: false,
-			selection: query.selection,
-			arrayModeRoot: true,
-		});
-
-		return this.session.prepareQuery(
-			builtQuery,
-			'arrays',
-			prepare,
-			'all',
-			mapper,
-		) as SQLiteEffectPreparedQuery<
-			PreparedQueryConfig & { type: unknown; all: TResult; get: TResult; execute: TResult },
-			TEffectHKT
-		>;
-	}
-
-	prepare(): SQLiteEffectPreparedQuery<
-		PreparedQueryConfig & { type: unknown; all: TResult; get: TResult; execute: TResult },
-		TEffectHKT
-	> {
-		return this._prepare(true);
-	}
-
-	execute(placeholderValues?: Record<string, unknown>) {
-		return this._prepare().execute(placeholderValues);
-	}
 }
 
+applyMixins(SQLiteEffectRelationalQuery, [SQLiteRunnableQuery]);
 applyEffectWrapper(SQLiteEffectRelationalQuery);

@@ -1,4 +1,5 @@
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
+import type { MySqlRuntimeHKT } from '~/mysql-core/session.ts';
 import type { MySqlTable, MySqlTableWithColumns } from '~/mysql-core/table.ts';
 import type {
 	SelectedFields as SelectedFieldsBase,
@@ -170,6 +171,8 @@ export type LockConfig = {
 };
 
 export interface MySqlSelectHKTBase {
+	/** How the builder's runtime wraps it's results */
+	runtime: MySqlRuntimeHKT;
 	tableName: string | undefined;
 	selection: unknown;
 	selectMode: SelectMode;

@@ -3,6 +3,7 @@ import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
+import { asyncQueryRuntime, type QueryRuntime } from '~/query-runtime.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mysql.ts';
@@ -12,52 +13,52 @@ import {
 	MySqlBasePreparedQuery,
 	type MySqlPreparedQueryConfig,
 	type MySqlQueryResultHKT,
+	type MySqlRuntimeHKT,
 	MySqlSession,
 	type MySqlTransactionConfig,
 } from '../session.ts';
 import { MySqlAsyncDatabase } from './db.ts';
 
+type MySqlAsyncPreparedQueryOf<TResult, TRow> = MySqlAsyncPreparedQuery<
+	MySqlPreparedQueryConfig & { execute: TResult; iterator: TRow }
+>;
+
+/** Builders of the async runtime run as Promises */
+export interface MySqlAsyncRuntimeHKT extends MySqlRuntimeHKT {
+	readonly execute: Promise<this['result']>;
+	readonly prepared: MySqlAsyncPreparedQueryOf<this['result'], this['row']>;
+}
+
+export interface MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> {
+	/** Runs the query with values for it's placeholders and returns a Promise of the result */
+	execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+}
+
 export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlBasePreparedQuery {
 	static override readonly [entityKind]: string = 'MySqlAsyncPreparedQuery';
 
 	/** @internal */
-	readonly mapper: {
-		(rows: any[]): any;
-		body?: string;
-	} | undefined;
+	override get runtime(): QueryRuntime {
+		return asyncQueryRuntime;
+	}
 
 	constructor(
-		protected executor: (params?: unknown[]) => Promise<any>,
+		executor: (params?: unknown[]) => Promise<any>,
 		protected _iterator: ((params?: unknown[]) => AsyncGenerator<any[]>) | undefined,
 		query: Query,
 		mapper:
 			| AnyMySqlMapper
 			| undefined,
-		readonly mode: 'arrays' | 'objects' | 'raw',
-		protected logger: Logger,
-		protected paramsInErrors?: boolean | undefined,
+		mode: 'arrays' | 'objects' | 'raw',
+		logger: Logger,
+		paramsInErrors?: boolean | undefined,
 	) {
-		super(query);
-		this.mapper = mapper;
-	}
-
-	override async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
-		const { query, logger, executor, mapper } = this;
-		const sql = query._sql ? query._sql.join(' ') : query.sql;
-		const params = query.params.length === 0
-			? query.params
-			: fillPlaceholders(query.params, placeholderValues);
-		logger.logQuery(sql, params);
-		const res = executor(params).catch((e) => {
-			throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
-		});
-		if (!mapper) return res;
-
-		return res.then((rows) => mapper(rows));
+		super(executor, query, mapper, mode, logger, paramsInErrors);
 	}
 
 	async *iterator(placeholderValues: Record<string, unknown> = {}): AsyncGenerator<T['iterator']> {
-		const { query, logger, executor, _iterator, mapper } = this;
+		const { query, logger, _iterator, mapper } = this;
+		const executor = this.executor as (params?: unknown[]) => Promise<any>;
 		const sql = query._sql ? query._sql.join(' ') : query.sql;
 		const params = query.params.length === 0
 			? query.params
@@ -105,38 +106,33 @@ export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends
 	}
 }
 
+export interface MySqlAsyncSession<
+	// oxlint-disable-next-line no-unused-vars
+	TQueryResult extends MySqlQueryResultHKT = MySqlQueryResultHKT,
+	// oxlint-disable-next-line no-unused-vars
+	TRelations extends AnyRelations = EmptyRelations,
+> {
+	execute<T>(query: SQL): Promise<T>;
+	arrays<T>(query: SQL): Promise<T[]>;
+	objects<T>(query: SQL): Promise<T[]>;
+}
+
 export abstract class MySqlAsyncSession<
 	TQueryResult extends MySqlQueryResultHKT = MySqlQueryResultHKT,
 	TRelations extends AnyRelations = EmptyRelations,
 > extends MySqlSession {
 	static override readonly [entityKind]: string = 'MySqlAsyncSession';
 
+	/** @internal */
+	override get runtime(): QueryRuntime {
+		return asyncQueryRuntime;
+	}
+
 	abstract override prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (rows: any) => any,
 	): MySqlAsyncPreparedQuery<T>;
-
-	override execute<T>(query: SQL): Promise<T> {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T }>(
-			this.dialect.sqlToQuery(query),
-			'raw',
-		).execute();
-	}
-
-	override arrays<T>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T[] }>(
-			this.dialect.sqlToQuery(query),
-			'arrays',
-		).execute();
-	}
-
-	override objects<T>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T[] }>(
-			this.dialect.sqlToQuery(query),
-			'objects',
-		).execute();
-	}
 
 	abstract transaction<T>(
 		transaction: (

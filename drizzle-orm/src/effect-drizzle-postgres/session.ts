@@ -10,6 +10,7 @@ import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { getTransactionConfigStatements } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import {
 	buildBulkInsert,
@@ -148,7 +149,7 @@ export class EffectPostgresSession<
 			const tx = new EffectPostgresTransaction<TRelations>(dialect, this, relations);
 
 			if (config) {
-				for (const statement of tx.getTransactionConfigStatements(config)) {
+				for (const statement of getTransactionConfigStatements(dialect, config)) {
 					yield* this.client.unsafe(statement);
 				}
 			}

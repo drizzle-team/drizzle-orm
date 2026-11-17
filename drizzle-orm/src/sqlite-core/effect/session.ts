@@ -1,14 +1,15 @@
-import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
-import { EffectDrizzleQueryError, EffectTransactionRollbackError, MigratorInitError } from '~/effect-core/errors.ts';
+import { EffectTransactionRollbackError, MigratorInitError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
+import { effectQueryRuntime } from '~/effect-core/query-runtime.ts';
 import { entityKind } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
+import type { QueryRuntime } from '~/query-runtime.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import {
 	type PreparedQueryConfig,
@@ -25,108 +26,54 @@ export type SQLiteEffectQueryExecutors = Record<
 	(params: unknown[]) => Effect.Effect<any, unknown, unknown>
 >;
 
-export class SQLiteEffectPreparedQuery<
+export interface SQLiteEffectPreparedQuery<
 	T extends PreparedQueryConfig,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> {
+	run(placeholderValues?: Record<string, unknown>): QueryEffectKind<TEffectHKT, T['run']>;
+	all(placeholderValues?: Record<string, unknown>): QueryEffectKind<TEffectHKT, T['all']>;
+	get(placeholderValues?: Record<string, unknown>): QueryEffectKind<TEffectHKT, T['get']>;
+	values(placeholderValues?: Record<string, unknown>): QueryEffectKind<TEffectHKT, T['values']>;
+	execute(placeholderValues?: Record<string, unknown>): QueryEffectKind<TEffectHKT, T['execute']>;
+}
+
+export class SQLiteEffectPreparedQuery<
+	// oxlint-disable-next-line no-unused-vars
+	T extends PreparedQueryConfig,
+	// oxlint-disable-next-line no-unused-vars
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > extends SQLitePreparedQuery {
 	static override readonly [entityKind]: string = 'SQLiteEffectPreparedQuery';
 
+	/** @internal */
+	override get runtime(): QueryRuntime {
+		return effectQueryRuntime;
+	}
+
 	constructor(
 		executeMethod: SQLiteExecuteMethod = 'all',
-		protected executors: SQLiteEffectQueryExecutors,
+		executors: SQLiteEffectQueryExecutors,
 		query: Query,
 		mapper: ((rows: any[]) => any) | undefined,
 		mode: 'arrays' | 'objects' | 'raw',
-		private logger: EffectLoggerShape,
-		protected paramsInErrors: boolean | undefined,
+		logger: EffectLoggerShape,
+		paramsInErrors: boolean | undefined,
 	) {
-		super(executeMethod, query, mapper, mode);
+		super(executeMethod, executors, query, mapper, mode, logger, paramsInErrors);
 	}
+}
 
-	override run(placeholderValues: Record<string, unknown> = {}): QueryEffectKind<TEffectHKT, T['run']> {
-		return Effect.gen({ self: this }, function*() {
-			const { query, logger, executors } = this;
-			const sql = query._sql ? query._sql.join(' ') : query.sql;
-			const params = query.params.length === 0
-				? query.params
-				: fillPlaceholders(query.params, placeholderValues);
-
-			yield* logger.logQuery(sql, params);
-
-			return yield* this.mapQueryError(sql, params, Effect.suspend(() => executors.run(params)));
-		}) as QueryEffectKind<TEffectHKT, T['run']>;
-	}
-
-	override all(placeholderValues: Record<string, unknown> = {}): QueryEffectKind<TEffectHKT, T['all']> {
-		return Effect.gen({ self: this }, function*() {
-			const { query, logger, executors, mapper } = this;
-			const sql = query._sql ? query._sql.join(' ') : query.sql;
-			const params = query.params.length === 0
-				? query.params
-				: fillPlaceholders(query.params, placeholderValues);
-
-			yield* logger.logQuery(sql, params);
-
-			const rows = yield* this.mapQueryError(sql, params, Effect.suspend(() => executors.all(params)));
-
-			return mapper ? mapper(rows as unknown[]) : rows;
-		}) as QueryEffectKind<TEffectHKT, T['all']>;
-	}
-
-	override get(placeholderValues: Record<string, unknown> = {}): QueryEffectKind<TEffectHKT, T['get']> {
-		return Effect.gen({ self: this }, function*() {
-			const { query, logger, executors, mapper } = this;
-			const sql = query._sql ? query._sql.join(' ') : query.sql;
-			const params = query.params.length === 0
-				? query.params
-				: fillPlaceholders(query.params, placeholderValues);
-
-			yield* logger.logQuery(sql, params);
-
-			const row = yield* this.mapQueryError(sql, params, Effect.suspend(() => executors.get(params)));
-
-			if (!row) return;
-			if (!mapper) return row;
-			return mapper([row])[0];
-		}) as QueryEffectKind<TEffectHKT, T['get']>;
-	}
-
-	override values(placeholderValues: Record<string, unknown> = {}): QueryEffectKind<TEffectHKT, T['values']> {
-		return Effect.gen({ self: this }, function*() {
-			const { query, logger, executors } = this;
-			const sql = query._sql ? query._sql.join(' ') : query.sql;
-			const params = query.params.length === 0
-				? query.params
-				: fillPlaceholders(query.params, placeholderValues);
-
-			yield* logger.logQuery(sql, params);
-
-			return yield* this.mapQueryError(sql, params, Effect.suspend(() => executors.all(params)));
-		}) as QueryEffectKind<TEffectHKT, T['values']>;
-	}
-
-	override execute(placeholderValues?: Record<string, unknown>): QueryEffectKind<TEffectHKT, T['execute']> {
-		return this[this.executeMethod](placeholderValues) as QueryEffectKind<TEffectHKT, T['execute']>;
-	}
-
-	/** @internal */
-	protected mapQueryError<A, E, R>(
-		queryString: string,
-		params: any[],
-		query: Effect.Effect<A, E, R>,
-	) {
-		return query.pipe(
-			Effect.catch((e) =>
-				Effect.fail(
-					new EffectDrizzleQueryError({
-						query: queryString,
-						params: this.paramsInErrors ? params : undefined,
-						cause: Cause.fail(e),
-					}),
-				)
-			),
-		);
-	}
+export interface SQLiteEffectSession<
+	TRunResult,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+	// oxlint-disable-next-line no-unused-vars
+	TRelations extends AnyRelations = EmptyRelations,
+> {
+	run(query: SQL): QueryEffectKind<TEffectHKT, TRunResult>;
+	objects<T = unknown>(query: SQL): QueryEffectKind<TEffectHKT, T[]>;
+	object<T = unknown>(query: SQL): QueryEffectKind<TEffectHKT, T>;
+	arrays<T extends any[] = unknown[]>(query: SQL): QueryEffectKind<TEffectHKT, T[]>;
+	array<T extends any[] = unknown[]>(query: SQL): QueryEffectKind<TEffectHKT, T>;
 }
 
 export abstract class SQLiteEffectSession<
@@ -135,6 +82,11 @@ export abstract class SQLiteEffectSession<
 	TRelations extends AnyRelations = EmptyRelations,
 > extends SQLiteSession<TRunResult, TRelations> {
 	static override readonly [entityKind]: string = 'SQLiteEffectSession';
+
+	/** @internal */
+	override get runtime(): QueryRuntime {
+		return effectQueryRuntime;
+	}
 
 	declare readonly dialect: SQLiteDialect;
 
@@ -149,51 +101,6 @@ export abstract class SQLiteEffectSession<
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
 	): SQLiteEffectPreparedQuery<T, TEffectHKT>;
-
-	run(query: SQL): QueryEffectKind<TEffectHKT, TRunResult> {
-		return this.prepareQuery<PreparedQueryConfig & { type: unknown; run: TRunResult }>(
-			this.dialect.sqlToQuery(query),
-			'raw',
-			false,
-			'run',
-		).run() as QueryEffectKind<TEffectHKT, TRunResult>;
-	}
-
-	objects<T = unknown>(query: SQL): QueryEffectKind<TEffectHKT, T[]> {
-		return this.prepareQuery<PreparedQueryConfig & { type: unknown; all: T[] }>(
-			this.dialect.sqlToQuery(query),
-			'objects',
-			false,
-			'all',
-		).all() as QueryEffectKind<TEffectHKT, T[]>;
-	}
-
-	object<T = unknown>(query: SQL): QueryEffectKind<TEffectHKT, T> {
-		return this.prepareQuery<PreparedQueryConfig & { type: unknown; get: T }>(
-			this.dialect.sqlToQuery(query),
-			'objects',
-			false,
-			'get',
-		).get() as QueryEffectKind<TEffectHKT, T>;
-	}
-
-	arrays<T extends any[] = unknown[]>(query: SQL): QueryEffectKind<TEffectHKT, T[]> {
-		return this.prepareQuery<PreparedQueryConfig & { type: unknown; all: T[] }>(
-			this.dialect.sqlToQuery(query),
-			'arrays',
-			false,
-			'all',
-		).all() as QueryEffectKind<TEffectHKT, T[]>;
-	}
-
-	array<T extends any[] = unknown[]>(query: SQL): QueryEffectKind<TEffectHKT, T> {
-		return this.prepareQuery<PreparedQueryConfig & { type: unknown; get: T }>(
-			this.dialect.sqlToQuery(query),
-			'arrays',
-			false,
-			'get',
-		).get() as QueryEffectKind<TEffectHKT, T>;
-	}
 
 	abstract transaction<A, E, R>(
 		transaction: (

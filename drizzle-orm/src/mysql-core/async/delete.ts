@@ -2,9 +2,11 @@ import { entityKind } from '~/entity.ts';
 import { MySqlDeleteBase, type MySqlDeleteHKTBase } from '~/mysql-core/query-builders/delete.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
+import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
-import type { MySqlAsyncPreparedQuery, MySqlAsyncSession } from './session.ts';
+import { MySqlAsyncIterableQuery } from './iterable.ts';
+import type { MySqlAsyncPreparedQuery, MySqlAsyncRuntimeHKT, MySqlAsyncSession } from './session.ts';
 
 export type MySqlAsyncDelete<
 	TTable extends MySqlTable = MySqlTable,
@@ -21,6 +23,7 @@ export type MySqlAsyncDeletePrepare<T extends AnyMySqlAsyncDelete> = MySqlAsyncP
 export type AnyMySqlAsyncDelete = MySqlAsyncDeleteBase<any, any, any, any>;
 
 export interface MySqlAsyncDeleteHKT extends MySqlDeleteHKTBase {
+	runtime: MySqlAsyncRuntimeHKT;
 	_type: MySqlAsyncDeleteBase<
 		Assume<this['table'], MySqlTable>,
 		Assume<this['queryResult'], MySqlQueryResultHKT>,
@@ -37,7 +40,13 @@ export interface MySqlAsyncDeleteBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> {}
+> extends QueryPromise<MySqlQueryResultKind<TQueryResult, never>> {
+	/**
+	 * Runs the query and returns an async iterator over it's rows, with values for any `sql.placeholder()` it contains.
+	 * Streams rows when the driver supports it
+	 */
+	iterator(placeholderValues?: Record<string, unknown>): AsyncGenerator<never>;
+}
 
 export class MySqlAsyncDeleteBase<
 	TTable extends MySqlTable,
@@ -48,27 +57,6 @@ export class MySqlAsyncDeleteBase<
 	static override readonly [entityKind]: string = 'MySqlAsyncDelete';
 
 	declare protected session: MySqlAsyncSession<TQueryResult, any>;
-
-	prepare(): MySqlAsyncDeletePrepare<this> {
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
-			'raw',
-			undefined,
-		);
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	};
-
-	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
-		const self = this;
-		return async function*(placeholderValues) {
-			yield* self.prepare().iterator(placeholderValues);
-		};
-	};
-
-	iterator = this.createIterator();
 }
 
-applyMixins(MySqlAsyncDeleteBase, [QueryPromise]);
+applyMixins(MySqlAsyncDeleteBase, [QueryPromise, RunnableQueryMixin, MySqlAsyncIterableQuery]);

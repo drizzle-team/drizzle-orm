@@ -8,6 +8,7 @@ import type {
 	TablesRelationalConfig,
 } from '~/relations.ts';
 import { type Query, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import type { SQLitePreparedQuery } from '~/sqlite-core/session.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
@@ -176,5 +177,32 @@ export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TR
 
 	toSQL(): Query {
 		return this._toSQL().builtQuery;
+	}
+
+	/**
+	 * Prepares the query on the session, for every runtime. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(prepare = false): SQLitePreparedQuery {
+		const { query, builtQuery } = this._toSQL();
+
+		const mapper = this.mapper ??= this.dialect.mapperGenerators.relationalRows({
+			isFirst: this.mode === 'first',
+			parseJson: true,
+			parseJsonIfString: false,
+			rootJsonMappers: false,
+			selection: query.selection,
+			arrayModeRoot: true,
+		});
+
+		return this.session.prepareQuery(
+			builtQuery,
+			'arrays',
+			prepare,
+			// Do not use 'get' - mapper returns an item instead of an array, would break on session's destructuring; query itself is already limited to 1 item, so no performance overhead occurs.
+			'all',
+			mapper,
+		);
 	}
 }

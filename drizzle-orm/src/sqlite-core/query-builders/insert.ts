@@ -5,6 +5,7 @@ import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { IndexColumn } from '~/sqlite-core/indexes.ts';
+import type { SQLitePreparedQuery } from '~/sqlite-core/session.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -431,7 +432,7 @@ export class SQLiteInsertBase<
 	/**
 	 * Adds an `on conflict do nothing` clause to the query.
 	 *
-	 * Calling this method simply avoids inserting a row as its alternative action.
+	 * Calling this method simply avoids inserting a row as it's alternative action.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-conflict-do-nothing}
 	 *
@@ -468,7 +469,7 @@ export class SQLiteInsertBase<
 	/**
 	 * Adds an `on conflict do update` clause to the query.
 	 *
-	 * Calling this method will update the existing row that conflicts with the row proposed for insertion as its alternative action.
+	 * Calling this method will update the existing row that conflicts with the row proposed for insertion as it's alternative action.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#upserts-and-conflicts}
 	 *
@@ -530,5 +531,20 @@ export class SQLiteInsertBase<
 
 	$dynamic(): SQLiteInsertDynamic<this> {
 		return this as any;
+	}
+
+	/**
+	 * Prepares the query on the session, for every runtime. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(prepare = false): SQLitePreparedQuery {
+		return this.session.prepareQuery(
+			this.dialect.sqlToQuery(this.getSQL()),
+			'arrays',
+			prepare,
+			this.config.returning ? 'all' : 'run',
+			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
+		);
 	}
 }

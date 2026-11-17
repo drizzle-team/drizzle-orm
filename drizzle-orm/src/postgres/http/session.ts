@@ -22,7 +22,7 @@ export interface PostgresHttpRequestOptions {
 	 * Aborts a request that takes longer than this many milliseconds,
 	 * rejecting it with a `QUERY_TIMEOUT` error
 	 *
-	 * Applies to each request on its own: when queries are sent as separate requests, every one gets the full timeout
+	 * Applies to each request on it's own: when queries are sent as separate requests, every one gets the full timeout
 	 */
 	timeout?: number;
 	/** Aborts the in-flight request(s) when signalled */
@@ -140,7 +140,7 @@ export class PostgresHttpSession<
 	}
 
 	/**
-	 * Non-atomic: sends every query as its own concurrent request
+	 * Non-atomic: sends every query as it's own concurrent request
 	 *
 	 * Never throws on a query failure: resolves with one `PromiseSettledResult` per query, in input order
 	 */

@@ -1,48 +1,19 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { SQLWrapper } from '~/sql/sql.ts';
 import { applyMixins } from '~/utils.ts';
 import { PgRaw } from '../query-builders/raw.ts';
-import type { PgAsyncPreparedQuery } from './session.ts';
+import type { PgAsyncRuntimeHKT } from './session.ts';
 
-export interface PgAsyncRaw<TResult> extends QueryPromise<TResult>, RunnableQuery<TResult, 'pg'>, SQLWrapper {}
-export class PgAsyncRaw<TResult> extends PgRaw<TResult> implements RunnableQuery<TResult, 'pg'> {
+export interface PgAsyncRaw<TResult> extends QueryPromise<TResult>, SQLWrapper {}
+export class PgAsyncRaw<TResult> extends PgRaw<TResult, PgAsyncRuntimeHKT> implements RunnableQuery<TResult, 'pg'> {
 	static override readonly [entityKind]: string = 'PgAsyncRaw';
 
 	declare readonly _: {
 		readonly dialect: 'pg';
 		readonly result: TResult;
 	};
-
-	declare protected prepared: PgAsyncPreparedQuery<{
-		execute: TResult;
-	}>;
-
-	constructor(
-		prepared: PgAsyncPreparedQuery<{
-			execute: TResult;
-		}>,
-		sql: SQL,
-		query: Query,
-	) {
-		super(prepared, sql, query);
-	}
-
-	/**
-	 * Runs the query and returns a Promise of the result, with values for any `sql.placeholder()` it contains.
-	 *
-	 * Eager: the query is sent as soon as `execute` is called, whether or not the Promise is awaited. The builder
-	 * itself is lazy: awaiting it runs it the same way, and passing it to a batch runs it there instead.
-	 */
-	execute(placeholderValues?: Record<string, unknown>) {
-		return this.prepared.execute(placeholderValues);
-	}
-
-	/** @internal */
-	override _prepare() {
-		return this.prepared;
-	}
 }
 
 applyMixins(PgAsyncRaw, [QueryPromise]);

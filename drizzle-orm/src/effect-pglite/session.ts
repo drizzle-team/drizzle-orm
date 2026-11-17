@@ -9,6 +9,7 @@ import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { getTransactionConfigStatements } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -82,7 +83,7 @@ export class EffectPgSession<
 			);
 
 			if (config) {
-				for (const statement of tx.getTransactionConfigStatements(config)) {
+				for (const statement of getTransactionConfigStatements(dialect, config)) {
 					yield* this.client.unsafe(statement);
 				}
 			}

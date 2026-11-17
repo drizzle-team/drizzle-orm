@@ -4,8 +4,10 @@ import { entityKind } from '~/entity.ts';
 import { MySqlDeleteBase, type MySqlDeleteHKTBase } from '~/mysql-core/query-builders/delete.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
+import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
+import { applyMixins } from '~/utils.ts';
 import type { Assume } from '~/utils.ts';
-import type { MySqlEffectPreparedQuery, MySqlEffectSession } from './session.ts';
+import type { MySqlEffectPreparedQuery, MySqlEffectRuntimeHKT, MySqlEffectSession } from './session.ts';
 
 export type MySqlEffectDelete<
 	TTable extends MySqlTable = MySqlTable,
@@ -29,6 +31,7 @@ export type AnyMySqlEffectDelete = MySqlEffectDeleteBase<any, any, any, any, any
 export interface MySqlEffectDeleteHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
 	extends MySqlDeleteHKTBase
 {
+	runtime: MySqlEffectRuntimeHKT<TEffectHKT>;
 	_type: MySqlEffectDeleteBase<
 		Assume<this['table'], MySqlTable>,
 		Assume<this['queryResult'], MySqlQueryResultHKT>,
@@ -59,18 +62,7 @@ export class MySqlEffectDeleteBase<
 	static override readonly [entityKind]: string = 'MySqlEffectDelete';
 
 	declare protected session: MySqlEffectSession<TEffectHKT, TQueryResult, any>;
-
-	prepare(): MySqlEffectDeletePrepare<this, TEffectHKT> {
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
-			'raw',
-			undefined,
-		) as MySqlEffectDeletePrepare<this, TEffectHKT>;
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	};
 }
 
+applyMixins(MySqlEffectDeleteBase, [RunnableQueryMixin]);
 applyEffectWrapper(MySqlEffectDeleteBase);

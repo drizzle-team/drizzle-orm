@@ -4,13 +4,16 @@ import { entityKind } from '~/entity.ts';
 import { MySqlInsertBase, type MySqlInsertHKTBase } from '~/mysql-core/query-builders/insert.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
+import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { applyMixins } from '~/utils.ts';
 import type { Assume } from '~/utils.ts';
-import type { MySqlEffectPreparedQuery, MySqlEffectSession } from './session.ts';
+import type { MySqlEffectPreparedQuery, MySqlEffectRuntimeHKT, MySqlEffectSession } from './session.ts';
 
 export interface MySqlEffectInsertHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
 	extends MySqlInsertHKTBase
 {
+	runtime: MySqlEffectRuntimeHKT<TEffectHKT>;
 	_type: MySqlEffectInsertBase<
 		Assume<this['table'], MySqlTable>,
 		Assume<this['queryResult'], MySqlQueryResultHKT>,
@@ -80,24 +83,7 @@ export class MySqlEffectInsertBase<
 	static override readonly [entityKind]: string = 'MySqlEffectInsert';
 
 	declare protected session: MySqlEffectSession<TEffectHKT, TQueryResult, any>;
-
-	/** @internal */
-	_prepare(): MySqlEffectInsertPrepare<this, TReturning, TEffectHKT> {
-		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config);
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(sql),
-			'raw',
-			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
-		) as MySqlEffectInsertPrepare<this, TReturning, TEffectHKT>;
-	}
-
-	prepare(): MySqlEffectInsertPrepare<this, TReturning, TEffectHKT> {
-		return this._prepare();
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	};
 }
 
+applyMixins(MySqlEffectInsertBase, [RunnableQueryMixin]);
 applyEffectWrapper(MySqlEffectInsertBase);

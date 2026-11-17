@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type {
 	BuildSubquerySelection,
 	JoinNullability,
@@ -7,12 +8,11 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { tracer } from '~/tracing.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
-import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
+import type { PgAsyncPreparedQuery, PgAsyncRuntimeHKT, PgAsyncSession } from './session.ts';
 
 export type PgAsyncSelectPrepare<T extends AnyPgAsyncSelect> = PgAsyncPreparedQuery<
 	PreparedQueryConfig & {
@@ -39,6 +39,7 @@ export type PgAsyncSelect<
 >;
 
 export interface PgAsyncSelectHKT extends PgSelectHKTBase {
+	runtime: PgAsyncRuntimeHKT;
 	_type: PgAsyncSelectBase<
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
@@ -98,38 +99,8 @@ export class PgAsyncSelectBase<
 	static override readonly [entityKind]: string = 'PgAsyncSelectQueryBuilder';
 
 	declare protected session: PgAsyncSession;
-
-	/** @internal */
-	override _prepare(name?: string, generateName = false): PgAsyncSelectPrepare<this> {
-		return super._prepare(name, generateName) as PgAsyncSelectPrepare<this>;
-	}
-
-	/**
-	 * Create a prepared statement for this query. This allows
-	 * the database to remember this query for the given session
-	 * and call it by name, rather than specifying the full query.
-	 *
-	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
-	 */
-	prepare(
-		name?: string,
-	): PgAsyncSelectPrepare<this> {
-		return this._prepare(name, true);
-	}
-
-	/**
-	 * Runs the query and returns a Promise of the result, with values for any `sql.placeholder()` it contains.
-	 *
-	 * Eager: the query is sent as soon as `execute` is called, whether or not the Promise is awaited. The builder
-	 * itself is lazy: awaiting it runs it the same way, and passing it to a batch runs it there instead.
-	 */
-	execute(placeholderValues?: Record<string, unknown>) {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
-		});
-	}
 }
 
-applyMixins(PgAsyncSelectBase, [QueryPromise]);
+applyMixins(PgAsyncSelectBase, [QueryPromise, RunnableQueryMixin]);
 
 export type AnyPgAsyncSelect = PgAsyncSelectBase<any, any, any, any, any, any, any, any>;

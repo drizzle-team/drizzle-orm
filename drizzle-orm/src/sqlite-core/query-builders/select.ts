@@ -15,12 +15,20 @@ import { SQL } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLitePreparedQuery } from '~/sqlite-core/session.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
+import {
+	getTableColumns,
+	getTableLikeName,
+	haveSameKeys,
+	orderSelectedFields,
+	resolveNullableObjectPaths,
+	type ValueOrArray,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
 import { SQLiteViewBase } from '../view-base.ts';
@@ -840,6 +848,23 @@ export class SQLiteSelectBase<
 
 	$dynamic(): SQLiteSelectDynamic<this> {
 		return this;
+	}
+
+	/**
+	 * Prepares the query on the session, for every runtime. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(prepare = false): SQLitePreparedQuery {
+		// Build query before accessing `fieldsFlat` - build mutates it
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		const fieldsList = this.config.fieldsFlat!;
+		const mapper = this.config.mapper ??= this.dialect.mapperGenerators.rows(
+			fieldsList,
+			resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap),
+		);
+
+		return this.session!.prepareQuery(query, 'arrays', prepare, 'all', mapper);
 	}
 }
 

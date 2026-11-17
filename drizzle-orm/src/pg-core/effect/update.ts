@@ -3,14 +3,15 @@ import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
+import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type { JoinNullability } from '~/query-builders/select.types.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import type { Assume } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import type { PgViewBase } from '../view-base.ts';
-import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
+import type { PgEffectPreparedQuery, PgEffectRuntimeHKT, PgEffectSession } from './session.ts';
 
 export type PgEffectUpdatePrepare<
 	T extends AnyPgEffectUpdate,
@@ -46,6 +47,7 @@ export type PgEffectUpdate<
 >;
 
 export interface PgEffectUpdateHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgUpdateHKTBase {
+	runtime: PgEffectRuntimeHKT<TEffectHKT>;
 	_type: PgEffectUpdateBase<
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
@@ -85,7 +87,8 @@ export interface PgEffectUpdateBase<
 		TEffectHKT['error'],
 		TEffectHKT['context']
 	>
-{}
+{
+}
 
 export class PgEffectUpdateBase<
 	TTable extends PgTable,
@@ -113,19 +116,7 @@ export class PgEffectUpdateBase<
 	static override readonly [entityKind]: string = 'PgEffectUpdate';
 
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
-
-	/** @internal */
-	override _prepare(name?: string, generateName = false): PgEffectUpdatePrepare<this, TEffectHKT> {
-		return super._prepare(name, generateName) as PgEffectUpdatePrepare<this, TEffectHKT>;
-	}
-
-	prepare(name?: string): PgEffectUpdatePrepare<this, TEffectHKT> {
-		return this._prepare(name, true);
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues: Record<string, unknown> = {}) => {
-		return this._prepare().execute(placeholderValues);
-	};
 }
 
+applyMixins(PgEffectUpdateBase, [RunnableQueryMixin]);
 applyEffectWrapper(PgEffectUpdateBase);
