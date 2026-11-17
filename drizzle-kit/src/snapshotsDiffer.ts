@@ -45,7 +45,9 @@ import {
 	JsonDropPolicyStatement,
 	JsonDropViewStatement,
 	JsonEnableRLSStatement,
+	JsonForceRLSStatement,
 	JsonIndRenamePolicyStatement,
+	JsonNoForceRLSStatement,
 	JsonReferenceStatement,
 	JsonRenameColumnStatement,
 	JsonRenamePolicyStatement,
@@ -269,6 +271,7 @@ const tableScheme = object({
 	policies: record(string(), string()).default({}),
 	checkConstraints: record(string(), string()).default({}),
 	isRLSEnabled: boolean().default(false),
+	isForceRLSEnabled: boolean().default(false),
 }).strict();
 
 export const alteredTableScheme = object({
@@ -1413,6 +1416,9 @@ export const applyPgSnapshotsDiff = async (
 	const jsonEnableRLSStatements: JsonEnableRLSStatement[] = [];
 	const jsonDisableRLSStatements: JsonDisableRLSStatement[] = [];
 
+	const jsonForceRLSStatements: JsonForceRLSStatement[] = [];
+	const jsonNoForceRLSStatements: JsonNoForceRLSStatement[] = [];
+
 	for (let it of indPolicyRenames) {
 		jsonRenameIndPoliciesStatements.push(
 			...prepareRenameIndPolicyJsons([it]),
@@ -1604,6 +1610,16 @@ export const applyPgSnapshotsDiff = async (
 				) {
 					// was force disabled
 					jsonDisableRLSStatements.push({ type: 'disable_rls', tableName: table.name, schema: table.schema });
+				}
+			}
+
+			// handle table.isForceRLSEnabled
+			const wasForceRlsEnabled = tableInPreviousState ? tableInPreviousState.isForceRLSEnabled : false;
+			if (table.isForceRLSEnabled !== wasForceRlsEnabled) {
+				if (table.isForceRLSEnabled) {
+					jsonForceRLSStatements.push({ type: 'force_rls', tableName: table.name, schema: table.schema });
+				} else {
+					jsonNoForceRLSStatements.push({ type: 'no_force_rls', tableName: table.name, schema: table.schema });
 				}
 			}
 		}
@@ -1966,6 +1982,8 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonEnableRLSStatements);
 	jsonStatements.push(...jsonDisableRLSStatements);
+	jsonStatements.push(...jsonForceRLSStatements);
+	jsonStatements.push(...jsonNoForceRLSStatements);
 	jsonStatements.push(...dropViews);
 	jsonStatements.push(...renameViews);
 	jsonStatements.push(...alterViews);

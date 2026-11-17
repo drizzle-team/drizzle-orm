@@ -93,7 +93,14 @@ export const updateUpToV7 = (json: Record<string, any>): PgSchema => {
 					return [idx[0], { columns: mappedColumns, with: {}, ...rest }];
 				}),
 			);
-			return [it[0], { ...table, indexes: mappedIndexes, policies: {}, isRLSEnabled: false, checkConstraints: {} }];
+			return [it[0], {
+				...table,
+				indexes: mappedIndexes,
+				policies: {},
+				isRLSEnabled: false,
+				isForceRLSEnabled: false,
+				checkConstraints: {},
+			}];
 		}),
 	);
 
