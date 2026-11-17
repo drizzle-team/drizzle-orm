@@ -1,9 +1,9 @@
 import retry from 'async-retry';
-import { sql } from 'drizzle-orm';
+import { sql, TransactionClosedError } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
+import { integer, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { Client } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
@@ -489,4 +489,88 @@ test('insert via db.execute w/ query builder', async () => {
 			.returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
+});
+
+test('transaction handle cannot be used after commit', async () => {
+	const users = pgTable('users_tx_handle_commit', {
+		id: serial('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table users_tx_handle_commit (id serial not null primary key, balance integer not null)`);
+
+	let leakedTx: any;
+
+	await db.transaction(async (tx) => {
+		leakedTx = tx;
+		await tx.insert(users).values({ balance: 100 });
+	});
+
+	await expect(leakedTx.insert(users).values({ balance: 200 })).rejects.toThrowError(TransactionClosedError);
+	await expect(leakedTx.select().from(users)).rejects.toThrowError(TransactionClosedError);
+	await expect(leakedTx.execute(sql`select 1`)).rejects.toThrowError(TransactionClosedError);
+
+	const result = await db.select().from(users);
+	expect(result).toEqual([{ id: 1, balance: 100 }]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test('transaction handle cannot be used after rollback', async () => {
+	const users = pgTable('users_tx_handle_rollback', {
+		id: serial('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(
+		sql`create table users_tx_handle_rollback (id serial not null primary key, balance integer not null)`,
+	);
+
+	let leakedTx: any;
+
+	await expect((async () => {
+		await db.transaction(async (tx) => {
+			leakedTx = tx;
+			await tx.insert(users).values({ balance: 100 });
+			throw new Error('rollback');
+		});
+	})()).rejects.toThrowError('rollback');
+
+	await expect(leakedTx.insert(users).values({ balance: 200 })).rejects.toThrowError(TransactionClosedError);
+
+	const result = await db.select().from(users);
+	expect(result).toEqual([]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
+test('root db is not affected by a finished transaction', async () => {
+	const users = pgTable('users_tx_root_session', {
+		id: serial('id').primaryKey(),
+		balance: integer('balance').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table users_tx_root_session (id serial not null primary key, balance integer not null)`);
+
+	await db.transaction(async (tx) => {
+		await tx.insert(users).values({ balance: 100 });
+	});
+
+	await db.insert(users).values({ balance: 200 });
+
+	await db.transaction(async (tx) => {
+		await tx.insert(users).values({ balance: 300 });
+	});
+
+	const result = await db.select().from(users);
+	expect(result).toEqual([
+		{ id: 1, balance: 100 },
+		{ id: 2, balance: 200 },
+		{ id: 3, balance: 300 },
+	]);
+
+	await db.execute(sql`drop table ${users}`);
 });

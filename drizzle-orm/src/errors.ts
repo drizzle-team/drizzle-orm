@@ -31,3 +31,11 @@ export class TransactionRollbackError extends DrizzleError {
 		super({ message: 'Rollback' });
 	}
 }
+
+export class TransactionClosedError extends DrizzleError {
+	static override readonly [entityKind]: string = 'TransactionClosedError';
+
+	constructor() {
+		super({ message: 'Cannot execute a query on a transaction that has already been committed or rolled back.' });
+	}
+}
