@@ -3,7 +3,14 @@ import { readFileSync } from 'fs';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import { type PostgresSchemaState, snapshotValidator } from 'src/dialects/postgres/snapshot';
 import { latestVersion } from 'src/dialects/postgres/versions';
-import { generateDrizzleJson, generateMigration, reconstruct, up } from 'src/ext/api-postgres';
+import {
+	generateDrizzleJson,
+	generateMigration,
+	generateMigrationSnapshot,
+	reconstruct,
+	up,
+	upFolder,
+} from 'src/ext/api-postgres';
 import { expect, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
 import {
@@ -20,7 +27,9 @@ import {
 // a schema state, and `generateMigration` gives the SQL between two states of format 5, 7, 8 or 9 and rejects a
 // diff snapshot. `up` converts one saved state of an older format. `reconstruct` rebuilds the state of a snapshot
 // from the snapshot files of a migrations folder, and its errors have the same messages as the CLI commands.
-// The tests write these folders with the real `generate` command in temporary directories.
+// `generateMigrationSnapshot` creates the snapshot of one migration, and `upFolder` converts a folder of full
+// states to base and diff snapshots. The tests write these folders with the real `generate` command in temporary
+// directories.
 
 const users = pgTable('users', { id: integer() });
 const likes = pgTable('likes', { id: integer() });
@@ -402,5 +411,92 @@ test('reconstruct asks to run up for a format 9 snapshot', async () => {
 
 	await expect(reconstruct(files)).rejects.toThrow(
 		'20250101000000_init is not of the latest version, please run "drizzle-kit up"',
+	);
+});
+
+test('reconstruct asks to convert a folder of full states', async () => {
+	const files = { '20250101000000_init': await generateDrizzleJson(v1) };
+
+	await expect(reconstruct(files)).rejects.toThrow(
+		'Snapshot 20250101000000_init is a full state without a `type`, such as a result of generateDrizzleJson. '
+			+ 'Convert the folder with upFolder, or create each snapshot with generateMigrationSnapshot.',
+	);
+});
+
+// The snapshots replace the ones that the CLI wrote, so `check` and the next `generate` read a folder that
+// Payload CMS writes with the programmatic API.
+test('generateMigrationSnapshot creates a base and a diff snapshot that the CLI accepts', async () => {
+	const flow = createFolderFlow();
+	const first = await flow.generate('main', v1);
+	const second = await flow.generate('main', v2);
+
+	const base = await generateMigrationSnapshot(undefined, await generateDrizzleJson(v1));
+	const prev = await reconstruct({ [first.folder]: base.snapshot });
+	const diff = await generateMigrationSnapshot(prev, await generateDrizzleJson(v2));
+	flow.overwriteSnapshot('main', first.folder, JSON.stringify(base.snapshot));
+	flow.overwriteSnapshot('main', second.folder, JSON.stringify(diff.snapshot));
+
+	expect(base.sqlStatements).toStrictEqual(['CREATE TABLE "users" (\n\t"id" integer\n);\n']);
+	expect(base.snapshot).toMatchObject({ type: 'base', version: latestVersion, prevIds: [ORIGIN] });
+	expect(diff.sqlStatements).toStrictEqual(addEmail);
+	expect(diff.snapshot).toMatchObject({ type: 'diff', version: latestVersion, prevIds: [base.snapshot.id] });
+	expect(diff.snapshot.footprints).not.toHaveLength(0);
+	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+	const third = await flow.generate('main', v3);
+	expect(flow.sql('main', third.folder)).toBe('ALTER TABLE "users" ADD COLUMN "age" integer;');
+});
+
+// Payload CMS saved a full state for each migration: format 7 with drizzle-kit 0.x, format 9 with 1.0.0-rc.5,
+// and the latest format after that. The states do not list each other as parents.
+test('upFolder converts a folder of full states of any format, and keeps a converted folder as it is', async () => {
+	const files = {
+		'20250101000000_a': oldSnapshot('format-7/meta/0000_snapshot.json'),
+		'20250102000000_b': oldSnapshot('format-7/meta/0001_snapshot.json'),
+		'20250103000000_c': oldSnapshot('format-9-state.json'),
+		'20250104000000_d': JSON.parse(JSON.stringify(await generateDrizzleJson(v3))),
+	};
+
+	const converted = await upFolder(files);
+
+	const snapshots = Object.values(converted);
+	expect(snapshots.map((it) => it.type)).toStrictEqual(['base', 'diff', 'diff', 'diff']);
+	expect(snapshots.slice(1).map((it) => it.prevIds)).toStrictEqual(snapshots.slice(0, -1).map((it) => [it.id]));
+	for (const [folder, file] of Object.entries(files)) {
+		expect(snapshotValidator.parse(converted[folder]).success).toBe(true);
+		const state = await reconstruct(converted, converted[folder].id);
+		expect(normalizeDDL(state.ddl)).toStrictEqual(normalizeDDL(up(file).snapshot.ddl));
+	}
+	expect(await upFolder(JSON.parse(JSON.stringify(converted)))).toStrictEqual(converted);
+});
+
+// Payload CMS keeps the full states of its older migrations and creates the snapshots of new migrations with
+// generateMigrationSnapshot, which takes the last full state as `prev`.
+test('upFolder converts the full states before a diff snapshot and keeps that diff snapshot', async () => {
+	const first = await generateDrizzleJson(v1);
+	const second = await generateDrizzleJson(v2);
+	const { snapshot } = await generateMigrationSnapshot(second, await generateDrizzleJson(v3));
+
+	const converted = await upFolder({
+		'20250101000000_a': first,
+		'20250102000000_b': second,
+		'20250103000000_c': snapshot,
+	});
+
+	expect(converted['20250103000000_c']).toStrictEqual(snapshot);
+	expect(normalizeDDL((await reconstruct(converted)).ddl)).toStrictEqual(schemaState(v3));
+});
+
+test('upFolder rejects a file that is not an object, a malformed snapshot and two snapshots with one id', async () => {
+	const state = await generateDrizzleJson(v1);
+	const broken = { type: 'diff', version: latestVersion, dialect: 'postgres', id: 'd1', prevIds: [ORIGIN] };
+
+	await expect(upFolder({ '20250101000000_a': 'text' })).rejects.toThrow(
+		'Snapshot 20250101000000_a is not a JSON object. Pass the parsed JSON of its snapshot.json.',
+	);
+	await expect(upFolder({ '20250101000000_a': broken })).rejects.toThrow(
+		'Snapshot 20250101000000_a is malformed. Restore it from git, or pass a full state in its place.',
+	);
+	await expect(upFolder({ '20250101000000_a': state, '20250102000000_b': state })).rejects.toThrow(
+		`Snapshots 20250101000000_a and 20250102000000_b have the same id ${state.id}. Give each snapshot its own id.`,
 	);
 });

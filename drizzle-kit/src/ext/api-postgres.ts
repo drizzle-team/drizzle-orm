@@ -1,7 +1,7 @@
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
-import type { Hint } from '../cli/hints';
+import type { Hint, HintsHandler } from '../cli/hints';
 import type { EntitiesFilterConfig } from '../cli/validations/common';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import type {
@@ -11,6 +11,7 @@ import type {
 	ForeignKey,
 	Index,
 	Policy,
+	PostgresDDL,
 	PostgresEntities,
 	PostgresEntity,
 	PrimaryKey,
@@ -20,9 +21,16 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../dialects/postgres/ddl';
-import { fromEntities, interimToDDL } from '../dialects/postgres/ddl';
-import type { PostgresBaseSnapshot, PostgresBaseSnapshotV9, PostgresSchemaState } from '../dialects/postgres/snapshot';
-import { isSnapshotV8, latestVersion, upToV10, upToV8 } from '../dialects/postgres/versions';
+import { createDDL, fromEntities, interimToDDL } from '../dialects/postgres/ddl';
+import type {
+	AnyDeltaPostgresSnapshot,
+	PostgresBaseSnapshot,
+	PostgresBaseSnapshotV9,
+	PostgresSchemaState,
+	PostgresSnapshot,
+	PostgresSnapshotV8,
+} from '../dialects/postgres/snapshot';
+import { isDeltaSnapshot, isSnapshotV8, latestVersion, upToV10, upToV8 } from '../dialects/postgres/versions';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
 
@@ -79,6 +87,34 @@ export const generateDrizzleJson = async (
 	return schemaState(randomUUID(), prevId ? [prevId] : [], ddl.entities.list());
 };
 
+// `ddlDiff` changes `from` and `to`. After the call, `to` has the names of auto-named constraints that the SQL
+// leaves in the database.
+const diffStates = async (from: PostgresDDL, to: PostgresDDL, hints: HintsHandler) => {
+	const { resolver } = await import('../cli/prompts');
+	const { ddlDiff } = await import('../dialects/postgres/diff');
+
+	const result = await ddlDiff(
+		from,
+		to,
+		resolver<Schema>('schema', hints),
+		resolver<Enum>('enum', hints),
+		resolver<Sequence>('sequence', hints),
+		resolver<Policy>('policy', hints),
+		resolver<Role>('role', hints),
+		resolver<PostgresEntities['tables']>('table', hints),
+		resolver<Column>('column', hints),
+		resolver<View>('view', hints),
+		resolver<UniqueConstraint>('unique', hints),
+		resolver<Index>('index', hints),
+		resolver<CheckConstraint>('check', hints),
+		resolver<PrimaryKey>('primary_key', hints),
+		resolver<ForeignKey>('foreign key', hints),
+		'default',
+	);
+	hints.throwIfMissingHints();
+	return result;
+};
+
 // Returns the SQL statements that turn `prev` into `cur`. Each argument is a schema state or a full state of an
 // older format. Only the rows of each state are read, so `cur` does not have to list `prev` as a parent.
 export const generateMigration = async (
@@ -86,32 +122,46 @@ export const generateMigration = async (
 	cur: PostgresSchemaState | Record<string, any>,
 	options?: { hints?: Hint[] },
 ) => {
-	const { resolver } = await import('../cli/prompts');
-	const { ddlDiff } = await import('../dialects/postgres/diff');
 	const { runWithApiHints } = await import('../cli/hints');
 
 	return runWithApiHints(options?.hints ?? [], async (hints) => {
-		const { sqlStatements } = await ddlDiff(
+		const { sqlStatements } = await diffStates(
 			fromEntities(up(prev).snapshot.ddl),
 			fromEntities(up(cur).snapshot.ddl),
-			resolver<Schema>('schema', hints),
-			resolver<Enum>('enum', hints),
-			resolver<Sequence>('sequence', hints),
-			resolver<Policy>('policy', hints),
-			resolver<Role>('role', hints),
-			resolver<PostgresEntities['tables']>('table', hints),
-			resolver<Column>('column', hints),
-			resolver<View>('view', hints),
-			resolver<UniqueConstraint>('unique', hints),
-			resolver<Index>('index', hints),
-			resolver<CheckConstraint>('check', hints),
-			resolver<PrimaryKey>('primary_key', hints),
-			resolver<ForeignKey>('foreign key', hints),
-			'default',
+			hints,
 		);
-		hints.throwIfMissingHints();
-
 		return sqlStatements;
+	});
+};
+
+// Returns the SQL statements that turn `prev` into `cur`, and the snapshot that the migration folder stores for
+// them. If `prev` is not given, the snapshot is the base snapshot of `cur`. Otherwise it is a diff snapshot with
+// `prev` as its parent. `prev` is the state of the last migration, for example the result of `reconstruct`. Each
+// argument can also be a full state of an older format.
+export const generateMigrationSnapshot = async (
+	prev: PostgresSchemaState | Record<string, any> | null | undefined,
+	cur: PostgresSchemaState | Record<string, any>,
+	options?: { hints?: Hint[] },
+): Promise<{ sqlStatements: string[]; snapshot: PostgresSnapshot }> => {
+	const { randomUUID } = await import('crypto');
+	const { runWithApiHints } = await import('../cli/hints');
+	const { footprintsOf } = await import('../dialects/postgres/commutativity');
+
+	const parent = prev ? up(prev).snapshot : undefined;
+	const to = fromEntities(up(cur).snapshot.ddl);
+
+	return runWithApiHints(options?.hints ?? [], async (hints) => {
+		const { sqlStatements, groupedStatements, deltas } = await diffStates(
+			parent ? fromEntities(parent.ddl) : createDDL(),
+			to,
+			hints,
+		);
+		const header = { version: latestVersion, dialect: 'postgres', id: randomUUID() } as const;
+		const footprints = footprintsOf(groupedStatements);
+		const snapshot: PostgresSnapshot = parent
+			? { type: 'diff', ...header, prevIds: [parent.id], footprints, deltas }
+			: { type: 'base', ...header, prevIds: [originUUID], footprints, ddl: to.entities.list() };
+		return { sqlStatements, snapshot };
 	});
 };
 
@@ -302,6 +352,14 @@ export const reconstruct = async (files: Record<string, unknown>, id?: string): 
 
 	// `entries` are sorted by folder name, because a merge applies the rest of its history in that order.
 	const entries = Object.keys(files).sort().map((folder) => ({ folder, path: folder, raw: files[folder] }));
+	// A format 8 file has no `type` too, and the status check asks to run `drizzle-kit up` for it.
+	const fullState = entries.find(({ raw }) => isFullState(raw) && Number(raw.version) >= 9);
+	if (fullState) {
+		throw new Error(
+			`Snapshot ${fullState.folder} is a full state without a \`type\`, such as a result of generateDrizzleJson. `
+				+ 'Convert the folder with upFolder, or create each snapshot with generateMigrationSnapshot.',
+		);
+	}
 	assertHistory(entries);
 	const migrations = loadFolder(validFiles(entries));
 
@@ -321,6 +379,46 @@ export const reconstruct = async (files: Record<string, unknown>, id?: string): 
 
 	const state = stateOf(migrations, id);
 	return schemaState(id, migrations.snapshots.get(id)!.prevIds, state.entities.list());
+};
+
+const isFullState = (raw: unknown): raw is Record<string, any> =>
+	typeof raw === 'object' && raw !== null && !('type' in raw);
+
+// Converts a migrations folder to base and diff snapshots of the latest format, and returns each snapshot under
+// its folder name. `files` maps each migration folder name to the parsed JSON of its snapshot.json. A full state of
+// any format, such as a result of generateDrizzleJson, gets the snapshot of the folder before it as its parent. A
+// base or a diff snapshot keeps its parents. A full state does not store renames, so the diff snapshot stores a
+// rename between two full states as a drop and a create. The reconstructed states are equal to the full states.
+export const upFolder = async (files: Record<string, unknown>): Promise<Record<string, PostgresSnapshot>> => {
+	const { upToV9 } = await import('../dialects/postgres/versions-v9');
+
+	const folders = Object.keys(files).sort();
+	const folderOfId = new Map<string, string>();
+	let parentId = originUUID;
+	const converted = folders.map((folder) => {
+		const raw = files[folder];
+		if (typeof raw !== 'object' || raw === null) {
+			throw new Error(`Snapshot ${folder} is not a JSON object. Pass the parsed JSON of its snapshot.json.`);
+		}
+		const snapshot = isFullState(raw)
+			? { ...up(raw).snapshot, version: '8' as const, prevIds: [parentId], renames: [] }
+			: raw as PostgresSnapshotV8 | AnyDeltaPostgresSnapshot;
+		if (snapshot.version !== '8' && !isDeltaSnapshot(snapshot)) {
+			throw new Error(`Snapshot ${folder} is malformed. Restore it from git, or pass a full state in its place.`);
+		}
+		const other = folderOfId.get(snapshot.id);
+		if (other) {
+			throw new Error(
+				`Snapshots ${other} and ${folder} have the same id ${snapshot.id}. Give each snapshot its own id.`,
+			);
+		}
+		folderOfId.set(snapshot.id, folder);
+		parentId = snapshot.id;
+		return { folder, snapshot };
+	});
+
+	const latest = upToV10(await upToV9(converted));
+	return Object.fromEntries(folders.map((folder, i) => [folder, latest[i]]));
 };
 
 export type { MissingHintsError } from '../cli/errors';
