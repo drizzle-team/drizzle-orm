@@ -13,7 +13,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
-import { pgRawTextOids } from '~/pg-core/codecs.ts';
+import { pgRawTextTypeParser } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
@@ -21,12 +21,10 @@ import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
-const rawText = (value: string) => value;
-
 export const neonServerlessRawTextTypes: CustomTypesConfig = {
-	getTypeParser:
-		<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
-			pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format as any)),
+	getTypeParser: <CustomTypesConfig['getTypeParser']> pgRawTextTypeParser((typeId, format) =>
+		types.getTypeParser(typeId, format)
+	),
 };
 
 export type NeonClient = Pool | PoolClient | Client;

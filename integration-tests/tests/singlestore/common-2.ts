@@ -2765,6 +2765,18 @@ export function tests(test: Test) {
 			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
 		});
 
+		// SingleStore accepts `offset` only after `limit`, so an offset alone has to reach the database with a limit
+		test.concurrent('pagination: offset without limit', async ({ db, push }) => {
+			const items = singlestoreTable('pagination_5', { id: int('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(5)).toStrictEqual([]);
+		});
+
 		test.concurrent('pagination: set operations', async ({ db, push }) => {
 			const items = singlestoreTable('pagination_4', { id: int('id').primaryKey() });
 			await push({ items });

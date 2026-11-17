@@ -12,7 +12,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, type PgAsyncTransaction } from '~/pg-core/async/session.ts';
-import { pgRawTextOids } from '~/pg-core/codecs.ts';
+import { pgRawTextTypeParser } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -20,8 +20,6 @@ import type { Query } from '~/sql/sql.ts';
 import type { NeonAuthToken } from '~/utils.ts';
 
 export type NeonHttpClient = NeonQueryFunction<any, any>;
-
-const rawText = (value: string) => value;
 
 /**
  * Per-query `types` returning `pgRawTextOids` as text for codecs to decode, other types through the client's default
@@ -32,9 +30,9 @@ const rawText = (value: string) => value;
  */
 export const neonHttpRawTextTypes: {} = {
 	types: {
-		getTypeParser:
-			<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
-				pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format as any)),
+		getTypeParser: <CustomTypesConfig['getTypeParser']> pgRawTextTypeParser((typeId, format) =>
+			types.getTypeParser(typeId, format)
+		),
 	} satisfies CustomTypesConfig,
 };
 

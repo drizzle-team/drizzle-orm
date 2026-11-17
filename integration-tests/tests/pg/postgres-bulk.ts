@@ -214,8 +214,13 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 	};
 
 	describe(`bulk (${variant.name})`, () => {
+		// `bulkInsert` always sends multi-row `values` statements. It is the only kind of insert that can leave a single
+		// cell to its database default: an `unnest` over arrays sends every column for every row, so a missing cell
+		// would arrive as NULL and override the default. One kind of statement for every call also means that rows
+		// are not inspected to choose between two paths that behave differently. The driver still has an `unnest`
+		// path (`defaults: false`); these tests fail if `bulkInsert` ever takes it.
 		describe('bulkInsert paths', () => {
-			test.concurrent('unnest: single chunk', async ({ kit, push, onTestFinished }) => {
+			test.concurrent('every row sets the same columns: single chunk', async ({ kit, push, onTestFinished }) => {
 				const users = pgTable(`${p}_ins_unnest`, {
 					id: integer().primaryKey(),
 					name: text().notNull(),
@@ -229,7 +234,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 				});
 
 				expect(res).toMatchObject({ rowCount: 2, command: 'INSERT' });
-				expect(insertPaths()).toStrictEqual(['unnest']);
+				expect(insertPaths()).toStrictEqual(['values']);
 				expect(insertColumns()).toStrictEqual([{ id: 'int4', name: 'text', note: 'text' }]);
 				expect(chunks).toStrictEqual([1]);
 				expect(await db.select().from(users).orderBy(users.id)).toStrictEqual([
@@ -238,7 +243,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 				]);
 			});
 
-			test.concurrent('unnest: atomic chunks', async ({ kit, push, onTestFinished }) => {
+			test.concurrent('every row sets the same columns: atomic chunks', async ({ kit, push, onTestFinished }) => {
 				const users = pgTable(`${p}_ins_unnest_atomic`, { id: integer().primaryKey(), name: text().notNull() });
 				const { db, insertPaths } = await setup({ kit, push, onTestFinished }, { users });
 
@@ -250,7 +255,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 				});
 
 				expect(res.rowCount).toBe(5);
-				expect(insertPaths()).toStrictEqual(['unnest']);
+				expect(insertPaths()).toStrictEqual(['values']);
 				expect(progress).toStrictEqual([[1, 3], [2, 3], [3, 3]]);
 				expect(await db.select().from(users).orderBy(users.id)).toStrictEqual(rows);
 
@@ -262,7 +267,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 				expect(await db.$count(users)).toBe(5);
 			});
 
-			test.concurrent('unnest: non-atomic chunks', async ({ kit, push, onTestFinished }) => {
+			test.concurrent('every row sets the same columns: non-atomic chunks', async ({ kit, push, onTestFinished }) => {
 				const users = pgTable(`${p}_ins_unnest_nonatomic`, { id: integer().primaryKey(), name: text().notNull() });
 				const { db, insertPaths } = await setup({ kit, push, onTestFinished }, { users });
 
@@ -270,7 +275,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 				rows[4]!.id = 1;
 				const error = await rejection(db.bulkInsert(users, rows, { chunk: 2, atomic: false }));
 
-				expect(insertPaths()).toStrictEqual(['unnest']);
+				expect(insertPaths()).toStrictEqual(['values']);
 				expect(error).toMatchObject({ code: '23505', insertedRows: 4 });
 				expect((await db.select({ id: users.id }).from(users).orderBy(users.id)).map(({ id }) => id))
 					.toStrictEqual([1, 2, 3, 4]);
@@ -545,7 +550,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 
 				await db.bulkInsert(users, [{ id: 1 }, { id: 2 }]);
 
-				expect(insertPaths()).toStrictEqual(['unnest']);
+				expect(insertPaths()).toStrictEqual(['values']);
 				expect(Object.keys(insertColumns()[0])).toStrictEqual(['id', 'both', 'update']);
 				expect(calls).toStrictEqual(['both:default', 'update:update', 'both:default', 'update:update']);
 
@@ -606,7 +611,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 
 				await db.bulkInsert(users, [{ id: 1 }]);
 
-				expect(insertPaths()).toStrictEqual(['unnest']);
+				expect(insertPaths()).toStrictEqual(['values']);
 				expect(await db.select().from(users)).toStrictEqual([
 					{ id: 1, at, meta: { tags: ['a', 'b'] }, count: { n: 9007199254740993n } },
 				]);
@@ -657,7 +662,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 				const { db, insertPaths } = await setup({ kit, push, onTestFinished }, { table });
 
 				await db.bulkInsert(table, [scalarData, { ...scalarAltData, serial: 2 }]);
-				expect(insertPaths()).toStrictEqual(['unnest']);
+				expect(insertPaths()).toStrictEqual(['values']);
 				expect(await db.select().from(table).orderBy(table.serial)).toStrictEqual([
 					scalarData,
 					{ ...scalarAltData, serial: 2 },
@@ -712,10 +717,10 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 				});
 				const { db, insertPaths } = await setup({ kit, push, onTestFinished }, { users });
 
-				// codec-backed custom types travel as unnest arrays, others fall back to values
+				// a custom type with a codec, then one without
 				await db.bulkInsert(users, [{ id: 1, count: { n: 1n } }, { id: 2, count: { n: 2n } }]);
 				await db.bulkInsert(users, [{ id: 3, count: { n: 3n }, label: { v: 'c' } }]);
-				expect(insertPaths()).toStrictEqual(['unnest', 'values']);
+				expect(insertPaths()).toStrictEqual(['values', 'values']);
 
 				await db.bulkUpdate(users, [{ id: 1, count: { n: -9223372036854775808n } }, { id: 2, count: { n: 0n } }], {
 					by: users.id,
@@ -763,7 +768,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 					{ id: 2, num: 2, big: '-1', doc: { a: 2 } },
 				]);
 				await db.bulkInsert(users, [{ id: 3, mood: 'ok' }]);
-				expect(insertPaths()).toStrictEqual(['unnest', 'values']);
+				expect(insertPaths()).toStrictEqual(['values', 'values']);
 				expect(insertColumns()[0]).toStrictEqual({ id: 'int4', num: 'int4', big: 'int8', doc: 'jsonb' });
 
 				await db.bulkUpdate(users, [
@@ -796,9 +801,9 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 				});
 				const { db, insertPaths } = await setup({ kit, push, onTestFinished }, { users });
 
-				// uniform: every row sets `null` (unnest), `meta` is left out
+				// every row sets `null`, `meta` is left out
 				await db.bulkInsert(users, [{ id: 1, dflt: null, fn: null }, { id: 2, dflt: null, fn: null }]);
-				// mixed: `null` and `undefined` in one column (values)
+				// `null` and `undefined` in one column
 				await db.bulkInsert(users, [{ id: 3, dflt: null, fn: undefined, meta: null }, {
 					id: 4,
 					dflt: undefined,
@@ -808,7 +813,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 				// keys present with `undefined` are the same as missing ones
 				await db.bulkInsert(users, [{ id: 5, dflt: undefined, fn: undefined, meta: undefined }]);
 
-				expect(insertPaths()).toStrictEqual(['unnest', 'values', 'unnest']);
+				expect(insertPaths()).toStrictEqual(['values', 'values', 'values']);
 				expect(await db.select().from(users).orderBy(users.id)).toStrictEqual([
 					{ id: 1, dflt: null, fn: null, meta: null },
 					{ id: 2, dflt: null, fn: null, meta: null },
@@ -1024,7 +1029,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 				await db.bulkInsert(evil, [{ key: 3 }, { key: 4, value: 'd', mood: 'ok' }]);
 				await db.bulkUpdate(evil, [{ key: 1, value: 'A' }, { key: 3, value: 'C' }], { by: evil.key });
 
-				expect(insertPaths()).toStrictEqual(['unnest', 'values']);
+				expect(insertPaths()).toStrictEqual(['values', 'values']);
 				expect(await db.select().from(evil).orderBy(evil.key)).toStrictEqual([
 					{ key: 1, value: 'A', mood: null },
 					{ key: 2, value: `'); drop table "${victimName}"; --`, mood: null },

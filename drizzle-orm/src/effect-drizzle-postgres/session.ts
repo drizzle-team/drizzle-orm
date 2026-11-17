@@ -183,7 +183,7 @@ export class EffectPostgresSession<
 			}
 
 			const bulk = buildBulkInsert(this.dialect, table, rows);
-			return this.client.bulkInsert(bulk.table, bulk.columns, bulk.rows, { ...options, defaults: bulk.defaults }).pipe(
+			return this.client.bulkInsert(bulk.table, bulk.columns, bulk.rows, { ...options, defaults: true }).pipe(
 				Effect.tap(() => this.options.cache.onMutate({ tables: usedTablesOf(table) })),
 			);
 		});

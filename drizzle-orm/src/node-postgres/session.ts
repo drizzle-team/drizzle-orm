@@ -6,7 +6,7 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery } from '~/pg-core/async/session.ts';
 import { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
-import { pgRawTextOids } from '~/pg-core/codecs.ts';
+import { pgRawTextTypeParser } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PreparedQueryConfig } from '~/pg-core/session.ts';
@@ -17,12 +17,10 @@ import type { Assume } from '~/utils.ts';
 
 const { Pool, types } = pg;
 
-const rawText = (value: string) => value;
-
 export const nodePgRawTextTypes: CustomTypesConfig = {
-	getTypeParser:
-		<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
-			pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format)),
+	getTypeParser: <CustomTypesConfig['getTypeParser']> pgRawTextTypeParser((typeId, format) =>
+		types.getTypeParser(typeId, format)
+	),
 };
 
 export type NodePgClient = pg.Pool | PoolClient | Client;

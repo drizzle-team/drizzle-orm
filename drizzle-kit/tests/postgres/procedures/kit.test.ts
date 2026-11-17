@@ -9,14 +9,17 @@ import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { ddlDiffDry } from 'src/dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles, SchemaSource } from 'src/dialects/postgres/drizzle';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
-import { pullProcedure, splitPulledProcedures } from 'src/dialects/postgres/procedures/model';
+import { proceduresEnabled, pullProcedure, splitPulledProcedures } from 'src/dialects/postgres/procedures/model';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { tsc } from 'tests/utils';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, test as base } from 'vitest';
 import { diff, prepareTestDatabase, push, type TestDatabase } from '../mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
+
+// drizzle-kit ignores procedures while `proceduresEnabled` is off; what it does then is in disabled.test.ts
+const test = base.skipIf(!proceduresEnabled);
 
 const tmpDir = path.resolve('tests/postgres/tmp/procedures');
 mkdirSync(tmpDir, { recursive: true });

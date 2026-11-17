@@ -660,6 +660,39 @@ test('dropped, added unique index', async (t) => {
 	expect(phints).toStrictEqual(hints0);
 });
 
+// DROP TABLE of a recreated table already removes its indexes, so a DROP INDEX that comes after it has to
+// tolerate the index being gone
+test('recreate table and drop its index in the same diff', async () => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+		}, (table) => [index('users_name_idx').on(table.name)]),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	// the generated migration runs on a database that has the first schema
+	await push({ db, to: schema1 });
+	for (const statement of st) await db.run(statement);
+	expect(await db.query(`SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'users_name_idx'`))
+		.toStrictEqual([]);
+
+	// and so does push
+	await _.clear();
+	await push({ db, to: schema1 });
+	await push({ db, to: schema2 });
+	expect(await db.query(`SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'users_name_idx'`))
+		.toStrictEqual([]);
+});
+
 test('drop autoincrement. drop column with data', async (t) => {
 	const schema1 = {
 		companies: sqliteTable('companies', {
