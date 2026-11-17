@@ -50,7 +50,7 @@ test('ambiguity in two entity kinds is listed in one error and resolves with cre
 	});
 
 	const hints: Hint[] = err.missingHints.flatMap((it) =>
-		it.type === 'rename_or_create' ? [{ type: 'create', kind: it.kind, entity: it.entity } as Hint] : []
+		it.type === 'rename_or_create' ? [{ ...it, type: 'create' as const }] : []
 	);
 	const { sqlStatements, hints: resolved } = await pgMigration(prev, cur, { hints });
 

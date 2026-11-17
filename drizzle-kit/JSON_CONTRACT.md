@@ -155,8 +155,7 @@ Example response (one item of each `MissingHint.type`):
     {
       "type": "rename_or_create",
       "kind": "schema",
-      "entity": ["next_schema"],
-      "candidates": [["prev_schema"]]
+      "entity": ["next_schema"]
     },
     {
       "type": "confirm_data_loss",

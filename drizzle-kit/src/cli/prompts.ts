@@ -106,8 +106,7 @@ export const resolver = <T extends PromptEntityBase>(
 				if (createHint) {
 					hints.pushResolvedHint(createHint);
 				} else if (leftMissing.length > 0) {
-					const candidates = leftMissing.map((item) => entityId(kind, item, defaultSchema));
-					hints.pushMissingHint(kind, newItemId, candidates);
+					hints.pushMissingHint(kind, newItemId);
 				}
 
 				applySelection(newItem, newItem, leftMissing, result, entity, defaultSchema);

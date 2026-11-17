@@ -24,7 +24,7 @@ Per-operation extras on `'ok'`:
 - `--explain` (either command, non-empty diff) — `{ status, dialect, statements, hints }`
 - `generate --fix-conflicts --explain` deletes nothing. If the folder has conflicts, the explain `ok` and `no_changes` also carry `fix: { migrations, customMigrations }`, the folders that the fix would delete.
 
-`'missing_hints'` carries `unresolved`, an array of items the agent must resolve before retrying. Each item is `{ type: 'rename_or_create', kind, entity, candidates }` or `{ type: 'confirm_data_loss', kind, entity, reason, reason_details? }`. The resolution loop lives in [hints.md](hints.md).
+`'missing_hints'` carries `unresolved`, an array of items the agent must resolve before retrying. Each item is `{ type: 'rename_or_create', kind, entity }` or `{ type: 'confirm_data_loss', kind, entity, reason, reason_details? }`. The resolution loop lives in [hints.md](hints.md).
 
 The table above describes `--output json`. Under `--output text` + non-TTY the same `missing_hints` information renders as the human-readable missing-decisions report on stdout, still exiting with code 2 — see [output-modes.md](output-modes.md) for the text-report shape.
 

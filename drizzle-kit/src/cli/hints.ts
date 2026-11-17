@@ -70,8 +70,6 @@ type RenameCreateMissingHint<K extends RenameCreateHintKind> = {
 	type: 'rename_or_create';
 	kind: K;
 	entity: IdFor<K>;
-	// The deleted entities of the same kind that a rename hint can name as `from`.
-	candidates: IdFor<K>[];
 };
 
 type ConfirmDataLossReasonDetails =
@@ -286,19 +284,17 @@ export class HintsHandler {
 		if (!this.resolvedHints.includes(hint)) this.resolvedHints.push(hint);
 	}
 
-	pushMissingHint<K extends RenameCreateHintKind>(kind: K, entity: IdFor<K>, candidates: IdFor<K>[]): void;
+	pushMissingHint<K extends RenameCreateHintKind>(kind: K, entity: IdFor<K>): void;
 	pushMissingHint(hint: MissingHint): void;
 	pushMissingHint(
-		...args:
-			| [MissingHint]
-			| [RenameCreateHintKind, IdFor<RenameCreateHintKind>, IdFor<RenameCreateHintKind>[]]
+		...args: [MissingHint] | [RenameCreateHintKind, IdFor<RenameCreateHintKind>]
 	): void {
 		if (args.length === 1) {
 			this.missingHints.push(args[0]);
 			return;
 		}
-		const [kind, entity, candidates] = args;
-		this.missingHints.push({ type: 'rename_or_create', kind, entity, candidates } as MissingHint);
+		const [kind, entity] = args;
+		this.missingHints.push({ type: 'rename_or_create', kind, entity } as MissingHint);
 	}
 
 	hasMissingHints(): boolean {

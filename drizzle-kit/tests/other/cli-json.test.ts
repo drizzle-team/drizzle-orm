@@ -394,7 +394,7 @@ test('push postgres emits missing_hints for unresolved schema rename in json mod
 	expect(env).toStrictEqual({
 		status: 'missing_hints',
 		unresolved: [
-			{ type: 'rename_or_create', kind: 'schema', entity: ['next_schema'], candidates: [['prev_schema']] },
+			{ type: 'rename_or_create', kind: 'schema', entity: ['next_schema'] },
 		],
 	});
 
