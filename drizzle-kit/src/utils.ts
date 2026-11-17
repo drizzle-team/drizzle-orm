@@ -1,7 +1,7 @@
 import type { RunResult } from 'better-sqlite3';
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { parse } from 'url';
 import type { NamedWithSchema } from './cli/commands/migrate';
 import { info } from './cli/views';
@@ -94,7 +94,7 @@ export const dryJournal = (dialect: Dialect): Journal => {
 // };
 
 export const prepareOutFolder = (out: string, dialect: Dialect) => {
-	const meta = join(out, 'meta');
+	const meta = join(path.resolve(out), 'meta');
 	const journalPath = join(meta, '_journal.json');
 
 	if (!existsSync(join(out, 'meta'))) {
@@ -138,7 +138,7 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 
 	const result = snapshots.reduce(
 		(accum, it) => {
-			const raw = JSON.parse(readFileSync(`./${it}`).toString());
+			const raw = JSON.parse(readFileSync(it).toString());
 
 			accum.rawMap[it] = raw;
 
