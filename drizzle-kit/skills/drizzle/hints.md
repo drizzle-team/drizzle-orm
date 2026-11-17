@@ -22,7 +22,7 @@ Each unresolved item maps to exactly one reply:
 
 | unresolved item type | reply type |
 |----------------------|------------|
-| `'rename_or_create'` | `'rename'` (pick a deleted entity of the same kind to be the `from`) OR `'create'` |
+| `'rename_or_create'` | `'rename'` (pick one of `candidates`, the deleted entities of the same kind, to be the `from`) OR `'create'` |
 | `'confirm_data_loss'` | `'confirm_data_loss'` (same `kind` + `entity`) |
 
 ## Rename-vs-create kinds
@@ -78,7 +78,7 @@ The unresolved item for a `confirm_data_loss` carries a `reason` (and, for `type
 1. **Invoke.** Run `drizzle-kit generate --output json` / `push --output json` (CLI) or `await generate(...)` / `await push(...)` (SDK).
 2. **Read the envelope.** If `status === 'missing_hints'`, the response carries `unresolved: MissingHint[]`. Each item has a `type` of `'rename_or_create'` or `'confirm_data_loss'`.
 3. **Build the reply.** For every `unresolved[i]`, append exactly one `Hint` to the reply array:
-   - `rename_or_create` → pick `rename` (provide `from` as a deleted entity of the same `kind`) OR `create` (just echo `entity`).
+   - `rename_or_create` → pick `rename` (provide `from` as one of `candidates`) OR `create` (just echo `entity`).
    - `confirm_data_loss` → echo the same `kind` and `entity`; drop `reason` and `reason_details`.
 4. **Re-invoke** the same command, passing the reply array via the CLI flag or the SDK option (see below). Repeat from step 2 if more hints surface.
 
@@ -134,7 +134,8 @@ A first invocation against a SQLite database returns two ambiguities — one ren
   "status": "missing_hints",
   "unresolved": [
     { "type": "rename_or_create", "kind": "column",
-      "entity": ["public", "users", "email_v2"] },
+      "entity": ["public", "users", "email_v2"],
+      "candidates": [["public", "users", "email"]] },
     { "type": "confirm_data_loss", "kind": "add_not_null",
       "entity": ["public", "users", "handle"],
       "reason": "table_recreate" }

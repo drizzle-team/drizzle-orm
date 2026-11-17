@@ -84,7 +84,12 @@ test('resolver records a missing hint and keeps both entities when no hint match
 	});
 	expect(hints.toResponse()).toStrictEqual({
 		status: 'missing_hints',
-		unresolved: [{ type: 'rename_or_create', kind: 'table', entity: ['public', 'members'] }],
+		unresolved: [{
+			type: 'rename_or_create',
+			kind: 'table',
+			entity: ['public', 'members'],
+			candidates: [['public', 'users']],
+		}],
 	});
 });
 
@@ -222,7 +227,12 @@ test('resolver returns only newly added unresolved items when reusing a HintsHan
 		{ output: 'json', interactive: false },
 		async () => {
 			const hints = new HintsHandler();
-			hints.pushMissingHint({ type: 'rename_or_create', kind: 'table', entity: ['public', 'existing'] });
+			hints.pushMissingHint({
+				type: 'rename_or_create',
+				kind: 'table',
+				entity: ['public', 'existing'],
+				candidates: [],
+			});
 
 			const resolveTables = resolver<Entity>('table', hints);
 			const resolveColumns = resolver<Entity>('column', hints);
@@ -246,14 +256,24 @@ test('resolver returns only newly added unresolved items when reusing a HintsHan
 	);
 
 	expect(tableDelta).toStrictEqual([
-		{ type: 'rename_or_create', kind: 'table', entity: ['public', 'members'] },
+		{ type: 'rename_or_create', kind: 'table', entity: ['public', 'members'], candidates: [['public', 'users']] },
 	]);
 	expect(columnDelta).toStrictEqual([
-		{ type: 'rename_or_create', kind: 'column', entity: ['public', 'users', 'email'] },
+		{
+			type: 'rename_or_create',
+			kind: 'column',
+			entity: ['public', 'users', 'email'],
+			candidates: [['public', 'users', 'name']],
+		},
 	]);
 	expect(hints.missingHints).toStrictEqual([
-		{ type: 'rename_or_create', kind: 'table', entity: ['public', 'existing'] },
-		{ type: 'rename_or_create', kind: 'table', entity: ['public', 'members'] },
-		{ type: 'rename_or_create', kind: 'column', entity: ['public', 'users', 'email'] },
+		{ type: 'rename_or_create', kind: 'table', entity: ['public', 'existing'], candidates: [] },
+		{ type: 'rename_or_create', kind: 'table', entity: ['public', 'members'], candidates: [['public', 'users']] },
+		{
+			type: 'rename_or_create',
+			kind: 'column',
+			entity: ['public', 'users', 'email'],
+			candidates: [['public', 'users', 'name']],
+		},
 	]);
 });

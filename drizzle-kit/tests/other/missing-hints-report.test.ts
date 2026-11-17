@@ -23,7 +23,7 @@ describe('formatMissingHintsText', () => {
 
 	test('single rename_or_create with a 2-tuple table entity emits the locked layout', () => {
 		const out = formatMissingHintsText(
-			responseOf({ type: 'rename_or_create', kind: 'table', entity: ['public', 'users_v2'] }),
+			responseOf({ type: 'rename_or_create', kind: 'table', entity: ['public', 'users_v2'], candidates: [] }),
 		);
 		const stripped = strip(out);
 
@@ -40,7 +40,7 @@ describe('formatMissingHintsText', () => {
 
 	test('single rename_or_create with a 1-tuple schema entity uses a 1-segment `from` placeholder', () => {
 		const out = formatMissingHintsText(
-			responseOf({ type: 'rename_or_create', kind: 'schema', entity: ['marketing'] }),
+			responseOf({ type: 'rename_or_create', kind: 'schema', entity: ['marketing'], candidates: [] }),
 		);
 		const stripped = strip(out);
 
@@ -52,7 +52,7 @@ describe('formatMissingHintsText', () => {
 
 	test('single rename_or_create with a 3-tuple column entity uses a 3-segment `from` placeholder', () => {
 		const out = formatMissingHintsText(
-			responseOf({ type: 'rename_or_create', kind: 'column', entity: ['public', 'users', 'email_v2'] }),
+			responseOf({ type: 'rename_or_create', kind: 'column', entity: ['public', 'users', 'email_v2'], candidates: [] }),
 		);
 		const stripped = strip(out);
 
@@ -133,7 +133,7 @@ describe('formatMissingHintsText', () => {
 					entity: ['public', 'legacy_audit'],
 					reason: 'non_empty',
 				},
-				{ type: 'rename_or_create', kind: 'table', entity: ['public', 'users_v2'] },
+				{ type: 'rename_or_create', kind: 'table', entity: ['public', 'users_v2'], candidates: [] },
 			),
 		);
 		const stripped = strip(out);
@@ -148,8 +148,8 @@ describe('formatMissingHintsText', () => {
 	test('multiple rename_or_create entries preserve discovery order within the partition', () => {
 		const out = formatMissingHintsText(
 			responseOf(
-				{ type: 'rename_or_create', kind: 'table', entity: ['public', 'users_v2'] },
-				{ type: 'rename_or_create', kind: 'table', entity: ['public', 'orders_v2'] },
+				{ type: 'rename_or_create', kind: 'table', entity: ['public', 'users_v2'], candidates: [] },
+				{ type: 'rename_or_create', kind: 'table', entity: ['public', 'orders_v2'], candidates: [] },
 			),
 		);
 		const stripped = strip(out);
@@ -165,7 +165,7 @@ describe('formatMissingHintsText', () => {
 	test('report renders header, then items in order, then footer', () => {
 		const out = formatMissingHintsText(
 			responseOf(
-				{ type: 'rename_or_create', kind: 'table', entity: ['public', 'users_v2'] },
+				{ type: 'rename_or_create', kind: 'table', entity: ['public', 'users_v2'], candidates: [] },
 				{
 					type: 'confirm_data_loss',
 					kind: 'table',

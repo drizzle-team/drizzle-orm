@@ -33,14 +33,7 @@ export const upSqliteHandler = (out: string): string[] => {
 		.forEach((it) => {
 			const path = it.path;
 
-			let result: SqliteSnapshot;
-			if (it.raw['version'] === '5') {
-				result = updateToV7(updateUpToV6(it.raw));
-			} else if (it.raw['version'] === '6') {
-				result = updateToV7(sqliteSchemaV6.parse(it.raw));
-			} else {
-				throw new CommandOutputCliError('up', `unexpected version of SQLite snapshot: ${it.raw['version']}`);
-			}
+			const result = upToV7(it.raw);
 
 			if (outputFormat() === 'text') console.log(`[${chalk.green('✓')}] ${path}`);
 			writeFileSync(path, JSON.stringify(result, null, 2));
@@ -56,6 +49,12 @@ export const upSqliteHandler = (out: string): string[] => {
 	if (outputFormat() === 'text') console.log("Everything's fine 🐶🔥");
 
 	return upgraded;
+};
+
+export const upToV7 = (raw: Record<string, any>): SqliteSnapshot => {
+	if (raw['version'] === '5') return updateToV7(updateUpToV6(raw));
+	if (raw['version'] === '6') return updateToV7(sqliteSchemaV6.parse(raw));
+	throw new CommandOutputCliError('up', `unexpected version of SQLite snapshot: ${raw['version']}`);
 };
 
 export const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {

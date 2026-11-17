@@ -81,7 +81,7 @@ drizzle-kit generate --output json --config drizzle.config.ts
 
 # Ambiguous diff — caller must supply hints and retry
 drizzle-kit generate --output json --config drizzle.config.ts
-# → {"status":"missing_hints","unresolved":[{"type":"rename_or_create","kind":"column","entity":["public","users","email_v2"]}]}
+# → {"status":"missing_hints","unresolved":[{"type":"rename_or_create","kind":"column","entity":["public","users","email_v2"],"candidates":[["public","users","email"]]}]}
 # (resolution loop: see hints.md)
 
 # Hard error

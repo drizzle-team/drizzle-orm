@@ -346,6 +346,7 @@ export interface JsonAlterColumnChangeIdentity {
 export interface JsonCreateSchema {
 	type: 'create_schema';
 	name: string;
+	ifNotExists?: boolean;
 }
 
 export interface JsonDropSchema {

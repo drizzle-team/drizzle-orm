@@ -1,6 +1,7 @@
+import { borrowPGlite, returnPGlite } from '@drizzle/test-utils/pglite';
 import { int as mssqlInt, mssqlTable } from 'drizzle-orm/mssql-core';
 import { index as mysqlIndex, int as mysqlInt, mysqlTable, varchar } from 'drizzle-orm/mysql-core';
-import { integer, pgTable, text } from 'drizzle-orm/pg-core';
+import { integer, pgSchema, pgTable, text } from 'drizzle-orm/pg-core';
 import {
 	index as sqliteIndex,
 	integer as sqliteInteger,
@@ -11,7 +12,11 @@ import type { Hint, MissingHintsError } from 'src/ext/api-postgres';
 import { generateDrizzleJson as pgJson, generateMigration as pgMigration } from 'src/ext/api-postgres';
 import { generateDrizzleJson as mssqlJson, generateMigration as mssqlMigration } from 'src/payload/mssql';
 import { generateDrizzleJson as mysqlJson, generateMigration as mysqlMigration } from 'src/payload/mysql';
-import { generateDrizzleJson as sqliteJson, generateMigration as sqliteMigration } from 'src/payload/sqlite';
+import {
+	generateDrizzleJson as sqliteJson,
+	generateMigration as sqliteMigration,
+	up as sqliteUp,
+} from 'src/payload/sqlite';
 import { afterEach, expect, test, vi } from 'vitest';
 
 afterEach(() => {
@@ -45,11 +50,12 @@ test('ambiguity in two entity kinds is listed in one error and resolves with cre
 	});
 
 	const hints: Hint[] = err.missingHints.flatMap((it) =>
-		it.type === 'rename_or_create' ? [{ ...it, type: 'create' as const }] : []
+		it.type === 'rename_or_create' ? [{ type: 'create', kind: it.kind, entity: it.entity } as Hint] : []
 	);
-	const sql = await pgMigration(prev, cur, { hints });
+	const { sqlStatements, hints: resolved } = await pgMigration(prev, cur, { hints });
 
-	expect(sql).toEqual([
+	expect(resolved).toStrictEqual(hints);
+	expect(sqlStatements).toEqual([
 		'CREATE TABLE "b" (\n\t"id" integer PRIMARY KEY\n);\n',
 		'DROP TABLE "a";',
 		'ALTER TABLE "users" ADD COLUMN "last_name" text;',
@@ -71,11 +77,11 @@ test('resolving with hints prints nothing', async () => {
 test('rename hint emits a rename instead of drop and create', async () => {
 	const { prev, cur } = await pgSnapshots();
 
-	const sql = await pgMigration(prev, cur, {
-		hints: [{ type: 'rename', kind: 'table', from: ['public', 'a'], to: ['public', 'b'] }],
-	});
+	const rename = { type: 'rename', kind: 'table', from: ['public', 'a'], to: ['public', 'b'] } as const;
+	const { sqlStatements, hints } = await pgMigration(prev, cur, { hints: [rename] });
 
-	expect(sql).toEqual([
+	expect(hints).toStrictEqual([rename]);
+	expect(sqlStatements).toEqual([
 		'ALTER TABLE "a" RENAME TO "b";',
 		'ALTER TABLE "b" ADD COLUMN "name" text;',
 	]);
@@ -85,9 +91,33 @@ test('unambiguous diff needs no hints', async () => {
 	const prev = await pgJson({});
 	const cur = await pgJson({ a: pgTable('a', { id: integer('id').primaryKey() }) });
 
-	const sql = await pgMigration(prev, cur);
+	const { sqlStatements } = await pgMigration(prev, cur);
 
-	expect(sql.join('\n')).toContain('CREATE TABLE "a"');
+	expect(sqlStatements.join('\n')).toContain('CREATE TABLE "a"');
+});
+
+// The test process has no terminal on stdin, so `interactive` cannot prompt.
+test('interactive generateMigration without a terminal asks for hints', async () => {
+	const { prev, cur } = await pgSnapshots();
+
+	await expect(pgMigration(prev, cur, { interactive: true })).rejects.toMatchObject({ code: 'missing_hints' });
+});
+
+// Payload CMS can connect to a schema that already exists, so its first migration must not fail on CREATE SCHEMA.
+test('createSchemaIfNotExists gives a migration that runs on a database that already has the schema', async () => {
+	const payload = pgSchema('payload');
+	const cur = await pgJson({ payload, users: payload.table('users', { id: integer('id').primaryKey() }) });
+	const client = await borrowPGlite();
+	await client.exec('CREATE SCHEMA "payload";');
+
+	const { sqlStatements } = await pgMigration(undefined, cur, { createSchemaIfNotExists: true });
+	for (const statement of sqlStatements) await client.exec(statement);
+
+	expect(sqlStatements[0]).toBe('CREATE SCHEMA IF NOT EXISTS "payload";\n');
+	expect((await client.query(`SELECT tablename FROM pg_tables WHERE schemaname = 'payload'`)).rows).toEqual([
+		{ tablename: 'users' },
+	]);
+	await returnPGlite(client);
 });
 
 test('invalid hints are rejected with one error type', async () => {
@@ -115,11 +145,42 @@ test('sqlite hint ids use the public schema', async () => {
 		missingHints: [{ type: 'rename_or_create', kind: 'table', entity: ['public', 'b'] }],
 	});
 
-	const sql = await sqliteMigration(prev, cur, {
+	const { sqlStatements } = await sqliteMigration(prev, cur, {
 		hints: [{ type: 'create', kind: 'table', entity: ['public', 'b'] }],
 	});
 
-	expect(sql).toEqual(['CREATE TABLE `b` (\n\t`id` integer PRIMARY KEY\n);\n', 'DROP TABLE `a`;']);
+	expect(sqlStatements).toEqual(['CREATE TABLE `b` (\n\t`id` integer PRIMARY KEY\n);\n', 'DROP TABLE `a`;']);
+});
+
+// drizzle-kit 0.x wrote SQLite snapshots of format 6, and Payload CMS stores one for each old migration.
+test('sqlite up converts a format 6 snapshot that gives no SQL against the same schema', async () => {
+	const v6 = {
+		version: '6',
+		dialect: 'sqlite',
+		id: 's1',
+		prevId: '00000000-0000-0000-0000-000000000000',
+		tables: {
+			users: {
+				name: 'users',
+				columns: { id: { name: 'id', type: 'integer', primaryKey: true, notNull: true, autoincrement: false } },
+				indexes: {},
+				foreignKeys: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+				checkConstraints: {},
+			},
+		},
+		views: {},
+		enums: {},
+		_meta: { tables: {}, columns: {} },
+	};
+	const cur = await sqliteJson({ users: sqliteTable('users', { id: sqliteInteger('id').primaryKey() }) });
+
+	const { snapshots, hints } = await sqliteUp({ '20250101000000_init': v6 });
+
+	expect(hints).toStrictEqual([]);
+	expect(snapshots['20250101000000_init'].version).toBe('7');
+	expect((await sqliteMigration(snapshots['20250101000000_init'], cur)).sqlStatements).toStrictEqual([]);
 });
 
 test('mysql hint ids use the public schema', async () => {

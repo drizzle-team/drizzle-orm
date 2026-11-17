@@ -26,7 +26,8 @@ $ drizzle-kit push --output json
     {
       "type": "rename_or_create",
       "kind": "column",
-      "entity": ["public", "users", "display_name"]
+      "entity": ["public", "users", "display_name"],
+      "candidates": [["public", "users", "full_name"]]
     }
   ]
 }
@@ -39,7 +40,7 @@ A caller's `Hint` resolves a runtime-emitted `MissingHint` by reusing its `kind`
 
 | Unresolved item (`MissingHint`) | Caller responds with (`Hint`) | What's reused |
 |---------------------------------|------------------------------|---------------|
-| `{ type: "rename_or_create", kind, entity }` | `{ type: "rename", kind, from, to }` **or** `{ type: "create", kind, entity }` | Same `kind`. For `create`: same `entity`. For `rename`: pick `from` from a deleted entity (same `kind`); the unresolved item's `entity` becomes `to`. |
+| `{ type: "rename_or_create", kind, entity, candidates }` | `{ type: "rename", kind, from, to }` **or** `{ type: "create", kind, entity }` | Same `kind`. For `create`: same `entity`. For `rename`: pick `from` from `candidates`, the deleted entities of the same `kind`; the unresolved item's `entity` becomes `to`. |
 | `{ type: "confirm_data_loss", kind, entity, reason, [reason_details] }` | `{ type: "confirm_data_loss", kind, entity }` | Same `kind` and `entity`. `reason` and `reason_details` are runtime-only metadata — callers do not include them. |
 
 Available `kind` values, identifier shapes, and `reason` semantics are catalogued in [Catalog: kinds](#catalog-kinds-in-unresolved-items), [Catalog: reasons](#catalog-reasons-confirm_data_loss-only), and [Identifier formats](#identifier-formats).

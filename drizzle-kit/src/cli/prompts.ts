@@ -4,7 +4,7 @@ import type { Resolver } from '../dialects/common';
 import { isInteractive } from './context';
 import { InvalidHintsCliError } from './errors';
 import { tuplesEqual } from './hints';
-import type { HintsHandler, IdFor, RenameCreateHintKind } from './hints';
+import type { Hint, HintsHandler, IdFor, RenameCreateHintKind } from './hints';
 import type { RenamePromptItem } from './views';
 import { humanizeKind, humanLog, isRenamePromptItem, ResolveSelect } from './views';
 
@@ -89,6 +89,7 @@ export const resolver = <T extends PromptEntityBase>(
 					: undefined;
 
 				if (renameSource) {
+					hints.pushResolvedHint(renameHint!);
 					applySelection({ from: renameSource, to: newItem }, newItem, leftMissing, result, entity, defaultSchema);
 					leftMissing = leftMissing.filter(Boolean);
 					index += 1;
@@ -102,8 +103,11 @@ export const resolver = <T extends PromptEntityBase>(
 					);
 				}
 
-				if (!createHint && leftMissing.length > 0) {
-					hints.pushMissingHint(kind, newItemId);
+				if (createHint) {
+					hints.pushResolvedHint(createHint);
+				} else if (leftMissing.length > 0) {
+					const candidates = leftMissing.map((item) => entityId(kind, item, defaultSchema));
+					hints.pushMissingHint(kind, newItemId, candidates);
 				}
 
 				applySelection(newItem, newItem, leftMissing, result, entity, defaultSchema);
@@ -135,6 +139,7 @@ export const resolver = <T extends PromptEntityBase>(
 						: undefined;
 
 					if (renameSource) {
+						hints.pushResolvedHint(renameHint!);
 						applySelection({ from: renameSource, to: newItem }, newItem, leftMissing, result, entity, defaultSchema);
 						leftMissing = leftMissing.filter(Boolean);
 						index += 1;
@@ -149,6 +154,7 @@ export const resolver = <T extends PromptEntityBase>(
 					}
 
 					if (createHint) {
+						hints.pushResolvedHint(createHint);
 						applySelection(newItem, newItem, leftMissing, result, entity, defaultSchema);
 						leftMissing = leftMissing.filter(Boolean);
 						index += 1;
@@ -168,6 +174,12 @@ export const resolver = <T extends PromptEntityBase>(
 				}
 
 				// Apply the selected rename or keep the entity as a create.
+				const newItemId = entityId(kind, newItem, defaultSchema);
+				hints?.pushResolvedHint(
+					isRenamePromptItem(data)
+						? { type: 'rename', kind, from: entityId(kind, data.from, defaultSchema), to: newItemId } as Hint
+						: { type: 'create', kind, entity: newItemId } as Hint,
+				);
 				applySelection(data, newItem, leftMissing, result, entity, defaultSchema);
 				leftMissing = leftMissing.filter(Boolean);
 				index += 1;

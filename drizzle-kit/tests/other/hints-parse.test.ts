@@ -290,18 +290,23 @@ test('HintsHandler keeps tuple identities collision-free when matching hints', (
 test('HintsHandler preserves missing hint insertion order', () => {
 	const hints = new HintsHandler();
 
-	hints.pushMissingHint({ type: 'rename_or_create', kind: 'table', entity: ['public', 'orders'] });
+	hints.pushMissingHint({ type: 'rename_or_create', kind: 'table', entity: ['public', 'orders'], candidates: [] });
 	hints.pushMissingHint({
 		type: 'confirm_data_loss',
 		kind: 'table',
 		entity: ['public', 'customers'],
 		reason: 'non_empty',
 	});
-	hints.pushMissingHint({ type: 'rename_or_create', kind: 'column', entity: ['public', 'users', 'email'] });
+	hints.pushMissingHint({
+		type: 'rename_or_create',
+		kind: 'column',
+		entity: ['public', 'users', 'email'],
+		candidates: [],
+	});
 
 	expect(hints.missingHints).toStrictEqual([
-		{ type: 'rename_or_create', kind: 'table', entity: ['public', 'orders'] },
+		{ type: 'rename_or_create', kind: 'table', entity: ['public', 'orders'], candidates: [] },
 		{ type: 'confirm_data_loss', kind: 'table', entity: ['public', 'customers'], reason: 'non_empty' },
-		{ type: 'rename_or_create', kind: 'column', entity: ['public', 'users', 'email'] },
+		{ type: 'rename_or_create', kind: 'column', entity: ['public', 'users', 'email'], candidates: [] },
 	]);
 });
