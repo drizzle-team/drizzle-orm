@@ -5,7 +5,7 @@ async function main() {
 	const users = pgTable('users', { id: integer().primaryKey(), name: text().notNull() });
 	const empty = await generateDrizzleJson({});
 	const current = await generateDrizzleJson({ users });
-	console.log(JSON.stringify(await generateMigration(empty, current)));
+	console.log(JSON.stringify((await generateMigration(empty, current)).sqlStatements));
 }
 
 main().catch((error) => {
