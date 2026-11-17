@@ -41,7 +41,7 @@ export type CockroachDeleteWithout<
 export type CockroachDelete<
 	TTable extends CockroachTable = CockroachTable,
 	TQueryResult extends CockroachQueryResultHKT = CockroachQueryResultHKT,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = CockroachDeleteBase<TTable, TQueryResult, TSelectedFields, TReturning, true, never>;
 

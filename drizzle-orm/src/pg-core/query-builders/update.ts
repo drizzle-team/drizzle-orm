@@ -324,11 +324,11 @@ export type PgUpdateDynamic<T extends AnyPgUpdate> = PgUpdateKind<
 export type PgUpdate<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = PgTable | Subquery | PgViewBase | SQL | undefined,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
-	TJoins extends Join[] = [],
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+	TJoins extends Join[] = Join[],
 > = PgUpdateBase<
 	PgUpdateHKT,
 	TTable,

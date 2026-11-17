@@ -28,7 +28,12 @@ export type SQLiteAsyncUpdate<
 	TTable extends SQLiteTable = SQLiteTable,
 	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = any,
-	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined = undefined,
+	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined =
+		| SQLiteTable
+		| Subquery
+		| SQLiteViewBase
+		| SQL
+		| undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = SQLiteAsyncUpdateBase<TTable, TResultType, TRunResult, TFrom, TReturning, true, never>;
 

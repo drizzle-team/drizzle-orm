@@ -78,7 +78,7 @@ export type SQLiteDeleteWithout<
 export type SQLiteDelete<
 	TTable extends SQLiteTable = SQLiteTable,
 	TRunResult = unknown,
-	TReturning extends Record<string, unknown> | undefined = undefined,
+	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = SQLiteDeleteBase<SQLiteDeleteQueryBuilderHKT, TTable, TRunResult, TReturning, true, never>;
 
 export type SQLiteDeleteReturningAll<

@@ -27,7 +27,7 @@ export type AnySQLiteEffectDelete = SQLiteEffectDeleteBase<any, any, any, any, a
 export type SQLiteEffectDelete<
 	TTable extends SQLiteTable = SQLiteTable,
 	TRunResult = unknown,
-	TReturning extends Record<string, unknown> | undefined = undefined,
+	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > = SQLiteEffectDeleteBase<TTable, TRunResult, TReturning, true, never, TEffectHKT>;
 

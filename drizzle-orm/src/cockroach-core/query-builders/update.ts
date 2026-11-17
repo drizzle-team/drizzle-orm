@@ -284,18 +284,25 @@ export type CockroachUpdateDynamic<T extends AnyCockroachUpdate> = CockroachUpda
 	T['_']['table'],
 	T['_']['queryResult'],
 	T['_']['from'],
+	T['_']['selectedFields'],
 	T['_']['returning'],
-	T['_']['nullabilityMap']
+	T['_']['nullabilityMap'],
+	T['_']['joins']
 >;
 
 export type CockroachUpdate<
 	TTable extends CockroachTable = CockroachTable,
 	TQueryResult extends CockroachQueryResultHKT = CockroachQueryResultHKT,
-	TFrom extends CockroachTable | Subquery | CockroachViewBase | SQL | undefined = undefined,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TFrom extends CockroachTable | Subquery | CockroachViewBase | SQL | undefined =
+		| CockroachTable
+		| Subquery
+		| CockroachViewBase
+		| SQL
+		| undefined,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
-	TJoins extends Join[] = [],
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+	TJoins extends Join[] = Join[],
 > = CockroachUpdateBase<
 	TTable,
 	TQueryResult,
