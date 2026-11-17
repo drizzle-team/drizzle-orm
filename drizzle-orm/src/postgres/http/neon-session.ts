@@ -1,8 +1,6 @@
 import type { ShapeSpec } from '#postgres';
 import type { NeonHttpClient, NeonTxQuery } from '#postgres/neon-http';
 import type { BatchItem, SettledQueryResult } from '~/batch.ts';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
@@ -25,7 +23,6 @@ export class PostgresNeonHttpSession<
 	static override readonly [entityKind]: string = 'PostgresNeonHttpSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: NeonHttpClient,
@@ -35,7 +32,6 @@ export class PostgresNeonHttpSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -43,8 +39,6 @@ export class PostgresNeonHttpSession<
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 		shape?: ShapeSpec,
 	) {
 		const executor = async (params?: unknown[]) => {
@@ -70,9 +64,6 @@ export class PostgresNeonHttpSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			shape,
 			this.options.paramsInErrors,
 		);

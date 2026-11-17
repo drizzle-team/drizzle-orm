@@ -7,7 +7,6 @@ import { SQLiteUpdateBase } from '~/sqlite-core/query-builders/update.ts';
 import type { PreparedQueryConfig } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import type { Assume, DrizzleTypeError } from '~/utils.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
 import type { SQLiteEffectPreparedQuery, SQLiteEffectSession } from './session.ts';
@@ -108,10 +107,6 @@ export class SQLiteEffectUpdateBase<
 			prepare,
 			this.config.returning ? 'all' : 'run',
 			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
-			{
-				type: 'update',
-				tables: () => usedTablesOf(this.config.table),
-			},
 		) as SQLiteEffectUpdatePrepare<this, TEffectHKT>;
 	}
 

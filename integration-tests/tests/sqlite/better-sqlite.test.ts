@@ -208,9 +208,5 @@ const skip = [
 	'transaction rollback',
 	'Query error params - transaction',
 	'nested transaction rollback',
-	// Driver doesn't support caching
-	'all types - upstash',
-	'all types ~codecs~ - upstash',
-	'all types ~json~ - upstash',
 ];
 tests(test, skip);

@@ -63,12 +63,9 @@ const skips = [
 	'issue #4169',
 	// Default client has no codecs, uses shapes instead
 	'all types ~codecs~',
-	'all types ~codecs~ - upstash',
 	// Data API has no representation for `null` array elements
 	'all types ~codecs~ - null array elements',
-	'all types ~codecs~ - null array elements - upstash',
 	'all types ~codecs~ - custom type null array elements',
-	'all types ~codecs~ - custom type null array elements - upstash',
 	// string-mode `timestamptz` and `bytea[]` throw an unsupported column type error with Data API, tests holding their
 	// values are redefined with `null`s below
 	...allTypesWithReplacementsSkips,
@@ -77,7 +74,6 @@ const skips = [
 	'time zones are preserved',
 	'time zones are preserved - non-UTC session',
 	'all types ~codecs~ - non-UTC session',
-	'all types ~codecs~ - non-UTC session - upstash',
 ];
 
 const stringTemporalDb = (database: string) =>

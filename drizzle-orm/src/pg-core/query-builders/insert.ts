@@ -581,7 +581,6 @@ export class PgInsertBase<
 	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
 		const { session, dialect, config } = this;
 		return prepareMutation(
-			'insert',
 			session,
 			dialect,
 			config,

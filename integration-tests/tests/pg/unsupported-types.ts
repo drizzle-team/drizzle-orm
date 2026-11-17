@@ -2,7 +2,6 @@
 // drivers throw on such columns' non-null values, the copies below use nullable columns filled with `null`, which never
 // reaches a decoder, or values the drivers return intact. Drivers skip the originals by the exported names and call the
 // function in their own test files.
-import { UpstashTestCache } from '~/upstash-cache';
 import {
 	allTypesRelations,
 	type AllTypesReplacements,
@@ -14,9 +13,7 @@ import type { Test } from './instrumentation';
 /** Shared all-types tests, redefined by {@link allTypesWithReplacementsTests} */
 export const allTypesWithReplacementsSkips = [
 	'all types',
-	'all types - upstash',
 	'all types ~codecs~',
-	'all types ~codecs~ - upstash',
 ];
 
 /**
@@ -30,17 +27,5 @@ export function allTypesWithReplacementsTests(test: Test, replacements: AllTypes
 		const db = createDB({ allTypesTable }, allTypesRelations as any);
 
 		await assertAllTypesWithReplacements(db, allTypesTable as any, replacements, { rqb: true });
-	});
-
-	test('all types (with replacements) - upstash', async ({ createDB, push }) => {
-		await using cache = new UpstashTestCache();
-		const { en, allTypesTable } = makeAllTypes('all_types_replaced_upstash', 'en_replaced_upstash');
-		await push({ en, allTypesTable });
-		const db = createDB({ allTypesTable }, allTypesRelations as any, false, false, cache);
-
-		await cache.expectHits(
-			'all types',
-			() => assertAllTypesWithReplacements(db, allTypesTable as any, replacements, { run: cache.run, rqb: true }),
-		);
 	});
 }

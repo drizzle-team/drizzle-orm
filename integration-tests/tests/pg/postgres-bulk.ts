@@ -1,5 +1,4 @@
 import { sql } from 'drizzle-orm';
-import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
 import {
 	customType,
 	integer,
@@ -17,7 +16,7 @@ import { describe, expect, type TestContext } from 'vitest';
 import { allTypesData, makeAllTypes, makeAllTypesColumns } from './all-types';
 import type { PgTestFixtures, Test } from './instrumentation';
 
-export type BulkDrizzle = (config: { client: any; codecs?: PgCodecs; cache?: Cache }) => PostgresDatabase<any>;
+export type BulkDrizzle = (config: { client: any; codecs?: PgCodecs }) => PostgresDatabase<any>;
 
 export type BulkVariant = {
 	name: string;
@@ -143,21 +142,6 @@ const sqlMapped = customType<{ data: string; driverData: string }>({
 	toDriver: (value) => sql`upper(${value})` as any,
 });
 
-class MutationsCache extends Cache {
-	readonly mutations: MutationOption[] = [];
-
-	override strategy() {
-		return 'all' as const;
-	}
-	override async get(): Promise<any[] | undefined> {
-		return undefined;
-	}
-	override async put(): Promise<void> {}
-	override async onMutate(params: MutationOption): Promise<void> {
-		this.mutations.push(params);
-	}
-}
-
 const rejection = async (promise: Promise<unknown>): Promise<any> => {
 	try {
 		await promise;
@@ -181,7 +165,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 	const setup = async (
 		{ kit, push, onTestFinished }: Ctx,
 		schema: Record<string, unknown> | undefined,
-		config: { codecs?: PgCodecs; cache?: Cache } = {},
+		config: { codecs?: PgCodecs } = {},
 	) => {
 		if (schema) await push(schema);
 
@@ -1055,18 +1039,6 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 				expect(insertCalls).toStrictEqual([]);
 				expect(updateCalls).toStrictEqual([]);
 			});
-		});
-
-		test.concurrent('cache invalidation', async ({ kit, push, onTestFinished }) => {
-			const users = pgTable(`${p}_cache`, { id: integer().primaryKey(), name: text() });
-			const cache = new MutationsCache();
-			const { db } = await setup({ kit, push, onTestFinished }, { users }, { cache });
-
-			await db.bulkInsert(users, [{ id: 1, name: 'a' }]);
-			await db.bulkUpdate(users, [{ id: 1, name: 'b' }], { by: users.id });
-			await rejection(db.bulkInsert(users, [{ id: 1, name: 'a' }]));
-
-			expect(cache.mutations).toStrictEqual([{ tables: [`${p}_cache`] }, { tables: [`${p}_cache`] }]);
 		});
 	});
 }

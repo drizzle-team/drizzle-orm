@@ -148,8 +148,6 @@ export class SQLiteAsyncSelectBase<
 			prepare,
 			'all',
 			mapper,
-			{ type: 'select', tables: () => this.getUsedTables(sequel) },
-			this.cacheConfig,
 		);
 		return preparedQuery as ReturnType<this['prepare']>;
 	}

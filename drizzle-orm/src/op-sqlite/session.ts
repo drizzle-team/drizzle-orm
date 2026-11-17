@@ -1,6 +1,4 @@
 import type { DB, QueryResult } from '@op-engineering/op-sqlite';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -18,7 +16,6 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 
 export interface OPSQLiteSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -32,7 +29,6 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 	static override readonly [entityKind]: string = 'OPSQLiteSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: DB,
@@ -42,7 +38,6 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 	) {
 		super(dialect, 'async');
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -51,8 +46,6 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<T & { run: OPSQLiteRunResult }> {
 		const executors: SQLiteQueryExecutors<'async'> = {
 			all: (params) => {
@@ -78,9 +71,6 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

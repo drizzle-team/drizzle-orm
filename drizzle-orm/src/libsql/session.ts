@@ -1,7 +1,5 @@
 import type { Client, InArgs, InStatement, ResultSet, Transaction, TransactionMode } from '@libsql/client';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -19,7 +17,6 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 
 export interface LibSQLSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -48,7 +45,6 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 	static override readonly [entityKind]: string = 'LibSQLSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: Client,
@@ -59,7 +55,6 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 	) {
 		super(dialect, 'async');
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -68,8 +63,6 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<T & { run: LibSQLRunResult }> {
 		const client = this.tx ?? this.client;
 
@@ -93,9 +86,6 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

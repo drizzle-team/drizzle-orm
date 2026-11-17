@@ -1,6 +1,5 @@
 import { DrizzlePostgresClient as Client } from '#postgres/effect/core';
 import * as Effect from 'effect/Effect';
-import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
@@ -108,8 +107,8 @@ export class EffectPostgresDatabase<TRelations extends AnyRelations = EmptyRelat
 /**
  * Creates an EffectPostgresDatabase instance on top of Drizzle Postgres.
  *
- * Requires `DrizzlePostgresClient`, `EffectLogger`, and `EffectCache` services to be provided.
- * Use `DefaultServices` to provide default (no-op) logger and cache implementations.
+ * Requires `DrizzlePostgresClient`, and `EffectLogger` services to be provided.
+ * Use `DefaultServices` to provide the default (no-op) logger implementation.
  *
  * @example
  * ```ts
@@ -127,7 +126,6 @@ export const make = Effect.fn('PostgresDrizzle.make')(
 		TRelations extends AnyRelations = EmptyRelations,
 	>(config: EffectDrizzlePgConfig<TRelations> = {}) {
 		const client = yield* Client.DrizzlePostgresClient;
-		const cache = yield* EffectCache;
 		const logger = yield* EffectLogger;
 
 		const codecs = config.codecs ?? postgresCodecs;
@@ -140,11 +138,9 @@ export const make = Effect.fn('PostgresDrizzle.make')(
 		const relations = config.relations ?? {} as TRelations;
 		const session = new EffectPostgresSession(client, dialect, relations, {
 			logger,
-			cache,
 			paramsInErrors: config.paramsInErrors,
 		});
 		const db = new EffectPostgresDatabase(dialect, session, relations);
-		db.$cache.invalidate = cache.onMutate;
 
 		return Object.assign(db, { $client: client });
 	},

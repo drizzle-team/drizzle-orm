@@ -1,6 +1,4 @@
 import type { Connection, Decoders, FullResult, Tx } from '@tidbcloud/serverless';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -36,7 +34,6 @@ export const tidbRawTextDecoders = {
 
 export interface TiDBServerlessSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -72,7 +69,6 @@ export class TiDBServerlessSession<
 
 	private logger: Logger;
 	private client: Tx | Connection;
-	private cache: Cache;
 
 	constructor(
 		private baseClient: Connection,
@@ -84,15 +80,12 @@ export class TiDBServerlessSession<
 		super(dialect);
 		this.client = tx ?? baseClient;
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (response: Record<string, unknown>[] | unknown[][] | { insertId: number; affectedRows: number }) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;
 		const queryConfig = mode === 'arrays'
@@ -123,9 +116,6 @@ export class TiDBServerlessSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

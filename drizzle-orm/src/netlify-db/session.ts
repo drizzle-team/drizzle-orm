@@ -1,9 +1,6 @@
 import type { CustomTypesConfig, FullQueryResults, NeonQueryPromise, Pool, PoolClient } from '@neondatabase/serverless';
 import { neonConfig, types } from '@neondatabase/serverless';
 import type { BatchItem } from '~/batch.ts';
-import type { Cache } from '~/cache/core/cache.ts';
-import { NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -61,7 +58,6 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 
 	private clientQuery: (sql: string, params: any[], opts: Record<string, any>) => NeonQueryPromise<any, any>;
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		readonly httpClient: NeonHttpClient,
@@ -76,7 +72,6 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 		// `httpClient` is a fallback for earlier versions
 		this.clientQuery = (httpClient as any).query ?? httpClient as any;
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -84,8 +79,6 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const executor = (params?: unknown[]) => {
 			if (mode === 'raw') {
@@ -112,9 +105,6 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}
@@ -236,7 +226,6 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 	static override readonly [entityKind]: string = 'NetlifyDbWsSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: PoolClient,
@@ -246,7 +235,6 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -254,8 +242,6 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const queryName = typeof name === 'string'
 			? name
@@ -278,9 +264,6 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

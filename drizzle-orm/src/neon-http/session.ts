@@ -6,8 +6,6 @@ import {
 	types,
 } from '@neondatabase/serverless';
 import type { BatchItem } from '~/batch.ts';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -40,7 +38,6 @@ export const neonHttpRawTextTypes: {} = {
 
 export interface NeonHttpSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	authToken?: NeonAuthToken;
 	paramsInErrors?: boolean;
 }
@@ -51,7 +48,6 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 	static override readonly [entityKind]: string = 'NeonHttpSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	/** @internal */
 	readonly client: NeonHttpClient;
@@ -67,7 +63,6 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 		// root query function `client` is only usable as a template function;
 		// `client` is a fallback for earlier versions
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -75,8 +70,6 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const executor = (params?: unknown[]) => {
 			// `client.query` is for @neondatabase/serverless v1.0.0 and up, where the
@@ -107,9 +100,6 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

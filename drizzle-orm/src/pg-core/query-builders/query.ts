@@ -1,14 +1,11 @@
 import { entityKind, is } from '~/entity.ts';
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfigRoot,
-	relationalQueryCacheConfig,
-	relationalQueryCacheMetadata,
-	relationalQueryUsedTablesInit,
-	type RelationalRowsMapper,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
+import type {
+	BuildQueryResult,
+	BuildRelationalQueryResult,
+	DBQueryConfigRoot,
+	RelationalRowsMapper,
+	TableRelationalConfig,
+	TablesRelationalConfig,
 } from '~/relations.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
@@ -136,14 +133,13 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 	) {}
 
 	/** @internal */
-	_getQuery(usedTables?: Set<string>) {
+	_getQuery() {
 		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
 			mode: this.mode,
-			usedTables,
 		});
 	}
 
@@ -151,13 +147,12 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 		return this._getQuery().sql;
 	}
 
-	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query; usedTables: Set<string> | undefined } {
-		const usedTables = relationalQueryUsedTablesInit(this.config);
-		const query = this._getQuery(usedTables);
+	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
+		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql);
 
-		return { query, builtQuery, usedTables };
+		return { query, builtQuery };
 	}
 
 	toSQL(): Query {
@@ -176,7 +171,7 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 			const { dialect } = this;
 			const isFirst = this.mode === 'first';
 
-			const { query, builtQuery, usedTables } = this._toSQL();
+			const { query, builtQuery } = this._toSQL();
 			const shape = this.shape ??= dialect.shapeGenerator?.(
 				{ type: 'relational', fields: query.selection },
 				undefined,
@@ -198,8 +193,6 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 				shape ? 'objects' : 'arrays',
 				name ?? generateName,
 				mapper as ((rows: unknown[]) => any) | undefined,
-				relationalQueryCacheMetadata(this.config, query.sql, usedTables, this),
-				relationalQueryCacheConfig(this.config),
 				shape,
 			);
 		});

@@ -1,8 +1,6 @@
 import type { AuroraDSQLClient, AuroraDSQLPool, OCCRetryConfig } from '@aws/aurora-dsql-node-postgres-connector';
 import type { CustomTypesConfig, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import {
@@ -65,7 +63,6 @@ export interface NodePgDsqlTransactionConfig extends DsqlTransactionConfig {
 
 export interface NodePgDsqlSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -75,7 +72,6 @@ export class NodePgDsqlSession<
 	static override readonly [entityKind]: string = 'NodePgDsqlSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		/** `PoolClient` only comes from the pool's own `transaction()`, never from drizzle constructor */
@@ -86,7 +82,6 @@ export class NodePgDsqlSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -94,8 +89,6 @@ export class NodePgDsqlSession<
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	) {
 		const queryName = typeof name === 'string'
 			? name
@@ -118,9 +111,6 @@ export class NodePgDsqlSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

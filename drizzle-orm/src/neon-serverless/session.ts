@@ -7,8 +7,6 @@ import {
 	type QueryResultRow,
 	types,
 } from '@neondatabase/serverless';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -33,7 +31,6 @@ export type NeonClient = Pool | PoolClient | Client;
 
 export interface NeonSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -41,7 +38,6 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 	static override readonly [entityKind]: string = 'NeonSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: NeonClient,
@@ -51,7 +47,6 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -59,8 +54,6 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const queryName = typeof name === 'string'
 			? name
@@ -83,9 +76,6 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

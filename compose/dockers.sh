@@ -25,7 +25,6 @@ ALL_IMAGES=(
   neon
   turso
   planetscale
-  upstash
 )
 
 _resolve_compose_file() {
@@ -49,7 +48,6 @@ _resolve_compose_file() {
     neon)             echo "neon.yml" ;;
     turso)            echo "turso.yml" ;;
     planetscale)      echo "planetscale.yml" ;;
-    upstash)          echo "upstash.yml" ;;
     *)
       echo "Unknown image '$1'. Valid images: ${ALL_IMAGES[*]}" >&2
       return 1

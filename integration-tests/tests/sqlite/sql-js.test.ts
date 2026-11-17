@@ -195,12 +195,6 @@ const skip = [
 	// DB needs to be built in special way to support this
 	'delete with limit and order by',
 	'update with limit and order by',
-	// Driver doesn't support caching
-	'all types - upstash',
-	'all types ~codecs~ - upstash',
-	'all types - upstash (safe integers)',
-	'all types ~codecs~ - upstash (safe integers)',
-	'all types ~json~ - upstash',
 ];
 // the driver returns integers as numbers: integer `numeric` values outside of the safe integer range have already lost
 // precision and throw an unsupported column type error, tests holding them are redefined with safe values

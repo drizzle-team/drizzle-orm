@@ -114,7 +114,7 @@ export class MySqlEffectSelectBase<
 
 		const preparedQuery = this.session.prepareQuery<
 			MySqlPreparedQueryConfig & { execute: any }
-		>(query, 'arrays', mapper, { type: 'select', tables: () => this.getUsedTables(sequel) }, this.cacheConfig);
+		>(query, 'arrays', mapper);
 
 		return preparedQuery as MySqlEffectSelectPrepare<this, TEffectHKT>;
 	}

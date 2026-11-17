@@ -45,7 +45,6 @@ type AsEffect<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.E
 				EffectSQLiteNodeDatabase<EmptyRelations> & { $client: SqliteClient },
 				never,
 				| import('~/effect-core/logger.ts').EffectLogger
-				| import('~/cache/core/cache-effect.ts').EffectCache
 				| SqliteClient
 			>
 		>

@@ -20,7 +20,7 @@ import {
 	type BuildRelationalQueryConfig,
 	type BuildRelationalQueryResult,
 	buildRqbColumns,
-	collectSubqueryAndUsedTables,
+	collectSubquery,
 	type DBQueryConfigRoot,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
@@ -780,7 +780,6 @@ export class PgDialect {
 		through,
 		nested,
 		withSubqueries,
-		usedTables,
 		strategy,
 	}: BuildRelationalQueryConfig, collectTo: SQLChunk[]): BuildRelationalQueryResult['selection'] {
 		const selection: BuildRelationalQueryResult['selection'] = [];
@@ -789,9 +788,9 @@ export class PgDialect {
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
 		const isOptimized = (currentDepth ? strategy : params?.strategy) !== 'basic';
-		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map(), usedTables };
+		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map() };
 		if (!currentDepth) {
-			collectSubqueryAndUsedTables(collector, table);
+			collectSubquery(collector, table);
 			table = aliasedTable(table, `d${currentDepth}`);
 		}
 		const tableRef = table[Qualifier];
@@ -893,8 +892,8 @@ export class PgDialect {
 			const join = withParam![k]!;
 			const relation = tableConfig.relations[k]!;
 			const isSingle = relation.relationType === 'one';
-			collectSubqueryAndUsedTables(collector, relation.targetTable);
-			collectSubqueryAndUsedTables(collector, relation.throughTable);
+			collectSubquery(collector, relation.targetTable);
+			collectSubquery(collector, relation.throughTable);
 
 			const targetTable = aliasedTable(
 				relation.targetTable,

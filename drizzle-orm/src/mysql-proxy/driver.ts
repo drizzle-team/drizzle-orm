@@ -38,7 +38,6 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	const relations = config.relations ?? {} as TRelations;
 	const session = new MySqlRemoteSession(callback, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new MySqlRemoteDatabase(
@@ -46,10 +45,6 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 		session,
 		relations,
 	) as MySqlRemoteDatabase<TRelations>;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db;
 }

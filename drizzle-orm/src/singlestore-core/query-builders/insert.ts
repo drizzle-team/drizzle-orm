@@ -16,7 +16,6 @@ import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import { type DrizzleTypeError, mapUpdateSet } from '~/utils.ts';
 import type { AnySingleStoreColumn } from '../columns/common.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
@@ -317,10 +316,6 @@ export class SingleStoreInsertBase<
 			this.dialect.sqlToQuery(sql),
 			'raw',
 			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
-			{
-				type: 'insert',
-				tables: () => usedTablesOf(this.config.table),
-			},
 		) as SingleStoreInsertPrepare<this, TReturning>;
 	}
 

@@ -1,5 +1,4 @@
 import { View } from '~/view.ts';
-import type { Cache } from './cache/core/cache.ts';
 import type { CodecsCollection } from './codecs.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
@@ -652,7 +651,6 @@ export type ColumnsWithTable<
 export interface DrizzleConfig<TRelationConfigs extends AnyRelations = EmptyRelations> {
 	logger?: boolean | Logger | undefined;
 	relations?: TRelationConfigs | undefined;
-	cache?: Cache | undefined;
 	jit?: boolean | undefined;
 	/** Put query params in `DrizzleQueryError` instances
 	 *

@@ -8,7 +8,6 @@ import { randomString } from '~/utils';
 import { proxyTest as test } from './instrumentation';
 import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable, usersTable } from './sqlite-common';
-import { tests as cacheTests } from './sqlite-common-cache';
 
 const skip = [
 	// Uses async versions
@@ -18,7 +17,6 @@ const skip = [
 	// Has no object mode querying; codecs are user-provided
 	'all types ~codecs~',
 ];
-cacheTests(test, skip);
 tests(test, skip, { rawIntegers: 'bigint' });
 
 test.beforeEach(async ({ db }) => {

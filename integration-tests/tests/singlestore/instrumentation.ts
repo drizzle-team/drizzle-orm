@@ -4,87 +4,18 @@ import {
 	defineRelations,
 	type ExtractTablesFromSchema,
 	type ExtractTablesWithRelations,
-	getCacheKey,
-	is,
 	type RelationsBuilder,
 	type RelationsBuilderConfig,
-	Table,
 } from 'drizzle-orm';
-import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
-import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import { drizzle as drizzleSingleStore, type SingleStoreDatabase } from 'drizzle-orm/singlestore';
 import { makeSingleStoreRawTextTypeCast } from 'drizzle-orm/singlestore';
 import type { SingleStoreEnumColumn, SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import type { SingleStoreView } from 'drizzle-orm/singlestore-core/view';
 import { drizzle as drizzleProxy } from 'drizzle-orm/singlestore-proxy';
 import { singleStoreCodecs } from 'drizzle-orm/singlestore/codecs';
-import Keyv from 'keyv';
 import { type Connection, createConnection } from 'mysql2/promise';
 import { test as base } from 'vitest';
 import relations from './relations';
-
-export class TestCache extends Cache {
-	private globalTtl: number = 1000;
-	private usedTablesPerKey: Record<string, string[]> = {};
-
-	constructor(private readonly strat: 'explicit' | 'all', private kv: Keyv = new Keyv()) {
-		super();
-	}
-
-	override strategy() {
-		return this.strat;
-	}
-
-	override async get(key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
-		const res = await this.kv.get(key) ?? undefined;
-		return res;
-	}
-
-	override async put(
-		key: string,
-		response: any,
-		tables: string[],
-		isTag: boolean,
-		config?: CacheConfig,
-	): Promise<void> {
-		await this.kv.set(key, response, config ? config.ex : this.globalTtl);
-		for (const table of tables) {
-			const keys = this.usedTablesPerKey[table];
-			if (keys === undefined) {
-				this.usedTablesPerKey[table] = [key];
-			} else {
-				keys.push(key);
-			}
-		}
-	}
-
-	override async onMutate(params: MutationOption): Promise<void> {
-		const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
-		const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
-
-		const keysToDelete = new Set<string>();
-
-		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-			const keys = this.usedTablesPerKey[tableName] ?? [];
-			for (const key of keys) keysToDelete.add(key);
-		}
-
-		if (keysToDelete.size > 0 || tagsArray.length > 0) {
-			for (const tag of tagsArray) {
-				await this.kv.delete(tag);
-			}
-
-			for (const key of keysToDelete) {
-				await this.kv.delete(key);
-				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-					this.usedTablesPerKey[tableName] = [];
-				}
-			}
-		}
-	}
-}
 
 const rawTextTypeCast = makeSingleStoreRawTextTypeCast();
 
@@ -277,12 +208,7 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				useJitMappers?: boolean,
 				paramsInErrors?: boolean,
-				cache?: Cache,
 			): SingleStoreDatabase<any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
-		};
-		caches: {
-			all: SingleStoreDatabase<any, any, typeof relations>;
-			explicit: SingleStoreDatabase<any, any, typeof relations>;
 		};
 	}>({
 		provider: [
@@ -361,12 +287,11 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					useJitMappers?: boolean,
 					paramsInErrors?: boolean,
-					cache?: Cache,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'singlestore') {
-						return drizzleSingleStore({ client: kit.client, relations, jit: useJitMappers, paramsInErrors, cache });
+						return drizzleSingleStore({ client: kit.client, relations, jit: useJitMappers, paramsInErrors });
 					}
 
 					if (vendor === 'proxy') {
@@ -390,56 +315,12 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 							jit: useJitMappers,
 							paramsInErrors,
 							codecs: singleStoreCodecs,
-							cache,
 						});
 					}
 					throw new Error();
 				};
 
 				await use(createDB);
-			},
-			{ scope: 'test' },
-		],
-		caches: [
-			async ({ kit }, use) => {
-				if (vendor === 'proxy') {
-					const serverSimulator = new ServerSimulator(kit.client);
-					const proxyHandler = async (sql: string, params: any[], method: any) => {
-						try {
-							const response = await serverSimulator.query(sql, params, method);
-
-							if (response.error !== undefined) {
-								throw response.error;
-							}
-
-							return { rows: response.data };
-						} catch (e: any) {
-							console.error('Error from singlestore proxy server:', e.message);
-							throw e;
-						}
-					};
-					const db1 = drizzleProxy(proxyHandler, { relations, cache: new TestCache('all'), codecs: singleStoreCodecs });
-					const db2 = drizzleProxy(proxyHandler, {
-						relations,
-						cache: new TestCache('explicit'),
-						codecs: singleStoreCodecs,
-					});
-					await use({ all: db1, explicit: db2 });
-					return;
-				}
-
-				const config1 = { client: kit.client as any, relations, cache: new TestCache('all') };
-				const config2 = { client: kit.client as any, relations, cache: new TestCache('explicit') };
-
-				const db1 = vendor === 'singlestore'
-					? drizzleSingleStore(config1)
-					: '' as never;
-
-				const db2 = vendor === 'singlestore'
-					? drizzleSingleStore(config2)
-					: '' as never;
-
-				await use({ all: db1, explicit: db2 });
 			},
 			{ scope: 'test' },
 		],

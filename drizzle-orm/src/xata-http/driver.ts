@@ -42,7 +42,6 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	const relations = config.relations ?? {} as TRelations;
 	const session = new XataHttpSession(client, dialect, relations ?? {} as EmptyRelations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 
@@ -52,10 +51,6 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 		relations,
 	);
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }

@@ -3,8 +3,6 @@
 import type { D1Client } from '@effect/sql-d1/D1Client';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
-import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
@@ -29,7 +27,6 @@ export type EffectSQLiteD1RunResult = D1Result;
 
 export interface EffectSQLiteD1SessionOptions {
 	logger: EffectLoggerShape;
-	cache: EffectCacheShape;
 	paramsInErrors?: boolean;
 }
 
@@ -53,8 +50,6 @@ export class EffectSQLiteD1Session<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): SQLiteEffectPreparedQuery<T, EffectSQLiteD1QueryEffectHKT> {
 		const executors: SQLiteEffectQueryExecutors = {
 			all: (params) => {
@@ -79,9 +74,6 @@ export class EffectSQLiteD1Session<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.options.logger,
-			this.options.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

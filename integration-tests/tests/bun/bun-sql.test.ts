@@ -101,7 +101,6 @@ import { PgQueryResultHKT } from 'drizzle-orm/pg-core/session';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import {
 	allTypesDataWith,
-	allTypesEmptyArraysData,
 	type AllTypesReplacements,
 	makeAllTypes,
 	temporalBoundsData,
@@ -109,12 +108,9 @@ import {
 } from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
-import { UpstashTestCache } from '~/upstash-cache';
 import { Expect } from '~/utils';
 import {
-	allTypesRelations,
 	assertAllTypesBounds,
-	assertAllTypesEmptyArrays,
 	assertAllTypesTemporalBounds,
 	assertAllTypesTemporalBoundsInSessions,
 	assertAllTypesUnions,
@@ -134,7 +130,6 @@ import {
 // unions, temporal bounds hold `timestamp` values cut to milliseconds
 const unsupportedReplacements = { timestampTzstr: null, arrtimestampTzstr: null } satisfies AllTypesReplacements;
 const allTypesData = allTypesDataWith(unsupportedReplacements);
-const emptyArraysData = allTypesDataWith(unsupportedReplacements, allTypesEmptyArraysData);
 const cutToMilliseconds = (value: string | null) => value?.replace(/(\.\d{3})\d+/, '$1') ?? null;
 const temporalBoundsDataMillis = temporalBoundsData.map((row) => ({
 	...row,
@@ -8562,92 +8557,6 @@ test('all types ~codecs~ - non-UTC session', async () => {
 	});
 
 	await assertAllTypesTemporalBoundsInSessions(db, { data: temporalBoundsDataMillis, rqb: true });
-});
-
-const upstashDB = (cache: UpstashTestCache, name: string) => {
-	const tableName = `all_types_${name}_upstash`;
-	const enumName = `en_${name}_upstash`;
-	const { allTypesTable } = makeAllTypes(tableName, enumName);
-	const cachedDb = drizzle({
-		client: db.$client,
-		relations: defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
-			...allTypesRelations(r),
-			...boundsRelations(r),
-		})),
-		cache,
-	});
-
-	return { db: cachedDb, allTypesTable, create: () => createAllTypes(tableName, enumName) };
-};
-
-test('all types - upstash', async () => {
-	await using cache = new UpstashTestCache();
-	const { run } = cache;
-	const { db, allTypesTable, create } = upstashDB(cache, 'plain');
-	await create();
-
-	await cache.expectHits('all types', async () => {
-		await run(db.insert(allTypesTable).values(allTypesData));
-		expect(await run(db.select().from(allTypesTable))).toStrictEqual([allTypesData]);
-	});
-});
-
-test('all types ~codecs~ - upstash', async () => {
-	await using cache = new UpstashTestCache();
-	const { run } = cache;
-	const { db, allTypesTable, create } = upstashDB(cache, 'cdc');
-	await create();
-
-	await cache.expectHits('all types', async () => {
-		await run(db.insert(allTypesTable).values(allTypesData));
-		expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
-			...allTypesData,
-			self: [allTypesData],
-		});
-	});
-	await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run, rqb: true }));
-	await cache.expectHits(
-		'temporal bounds',
-		() => assertAllTypesTemporalBounds(db, { data: temporalBoundsDataMillis, run, rqb: true }),
-	);
-	await cache.expectHits(
-		'empty arrays',
-		() => assertAllTypesEmptyArrays(db, allTypesTable, { data: emptyArraysData, run, rqb: true }),
-	);
-});
-
-test('all types ~codecs~ - non-UTC session - upstash', async () => {
-	await using cache = new UpstashTestCache();
-	const { db } = upstashDB(cache, 'tz');
-
-	await cache.expectHits(
-		'sessions',
-		() => assertAllTypesTemporalBoundsInSessions(db, { data: temporalBoundsDataMillis, run: cache.run, rqb: true }),
-	);
-});
-
-test('all types ~json~ - upstash', async () => {
-	await using cache = new UpstashTestCache();
-	const { run } = cache;
-	const { db: cachedDb } = upstashDB(cache, 'json');
-	const table = pgTable('all_types_json_upstash', {
-		id: integer('id').primaryKey(),
-		json: json('json'),
-		jsonb: jsonb('jsonb'),
-		arrjson: json('arrjson').array(),
-		arrjsonb: jsonb('arrjsonb').array(),
-	});
-	await db.execute(sql`drop table if exists ${table}`);
-	await db.execute(
-		sql`create table ${table} (id integer primary key, json json, jsonb jsonb, arrjson json[], arrjsonb jsonb[])`,
-	);
-
-	const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
-
-	await cache.expectHits('json', async () => {
-		await run(cachedDb.insert(table).values(input));
-		expect(await run(cachedDb.select().from(table).orderBy(table.id))).toStrictEqual(output);
-	});
 });
 
 test('time zones are preserved - non-UTC session', async () => {

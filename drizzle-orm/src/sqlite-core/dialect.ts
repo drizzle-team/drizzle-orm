@@ -10,7 +10,7 @@ import {
 	type BuildRelationalQueryConfig,
 	type BuildRelationalQueryResult,
 	buildRqbColumns,
-	collectSubqueryAndUsedTables,
+	collectSubquery,
 	type DBQueryConfig,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
@@ -767,16 +767,15 @@ export class SQLiteDialect {
 		through,
 		jsonb,
 		withSubqueries,
-		usedTables,
 	}: SQLiteBuildRelationalQueryConfig, collectTo: SQLChunk[]): BuildRelationalQueryResult['selection'] {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
-		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map(), usedTables };
+		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map() };
 		if (!currentDepth) {
-			collectSubqueryAndUsedTables(collector, table);
+			collectSubquery(collector, table);
 			table = aliasedTable(table, `d${currentDepth}`);
 		}
 		const tableRef = table[Qualifier];
@@ -841,8 +840,8 @@ export class SQLiteDialect {
 			const relation = tableConfig.relations[k];
 			if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 			const isSingle = relation.relationType === 'one';
-			collectSubqueryAndUsedTables(collector, relation.targetTable);
-			collectSubqueryAndUsedTables(collector, relation.throughTable);
+			collectSubquery(collector, relation.targetTable);
+			collectSubquery(collector, relation.throughTable);
 
 			const targetTable = aliasedTable(
 				relation.targetTable,

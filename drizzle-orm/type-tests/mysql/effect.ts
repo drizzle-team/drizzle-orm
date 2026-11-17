@@ -40,7 +40,6 @@ type AsEffect<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.E
 				EffectMysql2Database<EmptyRelations> & { $client: MysqlClient },
 				never,
 				| import('~/effect-core/logger.ts').EffectLogger
-				| import('~/cache/core/cache-effect.ts').EffectCache
 				| MysqlClient
 			>
 		>

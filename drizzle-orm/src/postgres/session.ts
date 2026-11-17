@@ -1,9 +1,6 @@
 import type { BatchMetrics, Connection, PgType, Pool, PoolQuery, QueryResult, ShapeSpec } from '#postgres';
 import { isBrand } from '#postgres/brand';
 import type { BatchItem, SettledQueryResult } from '~/batch.ts';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import { PendingInvalidation } from '~/cache/core/flow.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
@@ -20,10 +17,8 @@ import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConf
 import { PgTable } from '~/pg-core/table.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { run } from '~/runtime/async.ts';
 import { chunkKindOf, chunkKinds, fillPlaceholders, Param, Placeholder, type Query } from '~/sql/sql.ts';
 import { type InferInsertModel, Table } from '~/table.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import type { Simplify } from '~/utils.ts';
 export type PostgresClient = Pool | Connection;
 
@@ -141,7 +136,6 @@ export type PostgresSettledBatchResponse<T extends readonly PostgresBatchItem[]>
 
 export interface PostgresSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -169,7 +163,6 @@ export class PostgresSession<
 	static override readonly [entityKind]: string = 'PostgresSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: PostgresClient,
@@ -179,7 +172,6 @@ export class PostgresSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -187,8 +179,6 @@ export class PostgresSession<
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 		shape?: ShapeSpec,
 	) {
 		const queryName = typeof name === 'string'
@@ -220,9 +210,6 @@ export class PostgresSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			shape,
 			this.options.paramsInErrors,
 			queryName,
@@ -240,7 +227,7 @@ export class PostgresSession<
 			const query = typeof index === 'number' ? prepared[index] : undefined;
 			if (!query) throw e;
 			throw this.queryError(query, e, queries[index as number]!);
-		}).then(async (results) => {
+		}).then((results) => {
 			const response = new Array(results.length);
 			for (let i = 0; i < results.length; ++i) {
 				const { mapper, mode } = prepared[i]!;
@@ -254,26 +241,8 @@ export class PostgresSession<
 			}
 			if (results.metrics) (response as { metrics?: BatchMetrics }).metrics = results.metrics;
 
-			// the batch is committed by now
-			await this.invalidateMutated(prepared);
 			return response;
 		});
-	}
-
-	/**
-	 * Statements of `batch`, `pipeline` and `parallel` are sent without the cache: none is answered from it or
-	 * stored in it. The ones that changed data still make cached queries stale, the same as when run on their own.
-	 * `settled`, when given, leaves out the statements that failed
-	 */
-	private invalidateMutated(
-		prepared: PostgresPreparedQuery<any>[],
-		settled?: { status: 'fulfilled' | 'rejected' }[],
-	): Promise<void> {
-		const pending = new PendingInvalidation();
-		for (let i = 0; i < prepared.length; ++i) {
-			if (settled?.[i]!.status !== 'rejected') prepared[i]!._noteMutation(pending);
-		}
-		return run(pending.flush(is(this.cache, NoopCache) ? undefined : this.cache));
 	}
 
 	/**
@@ -285,7 +254,7 @@ export class PostgresSession<
 		queries: T,
 	): Promise<SettledQueryResult<any>[]> {
 		const { pool, prepared, built } = this.buildMulti('pipeline', queries);
-		return pool.pipeline(built).then(async (results) => {
+		return pool.pipeline(built).then((results) => {
 			const response = new Array(results.length);
 			for (let i = 0; i < results.length; ++i) {
 				const { mapper, mode } = prepared[i]!;
@@ -309,7 +278,6 @@ export class PostgresSession<
 				}
 			}
 
-			await this.invalidateMutated(prepared, results);
 			return response;
 		});
 	}
@@ -323,7 +291,7 @@ export class PostgresSession<
 		queries: T,
 	): Promise<SettledQueryResult<any>[]> {
 		const { pool, prepared, built } = this.buildMulti('parallel', queries);
-		return pool.parallel(built).then(async (results) => {
+		return pool.parallel(built).then((results) => {
 			const response = new Array(results.length);
 			for (let i = 0; i < results.length; ++i) {
 				const { mapper, mode } = prepared[i]!;
@@ -347,7 +315,6 @@ export class PostgresSession<
 				}
 			}
 
-			await this.invalidateMutated(prepared, results);
 			return response;
 		});
 	}
@@ -360,13 +327,10 @@ export class PostgresSession<
 		if (rows.length === 0) return { rows: [], columns: [], rowCount: 0, command: 'INSERT' };
 
 		const bulk = buildBulkInsert(this.dialect, table, rows);
-		const result = await this.client.bulkInsert(bulk.table, bulk.columns, bulk.rows, {
+		return this.client.bulkInsert(bulk.table, bulk.columns, bulk.rows, {
 			...options,
 			defaults: bulk.defaults,
 		});
-		if (!is(this.cache, NoopCache)) await this.cache.onMutate({ tables: usedTablesOf(table) });
-
-		return result;
 	}
 
 	async bulkUpdate(
@@ -377,13 +341,10 @@ export class PostgresSession<
 		if (rows.length === 0) return { rows: [], columns: [], rowCount: 0, command: 'UPDATE' };
 
 		const bulk = buildBulkUpdate(this.dialect, table, rows, options.by);
-		const result = await this.client.bulkUpdate(bulk.table, bulk.columns, bulk.rows, {
+		return this.client.bulkUpdate(bulk.table, bulk.columns, bulk.rows, {
 			...options,
 			by: bulk.by,
 		});
-		if (!is(this.cache, NoopCache)) await this.cache.onMutate({ tables: usedTablesOf(table) });
-
-		return result;
 	}
 
 	private queryError(prepared: PostgresPreparedQuery<any>, cause: unknown, item: PostgresBatchItem): DrizzleQueryError {
@@ -719,17 +680,11 @@ export class PostgresPreparedQuery<T extends PreparedQueryConfig> extends PgAsyn
 		mapper: ((rows: any[]) => any) | undefined,
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		logger: Logger,
-		// cache instance
-		cache: Cache | undefined,
-		// per query related metadata
-		queryMetadata: QueryMetadata | undefined,
-		// config that was passed through $withCache
-		cacheConfig: WithCacheConfig | undefined,
 		readonly shape?: ShapeSpec,
 		paramsInErrors?: boolean,
 		/** The server-side prepared statement name, when the query was created with `.prepare()` */
 		readonly name?: string,
 	) {
-		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig, paramsInErrors);
+		super(executor, query, mapper, mode, logger, paramsInErrors);
 	}
 }

@@ -7,7 +7,6 @@ import { eq, sql } from 'drizzle-orm';
 import { date, datetime, int, mysqlTable, time, timestamp, year } from 'drizzle-orm/mysql-core';
 import * as Effect from 'effect/Effect';
 import { SqlClient } from 'effect/sql/SqlClient';
-import { withUpstashCache } from '~/upstash-cache';
 import { type AllTypesReplacements, assertAllTypesWithReplacements, makeAllTypes } from './all-types';
 import { DB, push, type RunCommonEffectMySqlTestsOptions } from './effect-common';
 
@@ -116,9 +115,7 @@ export const unpaddedFractionTests = (
 /** Shared all-types tests, redefined by {@link allTypesWithReplacementsTests} */
 export const allTypesWithReplacementsSkips = [
 	'all types',
-	'all types - upstash',
 	'all types ~codecs~',
-	'all types ~codecs~ - upstash',
 ];
 
 /** All-types round trips with values replaced. Unions, bounds and temporal bounds of the original tests aren't repeated */
@@ -145,21 +142,4 @@ export const allTypesWithReplacementsTests = (
 				assertAllTypesWithReplacements(db as any, allTypesTable as any, replacements, { run, rqb: true, nested })
 			);
 		}));
-
-	it.effect('all types (with replacements) - upstash', () =>
-		withUpstashCache((cache, run) =>
-			Effect.gen(function*() {
-				const allTypesTable = makeAllTypes('all_types_replaced_upstash_ef');
-				const db = yield* createDB({ allTypesTable }, relations, false, cache);
-				yield* push(db, { allTypesTable });
-
-				yield* Effect.promise(() =>
-					cache.expectHits(
-						'all types',
-						() =>
-							assertAllTypesWithReplacements(db as any, allTypesTable as any, replacements, { run, rqb: true, nested }),
-					)
-				);
-			})
-		));
 };

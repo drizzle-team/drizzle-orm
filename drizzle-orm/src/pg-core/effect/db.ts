@@ -1,7 +1,5 @@
-import { Effect } from 'effect';
+import type { Effect } from 'effect';
 import type { SqlError } from 'effect/sql/SqlError';
-import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import type { MutationOption } from '~/cache/core/cache.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -88,10 +86,6 @@ export class PgEffectDatabase<
 				PgEffectRelationalQuery,
 			);
 		}
-
-		this.$cache = {
-			invalidate: (_params: MutationOption) => Effect.void,
-		};
 	}
 
 	/**
@@ -150,8 +144,6 @@ export class PgEffectDatabase<
 		};
 		return { as };
 	};
-
-	$cache: { invalidate: EffectCacheShape['onMutate'] };
 
 	$count(
 		source: PgTable | PgViewBase | SQL | SQLWrapper,

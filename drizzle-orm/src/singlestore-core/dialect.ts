@@ -15,7 +15,7 @@ import type {
 } from '~/relations.ts';
 import {
 	buildRqbColumns,
-	collectSubqueryAndUsedTables,
+	collectSubquery,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
@@ -812,16 +812,15 @@ export class SingleStoreDialect {
 		through,
 		nested,
 		withSubqueries,
-		usedTables,
 	}: SingleStoreBuildRelationalQueryConfig, collectTo: SQLChunk[]): Omit<BuildRelationalQueryResultWithOrder, 'sql'> {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
-		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map(), usedTables };
+		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map() };
 		if (!currentDepth) {
-			collectSubqueryAndUsedTables(collector, table);
+			collectSubquery(collector, table);
 			table = aliasedTable(table, `d${currentDepth}`);
 		}
 		const tableRef = table[Qualifier];
@@ -908,8 +907,8 @@ export class SingleStoreDialect {
 			const join = withParam![k]!;
 			const relation = tableConfig.relations[k]!;
 			const isSingle = relation.relationType === 'one';
-			collectSubqueryAndUsedTables(collector, relation.targetTable);
-			collectSubqueryAndUsedTables(collector, relation.throughTable);
+			collectSubquery(collector, relation.targetTable);
+			collectSubquery(collector, relation.throughTable);
 
 			const targetTable = aliasedTable(
 				relation.targetTable,

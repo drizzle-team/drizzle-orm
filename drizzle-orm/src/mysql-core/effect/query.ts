@@ -1,7 +1,6 @@
 import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import { relationalQueryCacheConfig, relationalQueryCacheMetadata } from '~/relations.ts';
 import { MySqlRelationalQuery, type MySqlRelationalQueryHKTBase } from '../query-builders/query.ts';
 import type { MySqlPreparedQueryConfig } from '../session.ts';
 import type { MySqlEffectPreparedQuery, MySqlEffectSession } from './session.ts';
@@ -25,7 +24,7 @@ export class MySqlEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectH
 	declare protected session: MySqlEffectSession<TEffectHKT, any, any>;
 
 	prepare() {
-		const { query, builtQuery, usedTables } = this._toSQL();
+		const { query, builtQuery } = this._toSQL();
 		const mapper = this.dialect.mapperGenerators.relationalRows({
 			isFirst: this.mode === 'first',
 			parseJson: false,
@@ -39,8 +38,6 @@ export class MySqlEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectH
 			builtQuery,
 			'arrays',
 			mapper,
-			relationalQueryCacheMetadata(this.config, query.sql, usedTables, this),
-			relationalQueryCacheConfig(this.config),
 		) as MySqlEffectPreparedQuery<MySqlPreparedQueryConfig & { execute: TResult }, TEffectHKT>;
 	}
 

@@ -1,6 +1,4 @@
 import type { FieldPacket, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -24,7 +22,6 @@ export type MySqlRemoteRawExecuteResult =
 
 export interface MySqlRemoteSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -37,7 +34,6 @@ export class MySqlRemoteSession<
 	static override readonly [entityKind]: string = 'MySqlRemoteSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: RemoteCallback,
@@ -47,15 +43,12 @@ export class MySqlRemoteSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: AnyMySqlMapper,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): MySqlAsyncPreparedQuery<T> {
 		const executor = async (params: any[] = []) => {
 			const raw = this.client(query.sql, params, mode === 'arrays' ? 'all' : 'execute');
@@ -76,9 +69,6 @@ export class MySqlRemoteSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

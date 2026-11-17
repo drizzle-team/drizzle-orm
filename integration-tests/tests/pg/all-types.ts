@@ -2166,11 +2166,7 @@ and array_position(${customNullElementsTable.taggedJson}, null) is not null`).or
 			};
 
 			expect(await run(counted)).toStrictEqual(customNullElementsData.map((row) => ({ ...row, self: [row] })));
-			const [fresh, ...repeated] = fromJsonCalls;
-			expect(fresh).toStrictEqual(2);
-			// Repeated runs are served from cache, which holds either raw rows that are decoded again, or rows
-			// the driver has already decoded (e.g. `drizzle-orm/postgres` decodes in the client by query shape)
-			for (const calls of repeated) expect([0, 2]).toContain(calls);
+			expect(fromJsonCalls).toStrictEqual([2]);
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropCustomNullElements())));

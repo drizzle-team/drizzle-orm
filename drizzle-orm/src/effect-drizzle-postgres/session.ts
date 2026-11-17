@@ -1,16 +1,11 @@
 import type { QueryResult, ShapeSpec } from '#postgres';
-import { DrizzlePostgresClient as Client } from '#postgres/effect/core';
+import type { DrizzlePostgresClient as Client } from '#postgres/effect/core';
 import * as Effect from 'effect/Effect';
-import * as Exit from 'effect/Exit';
 import type { SqlError } from 'effect/sql/SqlError';
-import { type EffectCacheError, type EffectCacheShape, PendingCacheInvalidation } from '~/cache/core/cache-effect.ts';
-import { NoopCache } from '~/cache/core/cache.ts';
-import { PendingInvalidation } from '~/cache/core/flow.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
@@ -25,9 +20,7 @@ import {
 } from '~/postgres/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { fromProgram } from '~/runtime/effect.ts';
 import type { Query } from '~/sql/sql.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import type { Simplify } from '~/utils.ts';
 
 export interface EffectPostgresQueryEffectHKT extends QueryEffectHKTBase {
@@ -48,31 +41,8 @@ export type EffectPostgresBulkUpdateOptions<TBy = PgColumn | readonly [PgColumn,
 	& Omit<PostgresBulkUpdateOptions<TBy>, 'timeout' | 'signal' | 'onProgress'>
 	& Pick<Client.BulkUpdateOptions<R>, 'onProgress'>;
 
-export class EffectPostgresPreparedQuery<T extends PreparedQueryConfig>
-	extends PgEffectPreparedQuery<T, EffectPostgresQueryEffectHKT>
-{
-	static override readonly [entityKind]: string = 'EffectPostgresPreparedQuery';
-
-	protected override skipCacheLookup = Effect.service(Client.Pipelined);
-
-	constructor(
-		executor: (params?: unknown[]) => Effect.Effect<unknown, unknown, unknown>,
-		query: Query,
-		mapper: ((rows: any[]) => any) | undefined,
-		mode: 'arrays' | 'objects' | 'raw' | 'call',
-		logger: EffectLoggerShape,
-		cache: EffectCacheShape,
-		queryMetadata: QueryMetadata | undefined,
-		cacheConfig: WithCacheConfig | undefined,
-		paramsInErrors: boolean | undefined,
-	) {
-		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig, paramsInErrors);
-	}
-}
-
 export interface EffectPostgresSessionOptions {
 	logger: EffectLoggerShape;
-	cache: EffectCacheShape;
 	paramsInErrors?: boolean;
 }
 
@@ -95,8 +65,6 @@ export class EffectPostgresSession<
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 		shape?: ShapeSpec,
 	) {
 		const queryName = typeof name === 'string'
@@ -112,15 +80,12 @@ export class EffectPostgresSession<
 			return Effect.map(result, (r) => r.rows);
 		};
 
-		return new EffectPostgresPreparedQuery<T>(
+		return new PgEffectPreparedQuery<T, EffectPostgresQueryEffectHKT>(
 			executor,
 			query,
 			mapper,
 			mode,
 			this.options.logger,
-			this.options.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}
@@ -135,41 +100,12 @@ export class EffectPostgresSession<
 		return this.client.query(sql, params, { name, mode: mode === 'arrays' ? 'array' : 'object', shape });
 	}
 
-	/** The cache as the shared flow takes it: `undefined` when there is none to invalidate */
-	private get cacheOps(): EffectCacheShape | undefined {
-		const { cache } = this.options;
-		return cache && !(cache.cache && is(cache.cache, NoopCache)) ? cache : undefined;
-	}
-
-	/**
-	 * Runs the statements of a batch or a pipeline out of the cache, and invalidates what they wrote when the run
-	 * is done. `alsoOnFailure`: the statements commit one by one, so the ones that ran are invalidated also when
-	 * another one failed; a failed batch is rolled back, with nothing to invalidate
-	 */
-	private invalidating<T extends Effect.Effect<any, any, any>>(
-		statements: T,
-		alsoOnFailure: boolean,
-	): Effect.Effect<Effect.Success<T>, Effect.Error<T> | EffectCacheError, Effect.Services<T>> {
-		return Effect.suspend(() => {
-			const pending = new PendingInvalidation();
-			const flush = fromProgram<void, EffectCacheError>(() => pending.flush(this.cacheOps));
-			const run = Effect.provideService(statements, PendingCacheInvalidation, pending);
-
-			return Effect.tap(
-				alsoOnFailure
-					? Effect.onExit(run, (exit) => Exit.isSuccess(exit) ? Effect.void : Effect.ignore(flush))
-					: run,
-				() => flush,
-			);
-		});
-	}
-
 	batch<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
-		return this.invalidating(this.client.batch(effects), false);
+		return this.client.batch(effects);
 	}
 
 	pipeline<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
-		return this.invalidating(this.client.pipeline(effects), true);
+		return this.client.pipeline(effects);
 	}
 
 	bulkInsert<R = never>(
@@ -183,9 +119,7 @@ export class EffectPostgresSession<
 			}
 
 			const bulk = buildBulkInsert(this.dialect, table, rows);
-			return this.client.bulkInsert(bulk.table, bulk.columns, bulk.rows, { ...options, defaults: bulk.defaults }).pipe(
-				Effect.tap(() => this.options.cache.onMutate({ tables: usedTablesOf(table) })),
-			);
+			return this.client.bulkInsert(bulk.table, bulk.columns, bulk.rows, { ...options, defaults: bulk.defaults });
 		});
 	}
 
@@ -200,9 +134,7 @@ export class EffectPostgresSession<
 			}
 
 			const bulk = buildBulkUpdate(this.dialect, table, rows, options.by);
-			return this.client.bulkUpdate(bulk.table, bulk.columns, bulk.rows, { ...options, by: bulk.by }).pipe(
-				Effect.tap(() => this.options.cache.onMutate({ tables: usedTablesOf(table) })),
-			);
+			return this.client.bulkUpdate(bulk.table, bulk.columns, bulk.rows, { ...options, by: bulk.by });
 		});
 	}
 

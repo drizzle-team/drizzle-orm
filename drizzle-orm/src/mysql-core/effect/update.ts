@@ -4,7 +4,6 @@ import { entityKind } from '~/entity.ts';
 import { MySqlUpdateBase, type MySqlUpdateHKTBase } from '~/mysql-core/query-builders/update.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import type { Assume } from '~/utils.ts';
 import type { MySqlEffectPreparedQuery, MySqlEffectSession } from './session.ts';
 
@@ -66,10 +65,6 @@ export class MySqlEffectUpdateBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			'raw',
 			undefined,
-			{
-				type: 'update',
-				tables: () => usedTablesOf(this.config.table),
-			},
 		) as MySqlEffectUpdatePrepare<this, TEffectHKT>;
 	}
 

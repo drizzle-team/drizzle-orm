@@ -1,4 +1,3 @@
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { BasePgAsyncSession, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -88,8 +87,6 @@ export class BasePgAsyncDatabase<
 				PgAsyncRelationalQuery,
 			);
 		}
-
-		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -155,8 +152,6 @@ export class BasePgAsyncDatabase<
 	) {
 		return new PgAsyncCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
 	}
-
-	$cache: { invalidate: Cache['onMutate'] };
 
 	/**
 	 * Incorporates a previously defined CTE (using `$with`) into the main query.

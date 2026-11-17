@@ -19,9 +19,6 @@ export const OriginalName = Symbol.for('drizzle:OriginalName');
 export const BaseName = Symbol.for('drizzle:BaseName');
 
 /** @internal */
-export const CacheKey = Symbol.for('drizzle:CacheKey');
-
-/** @internal */
 export const IsAlias = Symbol.for('drizzle:IsAlias');
 
 /** @internal */
