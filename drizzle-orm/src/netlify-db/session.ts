@@ -11,7 +11,7 @@ import {
 	type NeonHttpSessionOptions,
 } from '~/neon-http/session.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
-import { type PgCodecs, pgRawTextOids } from '~/pg-core/codecs.ts';
+import { type PgCodecs, pgRawTextTypeParser } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
@@ -19,12 +19,10 @@ import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 
-const rawText = (value: string) => value;
-
 export const netlifyDbRawTextTypes: CustomTypesConfig = {
-	getTypeParser:
-		<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
-			pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format as any)),
+	getTypeParser: <CustomTypesConfig['getTypeParser']> pgRawTextTypeParser((typeId, format) =>
+		types.getTypeParser(typeId, format)
+	),
 };
 
 /**

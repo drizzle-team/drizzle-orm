@@ -54,10 +54,9 @@ export class EffectPostgresDatabase<TRelations extends AnyRelations = EmptyRelat
 	}
 
 	/**
-	 * Inserts rows in bulk via driver-side `unnest`, filling `$defaultFn` / `$onUpdateFn` like `db.insert(...)`
+	 * Inserts rows in bulk as multi-row `values` statements, filling `$defaultFn` / `$onUpdateFn` like `db.insert(...)`
 	 *
-	 * Falls back to a multi-row `values` insert when cells are left to the database default in some rows only,
-	 * or when a column's type can't be sent as an `unnest` array (arrays, enums, custom types, etc.)
+	 * A cell a row leaves out gets the column's database default, and a column no row sets is left out of the statement
 	 *
 	 * Atomic by default: rows are split into chunks pipelined in one transaction - pass `atomic: false` to commit per chunk
 	 *

@@ -56,7 +56,7 @@ import {
 	unique,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
-import { concat, substring } from 'drizzle-orm/sqlite-core/expressions';
+import { concat, rowId, substring } from 'drizzle-orm/sqlite-core/expressions';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import type { Equal } from '~/utils';
@@ -5613,6 +5613,34 @@ export function tests(
 			expect(await query().limit(2).offset(4)).toStrictEqual([{ id: 5 }]);
 			expect(await query().limit(2).offset(5)).toStrictEqual([]);
 			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
+		// SQLite accepts `offset` only after `limit`, so an offset alone has to reach the database with a limit
+		test.concurrent('pagination: offset without limit', async ({ db, push }) => {
+			const items = sqliteTable('pagination_5', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(5)).toStrictEqual([]);
+		});
+
+		test.concurrent('rowId: a number, rowId.big: a bigint', async ({ db, push }) => {
+			const items = sqliteTable('row_id_1', { name: text('name').notNull() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+			await push({ items });
+			await db.insert(items).values([{ name: 'a' }, { name: 'b' }]);
+
+			const rows = await db.select({ id: rowId(), big: rowId.big(), name: items.name }).from(items).orderBy(rowId());
+			expect(rows).toStrictEqual([{ id: 1, big: 1n, name: 'a' }, { id: 2, big: 2n, name: 'b' }]);
+			expectTypeOf(rows).toEqualTypeOf<{ id: number; big: bigint; name: string }[]>();
+			// what a `number` is for: both of these throw on a bigint
+			expect(JSON.stringify(rows.map((row) => row.id + 1))).toBe('[2,3]');
+
+			expect(await db.select({ name: items.name }).from(items).where(eq(rowId(), 2))).toStrictEqual([{ name: 'b' }]);
 		});
 
 		test.concurrent('pagination: placeholders', async ({ db, push }) => {

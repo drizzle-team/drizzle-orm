@@ -6,6 +6,8 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import {
+	mapBatchResults,
+	mapSettledResults,
 	PgAsyncBoundQuery,
 	PgAsyncPreparedQuery,
 	PgAsyncSession,
@@ -228,17 +230,7 @@ export class PostgresSession<
 			if (!query) throw e;
 			throw this.queryError(query, e, queries[index as number]!);
 		}).then((results) => {
-			const response = new Array(results.length);
-			for (let i = 0; i < results.length; ++i) {
-				const { mapper, mode } = prepared[i]!;
-				const result = results[i]!;
-
-				response[i] = mapper
-					? mapper(result.rows)
-					: mode === 'raw'
-					? result
-					: result.rows;
-			}
+			const response = mapBatchResults(prepared, results);
 			if (results.metrics) (response as { metrics?: BatchMetrics }).metrics = results.metrics;
 
 			return response;
@@ -254,32 +246,9 @@ export class PostgresSession<
 		queries: T,
 	): Promise<SettledQueryResult<any>[]> {
 		const { pool, prepared, built } = this.buildMulti('pipeline', queries);
-		return pool.pipeline(built).then((results) => {
-			const response = new Array(results.length);
-			for (let i = 0; i < results.length; ++i) {
-				const { mapper, mode } = prepared[i]!;
-				const result = results[i]!;
-				if (result.status === 'rejected') {
-					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, result.reason, queries[i]!) };
-					continue;
-				}
-
-				try {
-					response[i] = {
-						status: 'fulfilled',
-						value: mapper
-							? mapper(result.value.rows)
-							: mode === 'raw'
-							? result.value
-							: result.value.rows,
-					};
-				} catch (e) {
-					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, e, queries[i]!) };
-				}
-			}
-
-			return response;
-		});
+		return pool.pipeline(built).then((results) =>
+			mapSettledResults(prepared, results, (i, cause) => this.queryError(prepared[i]!, cause, queries[i]!))
+		);
 	}
 
 	/**
@@ -291,32 +260,9 @@ export class PostgresSession<
 		queries: T,
 	): Promise<SettledQueryResult<any>[]> {
 		const { pool, prepared, built } = this.buildMulti('parallel', queries);
-		return pool.parallel(built).then((results) => {
-			const response = new Array(results.length);
-			for (let i = 0; i < results.length; ++i) {
-				const { mapper, mode } = prepared[i]!;
-				const result = results[i]!;
-				if (result.status === 'rejected') {
-					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, result.reason, queries[i]!) };
-					continue;
-				}
-
-				try {
-					response[i] = {
-						status: 'fulfilled',
-						value: mapper
-							? mapper(result.value.rows)
-							: mode === 'raw'
-							? result.value
-							: result.value.rows,
-					};
-				} catch (e) {
-					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, e, queries[i]!) };
-				}
-			}
-
-			return response;
-		});
+		return pool.parallel(built).then((results) =>
+			mapSettledResults(prepared, results, (i, cause) => this.queryError(prepared[i]!, cause, queries[i]!))
+		);
 	}
 
 	async bulkInsert(
@@ -327,10 +273,7 @@ export class PostgresSession<
 		if (rows.length === 0) return { rows: [], columns: [], rowCount: 0, command: 'INSERT' };
 
 		const bulk = buildBulkInsert(this.dialect, table, rows);
-		return this.client.bulkInsert(bulk.table, bulk.columns, bulk.rows, {
-			...options,
-			defaults: bulk.defaults,
-		});
+		return this.client.bulkInsert(bulk.table, bulk.columns, bulk.rows, { ...options, defaults: true });
 	}
 
 	async bulkUpdate(
@@ -462,7 +405,17 @@ function bulkParam(method: string, value: unknown, col: PgColumn, codecs: PgDial
 	return mapped;
 }
 
-/** @internal */
+/**
+ * The driver's `bulkInsert` arguments for the given rows.
+ *
+ * They are for the driver's multi-row `values` insert (`defaults: true`), which every `bulkInsert` uses. It is the
+ * only one that can leave a single cell to its database default, written as `DEFAULT` in the statement: an
+ * `unnest` over arrays sends every column for every row, so a missing cell would arrive as NULL and override the
+ * default. With one kind of statement for every call, the rows are not inspected to choose between two paths that
+ * behave differently, and column types that have no array form (arrays, enums, custom types) need no fallback.
+ *
+ * @internal
+ */
 export function buildBulkInsert(dialect: PgDialect, table: PgTable, rows: readonly Record<string, unknown>[]) {
 	const codecs = dialect.codecs;
 	const tableColumns = table[Table.Symbol.Columns];
@@ -501,28 +454,24 @@ export function buildBulkInsert(dialect: PgDialect, table: PgTable, rows: readon
 
 	// Columns left to the database default in every row are dropped
 	const included: number[] = [];
-	let uniform = true;
 	for (let c = 0; c < width; ++c) {
-		const count = definedCount[c]!;
-		if (count === 0) continue;
-		included.push(c);
-		if (count !== rowCount) uniform = false;
+		if (definedCount[c]! !== 0) included.push(c);
 	}
 	// Every cell is left to the database default - `values (default, ...)` on every column
 	if (included.length === 0) {
-		uniform = false;
 		for (let c = 0; c < width; ++c) included.push(c);
 	}
 
+	// The driver's `values` statement infers parameter types from the target columns: the types here only
+	// complete the column record its API takes
 	const columns: Record<string, PgType> = {};
-	let unnest = uniform;
 	for (const c of included) {
 		const col = entries[c]![1];
-		const type = bulkType(col);
-		if (type === undefined) unnest = false;
-		// Only used by the `unnest` path - the `values` one infers parameter types from the target columns
-		columns[col.name] = type ?? 'text';
+		columns[col.name] = bulkType(col) ?? 'text';
 	}
+
+	// Nothing was dropped: the cells are the driver's rows as they are
+	if (included.length === width) return { table: bulkTableName('bulkInsert', table), columns, rows: cells };
 
 	const driverRows: unknown[][] = new Array(rowCount);
 	for (let r = 0; r < rowCount; ++r) {
@@ -532,7 +481,7 @@ export function buildBulkInsert(dialect: PgDialect, table: PgTable, rows: readon
 		driverRows[r] = row;
 	}
 
-	return { table: bulkTableName('bulkInsert', table), columns, rows: driverRows, defaults: !unnest };
+	return { table: bulkTableName('bulkInsert', table), columns, rows: driverRows };
 }
 
 /** @internal */
@@ -624,10 +573,9 @@ export class PostgresTransaction<
 	declare session: PostgresSession<TRelations>;
 
 	/**
-	 * Inserts rows in bulk via driver-side `unnest`, filling `$defaultFn` / `$onUpdateFn` like `tx.insert(...)`
+	 * Inserts rows in bulk as multi-row `values` statements, filling `$defaultFn` / `$onUpdateFn` like `tx.insert(...)`
 	 *
-	 * Falls back to a multi-row `values` insert when cells are left to the database default in some rows only,
-	 * or when a column's type can't be sent as an `unnest` array (arrays, enums, custom types, etc.)
+	 * A cell a row leaves out gets the column's database default, and a column no row sets is left out of the statement
 	 */
 	async bulkInsert<TTable extends PgTable>(
 		table: TTable,

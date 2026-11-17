@@ -245,7 +245,7 @@ describe('bulkInsert defaults:true', () => {
 		});
 	}, TEST_TIMEOUT);
 
-	test('uniform pattern: full chunks reuse ONE prepared statement, returning stays ordered', async () => {
+	test('chunked: returning stays ordered', async () => {
 		await withConn(async (c) => {
 			await c.query(DDDL(`${K}_d3`));
 			const rows = Array.from({ length: 300 }, (_, i) => ({ id: i + 1, name: `r${i}` })); // same DEFAULT pattern, exact multiple of chunk
@@ -253,10 +253,99 @@ describe('bulkInsert defaults:true', () => {
 			expect(r.rowCount).toBe(300);
 			expect((r.rows[0] as unknown as unknown[])[0]).toBe(1n);
 			expect((r.rows[299] as unknown as unknown[])[0]).toBe(300n); // chunk results merged in input order
-			const pp = await c.query("select count(*)::int4 from pg_prepared_statements where name like '\\_iv%'");
-			expect((pp.rows[0] as unknown as unknown[])[0]).toBe(1); // 3 identical 100-row chunks share one statement
 		});
 	}, TEST_TIMEOUT);
+
+	// The text of a `defaults: true` statement holds which cells are DEFAULT and how many rows the chunk has, so the
+	// number of distinct texts has no bound: rows that leave out different columns, or batches of different sizes,
+	// give a new one almost every call. If each text got a statement name, each would stay prepared on the server
+	// (and in the connection's own maps) until the connection closes, and a long-lived pooled connection would grow
+	// without limit: 6,000 distinct 64-row statements measured 387 MB of backend memory. The three tests below guard
+	// the rules that keep that from happening (Connection.valuesStatement): a text is named only once it repeats,
+	// and the named ones stay within a memory budget, the least recently used closed on the server.
+	const named = async (c: { query: (sql: string) => Promise<{ rows: unknown[] }> }) => {
+		const r = await c.query("select count(*)::int4 from pg_prepared_statements where name like '\\_iv%'");
+		return (r.rows[0] as unknown[])[0] as number;
+	};
+
+	test('a text that does not repeat leaves no prepared statement behind', async () => {
+		await withConn(async (c) => {
+			await c.query(DDDL(`${K}_d5`));
+			let id = 0;
+			for (let size = 1; size <= 12; size++) {
+				// a different batch size each call, and a different set of DEFAULT cells in each row
+				const rows = Array.from({ length: size }, (_, i) => ({
+					id: ++id,
+					name: `r${id}`,
+					status: (i + size) % 2 ? 's' : undefined,
+					n: (i + size) % 3 ? 1 : undefined,
+				}));
+				await c.bulkInsert(`${K}_d5`, DCOLS, rows, { defaults: true });
+			}
+
+			expect(await named(c)).toBe(0);
+			const count = await c.query(`select count(*)::int4 from ${K}_d5`);
+			expect((count.rows[0] as unknown as unknown[])[0]).toBe(id);
+		});
+	}, TEST_TIMEOUT);
+
+	test('a text that repeats is prepared once, from its second use', async () => {
+		await withConn(async (c) => {
+			await c.query(DDDL(`${K}_d6`));
+			let id = 0;
+			const insert = () =>
+				c.bulkInsert(`${K}_d6`, DCOLS, Array.from({ length: 10 }, () => ({ id: ++id, name: 'r' })), {
+					defaults: true,
+				});
+
+			await insert();
+			expect(await named(c)).toBe(0);
+			await insert();
+			expect(await named(c)).toBe(1);
+			// chunks of one call share the statement too
+			await c.bulkInsert(`${K}_d6`, DCOLS, Array.from({ length: 50 }, () => ({ id: ++id, name: 'r' })), {
+				defaults: true,
+				chunk: 10,
+			});
+			expect(await named(c)).toBe(1);
+		});
+	}, TEST_TIMEOUT);
+
+	test('repeating texts stay within the memory budget: the least recently used are closed on the server', async () => {
+		await withConn(async (c) => {
+			await c.query(DDDL(`${K}_d7`));
+			// 40 different texts of about 15 KB each, every one of them repeating. The budget has room for about 20
+			let id = 0;
+			const insert = (pattern: number) =>
+				c.bulkInsert(
+					`${K}_d7`,
+					DCOLS,
+					Array.from({ length: 400 }, (_, i) => ({
+						id: ++id,
+						name: 'r',
+						status: i < 6 && (pattern >> i) & 1 ? 's' : undefined,
+					})),
+					{ defaults: true, chunk: 400 },
+				);
+			const round = async () => {
+				for (let pattern = 0; pattern < 40; pattern++) await insert(pattern);
+			};
+
+			await round();
+			expect(await named(c)).toBe(0);
+			await round();
+			const afterSecond = await named(c);
+			expect(afterSecond).toBeGreaterThan(5);
+			expect(afterSecond).toBeLessThan(40);
+			await round();
+			await round();
+			// the server holds what the budget allows, however long this goes on
+			expect(await named(c)).toBeLessThanOrEqual(afterSecond);
+
+			const count = await c.query(`select count(*)::int4 from ${K}_d7`);
+			expect((count.rows[0] as unknown as unknown[])[0]).toBe(id);
+		});
+	}, 30_000);
 
 	test('array rows work, and pool.bulkInsert forwards the option', async () => {
 		const pool = testPool({ max: 2 });

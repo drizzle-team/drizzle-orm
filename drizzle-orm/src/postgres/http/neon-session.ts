@@ -1,15 +1,21 @@
 import type { ShapeSpec } from '#postgres';
-import type { NeonHttpClient, NeonTxQuery } from '#postgres/neon-http';
+import type { NeonHttpClient } from '#postgres/neon-http';
 import type { BatchItem, SettledQueryResult } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
-import { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import { PgAsyncSession, type PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import {
+	mapBatchResults,
+	mapSettledResults,
+	PgAsyncSession,
+	type PgAsyncTransaction,
+} from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import {
+	buildHttpMulti,
+	httpQueryError,
 	type PostgresHttpBatchOptions,
 	PostgresHttpPreparedQuery,
 	type PostgresHttpQueryResultHKT,
@@ -74,22 +80,8 @@ export class PostgresNeonHttpSession<
 		queries: T,
 		options?: PostgresHttpBatchOptions,
 	): Promise<any[]> {
-		const { prepared, built } = this.buildMulti(queries);
-		return this.client.transaction(built, options).then((results) => {
-			const response = new Array(results.length);
-			for (let i = 0; i < results.length; ++i) {
-				const { mapper, mode } = prepared[i]!;
-				const result = results[i]!;
-
-				response[i] = mapper
-					? mapper(result.rows)
-					: mode === 'raw'
-					? result
-					: result.rows;
-			}
-
-			return response;
-		});
+		const { prepared, built } = buildHttpMulti(queries);
+		return this.client.transaction(built, options).then((results) => mapBatchResults(prepared, results));
 	}
 
 	// No `pipeline`: Neon's multi-statement endpoint always wraps the set in a transaction (that is `batch`)
@@ -103,56 +95,14 @@ export class PostgresNeonHttpSession<
 		queries: T,
 		options?: PostgresHttpRequestOptions,
 	): Promise<SettledQueryResult<any>[]> {
-		const { prepared, built } = this.buildMulti(queries);
-		return this.client.parallel(built, options).then((results) => {
-			const response = new Array(results.length);
-			for (let i = 0; i < results.length; ++i) {
-				const { mapper, mode } = prepared[i]!;
-				const result = results[i]!;
-				if (result.status === 'rejected') {
-					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, result.reason) };
-					continue;
-				}
-
-				try {
-					response[i] = {
-						status: 'fulfilled',
-						value: mapper
-							? mapper(result.value.rows)
-							: mode === 'raw'
-							? result.value
-							: result.value.rows,
-					};
-				} catch (e) {
-					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, e) };
-				}
-			}
-
-			return response;
-		});
-	}
-
-	private queryError(prepared: PostgresHttpPreparedQuery<any>, cause: unknown): DrizzleQueryError {
-		const { sql, params } = prepared.getQuery();
-		return new DrizzleQueryError(sql, this.options.paramsInErrors ? params : undefined, cause as Error);
-	}
-
-	private buildMulti(queries: Readonly<BatchItem<'pg'>[]>) {
-		const prepared: PostgresHttpPreparedQuery<any>[] = new Array(queries.length);
-		const built: NeonTxQuery[] = new Array(queries.length);
-		for (let i = 0; i < queries.length; ++i) {
-			const preparedQuery = queries[i]!._prepare() as PostgresHttpPreparedQuery<any>;
-			const builtQuery = preparedQuery.getQuery();
-			prepared[i] = preparedQuery;
-			built[i] = {
-				sql: builtQuery.sql,
-				params: builtQuery.params,
-				mode: preparedQuery.mode === 'arrays' ? 'array' : 'object',
-				shape: preparedQuery.shape,
-			};
-		}
-
-		return { prepared, built };
+		const { prepared, built } = buildHttpMulti(queries);
+		return this.client.parallel(built, options).then((results) =>
+			mapSettledResults(
+				prepared,
+				results,
+				(i, cause) => httpQueryError(prepared[i]!, cause, this.options.paramsInErrors),
+			)
+		);
 	}
 
 	override async transaction<T>(

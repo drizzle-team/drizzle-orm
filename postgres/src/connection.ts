@@ -146,6 +146,21 @@ const FLUSH_THRESHOLD = 64 * 1024; // flush the batch immediately once it reache
 
 // Per-name statement cache. paramOids come from ParameterDescription; the binary param plan is
 // compiled from them LAZILY on first reuse (null = compiled, nothing binary-able -> plain text path).
+/** A `bulkInsert({ defaults: true })` statement that has a server-side name */
+interface ValuesStatement {
+	name: string;
+	cost: number; // estimated server memory, bytes
+	uses: number; // executions queued or in flight: not evicted while above zero
+}
+
+// What the server-side statements of one connection named for `bulkInsert({ defaults: true })` may take in
+// total, as estimated by valuesStatementCost
+const VALUES_NAMES_BUDGET = 16 * 1024 * 1024;
+// A prepared VALUES statement measured about 12 KB of backend memory at 8 rows (230 characters of SQL) and about
+// 100 KB at 64 rows (1,900 characters), on PostgreSQL 17 after it had been executed a few times
+const valuesStatementCost = (sql: string): number => 4096 + 50 * sql.length;
+const VALUES_SEEN_CHARS = 1024 * 1024;
+
 interface PreparedEntry {
 	sql: string;
 	fields: Field[];
@@ -710,12 +725,16 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private jitEncode = false; // eval available AND encode !== 'interpreted'
 	// bulkInsert: (table+columns+returning) -> generated unnest SQL + array OIDs (stable identity) + auto statement name
 	private insertMeta = new Map<string, { sql: string; oids: number[]; name: string }>();
-	// bulkInsert({ defaults:true }): VALUES-with-DEFAULT SQL -> auto statement name. Keyed by the full SQL
-	// (default-token positions + row count), so identical patterns reuse one prepared statement. EVERY
-	// distinct pattern is named — re-Parsing per chunk instead costs ~2.5x at scale (defaults-prepare.bench),
-	// so naming always wins. The common (uniform) case is 1-2 statements; only a pathological per-row-varying
-	// batch accrues one statement per distinct chunk SQL. (On a transaction pooler query() drops names anyway.)
-	private valuesMeta = new Map<string, string>();
+	// bulkInsert({ defaults:true }): the VALUES-with-DEFAULT statements that have a server-side name, by their SQL,
+	// least recently used first. See valuesStatement() for the rules.
+	private valuesNames = new Map<string, ValuesStatement>();
+	private valuesCost = 0; // estimated server memory of the statements in valuesNames
+	private valuesSeq = 0; // names are never reused: `_iv` + this counter
+	// texts sent once, unnamed, and not yet seen a second time; bounded by their total length
+	private valuesSeen = new Set<string>();
+	private valuesSeenChars = 0;
+	// names evicted from valuesNames, to Close on the server with the next statement that goes out
+	private pendingCloses: string[] = [];
 	private rowMappers: RowMappers; // per-shape mapper cache: this connection's own, or its pool's
 	// query-builder fast path: a chunks array (tagged template / builder) has stable identity, so cache
 	private scramState?: Scram;
@@ -1578,6 +1597,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		let parsedName: string | undefined // this task wrote a NAMED Parse (recorded in parseInflight only once the whole task serialized)
 		;
 		let parseSkipped = false; // named, and an identical Parse is already queued ahead in this pipeline
+		let closesWritten: string[] | undefined; // pendingCloses this task carries: put back if its bytes are discarded
 		try {
 			if (t.copySource || t.copyOut) writeQuery(w, t.sql);
 			// COPY: simple 'Q' (cleanest copy state machine); 'G' pumps the source, 'd' feeds copyTo
@@ -1586,6 +1606,16 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 					throw new TypeError(
 						'@drizzle/postgres: params must be an array — pass options as the THIRD argument: query(sql, [], opts)',
 					);
+				}
+				// statements dropped by valuesStatement(): closed on the server in front of this one. Nothing queued
+				// uses them, and their names are not given out again
+				if (this.pendingCloses.length !== 0) {
+					for (const closed of this.pendingCloses) {
+						writeClose(w, 'S', closed);
+						this.prepared.delete(closed);
+					}
+					closesWritten = this.pendingCloses;
+					this.pendingCloses = [];
 				}
 				const name = t.name ?? '';
 				let reuse = false;
@@ -1711,6 +1741,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			if (t.perf) t.perf.sent = w.mark() - mark; // bytes this query contributed to the batch
 		} catch (e) {
 			w.rewind(mark); // discard this task's partial bytes; earlier batched tasks stay intact
+			if (closesWritten) this.pendingCloses = closesWritten.concat(this.pendingCloses);
 			if (t.group) t.group.failed = true; // its batch must not commit without it
 			this.rejectTask(t, e as Error);
 			return;
@@ -2106,6 +2137,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			this.prepared.clear();
 			this.staleStatements.clear();
 			this.parseInflight.clear(); // server-side prepared statements are gone after a drop/restart
+			this.pendingCloses.length = 0;
 			void this.startReconnect(err);
 		} else {
 			this.state = 'closed';
@@ -2411,10 +2443,10 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	 *  literal `DEFAULT` keyword (the server applies the column default — a constant, `now()`,
 	 *  `nextval(…)`, anything), while an explicit `null` still inserts SQL NULL. (The unnest path
 	 *  can't express this: it sends every column, so an undefined there becomes NULL and OVERRIDES
-	 *  the default.) Trade-off: the statement text encodes the DEFAULT positions, so instead of one
-	 *  immutable statement you get one prepared statement per distinct (default-pattern, chunk-size)
-	 *  — the common case (the same columns omitted on every row) stays a single reusable statement.
-	 *  Params go out text-encoded with server type inference (no declared OIDs); every other option
+	 *  the default.) Trade-off: the statement text encodes the DEFAULT positions and the chunk size, so
+	 *  there is no single immutable statement to prepare: a text goes out unnamed the first time and is
+	 *  prepared under a name once it repeats, and the named ones of a connection are kept within a memory
+	 *  budget, the least recently used closed on the server (see valuesStatement). Params go out text-encoded with server type inference (no declared OIDs); every other option
 	 *  (chunking, atomic/WAL, returning, onProgress) behaves the same. */
 	bulkInsert(
 		table: string,
@@ -2454,13 +2486,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 					tuples[r - start] = '(' + cells.join(',') + ')';
 				}
 				const sql = prefix + tuples.join(',') + suffix;
-				// one prepared-statement name per distinct SQL — naming always beats re-Parsing (measured ~2.5x)
-				let name = this.valuesMeta.get(sql);
-				if (name === undefined) {
-					name = '_iv' + this.valuesMeta.size;
-					this.valuesMeta.set(sql, name);
-				}
-				return { sql, params, name, oids: undefined };
+				const statement = this.valuesStatement(sql);
+				return { sql, params, name: statement?.name, oids: undefined, statement };
 			};
 			return this.runBulk('bulkInsert', names, rows, opts, 'insertedRows', makeChunk);
 		}
@@ -2491,6 +2518,61 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				oids: m.oids,
 			}),
 		);
+	}
+
+	/**
+	 * The server-side name a `bulkInsert({ defaults: true })` statement is sent under, if it gets one.
+	 *
+	 * The text of such a statement holds which cells are DEFAULT and how many rows the chunk has, so the number of
+	 * distinct texts has no bound: rows that leave out different columns, or batches of different sizes, give a new
+	 * text almost every call. A name for every text is a prepared statement for every text, kept by the server until
+	 * the connection closes (measured: 387 MB of backend memory after 6,000 distinct 64-row statements). No names at
+	 * all means the server parses a repeating statement every time, which is up to 1.9x slower. So:
+	 * - a text is sent unnamed the first time it is seen, and named from the second time on: a text that never
+	 *   repeats leaves nothing behind
+	 * - the named statements of a connection stay within VALUES_NAMES_BUDGET of estimated server memory. When a
+	 *   new one does not fit, the least recently used ones are dropped here and closed on the server (the Close
+	 *   goes out in front of the next statement, in the same write)
+	 * - a statement with an execution queued or in flight is never dropped: that execution may reach the server
+	 *   after the Close would. If that leaves no room, the new text is sent unnamed
+	 */
+	private valuesStatement(sql: string): ValuesStatement | undefined {
+		if (!this.cfg.prepare) return undefined; // names are never sent on this connection
+
+		const known = this.valuesNames.get(sql);
+		if (known) {
+			// most recently used last
+			this.valuesNames.delete(sql);
+			this.valuesNames.set(sql, known);
+			return known;
+		}
+
+		if (!this.valuesSeen.delete(sql)) {
+			this.valuesSeen.add(sql);
+			this.valuesSeenChars += sql.length;
+			for (const oldest of this.valuesSeen) {
+				if (this.valuesSeenChars <= VALUES_SEEN_CHARS) break;
+				this.valuesSeen.delete(oldest);
+				this.valuesSeenChars -= oldest.length;
+			}
+			return undefined;
+		}
+		this.valuesSeenChars -= sql.length;
+
+		const cost = valuesStatementCost(sql);
+		for (const [text, statement] of this.valuesNames) {
+			if (this.valuesCost + cost <= VALUES_NAMES_BUDGET) break;
+			if (statement.uses > 0) continue;
+			this.valuesNames.delete(text);
+			this.valuesCost -= statement.cost;
+			this.pendingCloses.push(statement.name);
+		}
+		if (this.valuesCost + cost > VALUES_NAMES_BUDGET) return undefined;
+
+		const statement: ValuesStatement = { name: '_iv' + this.valuesSeq++, cost, uses: 0 };
+		this.valuesNames.set(sql, statement);
+		this.valuesCost += cost;
+		return statement;
 	}
 
 	/** Bulk-UPDATE rows matched by key column(s):
@@ -2582,7 +2664,13 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		makeChunk: (
 			start: number,
 			end: number,
-		) => { sql: string; params: unknown[]; name: string | undefined; oids: readonly number[] | undefined },
+		) => {
+			sql: string;
+			params: unknown[];
+			name: string | undefined;
+			oids: readonly number[] | undefined;
+			statement?: ValuesStatement;
+		},
 	): Promise<QueryResult<never>> {
 		if (!this.canCancel(opts)) return Promise.reject(cancelNeedsPoolError());
 		const t0 = performance.now();
@@ -2614,13 +2702,23 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			metrics: boolean | 'ms' | 'us' | undefined,
 		): Promise<QueryResult<never>> => {
 			const c = makeChunk(start, end);
-			return (this as Connection).query(c.sql, c.params, {
+			const p = (this as Connection).query(c.sql, c.params, {
 				name: c.name,
 				params: c.oids,
 				timeout: opts.timeout,
 				signal: opts.signal,
 				metrics,
 			}) as Promise<QueryResult<never>>;
+			const statement = c.statement;
+			if (statement) {
+				// held until this execution has settled: see valuesStatement()
+				statement.uses++;
+				const release = (): void => {
+					statement.uses--;
+				};
+				p.then(release, release);
+			}
+			return p;
 		};
 		const chunkMetrics = onProgress ? ('us' as const) : undefined;
 		const chunk = Math.max(1, opts.chunk ?? defaultChunk(names, rows)); // 64, bytes-capped for fat rows; explicit opts.chunk always wins

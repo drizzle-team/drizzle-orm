@@ -47,6 +47,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
 import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
+import { proceduresEnabled } from 'src/dialects/postgres/procedures/model';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { fetchPartitions, fromDatabase as studioFromDatabase } from 'src/ext/studio-postgres';
 import { DB } from 'src/utils';
@@ -1845,11 +1846,54 @@ test('fetchPartitions finds a table with a quote in its name', async () => {
 	expect((await fetchPartitions(db, 'public', "it's")).map((it) => it.name)).toStrictEqual(["it's_1"]);
 });
 
+// Postgres finds an unqualified operator through the search_path, so a schema listed there before pg_catalog can
+// replace `=` for every query of the connection. `a IN (...)` looks `=` up the same way, which is why the rule at
+// the top of introspect.ts asks for `a OPERATOR(pg_catalog.=) ANY (ARRAY[...])` instead
+test('introspection does not run operators of the search_path', async () => {
+	const client = await freshPGlite();
+	await client.query(`CREATE TABLE "accounts" (id bigint)`);
+	await client.query(`CREATE SCHEMA "hijack"`);
+	for (const [left, right] of [['"char"', '"char"'], ['name', 'name'], ['name', 'text']]) {
+		await client.query(`
+			CREATE FUNCTION "hijack".eq(${left}, ${right}) RETURNS boolean LANGUAGE plpgsql AS $$
+			BEGIN
+				RAISE EXCEPTION 'an operator of the search_path was run instead of pg_catalog.=';
+			END $$
+		`);
+		await client.query(
+			`CREATE OPERATOR "hijack".= (LEFTARG = ${left}, RIGHTARG = ${right}, FUNCTION = "hijack".eq)`,
+		);
+	}
+
+	await client.query(`SET search_path = "hijack", pg_catalog, public`);
+	const failures: string[] = [];
+	const hijacked: DB = {
+		query: (sql: string, params?: any[]) =>
+			client.query(sql, params).then((it) => it.rows as any[], (error: Error) => {
+				failures.push(`${error.message}\n${sql}`);
+				throw error;
+			}),
+	};
+	const filter = prepareEntityFilter(
+		'postgresql',
+		{ tables: [], schemas: [], entities: undefined, extensions: [] },
+		[],
+	);
+	const pulled = await fromDatabaseForDrizzle(hijacked, filter, () => {}, {
+		schema: 'drizzle',
+		table: '__drizzle_migrations',
+	}).catch(() => undefined);
+	await client.close();
+
+	expect(failures).toStrictEqual([]);
+	expect(pulled?.tables.map((it) => it.name)).toStrictEqual(['accounts']);
+});
+
 test('studio fromDatabase does not introspect procedures', async () => {
 	await db.query(`CREATE TABLE users (id int);`);
 	await db.query(`CREATE PROCEDURE noop() LANGUAGE sql AS $$ SELECT 1 $$;`);
 
-	expect((await fromDatabase(db)).procedures.map((it) => it.name)).toStrictEqual(['noop']);
+	expect((await fromDatabase(db)).procedures.map((it) => it.name)).toStrictEqual(proceduresEnabled ? ['noop'] : []);
 
 	const queries: string[] = [];
 	const result = await studioFromDatabase({
