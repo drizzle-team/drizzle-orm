@@ -1,6 +1,4 @@
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -79,7 +77,6 @@ export function decodePostgresJsRawRows(
 
 export interface PostgresJsSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -89,7 +86,6 @@ export class PostgresJsSession<TSQL extends Sql | TransactionSql, TRelations ext
 	static override readonly [entityKind]: string = 'PostgresJsSession';
 
 	logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		public client: TSQL,
@@ -100,7 +96,6 @@ export class PostgresJsSession<TSQL extends Sql | TransactionSql, TRelations ext
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -108,8 +103,6 @@ export class PostgresJsSession<TSQL extends Sql | TransactionSql, TRelations ext
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	) {
 		const executor = async (params?: unknown[]) => {
 			if (mapper && mode !== 'call') {
@@ -138,9 +131,6 @@ export class PostgresJsSession<TSQL extends Sql | TransactionSql, TRelations ext
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

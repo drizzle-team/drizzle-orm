@@ -312,7 +312,6 @@ export class PgDeleteBase<
 	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
 		const { session, dialect, config } = this;
 		return prepareMutation(
-			'delete',
 			session,
 			dialect,
 			config,

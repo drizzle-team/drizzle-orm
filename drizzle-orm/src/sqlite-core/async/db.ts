@@ -1,4 +1,3 @@
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -87,7 +86,6 @@ export class SQLiteAsyncDatabase<
 				resultKind === 'sync' ? SQLiteSyncRelationalQuery : SQLiteAsyncRelationalQuery,
 			);
 		}
-		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -519,8 +517,6 @@ export class SQLiteAsyncDatabase<
 	update<TTable extends SQLiteTable>(table: TTable): SQLiteAsyncUpdateBuilder<TTable, TResultKind, TRunResult> {
 		return new SQLiteUpdateBuilder(table, this.session, this.dialect, undefined, SQLiteAsyncUpdateBase);
 	}
-
-	$cache: { invalidate: Cache['onMutate'] };
 
 	/**
 	 * Creates an insert query.

@@ -9,7 +9,6 @@
 // import { randomString } from '~/utils';
 // import { getXataClient } from '../xata/xata';
 // import { tests, tests as cacheTests, usersMigratorTable, usersTable } from './common-pt1';
-// import { TestCache, TestGlobalCache } from './common-cache';
 // import relations from './relations';
 
 // const ENABLE_LOGGING = false;
@@ -36,8 +35,6 @@
 // 		randomize: false,
 // 	});
 // 	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
-// 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
-// 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 // });
 
 // beforeEach((ctx) => {

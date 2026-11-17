@@ -1,4 +1,3 @@
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
@@ -69,8 +68,6 @@ export abstract class MySqlSession {
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (rows: any) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): MySqlBasePreparedQuery;
 
 	abstract execute(query: SQL): unknown;

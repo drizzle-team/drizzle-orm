@@ -1,12 +1,11 @@
 import { entityKind, is } from '~/entity.ts';
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfigRoot,
-	relationalQueryUsedTablesInit,
-	type RelationalRowsMapper,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
+import type {
+	BuildQueryResult,
+	BuildRelationalQueryResult,
+	DBQueryConfigRoot,
+	RelationalRowsMapper,
+	TableRelationalConfig,
+	TablesRelationalConfig,
 } from '~/relations.ts';
 import { type Query, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '../dialect.ts';
@@ -154,7 +153,7 @@ export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TR
 	}
 
 	/** @internal */
-	_getQuery(usedTables?: Set<string>) {
+	_getQuery() {
 		const jsonb = this.forbidJsonb ? sql`json` : sql`jsonb`;
 
 		return this.dialect.buildRelationalQuery({
@@ -164,17 +163,15 @@ export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TR
 			queryConfig: this.config,
 			mode: this.mode,
 			jsonb,
-			usedTables,
 		});
 	}
 
-	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query; usedTables: Set<string> | undefined } {
-		const usedTables = relationalQueryUsedTablesInit(this.config);
-		const query = this._getQuery(usedTables);
+	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
+		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql);
 
-		return { query, builtQuery, usedTables };
+		return { query, builtQuery };
 	}
 
 	toSQL(): Query {

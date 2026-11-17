@@ -1,6 +1,4 @@
 import type { Database, Transaction } from '@tursodatabase/sync';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -19,7 +17,6 @@ import type { TursoDatabaseSyncRunResult } from './driver.ts';
 
 export interface TursoDatabaseSyncSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -31,7 +28,6 @@ export class TursoDatabaseSyncSession<TRelations extends AnyRelations>
 	static override readonly [entityKind]: string = 'TursoDatabaseSyncSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: Database | Transaction,
@@ -41,7 +37,6 @@ export class TursoDatabaseSyncSession<TRelations extends AnyRelations>
 	) {
 		super(dialect, 'async');
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -50,8 +45,6 @@ export class TursoDatabaseSyncSession<TRelations extends AnyRelations>
 		prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<T & { run: TursoDatabaseSyncRunResult }> {
 		// Incomplete types in driver
 		let stmt: any;
@@ -104,9 +97,6 @@ export class TursoDatabaseSyncSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

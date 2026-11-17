@@ -2,8 +2,6 @@ import type { PgClient } from '@effect/sql-pg/PgClient';
 import type { Result } from '@effect/sql-pg/PgConnection';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
-import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
@@ -30,7 +28,6 @@ export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
 
 export interface EffectPgSessionOptions {
 	logger: EffectLoggerShape;
-	cache: EffectCacheShape;
 	paramsInErrors?: boolean;
 }
 
@@ -54,8 +51,6 @@ export class EffectPgSession<
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgEffectPreparedQuery<T, EffectPgQueryEffectHKT> {
 		const executor = (params?: unknown[]) => {
 			const q = this.client.unsafe(query.sql, params);
@@ -71,9 +66,6 @@ export class EffectPgSession<
 			mapper,
 			mode,
 			this.options.logger,
-			this.options.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

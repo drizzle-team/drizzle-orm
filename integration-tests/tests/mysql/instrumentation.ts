@@ -6,15 +6,9 @@ import {
 	defineRelations,
 	ExtractTablesFromSchema,
 	ExtractTablesWithRelations,
-	getCacheKey,
-	is,
 	RelationsBuilder,
 	RelationsBuilderConfig,
-	Table,
 } from 'drizzle-orm';
-import type { MutationOption } from 'drizzle-orm/cache/core';
-import { Cache } from 'drizzle-orm/cache/core';
-import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import type { MySqlAsyncDatabase, MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import { drizzle as proxyDrizzle, RemoteCallback } from 'drizzle-orm/mysql-proxy';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
@@ -24,73 +18,10 @@ import { mysql2Codecs } from 'drizzle-orm/mysql2/codecs';
 import { drizzle as psDrizzle } from 'drizzle-orm/planetscale-serverless';
 import { drizzle as drizzleTidb } from 'drizzle-orm/tidb-serverless';
 import { type FunctionsVersioning, type InferCallbackType, seed } from 'drizzle-seed';
-import Keyv from 'keyv';
 import { createConnection } from 'mysql2/promise';
 import type * as mysql from 'mysql2/promise';
-import type { Mock } from 'vitest';
-import { test as base, vi } from 'vitest';
+import { test as base } from 'vitest';
 import { relations } from './schema';
-
-export class TestCache extends Cache {
-	private globalTtl: number = 1000;
-	private usedTablesPerKey: Record<string, string[]> = {};
-
-	constructor(private readonly strat: 'explicit' | 'all', private kv: Keyv = new Keyv()) {
-		super();
-	}
-
-	override strategy(): 'explicit' | 'all' {
-		return this.strat;
-	}
-
-	override async get(key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
-		const res = await this.kv.get(key) ?? undefined;
-		return res;
-	}
-	override async put(
-		key: string,
-		response: any,
-		tables: string[],
-		isTag: boolean,
-		config?: CacheConfig,
-	): Promise<void> {
-		await this.kv.set(key, response, config ? config.ex : this.globalTtl);
-		for (const table of tables) {
-			const keys = this.usedTablesPerKey[table];
-			if (keys === undefined) {
-				this.usedTablesPerKey[table] = [key];
-			} else {
-				keys.push(key);
-			}
-		}
-	}
-	override async onMutate(params: MutationOption): Promise<void> {
-		const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
-		const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
-
-		const keysToDelete = new Set<string>();
-
-		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-			const keys = this.usedTablesPerKey[tableName] ?? [];
-			for (const key of keys) keysToDelete.add(key);
-		}
-
-		if (keysToDelete.size > 0 || tagsArray.length > 0) {
-			for (const tag of tagsArray) {
-				await this.kv.delete(tag);
-			}
-
-			for (const key of keysToDelete) {
-				await this.kv.delete(key);
-				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-					this.usedTablesPerKey[tableName] = [];
-				}
-			}
-		}
-	}
-}
 
 const rawTextTypeCast = makeMySql2RawTextTypeCast();
 
@@ -229,7 +160,6 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 					proxyClient?: mysql.Connection;
 					jit?: boolean;
 					paramsInErrors?: boolean;
-					cache?: Cache;
 				}): MySqlAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 			};
 			push: (schema: any) => Promise<void>;
@@ -237,22 +167,6 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 				schema: Schema,
 				refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlAsyncDatabase<any, any>, Schema>,
 			) => Promise<void>;
-			drizzle: {
-				withCacheAll: {
-					db: MySqlAsyncDatabase<any, typeof relations>;
-					put: Mock<any>;
-					get: Mock<any>;
-					onMutate: Mock<any>;
-					invalidate: Mock<any>;
-				};
-				withCacheExplicit: {
-					db: MySqlAsyncDatabase<any, typeof relations>;
-					put: Mock<any>;
-					get: Mock<any>;
-					onMutate: Mock<any>;
-					invalidate: Mock<any>;
-				};
-			};
 		}
 	>({
 		clients: [
@@ -422,19 +336,18 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 					proxyClient?: mysql.Connection;
 					jit?: boolean;
 					paramsInErrors?: boolean;
-					cache?: Cache;
 				}) => {
-					const { schema, cb, proxyClient, jit, paramsInErrors, cache } = config;
+					const { schema, cb, proxyClient, jit, paramsInErrors } = config;
 					const relations = schema ? cb ? defineRelations(schema, cb) : defineRelations(schema) : undefined;
 
 					if (vendor === 'mysql') {
-						return mysql2Drizzle({ client: client.client as any, relations, jit, paramsInErrors, cache });
+						return mysql2Drizzle({ client: client.client as any, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'tidb') {
-						return drizzleTidb({ client: client.client as any, relations, jit, paramsInErrors, cache });
+						return drizzleTidb({ client: client.client as any, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'planetscale') {
-						return psDrizzle({ client: client.client as any, relations, jit, paramsInErrors, cache });
+						return psDrizzle({ client: client.client as any, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'mysql-proxy') {
 						return proxyDrizzle(createProxyHandler(proxyClient ?? client.client as any), {
@@ -442,7 +355,6 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 							codecs: mysql2Codecs,
 							jit,
 							paramsInErrors,
-							cache,
 						}) as any;
 					}
 					throw new Error();
@@ -471,59 +383,6 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 				) => _seed(db, schema, refineCallback);
 
 				await use(seed);
-			},
-			{ scope: 'test' },
-		],
-		drizzle: [
-			async ({ client }, use) => {
-				const explicitCache = new TestCache('explicit');
-				const allCache = new TestCache('all');
-				const proxyHandler = createProxyHandler(client.client as mysql.Connection);
-
-				const withCacheExplicit = vendor === 'mysql'
-					? mysql2Drizzle({ client: client.client as any, relations, cache: explicitCache })
-					: vendor === 'tidb'
-					? drizzleTidb({ client: client.client as Connection, relations, cache: explicitCache })
-					: vendor === 'planetscale'
-					? psDrizzle({ client: client.client as any, relations, cache: explicitCache })
-					: proxyDrizzle(proxyHandler, { relations, cache: explicitCache, codecs: mysql2Codecs });
-				const withCacheAll = vendor === 'mysql'
-					? mysql2Drizzle({ client: client.client as any, relations, cache: allCache })
-					: vendor === 'tidb'
-					? drizzleTidb({ client: client.client as Connection, relations, cache: allCache })
-					: vendor === 'planetscale'
-					? psDrizzle({ client: client.client as any, relations, cache: allCache })
-					: proxyDrizzle(proxyHandler, { relations, cache: allCache, codecs: mysql2Codecs });
-
-				const drz = {
-					withCacheAll: {
-						db: withCacheAll,
-						put: vi.spyOn(allCache, 'put'),
-						get: vi.spyOn(allCache, 'get'),
-						onMutate: vi.spyOn(allCache, 'onMutate'),
-						invalidate: vi.spyOn(withCacheAll.$cache, 'invalidate'),
-					},
-					withCacheExplicit: {
-						db: withCacheExplicit,
-						put: vi.spyOn(explicitCache, 'put'),
-						get: vi.spyOn(explicitCache, 'get'),
-						onMutate: vi.spyOn(explicitCache, 'onMutate'),
-						invalidate: vi.spyOn(withCacheExplicit.$cache, 'invalidate'),
-					},
-				};
-
-				await use(drz as any);
-
-				await withCacheAll.$cache.invalidate({});
-				await withCacheExplicit.$cache.invalidate({});
-				drz.withCacheAll.get.mockClear();
-				drz.withCacheAll.put.mockClear();
-				drz.withCacheAll.onMutate.mockClear();
-				drz.withCacheAll.invalidate.mockClear();
-				drz.withCacheExplicit.get.mockClear();
-				drz.withCacheExplicit.put.mockClear();
-				drz.withCacheExplicit.onMutate.mockClear();
-				drz.withCacheExplicit.invalidate.mockClear();
 			},
 			{ scope: 'test' },
 		],

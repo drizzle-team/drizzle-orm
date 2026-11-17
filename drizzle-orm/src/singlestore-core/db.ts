@@ -1,4 +1,3 @@
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -82,8 +81,6 @@ export class SingleStoreDatabase<
 				session,
 			);
 		}
-
-		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -572,8 +569,6 @@ export class SingleStoreDatabase<
 			mode ?? 'raw',
 		).execute();
 	}
-
-	$cache: { invalidate: Cache['onMutate'] };
 
 	transaction<T>(
 		transaction: (

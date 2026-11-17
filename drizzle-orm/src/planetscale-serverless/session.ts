@@ -6,8 +6,6 @@ import {
 	type ExecutedQuery,
 	type Transaction,
 } from '@planetscale/database';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -37,7 +35,6 @@ export const makePlanetscaleRawTextCast = (clientCast: Cast = cast): Cast => (fi
 
 export interface PlanetscaleSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -49,7 +46,6 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAs
 
 	private logger: Logger;
 	private client: Client | Transaction | Connection;
-	private cache: Cache;
 	private rawTextCast: Cast;
 
 	constructor(
@@ -62,7 +58,6 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAs
 		super(dialect);
 		this.client = tx ?? baseClient;
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 		this.rawTextCast = makePlanetscaleRawTextCast(baseClient.config.cast ?? cast);
 	}
 
@@ -70,8 +65,6 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAs
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (response: Record<string, unknown>[] | unknown[][] | { insertId: number; affectedRows: number }) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;
 		const queryConfig = {
@@ -98,9 +91,6 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAs
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

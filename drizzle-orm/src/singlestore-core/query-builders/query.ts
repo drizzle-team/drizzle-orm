@@ -1,15 +1,12 @@
 import { entityKind, is } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfigRoot,
-	relationalQueryCacheConfig,
-	relationalQueryCacheMetadata,
-	relationalQueryUsedTablesInit,
-	type RelationalRowsMapper,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
+import type {
+	BuildQueryResult,
+	BuildRelationalQueryResult,
+	DBQueryConfigRoot,
+	RelationalRowsMapper,
+	TableRelationalConfig,
+	TablesRelationalConfig,
 } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { SingleStoreDialect } from '../dialect.ts';
@@ -101,7 +98,7 @@ export class SingleStoreRelationalQuery<
 	}
 
 	prepare() {
-		const { query, builtQuery, usedTables } = this._toSQL();
+		const { query, builtQuery } = this._toSQL();
 		return this.session.prepareQuery(
 			builtQuery,
 			'objects',
@@ -112,30 +109,26 @@ export class SingleStoreRelationalQuery<
 				rootJsonMappers: false,
 				selection: query.selection,
 			}),
-			relationalQueryCacheMetadata(this.config, query.sql, usedTables, this),
-			relationalQueryCacheConfig(this.config),
 		) as PreparedQueryKind<TPreparedQueryHKT, SingleStorePreparedQueryConfig & { execute: TResult }, true>;
 	}
 
 	/** @internal */
-	_getQuery(usedTables?: Set<string>) {
+	_getQuery() {
 		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
 			mode: this.mode,
-			usedTables,
 		});
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query; usedTables: Set<string> | undefined } {
-		const usedTables = relationalQueryUsedTablesInit(this.config);
-		const query = this._getQuery(usedTables);
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
+		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql);
 
-		return { builtQuery, query, usedTables };
+		return { builtQuery, query };
 	}
 
 	getSQL(): SQL {

@@ -1,4 +1,3 @@
-import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -20,7 +19,6 @@ import type { ColumnsSelection, CommentInput, Placeholder, Query } from '~/sql/s
 import { SQL, sql } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import type { ValueOrArray } from '~/utils.ts';
 import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -226,7 +224,6 @@ export class MySqlSelectBase<
 	/** @internal */
 	readonly session: MySqlSession | undefined;
 	protected dialect: MySqlDialect;
-	protected cacheConfig?: WithCacheConfig = undefined;
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct, useIndex, forceIndex, ignoreIndex }: {
@@ -262,15 +259,6 @@ export class MySqlSelectBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
-	}
-
-	/**
-	 * @internal
-	 * Collects every table query's SQL references - `from`, joins, CTEs, set operators, raw SQL & subqueries of fields, filters, etc.
-	 * @param sql - query's already built SQL, to avoid rebuilding it
-	 */
-	getUsedTables(sql: SQL = this.getSQL()) {
-		return usedTablesOf(sql);
 	}
 
 	private createJoin<
@@ -1138,15 +1126,6 @@ export class MySqlSelectBase<
 
 	$dynamic(): MySqlSelectDynamic<this> {
 		return this as any;
-	}
-
-	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
-		this.cacheConfig = config === undefined
-			? { config: {}, enabled: true, autoInvalidate: true }
-			: config === false
-			? { enabled: false }
-			: { enabled: true, autoInvalidate: true, ...config };
-		return this;
 	}
 }
 

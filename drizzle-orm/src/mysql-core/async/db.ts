@@ -1,4 +1,3 @@
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -86,8 +85,6 @@ export class MySqlAsyncDatabase<
 				MySqlAsyncRelationalQuery,
 			);
 		}
-
-		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -153,8 +150,6 @@ export class MySqlAsyncDatabase<
 	) {
 		return new MySqlAsyncCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
 	}
-
-	$cache: { invalidate: Cache['onMutate'] };
 
 	/**
 	 * Incorporates a previously defined CTE (using `$with`) into the main query.

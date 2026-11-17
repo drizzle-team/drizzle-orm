@@ -8,7 +8,6 @@ import type { SqlError } from 'effect/sql/SqlError';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { SettledQueryResult } from '~/batch.ts';
-import type { EffectCacheError } from '~/cache/core/cache-effect.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectPostgresDatabase } from '~/effect-drizzle-postgres/index.ts';
 import { integer, pgTable, text } from '~/pg-core/index.ts';
@@ -63,8 +62,7 @@ asyncConnector;
 declare const edb: EffectPostgresDatabase;
 
 {
-	// batch: one transaction, a tuple of results. The cache is invalidated once, after the run, so a failure of
-	// that arrives as EffectCacheError itself, like after a bulk write
+	// batch: one transaction, a tuple of results
 	const batched = edb.batch([
 		edb.select().from(items),
 		edb.insert(items).values({ id: 1, name: 'a' }).returning({ id: items.id }),
@@ -72,7 +70,7 @@ declare const edb: EffectPostgresDatabase;
 	Expect<
 		Equal<
 			typeof batched,
-			Effect.Effect<[Item[], { id: number }[]], EffectDrizzleQueryError | SqlError | EffectCacheError, never>
+			Effect.Effect<[Item[], { id: number }[]], EffectDrizzleQueryError | SqlError, never>
 		>
 	>;
 
@@ -81,7 +79,7 @@ declare const edb: EffectPostgresDatabase;
 	Expect<
 		Equal<
 			typeof piped,
-			Effect.Effect<[Item[], { id: number }[]], EffectDrizzleQueryError | SqlError | EffectCacheError, never>
+			Effect.Effect<[Item[], { id: number }[]], EffectDrizzleQueryError | SqlError, never>
 		>
 	>;
 }
@@ -93,15 +91,14 @@ declare const resultOf: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effe
 	Expect<
 		Equal<
 			typeof settled,
-			Effect.Effect<[Result.Result<Item[], EffectDrizzleQueryError>], SqlError | EffectCacheError, never>
+			Effect.Effect<[Result.Result<Item[], EffectDrizzleQueryError>], SqlError, never>
 		>
 	>;
 }
 
 {
-	// Bulk writes. Unlike queries, whose cache failures arrive inside EffectDrizzleQueryError, a failed cache
-	// invalidation after a bulk write fails with EffectCacheError itself.
-	type BulkFailure = DrizzlePostgresClient.BulkError | EffectCacheError;
+	// Bulk writes
+	type BulkFailure = DrizzlePostgresClient.BulkError;
 	const inserted = edb.bulkInsert(items, [{ id: 1, name: 'a' }, { id: 2, name: 'b', note: null }]);
 	Expect<Equal<typeof inserted, Effect.Effect<PostgresBulkResult, BulkFailure, never>>>;
 

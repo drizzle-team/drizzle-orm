@@ -9,7 +9,6 @@ import {
 	countDistinct,
 	DrizzleQueryError,
 	eq,
-	type ExtractTablesFromSchema,
 	getColumns,
 	getTableColumns,
 	gt,
@@ -23,7 +22,6 @@ import {
 	makeJitRqbMapper,
 	max,
 	min,
-	type RelationsBuilder,
 	sql,
 	sum,
 	sumDistinct,
@@ -74,7 +72,6 @@ import {
 import { concat, dotProduct, euclideanDistance, substring } from 'drizzle-orm/singlestore-core/expressions';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
-import { UpstashTestCache } from '~/upstash-cache';
 import { Expect } from '../utils';
 import type { Equal } from '../utils';
 import {
@@ -3549,77 +3546,6 @@ export function tests(test: Test) {
 
 			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 			expect(parseStoredJson(stored)).toStrictEqual(output);
-		});
-
-		const upstashTable = makeAllTypes('all_types_upstash');
-		const upstashCodecsTable = makeAllTypes('all_types_cdcs_upstash');
-		const upstashSchema = { allTypesTable: upstashTable, ...boundsSchema };
-		const upstashCodecsSchema = { allTypesTable: upstashCodecsTable, ...boundsSchema };
-		const upstashRelations = (r: RelationsBuilder<ExtractTablesFromSchema<typeof upstashSchema>>) => ({
-			...allTypesRelations(r),
-			...boundsRelations(r),
-		});
-
-		test('all types - upstash', async ({ createDB, push }) => {
-			await using cache = new UpstashTestCache();
-			const { run } = cache;
-			const table = upstashTable;
-			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
-			await push({ table });
-
-			await cache.expectHits('all types', async () => {
-				await run(db.insert(table).values(allTypesData));
-				expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
-			});
-			await cache.expectHits('unions', () => assertAllTypesUnions(db, table, run));
-			await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run }));
-			await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db, { run }));
-		});
-
-		test('all types ~codecs~ - upstash', async ({ createDB, push }) => {
-			await using cache = new UpstashTestCache();
-			const { run } = cache;
-			const table = upstashCodecsTable;
-			const db = createDB(
-				upstashCodecsSchema,
-				(r) => ({
-					...allTypesRelations(r),
-					...boundsRelations(r),
-				}),
-				false,
-				false,
-				cache,
-			);
-			await push({ table });
-
-			await cache.expectHits('all types', async () => {
-				await run(db.insert(table).values(allTypesData));
-				expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
-					...allTypesData,
-					self: [allTypesData],
-				});
-			});
-			await cache.expectHits('unions', () => assertAllTypesUnions(db, table, run));
-			await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run, rqb: true }));
-			await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db, { run, rqb: true }));
-		});
-
-		test('all types ~json~ - upstash', async ({ createDB, push }) => {
-			await using cache = new UpstashTestCache();
-			const { run } = cache;
-			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
-			const table = singlestoreTable('all_types_json_upstash', {
-				id: int('id').primaryKey(),
-				json: json('json'),
-			});
-			await push({ table });
-
-			const { input, output } = jsonRows(['json']);
-
-			await cache.expectHits('json', async () => {
-				await run(db.insert(table).values(input));
-				expect(await run(db.select().from(table).orderBy(table.id))).toStrictEqual(output);
-			});
 		});
 
 		test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {

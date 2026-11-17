@@ -8,7 +8,6 @@ import { randomString } from '~/utils';
 import { d1Test as test } from './instrumentation';
 import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
-import { tests as cacheTests } from './sqlite-common-cache';
 import { unsafeNumericSkips, unsafeNumericTests } from './unsupported-types';
 
 test('migrator', async ({ db }) => {
@@ -258,7 +257,6 @@ const skip = [
 	// Type 'bigint' not supported; unaliased selections with equal names overwrite each other (see #528)
 	'concat, substring expressions',
 ];
-cacheTests(test, skip);
 // the driver returns integers as numbers: integer `numeric` values outside of the safe integer range have already lost
 // precision and throw an unsupported column type error, tests holding them are redefined with safe values
 tests(test, [...skip, ...unsafeNumericSkips]);

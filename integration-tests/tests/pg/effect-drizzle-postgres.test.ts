@@ -1,4 +1,4 @@
-import { assert, expect, expectTypeOf, vi } from '@effect/vitest';
+import { assert, expect, expectTypeOf } from '@effect/vitest';
 import {
 	defineRelations,
 	ExtractTablesFromSchema,
@@ -7,8 +7,6 @@ import {
 	Schema,
 	sql,
 } from 'drizzle-orm';
-import type { Cache } from 'drizzle-orm/cache/core';
-import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
 import * as PostgresDrizzle from 'drizzle-orm/effect-drizzle-postgres';
 import { migrate } from 'drizzle-orm/effect-drizzle-postgres/migrator';
 import { integer, pgSchema, text, timestamp } from 'drizzle-orm/pg-core';
@@ -20,7 +18,6 @@ import * as Redacted from 'effect/Redacted';
 import * as Result from 'effect/Result';
 import { Client as PgPeerClient } from 'pg';
 import { DB, runCommonEffectPgTests } from './effect-common';
-import { TestCache } from './instrumentation';
 import { relations } from './relations';
 import { usersMigratorTable } from './schema';
 
@@ -39,10 +36,8 @@ const createDB = <
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 	useJitMappers?: boolean,
-	cache?: Cache,
 ) =>
 	PostgresDrizzle.make({ relations: defineRelations(schema, relations), jit: useJitMappers }).pipe(
-		Effect.provide(cache ? EffectCache.layerFromDrizzle(cache) : Layer.empty),
 		Effect.provide(PostgresDrizzle.DefaultServices),
 	);
 
@@ -158,102 +153,6 @@ runCommonEffectPgTests({
 				assert(Predicate.isTagged(duplicate.failure, 'EffectDrizzleQueryError'));
 				assert(Result.isSuccess(selected));
 				expect(selected.success).toStrictEqual([{ id: 1, name: 'John' }]);
-			}));
-
-		it.effect('batch and pipeline send statements in order when the cache is on', () =>
-			Effect.gen(function*() {
-				const db = yield* PostgresDrizzle.make().pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(new TestCache('all'))),
-					Effect.provide(PostgresDrizzle.DefaultServices),
-				);
-				yield* createBulkUsers(db);
-
-				const [beforeBatchInsert] = yield* db.batch([
-					db.select({ id: bulkUsers.id }).from(bulkUsers),
-					db.insert(bulkUsers).values({ id: 1, name: 'John' }),
-				]);
-				expect(beforeBatchInsert).toStrictEqual([]);
-
-				const [beforePipelineInsert] = yield* db.pipeline([
-					db.select({ id: bulkUsers.id }).from(bulkUsers).where(sql`${bulkUsers.id} > 1`),
-					db.insert(bulkUsers).values({ id: 2, name: 'Jane' }),
-				]);
-				expect(beforePipelineInsert).toStrictEqual([]);
-			}));
-
-		// Statements of a batch or a pipeline are never answered from the cache or stored in it. The ones that
-		// change data, and bulk writes, make cached queries stale, the same as a write that is run on its own
-		it.effect('batch, pipeline and bulk writes invalidate cached queries; their selects stay out of the cache', () =>
-			Effect.gen(function*() {
-				const cache = new TestCache('all');
-				const db = yield* PostgresDrizzle.make().pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(cache)),
-					Effect.provide(PostgresDrizzle.DefaultServices),
-				);
-				// writes that the cache does not hear about
-				const plain = yield* PostgresDrizzle.makeWithDefaults();
-				yield* createBulkUsers(db);
-
-				const select = db.select({ id: bulkUsers.id }).from(bulkUsers).orderBy(bulkUsers.id);
-				const ids = Effect.map(select, (rows) => rows.map((row) => row.id));
-				const unseen = (id: number) => plain.insert(bulkUsers).values({ id, name: 'Unseen' });
-
-				expect(yield* ids).toStrictEqual([]);
-				yield* unseen(1);
-				expect(yield* ids, 'answered from the cache').toStrictEqual([]);
-
-				const get = vi.spyOn(cache, 'get');
-				const put = vi.spyOn(cache, 'put');
-				const [inBatch] = yield* db.batch([select]);
-				const [inPipeline] = yield* db.pipeline([select]);
-				expect(inBatch).toStrictEqual([{ id: 1 }]);
-				expect(inPipeline).toStrictEqual([{ id: 1 }]);
-				expect(get).not.toHaveBeenCalled();
-				expect(put).not.toHaveBeenCalled();
-				get.mockRestore();
-				put.mockRestore();
-				expect(yield* ids, 'what was cached is still there').toStrictEqual([]);
-
-				yield* db.batch([db.insert(bulkUsers).values({ id: 2, name: 'John' }), select]);
-				expect(yield* ids, 'after a batch').toStrictEqual([1, 2]);
-
-				yield* unseen(3);
-				expect(yield* ids).toStrictEqual([1, 2]);
-				yield* db.pipeline([db.insert(bulkUsers).values({ id: 4, name: 'Jane' }), select]);
-				expect(yield* ids, 'after a pipeline').toStrictEqual([1, 2, 3, 4]);
-
-				yield* unseen(5);
-				expect(yield* ids).toStrictEqual([1, 2, 3, 4]);
-				yield* db.bulkInsert(bulkUsers, [{ id: 6, name: 'Bulk' }]);
-				expect(yield* ids, 'after bulkInsert').toStrictEqual([1, 2, 3, 4, 5, 6]);
-
-				yield* unseen(7);
-				expect(yield* ids).toStrictEqual([1, 2, 3, 4, 5, 6]);
-				yield* db.bulkUpdate(bulkUsers, [{ id: 6, name: 'Bulky' }], { by: bulkUsers.id });
-				expect(yield* ids, 'after bulkUpdate').toStrictEqual([1, 2, 3, 4, 5, 6, 7]);
-
-				// one invalidation for a batch, after its commit: another connection sees the rows by then
-				const context = yield* Effect.context<never>();
-				const seenAtInvalidation: number[][] = [];
-				const afterCommit = vi.spyOn(cache, 'onMutate').mockImplementation(async () => {
-					const rows = await Effect.runPromiseWith(context)(
-						plain.select({ id: bulkUsers.id }).from(bulkUsers).orderBy(bulkUsers.id),
-					);
-					seenAtInvalidation.push(rows.map((row) => row.id));
-				});
-				yield* db.batch([
-					db.insert(bulkUsers).values({ id: 8, name: 'First' }),
-					db.insert(bulkUsers).values({ id: 9, name: 'Second' }),
-				]);
-				expect(seenAtInvalidation).toStrictEqual([[1, 2, 3, 4, 5, 6, 7, 8, 9]]);
-				afterCommit.mockRestore();
-
-				// a failed write invalidates nothing
-				const onMutate = vi.spyOn(cache, 'onMutate');
-				const failed = yield* db.batch([db.insert(bulkUsers).values({ id: 1, name: 'Twice' })]).pipe(Effect.result);
-				assert(Result.isFailure(failed));
-				expect(onMutate).not.toHaveBeenCalled();
-				onMutate.mockRestore();
 			}));
 
 		it.effect('bulkInsert and bulkUpdate', () =>

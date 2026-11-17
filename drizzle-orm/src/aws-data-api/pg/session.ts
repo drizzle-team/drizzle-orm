@@ -5,9 +5,6 @@ import {
 	ExecuteStatementCommand,
 	RollbackTransactionCommand,
 } from '@aws-sdk/client-rds-data';
-import type { Cache } from '~/cache/core/cache.ts';
-import { NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
@@ -23,7 +20,6 @@ export type AwsDataApiClient = RDSDataClient;
 
 export interface AwsDataApiSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	database: string;
 	resourceArn: string;
 	secretArn: string;
@@ -43,7 +39,6 @@ export class AwsDataApiSession<
 
 	/** @internal */
 	readonly rawQuery: AwsDataApiQueryBase;
-	private cache: Cache;
 	private logger: Logger;
 
 	constructor(
@@ -61,7 +56,6 @@ export class AwsDataApiSession<
 			resourceArn: options.resourceArn,
 			database: options.database,
 		};
-		this.cache = options.cache ?? new NoopCache();
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -70,8 +64,6 @@ export class AwsDataApiSession<
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const executor = async (params?: unknown[]) => {
 			const command = new ExecuteStatementCommand({
@@ -134,9 +126,6 @@ export class AwsDataApiSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

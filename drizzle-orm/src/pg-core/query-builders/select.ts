@@ -1,4 +1,3 @@
-import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgColumn } from '~/pg-core/columns/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -23,7 +22,6 @@ import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } f
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import {
 	type Assume,
 	getTableColumns,
@@ -241,7 +239,6 @@ export class PgSelectBase<
 	protected isPartialSelect: boolean;
 	protected session: PgSession | undefined;
 	protected dialect: PgDialect;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		config: {
@@ -273,15 +270,6 @@ export class PgSelectBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(config.table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
-	}
-
-	/**
-	 * @internal
-	 * Collects every table query's SQL references - `from`, joins, CTEs, set operators, raw SQL & subqueries of fields, filters, etc.
-	 * @param sql - query's already built SQL, to avoid rebuilding it
-	 */
-	getUsedTables(sql: SQL = this.getSQL()) {
-		return usedTablesOf(sql);
 	}
 
 	private createJoin<
@@ -1163,15 +1151,6 @@ export class PgSelectBase<
 		return this;
 	}
 
-	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
-		this.cacheConfig = config === undefined
-			? { config: {}, enabled: true, autoInvalidate: true }
-			: config === false
-			? { enabled: false }
-			: { enabled: true, autoInvalidate: true, ...config };
-		return this;
-	}
-
 	/**
 	 * Prepares the query on the session, for both runtimes: the session decides what the prepared query's `execute`
 	 * returns. The runtime's builder narrows the return type.
@@ -1179,7 +1158,7 @@ export class PgSelectBase<
 	 * @internal
 	 */
 	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
-		const { session, dialect, cacheConfig, config, joinsNotNullableMap } = this;
+		const { session, dialect, config, joinsNotNullableMap } = this;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const fieldsList = this._resolveSelection();
@@ -1201,8 +1180,6 @@ export class PgSelectBase<
 				shape ? 'objects' : 'arrays',
 				name ?? generateName,
 				mapper as ((rows: unknown[]) => any) | undefined,
-				{ type: 'select', tables: () => this.getUsedTables(sequel) },
-				cacheConfig,
 				shape,
 			);
 		});

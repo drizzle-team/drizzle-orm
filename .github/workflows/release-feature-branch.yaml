@@ -146,21 +146,20 @@ jobs:
         include:
           # Short shards share a job (.github/ci/run-shard.sh runs a+b in turn): each job's setup costs ~20 s, and a
           # self-hosted machine runs only as many jobs at once as it has runner instances.
-          # upstash: the `all types - upstash` tests of the common suites (compose/upstash.yml)
           - shard: int:mysql+int:planetscale
-            dbs: [mysql, planetscale, upstash]
+            dbs: [mysql, planetscale]
           - shard: int:postgres
-            dbs: [postgres, postgres-http-gateway, aws-data-api, upstash]
+            dbs: [postgres, postgres-http-gateway, aws-data-api]
           - shard: int:neon
-            dbs: [neon, upstash]
+            dbs: [neon]
           - shard: int:sqlite+int:turso-serverless
-            dbs: [turso, upstash]
+            dbs: [turso]
           - shard: int:other+int:imports+validators
             dbs: [mysql, postgres, postgres-postgis, postgres-vector]
           - shard: int:cockroach+int:cockroach-rqb
             dbs: [cockroach]
           - shard: int:bun+int:seeder+int:mssql
-            dbs: [postgres, postgres-vector, postgres-postgis, mysql, mssql, upstash]
+            dbs: [postgres, postgres-vector, postgres-postgis, mysql, mssql]
           - shard: orm
             dbs: []
           - shard: kit:other

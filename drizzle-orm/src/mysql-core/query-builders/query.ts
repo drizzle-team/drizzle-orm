@@ -1,12 +1,11 @@
 import { entityKind, is } from '~/entity.ts';
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfigRoot,
-	relationalQueryUsedTablesInit,
-	type RelationalRowsMapper,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
+import type {
+	BuildQueryResult,
+	BuildRelationalQueryResult,
+	DBQueryConfigRoot,
+	RelationalRowsMapper,
+	TableRelationalConfig,
+	TablesRelationalConfig,
 } from '~/relations.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { MySqlDialect } from '../dialect.ts';
@@ -127,24 +126,22 @@ export class MySqlRelationalQuery<THKT extends MySqlRelationalQueryHKTBase, TRes
 	) {}
 
 	/** @internal */
-	_getQuery(usedTables?: Set<string>) {
+	_getQuery() {
 		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
 			mode: this.mode,
-			usedTables,
 		});
 	}
 
-	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query; usedTables: Set<string> | undefined } {
-		const usedTables = relationalQueryUsedTablesInit(this.config);
-		const query = this._getQuery(usedTables);
+	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
+		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql);
 
-		return { builtQuery, query, usedTables };
+		return { builtQuery, query };
 	}
 
 	getSQL(): SQL {

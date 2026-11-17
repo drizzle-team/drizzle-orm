@@ -1,4 +1,3 @@
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/index.ts';
@@ -59,8 +58,6 @@ export abstract class PgSession {
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: unknown[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 		/** Usef for driver-side mapping if supported by driver & compatible */
 		driverShape?: unknown,
 	): PgBasePreparedQuery;

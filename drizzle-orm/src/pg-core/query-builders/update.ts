@@ -710,7 +710,6 @@ export class PgUpdateBase<
 			? resolveNullableObjectPaths(config.returning, joinsNotNullableMap)
 			: undefined;
 		return prepareMutation(
-			'update',
 			session,
 			dialect,
 			config,

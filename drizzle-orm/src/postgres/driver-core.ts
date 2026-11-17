@@ -173,7 +173,6 @@ export function construct<
 	const relations = config.relations ?? {};
 	const session = new PostgresSession(client, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 
@@ -183,10 +182,6 @@ export function construct<
 		relations,
 	) as PostgresDatabase<TRelations>;
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }

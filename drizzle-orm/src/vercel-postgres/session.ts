@@ -7,9 +7,6 @@ import {
 	type VercelPoolClient,
 } from '@vercel/postgres';
 import type { CustomTypesConfig } from 'pg';
-import type { Cache } from '~/cache/core/cache.ts';
-import { NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
@@ -31,7 +28,6 @@ export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 
 export interface VercelPgSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -41,7 +37,6 @@ export class VercelPgSession<
 	static override readonly [entityKind]: string = 'VercelPgSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: VercelPgClient,
@@ -51,7 +46,6 @@ export class VercelPgSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -59,8 +53,6 @@ export class VercelPgSession<
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	) {
 		const queryName = typeof name === 'string'
 			? name
@@ -83,9 +75,6 @@ export class VercelPgSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

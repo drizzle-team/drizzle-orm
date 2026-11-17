@@ -28,7 +28,6 @@ import {
 	sum,
 	sumDistinct,
 } from 'drizzle-orm';
-import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
 import * as SQLiteDrizzle from 'drizzle-orm/effect-sqlite-do';
 import { migrate } from 'drizzle-orm/effect-sqlite-do/migrator';
 import {
@@ -346,7 +345,7 @@ const setupAggregateFunctionsTest = (db: Db) =>
 export class MyDurableObject extends DurableObject {
 	private db!: Db;
 	private runtime!: ManagedRuntime.ManagedRuntime<
-		EffectCache | SQLiteDrizzle.EffectLogger | SqliteClient.SqliteClient | SqlClient,
+		SQLiteDrizzle.EffectLogger | SqliteClient.SqliteClient | SqlClient,
 		never
 	>;
 

@@ -1,6 +1,4 @@
-import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
@@ -17,7 +15,6 @@ import {
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { upgradeAsyncIfNeeded, upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
-import { assertUnreachable } from '~/utils.ts';
 import { SQLiteAsyncDatabase } from './db.ts';
 
 export interface SQLiteAsyncPreparedQueryConfig extends BasePreparedQueryConfig {
@@ -54,8 +51,6 @@ export type Result<TKind extends 'sync' | 'async', TResult> = TKind extends 'asy
 export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> extends SQLitePreparedQuery {
 	static override readonly [entityKind]: string = 'SQLiteAsyncPreparedQuery';
 
-	private fastPath: boolean;
-
 	constructor(
 		private resultKind: 'sync' | 'async',
 		executeMethod: SQLiteExecuteMethod = 'all',
@@ -64,93 +59,13 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 		mapper: ((rows: any[]) => any) | undefined,
 		mode: 'arrays' | 'objects' | 'raw',
 		protected logger: Logger,
-		// cache instance
-		protected cache: Cache | undefined,
-		// per query related metadata
-		protected queryMetadata: QueryMetadata | undefined,
-		// config that was passed through $withCache
-		protected cacheConfig: WithCacheConfig | undefined,
 		protected paramsInErrors: boolean | undefined,
 	) {
 		super(executeMethod, query, mapper, mode);
-
-		// it means that no $withCache options were passed and it should be just enabled
-		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
-			this.cacheConfig = { enabled: true, autoInvalidate: true };
-		}
-		if (!this.cacheConfig?.enabled) {
-			this.cacheConfig = undefined;
-		}
-
-		this.fastPath = cacheConfig === undefined && (cache === undefined || is(cache, NoopCache));
-	}
-
-	/** @internal */
-	protected async queryWithCache<T>(
-		queryString: string,
-		params: any[],
-		executeMethod: SQLiteExecuteMethod,
-		query: () => Promise<T>,
-	): Promise<T> {
-		const cacheStrat = this.cache !== undefined && !is(this.cache, NoopCache)
-			? await strategyFor(queryString, params, this.queryMetadata, this.cacheConfig)
-			: { type: 'skip' as const };
-
-		// `run` returns driver's run result instead of rows: it's never read from or written to cache,
-		// but mutations executed through it still invalidate
-		if (cacheStrat.type === 'skip' || (cacheStrat.type === 'try' && executeMethod === 'run')) {
-			return query().catch((e) => {
-				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-			});
-		}
-
-		const cache = this.cache!;
-
-		if (cacheStrat.type === 'invalidate') {
-			return query().then(async (res) => {
-				await cache.onMutate({ tables: cacheStrat.tables });
-				return res;
-			}).catch((e) => {
-				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-			});
-		}
-
-		if (cacheStrat.type === 'try') {
-			const { tables, key: _key, isTag, autoInvalidate, config } = cacheStrat;
-			const key = `${executeMethod}_${_key}`;
-
-			const fromCache = await cache.get(
-				key,
-				tables,
-				isTag,
-				autoInvalidate,
-			);
-
-			if (fromCache === undefined) {
-				const result = await query().catch((e) => {
-					throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-				});
-				// put actual key
-				await cache.put(
-					key,
-					result,
-					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
-					autoInvalidate ? tables : [],
-					isTag,
-					config,
-				);
-				// put flag if we should invalidate or not
-				return result;
-			}
-
-			return fromCache as unknown as T;
-		}
-
-		assertUnreachable(cacheStrat);
 	}
 
 	override run(placeholderValues: Record<string, unknown> = {}): Result<T['type'], T['run']> {
-		const { query, logger, executors, fastPath, resultKind } = this;
+		const { query, logger, executors, resultKind } = this;
 		const sql = query._sql ? query._sql.join(' ') : query.sql;
 		const params = query.params.length === 0
 			? query.params
@@ -165,15 +80,13 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 			}
 		}
 
-		return fastPath
-			? (<SQLiteQueryExecutors<'async'>> executors).run(params).catch((e) => {
-				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
-			})
-			: this.queryWithCache(sql, params, 'run', () => (<SQLiteQueryExecutors<'async'>> executors).run(params));
+		return (<SQLiteQueryExecutors<'async'>> executors).run(params).catch((e) => {
+			throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
+		});
 	}
 
 	override all(placeholderValues: Record<string, unknown> = {}): Result<T['type'], T['all']> {
-		const { query, logger, executors, mapper, fastPath, resultKind } = this;
+		const { query, logger, executors, mapper, resultKind } = this;
 		const sql = query._sql ? query._sql.join(' ') : query.sql;
 		const params = query.params.length === 0
 			? query.params
@@ -192,18 +105,16 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 			return mapper(res);
 		}
 
-		const res = fastPath
-			? (<SQLiteQueryExecutors<'async'>> executors).all(params).catch((e) => {
-				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
-			})
-			: this.queryWithCache(sql, params, 'all', () => (<SQLiteQueryExecutors<'async'>> executors).all(params));
+		const res = (<SQLiteQueryExecutors<'async'>> executors).all(params).catch((e) => {
+			throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
+		});
 		if (!mapper) return res;
 
 		return res.then((rows) => mapper(rows)) as Result<T['type'], T['all']>;
 	}
 
 	override get(placeholderValues: Record<string, unknown> = {}): Result<T['type'], T['get']> {
-		const { query, logger, executors, mapper, fastPath, resultKind } = this;
+		const { query, logger, executors, mapper, resultKind } = this;
 		const sql = query._sql ? query._sql.join(' ') : query.sql;
 		const params = query.params.length === 0
 			? query.params
@@ -224,11 +135,9 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 			return mapper([res])[0];
 		}
 
-		const res = fastPath
-			? (<SQLiteQueryExecutors<'async'>> executors).get(params).catch((e) => {
-				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
-			})
-			: this.queryWithCache(sql, params, 'get', () => (<SQLiteQueryExecutors<'async'>> executors).get(params));
+		const res = (<SQLiteQueryExecutors<'async'>> executors).get(params).catch((e) => {
+			throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
+		});
 
 		// Convert potential nulls from drivers to undefined
 		if (!mapper) return res.then((row) => row ? row : undefined);
@@ -237,7 +146,7 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 	}
 
 	override values(placeholderValues: Record<string, unknown> = {}): Result<T['type'], T['values']> {
-		const { query, logger, executors, fastPath, resultKind } = this;
+		const { query, logger, executors, resultKind } = this;
 		const sql = query._sql ? query._sql.join(' ') : query.sql;
 		const params = query.params.length === 0
 			? query.params
@@ -252,11 +161,9 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 			}
 		}
 
-		const res = fastPath
-			? (<SQLiteQueryExecutors<'async'>> executors).all(params).catch((e) => {
-				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
-			})
-			: this.queryWithCache(sql, params, 'values', () => (<SQLiteQueryExecutors<'async'>> executors).all(params));
+		const res = (<SQLiteQueryExecutors<'async'>> executors).all(params).catch((e) => {
+			throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
+		});
 
 		return res;
 	}
@@ -294,8 +201,6 @@ export abstract class SQLiteAsyncSession<
 		prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<SQLiteAsyncPreparedQueryConfig & { type: TResultKind }>;
 
 	abstract transaction<T>(

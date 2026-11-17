@@ -37,13 +37,11 @@ const skips = [
 	'transaction with options (set isolationLevel)',
 	'time zones are preserved - non-UTC session',
 	'all types ~codecs~ - non-UTC session',
-	'all types ~codecs~ - non-UTC session - upstash',
 	'transaction with options (accessMode read only)',
 	'transaction with options (deferrable)',
 	'transaction with an empty options object',
 	// Default client has no codes, uses shapes instead
 	'all types ~codecs~',
-	'all types ~codecs~ - upstash',
 ];
 
 tests(test, skips);

@@ -1,7 +1,4 @@
 import type { SettledQueryResult } from '~/batch.ts';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import { cachedQuery, type CacheOps, type PendingInvalidation } from '~/cache/core/flow.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { is } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
@@ -102,34 +99,16 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 		body?: string;
 	} | undefined;
 
-	private fastPath: boolean;
-
 	constructor(
 		protected executor: (params?: unknown[]) => Promise<any>,
 		query: Query,
 		mapper: ((rows: any[]) => any) | undefined,
 		readonly mode: 'arrays' | 'objects' | 'raw' | 'call',
 		protected logger: Logger,
-		// cache instance
-		protected cache: Cache | undefined,
-		// per query related metadata
-		protected queryMetadata: QueryMetadata | undefined,
-		// config that was passed through $withCache
-		protected cacheConfig: WithCacheConfig | undefined,
 		protected paramsInErrors: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
-		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
-			this.cacheConfig = { enabled: true, autoInvalidate: true };
-		}
-		if (!this.cacheConfig?.enabled) {
-			this.cacheConfig = undefined;
-		}
-
-		this.fastPath = cacheConfig === undefined
-			&& (cache === undefined || is(cache, NoopCache))
-			&& !hasTelemetry;
 	}
 
 	/**
@@ -148,25 +127,15 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 	}
 
 	/**
-	 * Leaves the tables this query writes in `pending`, for a session that sends the query without `execute`
-	 * (a batch, a pipeline) and invalidates the cache for the whole run
-	 *
-	 * @internal
-	 */
-	_noteMutation(pending: PendingInvalidation): void {
-		pending.add(this.queryMetadata);
-	}
-
-	/**
 	 * Runs the query with values for its placeholders and returns a Promise of the result.
 	 *
 	 * Eager: the query is sent as soon as `execute` is called, whether or not the Promise is awaited. To hand the
 	 * query and its values to something that runs it later, such as a batch, use {@link bind}.
 	 */
 	override async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
-		const { query, logger, executor, mapper, fastPath } = this;
+		const { query, logger, executor, mapper } = this;
 
-		if (fastPath) {
+		if (!hasTelemetry) {
 			const sql = query._sql ? query._sql.join(' ') : query.sql;
 			const params = query.params.length === 0
 				? query.params
@@ -199,41 +168,15 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 				});
 
 				// return await so tracer captures time accurately
-				return await this.queryWithCache(sql, params, () => this.executor(params));
+				return await this.executor(params).catch((e) => {
+					throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
+				});
 			});
 
 			if (!mapper) return query;
 
 			return query.then((rows) => tracer.startActiveSpan('drizzle.mapResponse', () => mapper(rows as unknown[])));
 		});
-	}
-
-	/**
-	 * Runs the shared cache flow (`cachedQuery`) with Promises. A failed query, and a failed invalidation after a
-	 * mutation, reject with a `DrizzleQueryError`; a failed cache read or write rejects with the cache's own error
-	 *
-	 * @internal
-	 */
-	protected queryWithCache<T>(
-		queryString: string,
-		params: any[],
-		query: () => Promise<T>,
-	): Promise<T> {
-		const asQueryError = (e: unknown): never => {
-			throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-		};
-		const { cache } = this;
-		const ops: CacheOps | undefined = cache !== undefined && !is(cache, NoopCache)
-			? {
-				get: (key, tables, isTag, isAutoInvalidate) => cache.get(key, tables, isTag, isAutoInvalidate),
-				put: (key, response, tables, isTag, config) => cache.put(key, response, tables, isTag, config),
-				onMutate: (mutation) => cache.onMutate(mutation).catch(asQueryError),
-			}
-			: undefined;
-
-		return run(
-			cachedQuery<T>(ops, queryString, params, this.queryMetadata, this.cacheConfig, () => query().catch(asQueryError)),
-		);
 	}
 }
 
@@ -245,8 +188,6 @@ export abstract class BasePgAsyncSession extends PgSession {
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 		driverShape?: unknown,
 	): PgAsyncPreparedQuery<T>;
 

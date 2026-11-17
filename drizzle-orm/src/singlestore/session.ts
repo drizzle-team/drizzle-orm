@@ -1,7 +1,5 @@
 import type { Connection as CallbackConnection } from 'mysql2';
 import type { Connection, FieldPacket, Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -36,7 +34,6 @@ export type SingleStoreRawExecuteResult =
 
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -50,7 +47,6 @@ export class SingleStoreDriverSession<
 	static override readonly [entityKind]: string = 'SingleStoreDriverSession';
 
 	private logger: Logger;
-	private cache: Cache;
 	private rawTextTypeCast: TypeCastFunction;
 
 	constructor(
@@ -61,7 +57,6 @@ export class SingleStoreDriverSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 		this.rawTextTypeCast = makeSingleStoreRawTextTypeCast(client);
 	}
 
@@ -69,8 +64,6 @@ export class SingleStoreDriverSession<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: AnySingleStoreMapper,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T> {
 		const { client } = this;
 		const rawTextTypeCast = mapper ? this.rawTextTypeCast : undefined;
@@ -132,9 +125,6 @@ export class SingleStoreDriverSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		) as PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T>;
 	}

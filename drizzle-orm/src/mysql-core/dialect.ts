@@ -15,7 +15,7 @@ import type {
 import {
 	buildRqbColumns,
 	// AggregatedField,
-	collectSubqueryAndUsedTables,
+	collectSubquery,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
@@ -806,7 +806,6 @@ export class MySqlDialect {
 		through,
 		nested,
 		withSubqueries,
-		usedTables,
 		strategy,
 	}: MySqlBuildRelationalQueryConfig, collectTo: SQLChunk[]): BuildRelationalQueryResult['selection'] {
 		const selection: BuildRelationalQueryResult['selection'] = [];
@@ -815,9 +814,9 @@ export class MySqlDialect {
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
 		const isOptimized = (currentDepth ? strategy : params?.strategy) !== 'basic';
-		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map(), usedTables };
+		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map() };
 		if (!currentDepth) {
-			collectSubqueryAndUsedTables(collector, table);
+			collectSubquery(collector, table);
 			table = aliasedTable(table, `d${currentDepth}`);
 		}
 		const tableRef = table[Qualifier];
@@ -914,8 +913,8 @@ export class MySqlDialect {
 			const relation = tableConfig.relations[k];
 			if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 			const isSingle = relation.relationType === 'one';
-			collectSubqueryAndUsedTables(collector, relation.targetTable);
-			collectSubqueryAndUsedTables(collector, relation.throughTable);
+			collectSubquery(collector, relation.targetTable);
+			collectSubquery(collector, relation.throughTable);
 
 			const targetTable = aliasedTable(
 				relation.targetTable,

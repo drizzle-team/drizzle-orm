@@ -39,7 +39,6 @@ function construct<
 	const relations = config.relations ?? {};
 	const session = new NodePgSession(client, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 
@@ -49,10 +48,6 @@ function construct<
 		relations,
 	) as NodePgDatabase<TRelations>;
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }

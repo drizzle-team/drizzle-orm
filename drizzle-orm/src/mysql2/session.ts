@@ -1,7 +1,5 @@
 import type { Connection as CallbackConnection } from 'mysql2';
 import type { Connection, FieldPacket, Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -29,7 +27,6 @@ export type MySql2RawExecuteResult =
 
 export interface MySql2SessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -39,7 +36,6 @@ export class MySql2Session<
 	static override readonly [entityKind]: string = 'MySql2Session';
 
 	private logger: Logger;
-	private cache: Cache;
 	private rawTextTypeCast: TypeCastFunction;
 
 	constructor(
@@ -50,7 +46,6 @@ export class MySql2Session<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 		this.rawTextTypeCast = makeMySql2RawTextTypeCast(client);
 	}
 
@@ -58,8 +53,6 @@ export class MySql2Session<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: AnyMySqlMapper,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;
 		const rawTextTypeCast = mapper ? this.rawTextTypeCast : undefined;
@@ -121,9 +114,6 @@ export class MySql2Session<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

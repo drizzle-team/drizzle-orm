@@ -1,7 +1,5 @@
-import { Effect } from 'effect';
+import type { Effect } from 'effect';
 import type { SqlError } from 'effect/sql/SqlError';
-import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import type { MutationOption } from '~/cache/core/cache.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -85,7 +83,6 @@ export class SQLiteEffectDatabase<
 				SQLiteEffectRelationalQuery,
 			);
 		}
-		this.$cache = { invalidate: (_params: MutationOption) => Effect.void };
 	}
 
 	/**
@@ -157,8 +154,6 @@ export class SQLiteEffectDatabase<
 			dialect: this.dialect,
 		});
 	}
-
-	$cache: { invalidate: EffectCacheShape['onMutate'] };
 
 	/**
 	 * Incorporates a previously defined CTE (using `$with`) into the main query.

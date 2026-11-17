@@ -1,8 +1,6 @@
 /// <reference types="bun-types" />
 
 import type { SavepointSQL, SQL as BunSQL, TransactionSQL } from 'bun';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -20,7 +18,6 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 
 export interface BunSQLiteSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -35,7 +32,6 @@ export class BunSQLiteSession<
 	static override readonly [entityKind]: string = 'BunSQLiteSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		readonly client: TSQL,
@@ -45,7 +41,6 @@ export class BunSQLiteSession<
 	) {
 		super(dialect, 'async');
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -54,8 +49,6 @@ export class BunSQLiteSession<
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<T & { run: BunSQLiteRunResult }> {
 		const executors: SQLiteQueryExecutors<'async'> = {
 			all: (params) => {
@@ -82,9 +75,6 @@ export class BunSQLiteSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

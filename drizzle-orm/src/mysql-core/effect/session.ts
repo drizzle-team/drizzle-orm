@@ -1,19 +1,15 @@
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
-import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { EffectDrizzleQueryError, EffectTransactionRollbackError, MigratorInitError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/effect-mysql.ts';
-import { assertUnreachable } from '~/utils.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import {
 	MySqlBasePreparedQuery,
@@ -41,22 +37,10 @@ export class MySqlEffectPreparedQuery<
 		mapper: ((rows: any[]) => any) | undefined,
 		readonly mode: 'arrays' | 'objects' | 'raw',
 		private logger: EffectLoggerShape,
-		// cache instance
-		protected cache: EffectCacheShape,
-		// per query related metadata
-		protected queryMetadata: QueryMetadata | undefined,
-		// config that was passed through $withCache
-		protected cacheConfig: WithCacheConfig | undefined,
 		protected paramsInErrors: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
-		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
-			this.cacheConfig = { enabled: true, autoInvalidate: true };
-		}
-		if (!this.cacheConfig?.enabled) {
-			this.cacheConfig = undefined;
-		}
 	}
 
 	override execute(placeholderValues: Record<string, unknown> = {}): QueryEffectKind<TEffectHKT, T['execute']> {
@@ -69,7 +53,7 @@ export class MySqlEffectPreparedQuery<
 
 			yield* logger.logQuery(sql, params);
 
-			const result = this.queryWithCache(sql, params, Effect.suspend(() => this.executor(params)));
+			const result = this.mapQueryError(sql, params, Effect.suspend(() => this.executor(params)));
 
 			if (!mapper) return yield* result;
 
@@ -78,68 +62,21 @@ export class MySqlEffectPreparedQuery<
 	}
 
 	/** @internal */
-	protected queryWithCache<A, E, R>(
+	protected mapQueryError<A, E, R>(
 		queryString: string,
 		params: any[],
 		query: Effect.Effect<A, E, R>,
 	) {
-		return Effect.gen({ self: this }, function*() {
-			const { cacheConfig, queryMetadata } = this;
-			const cache = yield* EffectCache;
-
-			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !(cache.cache && is(cache.cache, NoopCache))
-				? yield* Effect.tryPromise(
-					() => strategyFor(queryString, params, queryMetadata, cacheConfig),
-				)
-				: { type: 'skip' as const };
-
-			if (cacheStrat.type === 'skip') {
-				return yield* query;
-			}
-
-			if (cacheStrat.type === 'invalidate') {
-				const result = yield* query;
-				yield* cache!.onMutate({ tables: cacheStrat.tables });
-
-				return result;
-			}
-
-			if (cacheStrat.type === 'try') {
-				const { tables, key, isTag, autoInvalidate, config } = cacheStrat;
-				const fromCache: any[] | undefined = yield* cache!.get(
-					key,
-					tables,
-					isTag,
-					autoInvalidate,
-				);
-
-				if (typeof fromCache !== 'undefined') return fromCache as unknown as A;
-
-				const result = yield* query;
-
-				yield* cache!.put(
-					key,
-					result,
-					autoInvalidate ? tables : [],
-					isTag,
-					config,
-				);
-
-				return result;
-			}
-
-			assertUnreachable(cacheStrat);
-		}).pipe(
-			Effect.provideService(EffectCache, this.cache),
-			Effect.catch((e) => {
-				return Effect.fail(
+		return query.pipe(
+			Effect.catch((e) =>
+				Effect.fail(
 					new EffectDrizzleQueryError({
 						query: queryString,
 						params: this.paramsInErrors ? params : undefined,
 						cause: Cause.fail(e),
 					}),
-				);
-			}),
+				)
+			),
 		);
 	}
 }
@@ -159,8 +96,6 @@ export abstract class MySqlEffectSession<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (rows: any) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): MySqlEffectPreparedQuery<T, TEffectHKT>;
 
 	override execute<T>(query: SQL) {

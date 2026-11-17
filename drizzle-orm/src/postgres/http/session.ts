@@ -1,8 +1,6 @@
 import type { QueryResult, ShapeSpec } from '#postgres';
 import type { HttpBatchQuery, HttpClient } from '#postgres/http';
 import type { BatchItem, SettledQueryResult } from '~/batch.ts';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
@@ -53,7 +51,6 @@ export type PostgresHttpBatchOptions =
 
 export interface PostgresHttpSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -63,7 +60,6 @@ export class PostgresHttpSession<
 	static override readonly [entityKind]: string = 'PostgresHttpSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: HttpClient,
@@ -73,7 +69,6 @@ export class PostgresHttpSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -81,8 +76,6 @@ export class PostgresHttpSession<
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 		shape?: ShapeSpec,
 	) {
 		const executor = async (params?: unknown[]) => {
@@ -108,9 +101,6 @@ export class PostgresHttpSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			shape,
 			this.options.paramsInErrors,
 		);
@@ -226,15 +216,9 @@ export class PostgresHttpPreparedQuery<T extends PreparedQueryConfig> extends Pg
 		mapper: ((rows: any[]) => any) | undefined,
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		logger: Logger,
-		// cache instance
-		cache: Cache | undefined,
-		// per query related metadata
-		queryMetadata: QueryMetadata | undefined,
-		// config that was passed through $withCache
-		cacheConfig: WithCacheConfig | undefined,
 		readonly shape?: ShapeSpec,
 		paramsInErrors?: boolean,
 	) {
-		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig, paramsInErrors);
+		super(executor, query, mapper, mode, logger, paramsInErrors);
 	}
 }

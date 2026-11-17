@@ -1,7 +1,5 @@
 import type { QueryResult, ShapeSpec } from '#postgres';
 import type { AuroraClient } from '#postgres/aurora';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
@@ -15,7 +13,6 @@ export type PostgresAuroraClient = AuroraClient;
 
 export interface PostgresAuroraSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -25,7 +22,6 @@ export class PostgresAuroraSession<
 	static override readonly [entityKind]: string = 'PostgresAuroraSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: PostgresAuroraClient,
@@ -35,7 +31,6 @@ export class PostgresAuroraSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -43,8 +38,6 @@ export class PostgresAuroraSession<
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 		shape?: ShapeSpec,
 	) {
 		const executor = async (params?: unknown[]) => {
@@ -62,9 +55,6 @@ export class PostgresAuroraSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

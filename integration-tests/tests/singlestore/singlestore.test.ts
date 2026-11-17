@@ -5,11 +5,9 @@ import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
 import { createConnection, createPool } from 'mysql2/promise';
 import { expect, expectTypeOf } from 'vitest';
 import { tests } from './common';
-import { tests as cacheTests } from './common-cache';
 import { singleStoreTest } from './instrumentation';
 import { floatReplacedSkips, floatReplacedTests } from './unsupported-types';
 
-cacheTests(singleStoreTest);
 // SingleStore rounds `float` to 6 significant digits in the text protocol the driver uses, with no per-query
 // alternative (a driver quirk): all-types tests are redefined with a `float` value that rounds to itself
 tests(singleStoreTest, floatReplacedSkips);

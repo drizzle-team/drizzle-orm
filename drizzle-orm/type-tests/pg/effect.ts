@@ -38,7 +38,7 @@ type AsEffect<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.E
 			Effect.Effect<
 				EffectPgDatabase<EmptyRelations> & { $client: PgClient },
 				never,
-				import('~/effect-core/logger.ts').EffectLogger | import('~/cache/core/cache-effect.ts').EffectCache | PgClient
+				import('~/effect-core/logger.ts').EffectLogger | PgClient
 			>
 		>
 	>;

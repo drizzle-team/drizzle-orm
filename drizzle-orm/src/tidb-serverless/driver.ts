@@ -36,15 +36,10 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	const relations = config.relations ?? {} as TRelations;
 	const session = new TiDBServerlessSession(client, dialect, undefined, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new TiDBServerlessDatabase(dialect, session, relations);
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }

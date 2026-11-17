@@ -1,5 +1,4 @@
 import type { DatabaseSync, SQLInputValue, StatementResultingChanges } from 'node:sqlite';
-import type { QueryMetadata } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
@@ -49,7 +48,6 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
 	): SQLiteAsyncPreparedQuery<T & { run: NodeSQLiteRunResult }> {
 		let stmt: ReturnType<typeof this.client.prepare>;
 		try {
@@ -91,9 +89,6 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			undefined,
-			queryMetadata,
-			undefined,
 			this.options.paramsInErrors,
 		);
 	}

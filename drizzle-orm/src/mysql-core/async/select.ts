@@ -113,7 +113,7 @@ export class MySqlAsyncSelectBase<
 
 		const preparedQuery = this.session.prepareQuery<
 			MySqlPreparedQueryConfig & { execute: TResult[] }
-		>(query, 'arrays', mapper, { type: 'select', tables: () => this.getUsedTables(sequel) }, this.cacheConfig);
+		>(query, 'arrays', mapper);
 
 		return preparedQuery as MySqlAsyncSelectPrepare<this>;
 	}

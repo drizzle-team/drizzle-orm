@@ -1,15 +1,11 @@
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
-import { type EffectCacheError, type EffectCacheShape, PendingCacheInvalidation } from '~/cache/core/cache-effect.ts';
-import { NoopCache } from '~/cache/core/cache.ts';
-import { cachedQuery, PendingInvalidation } from '~/cache/core/flow.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { MigratorInitError } from '~/effect-core/errors.ts';
 import { EffectDrizzleQueryError, EffectTransactionRollbackError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fromProgram } from '~/runtime/effect.ts';
@@ -44,22 +40,10 @@ export class PgEffectPreparedQuery<
 		mapper: ((rows: any[]) => any) | undefined,
 		readonly mode: 'arrays' | 'objects' | 'raw' | 'call',
 		private logger: EffectLoggerShape,
-		// cache instance
-		protected cache: EffectCacheShape,
-		// per query related metadata
-		protected queryMetadata: QueryMetadata | undefined,
-		// config that was passed through $withCache
-		protected cacheConfig: WithCacheConfig | undefined,
 		protected paramsInErrors: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
-		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
-			this.cacheConfig = { enabled: true, autoInvalidate: true };
-		}
-		if (!this.cacheConfig?.enabled) {
-			this.cacheConfig = undefined;
-		}
 	}
 
 	override execute(placeholderValues: Record<string, unknown> = {}): QueryEffectKind<TEffectHKT, T['execute']> {
@@ -69,69 +53,22 @@ export class PgEffectPreparedQuery<
 
 			yield* logger.logQuery(sql, params);
 
-			const query = this.queryWithCache(sql, params, Effect.suspend(() => this.executor(params)));
+			const query = Effect.suspend(() => this.executor(params)).pipe(
+				Effect.catch((e) =>
+					Effect.fail(
+						new EffectDrizzleQueryError({
+							query: sql,
+							params: this.paramsInErrors ? params : undefined,
+							cause: Cause.fail(e),
+						}),
+					)
+				),
+			);
 
 			if (!mapper) return yield* query;
 
 			return yield* query.pipe(Effect.map((rows) => mapper(rows as unknown[])));
 		});
-	}
-
-	/**
-	 * `true` makes the query skip the cache lookup. The lookup can be async, so on a connection that pipelines
-	 * statements it can let a statement that started later reach the connection first.
-	 * A mutation still invalidates the cache after it runs.
-	 *
-	 * @internal
-	 */
-	protected skipCacheLookup: Effect.Effect<boolean> = Effect.succeed(false);
-
-	/** @internal */
-	protected queryWithCache<A, E, R>(
-		queryString: string,
-		params: any[],
-		query: Effect.Effect<A, E, R>,
-	) {
-		const { cache, cacheConfig, queryMetadata } = this;
-		const hasCache = cache && !(cache.cache && is(cache.cache, NoopCache));
-
-		// The shared cache flow (`cachedQuery`), run natively by Effect: the cache's methods and `query` are Effects
-		const flow = (pending?: PendingInvalidation) =>
-			fromProgram<A, E | EffectCacheError, R>(() =>
-				cachedQuery<A>(
-					hasCache ? cache : undefined,
-					queryString,
-					params,
-					queryMetadata,
-					cacheConfig,
-					() => query,
-					pending,
-				)
-			);
-
-		const guarded = !hasCache
-			? flow()
-			: Effect.flatMap(Effect.all([PendingCacheInvalidation, this.skipCacheLookup]), ([pending, skip]) => {
-				// A statement of the session's batch or pipeline: the run invalidates what it wrote
-				if (pending !== undefined) return flow(pending);
-				if (!skip) return flow();
-
-				// Pipelined by the client itself, with no run to invalidate for it: right after the statement
-				const own = new PendingInvalidation();
-				return Effect.tap(flow(own), () => fromProgram<void, EffectCacheError>(() => own.flush(cache)));
-			});
-
-		return guarded.pipe(
-			Effect.catch((e) => {
-				return Effect.fail(
-					new EffectDrizzleQueryError({
-						query: queryString,
-						params: this.paramsInErrors ? params : undefined,
-						cause: Cause.fail(e),
-					}),
-				);
-			}),
-		);
 	}
 }
 
@@ -151,8 +88,6 @@ export abstract class PgEffectSession<
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 		shape?: unknown,
 	): PgEffectPreparedQuery<T, TEffectHKT>;
 

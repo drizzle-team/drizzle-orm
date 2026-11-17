@@ -4,8 +4,8 @@ import { relations as oldRels } from 'drizzle-orm/_relations';
 import { type AnyPgColumn, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresDatabase, type PostgresQueryResult } from 'drizzle-orm/postgres';
 import { Client as ClientNodePostgres } from 'pg';
-import { describe, expect, expectTypeOf, test as base, vi } from 'vitest';
-import { _push, preparePostgres, recreateDatabases, TestCache, testDatabase } from './instrumentation';
+import { describe, expect, expectTypeOf, test as base } from 'vitest';
+import { _push, preparePostgres, recreateDatabases, testDatabase } from './instrumentation';
 
 export const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -948,87 +948,5 @@ describe('prepared statements', () => {
 			{ status: 'fulfilled', value: [{ name: 'Dan' }] },
 			{ status: 'fulfilled', value: [{ name: 'John' }] },
 		]);
-	});
-});
-
-// Statements of a batch, a pipeline or a parallel run are never answered from the cache or stored in it. The ones
-// that change data make cached queries stale, the same as when they are run on their own
-describe('cache', () => {
-	test.beforeEach(async ({ db }) => {
-		await db.execute(
-			`truncate table users, groups, users_to_groups, posts, comments, comment_likes RESTART IDENTITY CASCADE;`,
-		);
-	});
-
-	const cached = (db: PostgresDatabase<typeof relations>) => {
-		const cache = new TestCache('all');
-		const { $client: client } = db as unknown as { $client: any };
-		return { cache, db: drizzle({ client, relations, cache }) };
-	};
-	const names = (db: PostgresDatabase<typeof relations>) =>
-		db.select({ name: usersTable.name }).from(usersTable).orderBy(usersTable.id);
-
-	test.for(['batch', 'pipeline', 'parallel'] as const)(
-		'%s: a mutation invalidates cached queries',
-		async (method, { db: plain }) => {
-			const { db, cache } = cached(plain);
-			const onMutate = vi.spyOn(cache, 'onMutate');
-
-			// stored in the cache, and answered from it
-			expect(await names(db)).toEqual([]);
-			await plain.insert(usersTable).values({ id: 1, name: 'Unseen' });
-			expect(await names(db)).toEqual([]);
-			onMutate.mockClear();
-
-			await db[method]([db.insert(usersTable).values({ id: 2, name: 'John' }), names(db)]);
-			expect(onMutate).toHaveBeenCalledTimes(1);
-			expect(await names(db)).toEqual([{ name: 'Unseen' }, { name: 'John' }]);
-		},
-	);
-
-	test('batch: a select is not answered from the cache, nor stored in it', async ({ db: plain }) => {
-		const { db, cache } = cached(plain);
-		const get = vi.spyOn(cache, 'get');
-		const put = vi.spyOn(cache, 'put');
-
-		expect(await names(db)).toEqual([]);
-		await plain.insert(usersTable).values({ id: 1, name: 'Unseen' });
-		get.mockClear();
-		put.mockClear();
-
-		const [inBatch] = await db.batch([names(db)]);
-		expect(inBatch).toEqual([{ name: 'Unseen' }]);
-		expect(get).not.toHaveBeenCalled();
-		expect(put).not.toHaveBeenCalled();
-		// what was cached before the batch is still what a single query gets
-		expect(await names(db)).toEqual([]);
-	});
-
-	test('a batch of selects, and a failed mutation, invalidate nothing', async ({ db: plain }) => {
-		const { db, cache } = cached(plain);
-		const onMutate = vi.spyOn(cache, 'onMutate');
-
-		await db.batch([names(db), names(db)]);
-		await expect(db.batch([db.insert(postsTable).values(orphanPost)])).rejects.toThrow();
-		const settled = await db.pipeline([db.insert(postsTable).values(orphanPost), names(db)]);
-		expect(settled.map((r) => r.status)).toEqual(['rejected', 'fulfilled']);
-		expect(onMutate).not.toHaveBeenCalled();
-	});
-
-	test('bulkInsert and bulkUpdate invalidate cached queries', async ({ db: plain }) => {
-		const { db } = cached(plain);
-
-		expect(await names(db)).toEqual([]);
-		await plain.insert(usersTable).values({ id: 1, name: 'Unseen' });
-		expect(await names(db)).toEqual([]);
-
-		await db.bulkInsert(usersTable, [{ id: 2, name: 'Bulk' }]);
-		expect(await names(db)).toEqual([{ name: 'Unseen' }, { name: 'Bulk' }]);
-
-		await plain.insert(usersTable).values({ id: 3, name: 'Unseen too' });
-		expect(await names(db)).toEqual([{ name: 'Unseen' }, { name: 'Bulk' }]);
-
-		await db.bulkUpdate(usersTable, [{ id: 2, name: 'Bulky' }], { by: usersTable.id });
-		expect(await names(db)).toEqual([{ name: 'Unseen' }, { name: 'Bulky' }, { name: 'Unseen too' }]);
 	});
 });

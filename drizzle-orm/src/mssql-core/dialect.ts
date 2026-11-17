@@ -15,7 +15,7 @@ import type {
 } from '~/relations.ts';
 import {
 	buildRqbColumns,
-	collectSubqueryAndUsedTables,
+	collectSubquery,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
@@ -934,7 +934,7 @@ export class MsSqlDialect {
 		const isOptimized = (currentDepth ? strategy : params?.strategy) !== 'basic';
 		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map() };
 		if (!currentDepth) {
-			collectSubqueryAndUsedTables(collector, table);
+			collectSubquery(collector, table);
 			table = aliasedTable(table, `d${currentDepth}`);
 		}
 		const tableRef = table[Qualifier];
@@ -1057,8 +1057,8 @@ export class MsSqlDialect {
 			const join = withParam![k]!;
 			const relation = tableConfig.relations[k]!;
 			const isSingle = relation.relationType === 'one';
-			collectSubqueryAndUsedTables(collector, relation.targetTable);
-			collectSubqueryAndUsedTables(collector, relation.throughTable);
+			collectSubquery(collector, relation.targetTable);
+			collectSubquery(collector, relation.throughTable);
 
 			const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
 			const throughTable = relation.throughTable

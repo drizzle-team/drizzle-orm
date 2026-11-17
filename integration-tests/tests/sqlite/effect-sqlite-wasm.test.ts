@@ -1,5 +1,3 @@
-import type { Cache } from 'drizzle-orm/cache/core';
-import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
 import './wasm-fetch-patch';
 import { SqliteClient } from '@effect/sql-sqlite-wasm';
 import { assert, expect } from '@effect/vitest';
@@ -52,10 +50,8 @@ const createDB = <
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 	useJitMappers?: boolean,
-	cache?: Cache,
 ) =>
 	SQLiteDrizzle.make({ relations: defineRelations(schema, relations), jit: useJitMappers }).pipe(
-		Effect.provide(cache ? EffectCache.layerFromDrizzle(cache) : Layer.empty),
 		Effect.provide(SQLiteDrizzle.DefaultServices),
 	);
 

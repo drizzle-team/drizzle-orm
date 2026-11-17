@@ -18,7 +18,6 @@ import {
 } from 'drizzle-orm/pg-core';
 import * as Effect from 'effect/Effect';
 import { SqlClient } from 'effect/sql/SqlClient';
-import { withUpstashCache } from '~/upstash-cache';
 import {
 	allTypesRelations,
 	type AllTypesReplacements,
@@ -2101,9 +2100,7 @@ export const nullTimestampTests = (
 /** Shared all-types tests, redefined by {@link allTypesWithReplacementsTests} */
 export const allTypesWithReplacementsSkips = [
 	'all types',
-	'all types - upstash',
 	'all types ~codecs~',
-	'all types ~codecs~ - upstash',
 ];
 
 /**
@@ -2127,20 +2124,4 @@ export const allTypesWithReplacementsTests = (
 				assertAllTypesWithReplacements(db as any, allTypesTable as any, replacements, { run, rqb: true })
 			);
 		}));
-
-	it.effect('all types (with replacements) - upstash', () =>
-		withUpstashCache((cache, run) =>
-			Effect.gen(function*() {
-				const { en, allTypesTable } = makeAllTypes('all_types_replaced_upstash_ef', 'en_replaced_upstash_ef');
-				const db = yield* createDB({ allTypesTable }, allTypesRelations as any, false, cache);
-				yield* push(db, { en, allTypesTable });
-
-				yield* Effect.promise(() =>
-					cache.expectHits(
-						'all types',
-						() => assertAllTypesWithReplacements(db as any, allTypesTable as any, replacements, { run, rqb: true }),
-					)
-				);
-			})
-		));
 };
