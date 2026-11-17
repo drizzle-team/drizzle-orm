@@ -525,6 +525,53 @@ export class IntrospectProgress extends TaskView {
 	}
 }
 
+/**
+ * Renders a rejected task's error for a TaskView.
+ *
+ * `renderWithTask` calls `process.exit(1)` as soon as the view returns, so
+ * whatever this produces is the only report the user gets — there is no later
+ * handler, and an uncaught rethrow would not be printed either.
+ *
+ * Driver errors keep the part that matters off `message`: MySQL puts it on
+ * `errno`/`sqlState`, Postgres on `code`/`detail`/`hint`, and drizzle attaches
+ * the offending statement as `cause`. A bare `err.message` on those reads as
+ * "Query failed" and tells the user nothing about which statement broke or why,
+ * so the known fields are appended when present.
+ */
+const formatTaskError = (meta?: Error): string => {
+	if (!meta) {
+		return error('The task failed but reported no error.');
+	}
+
+	const lines = [error(meta.message || String(meta))];
+
+	const details: Record<string, unknown> = meta as unknown as Record<string, unknown>;
+	for (const field of ['code', 'errno', 'sqlState', 'sqlMessage', 'detail', 'hint']) {
+		const value = details[field];
+		if (value !== undefined && value !== null && value !== '') {
+			lines.push(`  ${field}: ${String(value)}`);
+		}
+	}
+
+	// The failing SQL travels as `cause` from drizzle-orm's migrator, which is
+	// the single most useful thing to show: it names the statement that broke.
+	// Read through the same untyped view as the fields above, because `cause`
+	// is an ES2022 addition and this package's `lib` predates it.
+	const causeValue = details['cause'];
+	if (causeValue !== undefined && causeValue !== null) {
+		const cause = causeValue instanceof Error ? causeValue.message : String(causeValue);
+		if (cause) {
+			lines.push(`  cause: ${cause}`);
+		}
+	}
+
+	if (meta.stack) {
+		lines.push(chalk.grey(meta.stack.split('\n').slice(1).join('\n')));
+	}
+
+	return lines.join('\n');
+};
+
 export class MigrateProgress extends TaskView {
 	private readonly spinner: Spinner = new Spinner('⣷⣯⣟⡿⢿⣻⣽⣾'.split(''));
 	private timeout: NodeJS.Timeout | undefined;
@@ -539,10 +586,19 @@ export class MigrateProgress extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done' | 'rejected'): string {
-		if (status === 'pending' || status === 'rejected') {
+	render(status: 'pending' | 'done' | 'rejected', meta?: Error): string {
+		if (status === 'pending') {
 			const spin = this.spinner.value();
 			return `[${spin}] applying migrations...`;
+		}
+		// A failed migration must SAY it failed, and say why. `renderWithTask`
+		// calls `process.exit(1)` immediately after this returns, so this string
+		// is the only chance the error has to reach the user — the caller's own
+		// `catch (e) { console.error(e) }` never runs. Rendering the spinner
+		// frame here (as this did) discarded the error entirely, leaving a
+		// failed migration indistinguishable from one still in progress.
+		if (status === 'rejected') {
+			return `[${chalk.red('✗')}] migrations failed!\n${formatTaskError(meta)}\n`;
 		}
 		return `[${chalk.green('✓')}] migrations applied successfully!`;
 	}
@@ -565,10 +621,16 @@ export class ProgressView extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done' | 'rejected'): string {
-		if (status === 'pending' || status === 'rejected') {
+	render(status: 'pending' | 'done' | 'rejected', meta?: Error): string {
+		if (status === 'pending') {
 			const spin = this.spinner.value();
 			return `[${spin}] ${this.progressText}\n`;
+		}
+		// Same reasoning as MigrateProgress: `renderWithTask` exits the process
+		// straight after this, so a rejected task that renders its in-progress
+		// frame reports a failure as though it were still running.
+		if (status === 'rejected') {
+			return `[${chalk.red('✗')}] ${this.progressText} failed!\n${formatTaskError(meta)}\n`;
 		}
 		return `[${chalk.green('✓')}] ${this.successText}\n`;
 	}
