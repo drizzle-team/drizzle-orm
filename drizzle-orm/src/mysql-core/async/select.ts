@@ -1,5 +1,4 @@
 import { entityKind } from '~/entity.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type {
 	BuildSubquerySelection,
 	JoinNullability,
@@ -9,6 +8,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
+import { MySqlRunnableQuery } from '../query-builders/runnable.ts';
 import { MySqlSelectBase, type MySqlSelectBuilder } from '../query-builders/select.ts';
 import type { MySqlSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { MySqlPreparedQueryConfig } from '../session.ts';
@@ -113,6 +113,6 @@ export class MySqlAsyncSelectBase<
 	declare readonly session: MySqlAsyncSession<any, any>;
 }
 
-applyMixins(MySqlAsyncSelectBase, [QueryPromise, RunnableQueryMixin, MySqlAsyncIterableQuery]);
+applyMixins(MySqlAsyncSelectBase, [QueryPromise, MySqlRunnableQuery, MySqlAsyncIterableQuery]);
 
 export type AnyMySqlAsyncSelect = MySqlAsyncSelectBase<any, any, any, any, any, any, any, any>;

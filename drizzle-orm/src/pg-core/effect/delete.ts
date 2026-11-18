@@ -4,11 +4,11 @@ import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import type { PgEffectPreparedQuery, PgEffectRuntimeHKT, PgEffectSession } from './session.ts';
 
 export type PgEffectDelete<
@@ -95,5 +95,5 @@ export class PgEffectDeleteBase<
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 }
 
-applyMixins(PgEffectDeleteBase, [RunnableQueryMixin]);
+applyMixins(PgEffectDeleteBase, [PgRunnableQuery]);
 applyEffectWrapper(PgEffectDeleteBase);

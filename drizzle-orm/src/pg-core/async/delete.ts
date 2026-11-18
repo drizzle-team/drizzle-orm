@@ -2,12 +2,12 @@ import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import type { PgAsyncPreparedQuery, PgAsyncRuntimeHKT, PgAsyncSession } from './session.ts';
 
 export type PgAsyncDelete<
@@ -74,4 +74,4 @@ export class PgAsyncDeleteBase<
 	declare protected session: PgAsyncSession;
 }
 
-applyMixins(PgAsyncDeleteBase, [QueryPromise, RunnableQueryMixin]);
+applyMixins(PgAsyncDeleteBase, [QueryPromise, PgRunnableQuery]);

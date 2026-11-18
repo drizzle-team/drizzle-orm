@@ -2,10 +2,10 @@ import { entityKind } from '~/entity.ts';
 import { MySqlInsertBase, type MySqlInsertHKTBase } from '~/mysql-core/query-builders/insert.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
+import { MySqlRunnableQuery } from '../query-builders/runnable.ts';
 import { MySqlAsyncIterableQuery } from './iterable.ts';
 import type { MySqlAsyncPreparedQuery, MySqlAsyncRuntimeHKT, MySqlAsyncSession } from './session.ts';
 
@@ -70,4 +70,4 @@ export class MySqlAsyncInsertBase<
 	declare protected session: MySqlAsyncSession<TQueryResult, any>;
 }
 
-applyMixins(MySqlAsyncInsertBase, [QueryPromise, RunnableQueryMixin, MySqlAsyncIterableQuery]);
+applyMixins(MySqlAsyncInsertBase, [QueryPromise, MySqlRunnableQuery, MySqlAsyncIterableQuery]);

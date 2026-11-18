@@ -1,13 +1,13 @@
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import type { PgAsyncPreparedQuery, PgAsyncRuntimeHKT, PgAsyncSession } from './session.ts';
 
 export interface PgAsyncInsertHKT extends PgInsertHKTBase {
@@ -74,4 +74,4 @@ export class PgAsyncInsertBase<
 	declare protected session: PgAsyncSession;
 }
 
-applyMixins(PgAsyncInsertBase, [QueryPromise, RunnableQueryMixin]);
+applyMixins(PgAsyncInsertBase, [QueryPromise, PgRunnableQuery]);

@@ -1,10 +1,10 @@
 import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { applyMixins } from '~/utils.ts';
 import { PgRelationalQuery, type PgRelationalQueryHKTBase } from '../query-builders/query.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import type { PgEffectRuntimeHKT, PgEffectSession } from './session.ts';
 
 export type AnyPgEffectRelationalQuery = PgEffectRelationalQuery<any, any>;
@@ -29,5 +29,5 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 }
 
-applyMixins(PgEffectRelationalQuery, [RunnableQueryMixin]);
+applyMixins(PgEffectRelationalQuery, [PgRunnableQuery]);
 applyEffectWrapper(PgEffectRelationalQuery);

@@ -4,10 +4,10 @@ import { entityKind } from '~/entity.ts';
 import { MySqlInsertBase, type MySqlInsertHKTBase } from '~/mysql-core/query-builders/insert.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { applyMixins } from '~/utils.ts';
 import type { Assume } from '~/utils.ts';
+import { MySqlRunnableQuery } from '../query-builders/runnable.ts';
 import type { MySqlEffectPreparedQuery, MySqlEffectRuntimeHKT, MySqlEffectSession } from './session.ts';
 
 export interface MySqlEffectInsertHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
@@ -85,5 +85,5 @@ export class MySqlEffectInsertBase<
 	declare protected session: MySqlEffectSession<TEffectHKT, TQueryResult, any>;
 }
 
-applyMixins(MySqlEffectInsertBase, [RunnableQueryMixin]);
+applyMixins(MySqlEffectInsertBase, [MySqlRunnableQuery]);
 applyEffectWrapper(MySqlEffectInsertBase);

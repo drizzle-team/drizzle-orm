@@ -4,9 +4,9 @@ import { entityKind } from '~/entity.ts';
 import { MySqlUpdateBase, type MySqlUpdateHKTBase } from '~/mysql-core/query-builders/update.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import { applyMixins } from '~/utils.ts';
 import type { Assume } from '~/utils.ts';
+import { MySqlRunnableQuery } from '../query-builders/runnable.ts';
 import type { MySqlEffectPreparedQuery, MySqlEffectRuntimeHKT, MySqlEffectSession } from './session.ts';
 
 export type MySqlEffectUpdate<
@@ -64,5 +64,5 @@ export class MySqlEffectUpdateBase<
 	declare protected session: MySqlEffectSession<TEffectHKT, TQueryResult, any>;
 }
 
-applyMixins(MySqlEffectUpdateBase, [RunnableQueryMixin]);
+applyMixins(MySqlEffectUpdateBase, [MySqlRunnableQuery]);
 applyEffectWrapper(MySqlEffectUpdateBase);

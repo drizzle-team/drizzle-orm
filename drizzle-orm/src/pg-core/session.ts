@@ -1,6 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
 import type { QueryRuntimeHKT, QueryRuntimeKind } from '~/query-builders/runtime.ts';
-import { executePreparedQuery, type PreparedQueryLogger, type QueryRuntime } from '~/query-runtime.ts';
+import { executePreparedQuery, type PreparedQueryLogger, type QueryRuntime, withSpan } from '~/runtime/core.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
@@ -66,7 +66,7 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 }
 
 /**
- * `prepare` and `execute` of a builder that runs on a session (implemented by `RunnableQueryMixin`): typed by the
+ * `prepare` and `execute` of a builder that runs on a session (implemented by `PgRunnableQuery`): typed by the
  * builder's runtime (see {@link QueryRuntimeHKT}) for its result
  */
 export interface PgRunnableQueryMethods<TRuntime extends QueryRuntimeHKT, TResult> {
@@ -142,7 +142,7 @@ export abstract class PgSession {
 	}
 
 	private runSQL(query: SQL, mode: 'arrays' | 'objects' | 'raw'): unknown {
-		return this.runtime.span('drizzle.operation', undefined, () => {
+		return withSpan(this.runtime, 'drizzle.operation', undefined, () => {
 			const prepared = tracer.startActiveSpan(
 				'drizzle.prepareQuery',
 				() => this.prepareQuery(this.dialect.sqlToQuery(query), mode, false, undefined),

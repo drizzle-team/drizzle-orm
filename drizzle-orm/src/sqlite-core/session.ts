@@ -1,6 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
-import { executePreparedQuery, type PreparedQueryLogger, type QueryRuntime } from '~/query-runtime.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import { executePreparedQuery, type PreparedQueryLogger, type QueryRuntime } from '~/runtime/core.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';

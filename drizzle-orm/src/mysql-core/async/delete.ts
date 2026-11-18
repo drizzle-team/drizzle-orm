@@ -2,9 +2,9 @@ import { entityKind } from '~/entity.ts';
 import { MySqlDeleteBase, type MySqlDeleteHKTBase } from '~/mysql-core/query-builders/delete.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
+import { MySqlRunnableQuery } from '../query-builders/runnable.ts';
 import { MySqlAsyncIterableQuery } from './iterable.ts';
 import type { MySqlAsyncPreparedQuery, MySqlAsyncRuntimeHKT, MySqlAsyncSession } from './session.ts';
 
@@ -59,4 +59,4 @@ export class MySqlAsyncDeleteBase<
 	declare protected session: MySqlAsyncSession<TQueryResult, any>;
 }
 
-applyMixins(MySqlAsyncDeleteBase, [QueryPromise, RunnableQueryMixin, MySqlAsyncIterableQuery]);
+applyMixins(MySqlAsyncDeleteBase, [QueryPromise, MySqlRunnableQuery, MySqlAsyncIterableQuery]);

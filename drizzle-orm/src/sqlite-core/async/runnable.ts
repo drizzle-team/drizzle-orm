@@ -17,10 +17,6 @@ export abstract class SQLiteAsyncRunnableQuery {
 	abstract _prepare(prepare?: boolean): SQLitePreparedQuery;
 
 	async execute(placeholderValues?: Record<string, unknown>): Promise<unknown> {
-		return this.session!.runtime.span(
-			'drizzle.operation',
-			undefined,
-			() => this._prepare().execute(placeholderValues),
-		);
+		return this._prepare().execute(placeholderValues);
 	}
 }

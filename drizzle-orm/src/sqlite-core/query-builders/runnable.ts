@@ -22,31 +22,23 @@ export abstract class SQLiteRunnableQuery {
 	}
 
 	run(placeholderValues?: Record<string, unknown>): unknown {
-		return this.session!.runtime.span('drizzle.operation', undefined, () => this._prepare().run(placeholderValues));
+		return this._prepare().run(placeholderValues);
 	}
 
 	all(placeholderValues?: Record<string, unknown>): unknown {
-		return this.session!.runtime.span('drizzle.operation', undefined, () => this._prepare().all(placeholderValues));
+		return this._prepare().all(placeholderValues);
 	}
 
 	get(placeholderValues?: Record<string, unknown>): unknown {
-		return this.session!.runtime.span('drizzle.operation', undefined, () => this._prepare().get(placeholderValues));
+		return this._prepare().get(placeholderValues);
 	}
 
 	values(placeholderValues?: Record<string, unknown>): unknown {
-		return this.session!.runtime.span(
-			'drizzle.operation',
-			undefined,
-			() => this._prepare().values(placeholderValues),
-		);
+		return this._prepare().values(placeholderValues);
 	}
 
 	execute(placeholderValues?: Record<string, unknown>): unknown {
-		return this.session!.runtime.span(
-			'drizzle.operation',
-			undefined,
-			() => this._prepare().execute(placeholderValues),
-		);
+		return this._prepare().execute(placeholderValues);
 	}
 }
 

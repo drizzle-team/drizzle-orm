@@ -1,8 +1,8 @@
 import { entityKind } from '~/entity.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { applyMixins } from '~/utils.ts';
 import { MySqlRelationalQuery, type MySqlRelationalQueryHKTBase } from '../query-builders/query.ts';
+import { MySqlRunnableQuery } from '../query-builders/runnable.ts';
 import type { MySqlAsyncRuntimeHKT, MySqlAsyncSession } from './session.ts';
 
 export type AnyMySqlAsyncRelationalQuery = MySqlAsyncRelationalQuery<any>;
@@ -19,4 +19,4 @@ export class MySqlAsyncRelationalQuery<TResult> extends MySqlRelationalQuery<MyS
 	declare protected session: MySqlAsyncSession;
 }
 
-applyMixins(MySqlAsyncRelationalQuery, [QueryPromise, RunnableQueryMixin]);
+applyMixins(MySqlAsyncRelationalQuery, [QueryPromise, MySqlRunnableQuery]);

@@ -1,14 +1,8 @@
 import { entityKind, is } from '~/entity.ts';
-import type { QueryRuntime } from '~/query-runtime.ts';
+import { type QueryRuntime, withSpan } from '~/runtime/core.ts';
 
-/**
- * @internal
- * `prepare` and `execute` of every runtime's builders, mixed into them (`applyMixins`): the common builders also
- * serve the session-less `QueryBuilder`, so they can't have these themselves. `execute` returns what the session's
- * runtime runs, a Promise or an Effect; each dialect types them through it's builders' runtime HKT
- */
-export abstract class RunnableQueryMixin {
-	static readonly [entityKind]: string = 'RunnableQueryMixin';
+export abstract class PgRunnableQuery {
+	static readonly [entityKind]: string = 'PgRunnableQuery';
 	static [Symbol.hasInstance](value: unknown): boolean {
 		return is(value, this);
 	}
@@ -25,7 +19,8 @@ export abstract class RunnableQueryMixin {
 	}
 
 	execute(placeholderValues?: Record<string, unknown>): unknown {
-		return this.session!.runtime.span(
+		return withSpan(
+			this.session!.runtime,
 			'drizzle.operation',
 			undefined,
 			() => this._prepare().execute(placeholderValues),

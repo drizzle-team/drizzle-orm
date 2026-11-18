@@ -1,6 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
 import type { QueryRuntimeHKT } from '~/query-builders/runtime.ts';
-import { executePreparedQuery, type PreparedQueryLogger, type QueryRuntime } from '~/query-runtime.ts';
+import { executePreparedQuery, type PreparedQueryLogger, type QueryRuntime } from '~/runtime/core.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
@@ -45,7 +45,7 @@ export type MySqlRuntimeKind<TRuntime extends MySqlRuntimeHKT, TResult, TRow = n
 };
 
 /**
- * `prepare` and `execute` of a builder that runs on a session (implemented by `RunnableQueryMixin`): typed by the
+ * `prepare` and `execute` of a builder that runs on a session (implemented by `MySqlRunnableQuery`): typed by the
  * builder's runtime (see {@link MySqlRuntimeHKT}) for its result, and the row its async `iterator` yields
  */
 export interface MySqlRunnableQueryMethods<TRuntime extends MySqlRuntimeHKT, TResult, TRow = never> {

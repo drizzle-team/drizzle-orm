@@ -4,9 +4,9 @@ import { type DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import type { QueryRuntimeHKT } from '~/query-builders/runtime.ts';
-import { asyncQueryRuntime, type QueryRuntime } from '~/query-runtime.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { run } from '~/runtime/async.ts';
+import { runAsyncProgram, tracedAsyncQueryRuntime } from '~/runtime/async.ts';
+import type { QueryRuntime } from '~/runtime/core.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import { migrate as migrateProgram } from '~/up-migrations/pg-program.ts';
 import { pgMigrationRunner } from '~/up-migrations/pg.ts';
@@ -104,7 +104,7 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 
 	/** @internal */
 	override get runtime(): QueryRuntime {
-		return asyncQueryRuntime;
+		return tracedAsyncQueryRuntime;
 	}
 
 	constructor(
@@ -153,7 +153,7 @@ export abstract class BasePgAsyncSession extends PgSession {
 
 	/** @internal */
 	override get runtime(): QueryRuntime {
-		return asyncQueryRuntime;
+		return tracedAsyncQueryRuntime;
 	}
 
 	abstract override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -216,5 +216,5 @@ export function migrate(
 	db: PgAsyncDatabase<PgQueryResultHKT, any>,
 	config: string | MigrationConfig,
 ): Promise<void | MigratorInitFailResponse> {
-	return run(migrateProgram(migrations, pgMigrationRunner(db), config));
+	return runAsyncProgram(() => migrateProgram(migrations, pgMigrationRunner(db), config));
 }

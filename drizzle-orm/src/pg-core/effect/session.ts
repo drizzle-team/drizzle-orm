@@ -4,15 +4,13 @@ import { MigratorInitError } from '~/effect-core/errors.ts';
 import { EffectTransactionRollbackError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
-import { effectQueryRuntime } from '~/effect-core/query-runtime.ts';
 import { entityKind } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import type { QueryRuntimeHKT } from '~/query-builders/runtime.ts';
-import type { QueryRuntime } from '~/query-runtime.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { fromProgram } from '~/runtime/effect.ts';
+import type { QueryRuntime } from '~/runtime/core.ts';
+import { effectMigrationRunner, runEffectProgram, tracedEffectQueryRuntime } from '~/runtime/effect.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
-import { pgEffectMigrationRunner } from '~/up-migrations/effect-pg.ts';
 import { migrate as migrateProgram } from '~/up-migrations/pg-program.ts';
 import type { PgDialect } from '../dialect.ts';
 import {
@@ -43,7 +41,7 @@ export class PgEffectPreparedQuery<
 
 	/** @internal */
 	override get runtime(): QueryRuntime {
-		return effectQueryRuntime;
+		return tracedEffectQueryRuntime;
 	}
 
 	constructor(
@@ -92,7 +90,7 @@ export abstract class PgEffectSession<
 
 	/** @internal */
 	override get runtime(): QueryRuntime {
-		return effectQueryRuntime;
+		return tracedEffectQueryRuntime;
 	}
 
 	constructor(dialect: PgDialect) {
@@ -158,11 +156,11 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 ) {
 	// The shared Postgres migrator (`up-migrations/pg-program.ts`), run natively by Effect. What the async API
 	// returns as an init failure is a typed failure here
-	const initFailure = yield* fromProgram<
+	const initFailure = yield* runEffectProgram<
 		void | MigratorInitFailResponse,
 		TEffectHKT['error'] | SqlError,
 		TEffectHKT['context']
-	>(() => migrateProgram(migrations, pgEffectMigrationRunner(session), config));
+	>(() => migrateProgram(migrations, effectMigrationRunner(session), config));
 
 	if (initFailure) return yield* new MigratorInitError({ exitCode: initFailure.exitCode });
 });

@@ -3,14 +3,13 @@ import type { SqlError } from 'effect/sql/SqlError';
 import { EffectTransactionRollbackError, MigratorInitError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
-import { effectQueryRuntime } from '~/effect-core/query-runtime.ts';
 import { entityKind } from '~/entity.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
-import type { QueryRuntime } from '~/query-runtime.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type Query, type SQL, sql } from '~/sql/sql.ts';
-import { upgradeIfNeeded } from '~/up-migrations/effect-mysql.ts';
+import type { QueryRuntime } from '~/runtime/core.ts';
+import { effectMigrationRunner, effectQueryRuntime, runEffectProgram } from '~/runtime/effect.ts';
+import type { Query, SQL } from '~/sql/sql.ts';
+import { migrate as migrateProgram } from '~/up-migrations/mysql-program.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import {
 	MySqlBasePreparedQuery,
@@ -140,75 +139,13 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 	session: MySqlEffectSession<TEffectHKT>,
 	config: Omit<MigrationConfig, 'migrationsSchema'>,
 ) {
-	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+	// The shared MySQL migrator (`up-migrations/mysql-program.ts`), run natively by Effect. What the async API
+	// returns as an init failure is a typed failure here
+	const initFailure = yield* runEffectProgram<
+		void | MigratorInitFailResponse,
+		TEffectHKT['error'] | SqlError,
+		TEffectHKT['context']
+	>(() => migrateProgram(migrations, effectMigrationRunner(session), config));
 
-	const { newDb } = yield* upgradeIfNeeded(migrationsTable, session, migrations);
-
-	if (newDb) {
-		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash TEXT NOT NULL,
-				created_at BIGINT,
-				name TEXT,
-				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-			)
-		`;
-		yield* session.execute(migrationTableCreate);
-	}
-
-	const dbMigrations = yield* session.objects<{
-		id: number;
-		hash: string;
-		created_at: string;
-		name: string | null;
-	}>(
-		sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)}`,
-	);
-
-	if (typeof config === 'object' && config.init) {
-		if (dbMigrations.length) {
-			return yield* new MigratorInitError({ exitCode: 'databaseMigrations' });
-		}
-
-		if (migrations.length > 1) {
-			return yield* new MigratorInitError({ exitCode: 'localMigrations' });
-		}
-
-		const [migration] = migrations;
-
-		if (!migration) return;
-
-		yield* session.execute(
-			sql`insert into ${
-				sql.identifier(
-					migrationsTable,
-				)
-			} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-		);
-
-		return;
-	}
-
-	const migrationsToRun = getMigrationsToRun({
-		localMigrations: migrations,
-		dbMigrations,
-	});
-
-	yield* session.transaction((tx) =>
-		Effect.gen(function*() {
-			for (const migration of migrationsToRun) {
-				for (const stmt of migration.sql) {
-					yield* tx.execute(sql.raw(stmt));
-				}
-				yield* tx.execute(
-					sql`insert into ${
-						sql.identifier(
-							migrationsTable,
-						)
-					} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-				);
-			}
-		})
-	);
+	if (initFailure) return yield* new MigratorInitError({ exitCode: initFailure.exitCode });
 });

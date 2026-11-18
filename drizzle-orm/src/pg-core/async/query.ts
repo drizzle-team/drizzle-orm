@@ -1,9 +1,9 @@
 import { entityKind } from '~/entity.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { applyMixins } from '~/utils.ts';
 import { PgRelationalQuery, type PgRelationalQueryHKTBase } from '../query-builders/query.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import type { PgAsyncRuntimeHKT, PgAsyncSession } from './session.ts';
 
 export type AnyPgAsyncRelationalQuery = PgAsyncRelationalQuery<any>;
@@ -23,4 +23,4 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 	declare protected session: PgAsyncSession;
 }
 
-applyMixins(PgAsyncRelationalQuery, [QueryPromise, RunnableQueryMixin]);
+applyMixins(PgAsyncRelationalQuery, [QueryPromise, PgRunnableQuery]);

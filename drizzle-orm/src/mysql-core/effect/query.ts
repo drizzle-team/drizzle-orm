@@ -1,9 +1,9 @@
 import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import { applyMixins } from '~/utils.ts';
 import { MySqlRelationalQuery, type MySqlRelationalQueryHKTBase } from '../query-builders/query.ts';
+import { MySqlRunnableQuery } from '../query-builders/runnable.ts';
 import type { MySqlEffectRuntimeHKT, MySqlEffectSession } from './session.ts';
 
 export type AnyMySqlEffectRelationalQuery = MySqlEffectRelationalQuery<any, any>;
@@ -26,5 +26,5 @@ export class MySqlEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectH
 	declare protected session: MySqlEffectSession<TEffectHKT, any, any>;
 }
 
-applyMixins(MySqlEffectRelationalQuery, [RunnableQueryMixin]);
+applyMixins(MySqlEffectRelationalQuery, [MySqlRunnableQuery]);
 applyEffectWrapper(MySqlEffectRelationalQuery);

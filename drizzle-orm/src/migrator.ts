@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import fs, { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { formatToMillis } from './migrator.utils.ts';
+import { formatToMillis, type MigrationMeta } from './migrator.utils.ts';
+export type { MigrationMeta } from './migrator.utils.ts';
 
 export interface KitConfig {
 	out: string;
@@ -14,14 +15,6 @@ export interface MigrationConfig {
 	migrationsSchema?: string;
 	/** @internal */
 	init?: boolean;
-}
-
-export interface MigrationMeta {
-	sql: string[];
-	folderMillis: number;
-	hash: string;
-	bps: boolean;
-	name: string;
 }
 
 export interface MigrationFromJournalConfig {

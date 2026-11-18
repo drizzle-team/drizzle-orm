@@ -3,12 +3,12 @@ import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import type { PgEffectPreparedQuery, PgEffectRuntimeHKT, PgEffectSession } from './session.ts';
 
 export interface PgEffectInsertHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgInsertHKTBase {
@@ -89,5 +89,5 @@ export class PgEffectInsertBase<
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 }
 
-applyMixins(PgEffectInsertBase, [RunnableQueryMixin]);
+applyMixins(PgEffectInsertBase, [PgRunnableQuery]);
 applyEffectWrapper(PgEffectInsertBase);

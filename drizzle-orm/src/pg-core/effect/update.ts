@@ -3,12 +3,12 @@ import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type { JoinNullability } from '~/query-builders/select.types.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgEffectPreparedQuery, PgEffectRuntimeHKT, PgEffectSession } from './session.ts';
@@ -118,5 +118,5 @@ export class PgEffectUpdateBase<
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 }
 
-applyMixins(PgEffectUpdateBase, [RunnableQueryMixin]);
+applyMixins(PgEffectUpdateBase, [PgRunnableQuery]);
 applyEffectWrapper(PgEffectUpdateBase);

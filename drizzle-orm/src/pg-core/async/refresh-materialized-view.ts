@@ -1,10 +1,10 @@
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind } from '~/pg-core/session.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { applyMixins } from '~/utils.ts';
 import { PgRefreshMaterializedView } from '../query-builders/refresh-materialized-view.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import type { PgAsyncRuntimeHKT, PgAsyncSession } from './session.ts';
 
 export interface PgAsyncRefreshMaterializedView<TQueryResult extends PgQueryResultHKT>
@@ -20,4 +20,4 @@ export class PgAsyncRefreshMaterializedView<TQueryResult extends PgQueryResultHK
 	declare protected session: PgAsyncSession;
 }
 
-applyMixins(PgAsyncRefreshMaterializedView, [QueryPromise, RunnableQueryMixin]);
+applyMixins(PgAsyncRefreshMaterializedView, [QueryPromise, PgRunnableQuery]);

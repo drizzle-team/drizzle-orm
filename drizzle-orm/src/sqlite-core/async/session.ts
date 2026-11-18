@@ -2,11 +2,12 @@ import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { asyncQueryRuntime, type QueryRuntime, syncQueryRuntime } from '~/query-runtime.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { type Query, type SQL, sql } from '~/sql/sql.ts';
+import { asyncQueryRuntime, runAsyncProgram } from '~/runtime/async.ts';
+import type { QueryRuntime } from '~/runtime/core.ts';
+import { runSyncProgram, syncQueryRuntime } from '~/runtime/sync.ts';
+import type { Query, SQL } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import {
 	type PreparedQueryConfig as BasePreparedQueryConfig,
@@ -15,7 +16,8 @@ import {
 	SQLiteSession,
 	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
-import { upgradeAsyncIfNeeded, upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
+import { migrate as migrateProgram } from '~/up-migrations/sqlite-program.ts';
+import { sqliteAsyncMigrationRunner, sqliteSyncMigrationRunner } from '~/up-migrations/sqlite.ts';
 import { SQLiteAsyncDatabase } from './db.ts';
 
 export interface SQLiteAsyncPreparedQueryConfig extends BasePreparedQueryConfig {
@@ -163,176 +165,20 @@ export abstract class SQLiteAsyncTransaction<
 	}
 }
 
+/** Applies the migrations that the database doesn't have yet, all or none of them: for drivers that run queries synchronously */
 export function migrateSync(
 	migrations: MigrationMeta[],
 	session: SQLiteAsyncSession<'sync', unknown, AnyRelations>,
 	config?: string | Omit<MigrationConfig, 'migrationsFolder'>,
 ): void | MigratorInitFailResponse {
-	const migrationsTable = config === undefined
-		? '__drizzle_migrations'
-		: typeof config === 'string'
-		? '__drizzle_migrations'
-		: (config.migrationsTable ?? '__drizzle_migrations');
-
-	// Detect DB version and upgrade table schema if needed
-	const { newDb } = upgradeSyncIfNeeded(migrationsTable, session, migrations);
-
-	if (newDb) {
-		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id INTEGER PRIMARY KEY,
-				hash text NOT NULL,
-				created_at numeric,
-				name text,
-				applied_at TEXT
-			)`;
-		session.run(migrationTableCreate);
-	}
-
-	const dbMigrations = session.objects<{
-		id: number;
-		hash: string;
-		created_at: string;
-		name: string | null;
-	}>(
-		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
-	);
-
-	if (typeof config === 'object' && config.init) {
-		if (dbMigrations.length) {
-			return { exitCode: 'databaseMigrations' as const };
-		}
-
-		if (migrations.length > 1) {
-			return { exitCode: 'localMigrations' as const };
-		}
-
-		const [migration] = migrations;
-
-		if (!migration) return;
-
-		session.run(
-			sql`insert into ${
-				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-				new Date().toISOString()
-			})`,
-		);
-
-		return;
-	}
-
-	const migrationsToRun = getMigrationsToRun({
-		localMigrations: migrations,
-		dbMigrations,
-	});
-	session.run(sql`BEGIN`);
-
-	try {
-		for (const migration of migrationsToRun) {
-			for (const stmt of migration.sql) {
-				session.run(sql.raw(stmt));
-			}
-			session.run(
-				sql`INSERT INTO ${
-					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-					new Date().toISOString()
-				})`,
-			);
-		}
-
-		session.run(sql`COMMIT`);
-	} catch (e) {
-		try {
-			session.run(sql`ROLLBACK`);
-		} catch {
-			// original error takes priority
-		}
-		throw e;
-	}
+	return runSyncProgram(() => migrateProgram(migrations, sqliteSyncMigrationRunner(session), config));
 }
 
-export async function migrateAsync(
+/** Applies the migrations that the database doesn't have yet, all or none of them, in a transaction */
+export function migrateAsync(
 	migrations: MigrationMeta[],
 	db: SQLiteAsyncDatabase<'async', unknown, AnyRelations>,
 	config?: string | Omit<MigrationConfig, 'migrationsFolder'>,
 ): Promise<void | MigratorInitFailResponse> {
-	const migrationsTable = config === undefined
-		? '__drizzle_migrations'
-		: typeof config === 'string'
-		? '__drizzle_migrations'
-		: (config.migrationsTable ?? '__drizzle_migrations');
-
-	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeAsyncIfNeeded(
-		migrationsTable,
-		db,
-		migrations,
-	);
-
-	if (newDb) {
-		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id INTEGER PRIMARY KEY,
-				hash text NOT NULL,
-				created_at numeric,
-				name text,
-				applied_at TEXT
-			)
-		`;
-		await db.session.run(migrationTableCreate);
-	}
-
-	const dbMigrations = await db.session.objects<{
-		id: number;
-		hash: string;
-		created_at: string;
-		name: string | null;
-	}>(
-		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)};`,
-	);
-
-	if (typeof config === 'object' && config.init) {
-		if (dbMigrations.length) {
-			return { exitCode: 'databaseMigrations' as const };
-		}
-
-		if (migrations.length > 1) {
-			return { exitCode: 'localMigrations' as const };
-		}
-
-		const [migration] = migrations;
-
-		if (!migration) return;
-
-		await db.session.run(
-			sql`insert into ${
-				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-				new Date().toISOString()
-			})`,
-		);
-
-		return;
-	}
-
-	const migrationsToRun = getMigrationsToRun({
-		localMigrations: migrations,
-		dbMigrations,
-	});
-	await db.session.transaction(async (tx) => {
-		for (const migration of migrationsToRun) {
-			for (const stmt of migration.sql) {
-				await tx.run(sql.raw(stmt));
-			}
-			await tx.run(
-				sql`insert into ${
-					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-					new Date().toISOString()
-				})`,
-			);
-		}
-	});
+	return runAsyncProgram(() => migrateProgram(migrations, sqliteAsyncMigrationRunner(db), config));
 }

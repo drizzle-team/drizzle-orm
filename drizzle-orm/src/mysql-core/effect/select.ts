@@ -1,7 +1,6 @@
 import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type {
 	BuildSubquerySelection,
 	JoinNullability,
@@ -11,6 +10,7 @@ import type {
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { applyMixins } from '~/utils.ts';
 import type { Assume } from '~/utils.ts';
+import { MySqlRunnableQuery } from '../query-builders/runnable.ts';
 import { MySqlSelectBase, type MySqlSelectBuilder } from '../query-builders/select.ts';
 import type { MySqlSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { MySqlPreparedQueryConfig } from '../session.ts';
@@ -107,7 +107,7 @@ export class MySqlEffectSelectBase<
 	declare readonly session: MySqlEffectSession<TEffectHKT, any, any>;
 }
 
-applyMixins(MySqlEffectSelectBase, [RunnableQueryMixin]);
+applyMixins(MySqlEffectSelectBase, [MySqlRunnableQuery]);
 applyEffectWrapper(MySqlEffectSelectBase);
 
 export type AnyMySqlEffectSelect = MySqlEffectSelectBase<any, any, any, any, any, any, any, any, any>;

@@ -1,13 +1,13 @@
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type { JoinNullability } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgAsyncPreparedQuery, PgAsyncRuntimeHKT, PgAsyncSession } from './session.ts';
@@ -102,4 +102,4 @@ export class PgAsyncUpdateBase<
 	declare protected session: PgAsyncSession;
 }
 
-applyMixins(PgAsyncUpdateBase, [QueryPromise, RunnableQueryMixin]);
+applyMixins(PgAsyncUpdateBase, [QueryPromise, PgRunnableQuery]);

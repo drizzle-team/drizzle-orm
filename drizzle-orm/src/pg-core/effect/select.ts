@@ -1,7 +1,6 @@
 import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type {
 	BuildSubquerySelection,
 	JoinNullability,
@@ -10,6 +9,7 @@ import type {
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -109,7 +109,7 @@ export class PgEffectSelectBase<
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 }
 
-applyMixins(PgEffectSelectBase, [RunnableQueryMixin]);
+applyMixins(PgEffectSelectBase, [PgRunnableQuery]);
 applyEffectWrapper(PgEffectSelectBase);
 
 export type AnyPgEffectSelect = PgEffectSelectBase<any, any, any, any, any, any, any, any, any>;

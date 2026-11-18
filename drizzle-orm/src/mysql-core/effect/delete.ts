@@ -4,9 +4,9 @@ import { entityKind } from '~/entity.ts';
 import { MySqlDeleteBase, type MySqlDeleteHKTBase } from '~/mysql-core/query-builders/delete.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import { applyMixins } from '~/utils.ts';
 import type { Assume } from '~/utils.ts';
+import { MySqlRunnableQuery } from '../query-builders/runnable.ts';
 import type { MySqlEffectPreparedQuery, MySqlEffectRuntimeHKT, MySqlEffectSession } from './session.ts';
 
 export type MySqlEffectDelete<
@@ -64,5 +64,5 @@ export class MySqlEffectDeleteBase<
 	declare protected session: MySqlEffectSession<TEffectHKT, TQueryResult, any>;
 }
 
-applyMixins(MySqlEffectDeleteBase, [RunnableQueryMixin]);
+applyMixins(MySqlEffectDeleteBase, [MySqlRunnableQuery]);
 applyEffectWrapper(MySqlEffectDeleteBase);

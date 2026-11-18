@@ -1,5 +1,4 @@
 import { entityKind } from '~/entity.ts';
-import { RunnableQueryMixin } from '~/query-builders/runnable.ts';
 import type {
 	BuildSubquerySelection,
 	JoinNullability,
@@ -9,6 +8,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -101,6 +101,6 @@ export class PgAsyncSelectBase<
 	declare protected session: PgAsyncSession;
 }
 
-applyMixins(PgAsyncSelectBase, [QueryPromise, RunnableQueryMixin]);
+applyMixins(PgAsyncSelectBase, [QueryPromise, PgRunnableQuery]);
 
 export type AnyPgAsyncSelect = PgAsyncSelectBase<any, any, any, any, any, any, any, any>;
