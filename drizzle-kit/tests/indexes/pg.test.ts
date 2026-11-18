@@ -57,8 +57,8 @@ const pgSuite: DialectSuite = {
 				name: 'vector_embedding_idx',
 				where: undefined,
 				with: {
-					ef_construction: 64,
-					m: 16,
+					ef_construction: "64",
+					m: "16",
 				},
 			},
 		});
@@ -196,7 +196,7 @@ const pgSuite: DialectSuite = {
 				name: 'users_name_id_index',
 				where: 'select 1',
 				with: {
-					fillfactor: 70,
+					fillfactor: "70",
 				},
 			},
 			// data: 'users_name_id_index;name,false,last,undefined,,id,true,last,undefined;false;false;btree;select 1;{"fillfactor":70}',
@@ -228,7 +228,7 @@ const pgSuite: DialectSuite = {
 				name: 'indx1',
 				where: undefined,
 				with: {
-					fillfactor: 70,
+					fillfactor: "70",
 				},
 			},
 		});

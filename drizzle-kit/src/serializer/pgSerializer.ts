@@ -482,7 +482,16 @@ export const generatePgSnapshot = (
 				where: value.config.where ? dialect.sqlToQuery(value.config.where).sql : undefined,
 				concurrently: value.config.concurrently ?? false,
 				method: value.config.method ?? 'btree',
-				with: value.config.with ?? {},
+				// Postgres stores index storage parameters (reloptions) as text, so the
+				// introspected snapshot always holds string values (e.g. { fillfactor: "70" }).
+				// Coerce the schema-side values to strings too, otherwise the two snapshots
+				// never compare equal and `drizzle-kit push` drops and recreates the index
+				// on every run. See https://github.com/drizzle-team/drizzle-orm/issues/6079
+				with: value.config.with
+					? Object.fromEntries(
+						Object.entries(value.config.with).map(([key, v]) => [key, String(v)]),
+					)
+					: {},
 			};
 		});
 
