@@ -57,6 +57,15 @@ type Script = ReturnType<Redis['createScript']>;
 
 type ExpireOptions = 'NX' | 'nx' | 'XX' | 'xx' | 'GT' | 'gt' | 'LT' | 'lt';
 
+function stringifyBigInts(value: unknown): any {
+	if (typeof value === 'bigint') return value.toString();
+	if (Array.isArray(value)) return value.map(stringifyBigInts);
+	if (value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+		return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, stringifyBigInts(v)]));
+	}
+	return value;
+}
+
 export class UpstashCache extends Cache {
 	static override readonly [entityKind]: string = 'UpstashCache';
 	/**
@@ -154,6 +163,8 @@ export class UpstashCache extends Cache {
 		config?: CacheConfig,
 	): Promise<void> {
 		const isAutoInvalidate = tables.length !== 0;
+		// Redis payloads are serialized with JSON.stringify, which throws on BigInt
+		response = stringifyBigInts(response);
 
 		const pipeline = this.redis.pipeline();
 		const ttlSeconds = config && config.ex ? config.ex : this.internalConfig.seconds;
