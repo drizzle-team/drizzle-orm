@@ -94,8 +94,28 @@ export const assertOrmCoreVersion = async () => {
 				'This version of drizzle-kit is outdated\nPlease update drizzle-kit package to the latest version 👍',
 			);
 		}
-	} catch (e) {
-		console.log('Please install latest version of drizzle-orm');
+	} catch (e: any) {
+		// The generic message below used to be shown for *any* failure here, including
+		// cases where drizzle-orm is actually installed but can't be resolved from
+		// drizzle-kit's location (e.g. npm/pnpm workspace hoisting puts drizzle-orm in a
+		// different node_modules than drizzle-kit). That left users chasing a fix that
+		// didn't apply to them. Surface the real error and give more targeted guidance
+		// when it looks like a resolution failure rather than an actual version problem.
+		const code = e?.code;
+		const isResolutionFailure = code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND';
+		const underlying = e?.message ?? String(e);
+
+		if (isResolutionFailure) {
+			console.log(
+				`Could not resolve 'drizzle-orm' from drizzle-kit.\nIf 'drizzle-orm' is already installed, this is commonly caused by a monorepo/workspace `
+					+ `setup (npm/pnpm/yarn workspaces) hoisting it to a location drizzle-kit can't resolve from. Try running `
+					+ `drizzle-kit via a package.json script in the same workspace as 'drizzle-orm', or make sure both packages `
+					+ `resolve to the same node_modules. Otherwise, please install the latest version of drizzle-orm.\n`
+					+ `Underlying error: ${underlying}`,
+			);
+		} else {
+			console.log(`Please install latest version of drizzle-orm\nUnderlying error: ${underlying}`);
+		}
 	}
 	process.exit(1);
 };
