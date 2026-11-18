@@ -1372,7 +1372,7 @@ export const applyPgSnapshotsDiff = async (
 				it.schema,
 				it.altered,
 				json2,
-				json1,
+				viewsPatchedSnap1,
 				action,
 			);
 		})
