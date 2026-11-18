@@ -1,9 +1,9 @@
-import { sql } from 'drizzle-orm';
-import { index, pgTable, serial, text, vector } from 'drizzle-orm/pg-core';
+import { desc, sql } from 'drizzle-orm';
+import { index, PgDialect, pgTable, serial, text, timestamp, vector } from 'drizzle-orm/pg-core';
 import { JsonCreateIndexStatement } from 'src/jsonStatements';
 import { PgSquasher } from 'src/serializer/pgSchema';
 import { diffTestSchemas } from 'tests/schemaDiffer';
-import { expect } from 'vitest';
+import { expect, test } from 'vitest';
 import { DialectSuite, run } from './common';
 
 const pgSuite: DialectSuite = {
@@ -128,8 +128,8 @@ const pgSuite: DialectSuite = {
 			'DROP INDEX "indx2";',
 			'DROP INDEX "indx3";',
 			'CREATE INDEX "indx4" ON "users" USING btree (lower(id)) WHERE true;',
-			'CREATE INDEX "indx" ON "users" USING btree ("name" DESC NULLS LAST);',
-			'CREATE INDEX "indx1" ON "users" USING btree ("name" DESC NULLS LAST) WHERE false;',
+			'CREATE INDEX "indx" ON "users" USING btree ("name" DESC NULLS FIRST);',
+			'CREATE INDEX "indx1" ON "users" USING btree ("name" DESC NULLS FIRST) WHERE false;',
 			'CREATE INDEX "indx2" ON "users" USING btree ("name" test) WHERE true;',
 			'CREATE INDEX "indx3" ON "users" USING btree (lower("id")) WHERE true;',
 		]);
@@ -179,7 +179,7 @@ const pgSuite: DialectSuite = {
 						asc: false,
 						expression: 'name',
 						isExpression: false,
-						nulls: 'last',
+						nulls: 'first',
 						opclass: '',
 					},
 					{
@@ -199,7 +199,7 @@ const pgSuite: DialectSuite = {
 					fillfactor: 70,
 				},
 			},
-			// data: 'users_name_id_index;name,false,last,undefined,,id,true,last,undefined;false;false;btree;select 1;{"fillfactor":70}',
+			// data: 'users_name_id_index;name,false,first,undefined,,id,true,last,undefined;false;false;btree;select 1;{"fillfactor":70}',
 		});
 		expect(statements[1]).toStrictEqual({
 			schema: '',
@@ -211,7 +211,7 @@ const pgSuite: DialectSuite = {
 						asc: false,
 						expression: 'name',
 						isExpression: false,
-						nulls: 'last',
+						nulls: 'first',
 						opclass: '',
 					},
 					{
@@ -234,12 +234,52 @@ const pgSuite: DialectSuite = {
 		});
 		expect(sqlStatements.length).toBe(2);
 		expect(sqlStatements[0]).toBe(
-			`CREATE INDEX "users_name_id_index" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
+			`CREATE INDEX "users_name_id_index" ON "users" USING btree ("name" DESC NULLS FIRST,"id") WITH (fillfactor=70) WHERE select 1;`,
 		);
 		expect(sqlStatements[1]).toBe(
-			`CREATE INDEX "indx1" ON "users" USING hash ("name" DESC NULLS LAST,"name") WITH (fillfactor=70);`,
+			`CREATE INDEX "indx1" ON "users" USING hash ("name" DESC NULLS FIRST,"name") WITH (fillfactor=70);`,
 		);
 	},
 };
 
 run(pgSuite);
+
+// Regression test for #5978: the index builder and the desc() order-by helper
+// must agree on NULLS ordering, otherwise Postgres silently refuses to use the
+// index for the ORDER BY ... LIMIT it was created for (pathkeys include the
+// nulls flag, and NOT NULL is not consulted).
+test('index #4: .desc() index and desc() order-by agree on NULLS ordering (#5978)', async () => {
+	const schema1 = {
+		items: pgTable('items', {
+			id: serial('id').primaryKey(),
+			createdAt: timestamp('created_at').notNull(),
+		}),
+	};
+	const schema2 = {
+		items: pgTable(
+			'items',
+			{
+				id: serial('id').primaryKey(),
+				createdAt: timestamp('created_at').notNull(),
+			},
+			(t) => ({
+				byCreatedAt: index('items_by_created_at').on(t.createdAt.desc()),
+			}),
+		),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	// A bare `.desc()` index now follows the Postgres direction default
+	// (DESC => NULLS FIRST) instead of the previously pinned DESC NULLS LAST.
+	expect(sqlStatements).toStrictEqual([
+		'CREATE INDEX "items_by_created_at" ON "items" USING btree ("created_at" DESC NULLS FIRST);',
+	]);
+
+	// The desc() order-by helper emits a bare `desc`, which Postgres reads with
+	// its DESC default of NULLS FIRST -- the same nulls ordering the index above
+	// uses, so the index can serve `ORDER BY created_at DESC LIMIT n`.
+	const orderBy = new PgDialect().sqlToQuery(desc(schema2.items.createdAt)).sql.toLowerCase();
+	expect(orderBy.endsWith(' desc')).toBe(true);
+	expect(orderBy).not.toContain('nulls');
+});

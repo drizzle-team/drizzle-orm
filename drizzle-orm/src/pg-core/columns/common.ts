@@ -164,7 +164,9 @@ export class ExtraConfigColumn<
 
 	indexConfig: IndexedExtraConfigType = {
 		order: this.config.order ?? 'asc',
-		nulls: this.config.nulls ?? 'last',
+		// Don't pin 'last'; leave undefined so drizzle-kit applies Postgres's direction
+		// default (desc => NULLS FIRST) to match what the desc() order-by helper emits. (#5978)
+		nulls: this.config.nulls,
 		opClass: this.config.opClass,
 	};
 	defaultConfig: IndexedExtraConfigType = {
