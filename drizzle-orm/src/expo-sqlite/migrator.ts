@@ -60,12 +60,7 @@ type Action =
 	| { type: 'migrated'; payload: true }
 	| { type: 'error'; payload: Error };
 
-export const useMigrations = (db: ExpoSQLiteDatabase<any>, migrations: {
-	journal: {
-		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
-	};
-	migrations: Record<string, string>;
-}): State => {
+export const useMigrations = (db: ExpoSQLiteDatabase<any>, migrations: MigrationConfig): State => {
 	const initialState: State = {
 		success: false,
 		error: undefined,
@@ -92,7 +87,7 @@ export const useMigrations = (db: ExpoSQLiteDatabase<any>, migrations: {
 
 	useEffect(() => {
 		dispatch({ type: 'migrating' });
-		migrate(db, migrations as any).then(() => {
+		migrate(db, migrations).then(() => {
 			dispatch({ type: 'migrated', payload: true });
 		}).catch((error) => {
 			dispatch({ type: 'error', payload: error as Error });
