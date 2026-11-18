@@ -57,6 +57,7 @@ export const generateSqliteSnapshot = (
 			foreignKeys: tableForeignKeys,
 			primaryKeys,
 			uniqueConstraints,
+			isStrict,
 		} = getTableConfig(table);
 
 		columns.forEach((column) => {
@@ -313,6 +314,21 @@ export const generateSqliteSnapshot = (
 			};
 		});
 
+		// Validate column types for STRICT tables
+		if (isStrict) {
+			const validStrictTypes = ['INT', 'INTEGER', 'REAL', 'TEXT', 'BLOB', 'ANY'];
+			for (const column of columns) {
+				const upperType = column.getSQLType().toUpperCase();
+				if (!validStrictTypes.includes(upperType)) {
+					console.log(
+						`\n${withStyle.errorWarning(
+							`Column "${column.name}" in STRICT table "${tableName}" has type "${column.getSQLType()}" which is not a valid STRICT type. Valid types: ${validStrictTypes.join(', ')}`,
+						)}`,
+					);
+				}
+			}
+		}
+
 		result[tableName] = {
 			name: tableName,
 			columns: columnsObject,
@@ -321,6 +337,7 @@ export const generateSqliteSnapshot = (
 			compositePrimaryKeys: primaryKeysObject,
 			uniqueConstraints: uniqueConstraintObject,
 			checkConstraints: checkConstraintObject,
+			isStrict,
 		};
 	}
 
@@ -649,6 +666,12 @@ export const fromDatabase = async (
 				: undefined,
 		};
 
+		// Check if table DDL contains STRICT keyword
+		const isStrict = column.sql
+			? /\)\s*(?:WITHOUT\s+ROWID\s*,\s*)?STRICT\b/i.test(column.sql) ||
+			  /\)\s*STRICT\s*,\s*WITHOUT\s+ROWID\b/i.test(column.sql)
+			: false;
+
 		if (!table) {
 			result[tableName] = {
 				name: tableName,
@@ -660,6 +683,7 @@ export const fromDatabase = async (
 				foreignKeys: {},
 				uniqueConstraints: {},
 				checkConstraints: {},
+				isStrict,
 			};
 		} else {
 			result[tableName]!.columns[columnName] = newColumn;
@@ -929,6 +953,7 @@ export const fromDatabase = async (
 				foreignKeys: {},
 				uniqueConstraints: {},
 				checkConstraints: checkConstraints,
+				isStrict: false,
 			};
 		} else {
 			result[tableName]!.checkConstraints = checkConstraints;

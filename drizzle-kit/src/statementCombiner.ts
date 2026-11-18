@@ -11,7 +11,7 @@ export const prepareLibSQLRecreateTable = (
 	table: SQLiteSchemaSquashed['tables'][keyof SQLiteSchemaSquashed['tables']],
 	action?: 'push',
 ): (JsonRecreateTableStatement | JsonCreateIndexStatement)[] => {
-	const { name, columns, uniqueConstraints, indexes, checkConstraints } = table;
+	const { name, columns, uniqueConstraints, indexes, checkConstraints, isStrict } = table;
 
 	const composites: string[][] = Object.values(table.compositePrimaryKeys).map(
 		(it) => SQLiteSquasher.unsquashPK(it),
@@ -31,6 +31,7 @@ export const prepareLibSQLRecreateTable = (
 			referenceData: fks,
 			uniqueConstraints: Object.values(uniqueConstraints),
 			checkConstraints: Object.values(checkConstraints),
+			isStrict,
 		},
 	];
 
@@ -44,7 +45,7 @@ export const prepareSQLiteRecreateTable = (
 	table: SQLiteSchemaSquashed['tables'][keyof SQLiteSchemaSquashed['tables']],
 	action?: 'push',
 ): JsonStatement[] => {
-	const { name, columns, uniqueConstraints, indexes, checkConstraints } = table;
+	const { name, columns, uniqueConstraints, indexes, checkConstraints, isStrict } = table;
 
 	const composites: string[][] = Object.values(table.compositePrimaryKeys).map(
 		(it) => SQLiteSquasher.unsquashPK(it),
@@ -64,6 +65,7 @@ export const prepareSQLiteRecreateTable = (
 			referenceData: fks,
 			uniqueConstraints: Object.values(uniqueConstraints),
 			checkConstraints: Object.values(checkConstraints),
+			isStrict,
 		},
 	];
 

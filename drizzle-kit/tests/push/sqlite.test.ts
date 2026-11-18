@@ -384,6 +384,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 		referenceData: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 
 	expect(sqlStatements.length).toBe(4);
@@ -501,6 +502,7 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 		],
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 
 	expect(sqlStatements.length).toBe(4);
@@ -606,6 +608,7 @@ test('change autoincrement. other table references current', async (t) => {
 		referenceData: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 
 	expect(sqlStatements.length).toBe(6);
@@ -726,6 +729,7 @@ test('drop not null, add not null', async (t) => {
 	expect(statements!.length).toBe(2);
 	expect(statements![0]).toStrictEqual({
 		checkConstraints: [],
+		isStrict: false,
 		columns: [
 			{
 				autoincrement: true,
@@ -752,6 +756,7 @@ test('drop not null, add not null', async (t) => {
 	});
 	expect(statements![1]).toStrictEqual({
 		checkConstraints: [],
+		isStrict: false,
 		columns: [
 			{
 				autoincrement: true,
@@ -879,6 +884,7 @@ test('rename table and change data type', async (t) => {
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 
 	expect(sqlStatements!.length).toBe(5);
@@ -958,6 +964,7 @@ test('rename column and change data type', async (t) => {
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 
 	expect(sqlStatements!.length).toBe(4);
@@ -1066,6 +1073,7 @@ test('recreate table with nested references', async (t) => {
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 
 	expect(sqlStatements!.length).toBe(6);
@@ -1175,6 +1183,7 @@ test('recreate table with added column not null and without default with data', 
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 
 	expect(sqlStatements!.length).toBe(4);
@@ -1273,6 +1282,7 @@ test('add check constraint to table', async (t) => {
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: ['some_check;"users"."age" > 21'],
+		isStrict: false,
 	});
 
 	expect(sqlStatements!.length).toBe(4);
@@ -1367,6 +1377,7 @@ test('drop check constraint', async (t) => {
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
+		isStrict: false,
 	});
 
 	expect(sqlStatements!.length).toBe(4);
@@ -1569,6 +1580,7 @@ test('create composite primary key', async (t) => {
 		uniqueConstraints: [],
 		referenceData: [],
 		checkConstraints: [],
+		isStrict: false,
 		columns: [
 			{ name: 'col1', type: 'integer', primaryKey: false, notNull: true, autoincrement: false },
 			{ name: 'col2', type: 'integer', primaryKey: false, notNull: true, autoincrement: false },
