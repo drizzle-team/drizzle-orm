@@ -11,6 +11,7 @@ export type Commands =
 	| 'up'
 	| 'drop'
 	| 'push'
+	| 'reset'
 	| 'export';
 
 type Expand<T> = T extends infer O ? { [K in keyof O]: O[K] } : never;

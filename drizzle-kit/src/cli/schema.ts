@@ -2,7 +2,7 @@ import { boolean, command, number, string } from '@drizzle-team/brocli';
 import chalk from 'chalk';
 import 'dotenv/config';
 import { mkdirSync } from 'fs';
-import { renderWithTask } from 'hanji';
+import { render, renderWithTask } from 'hanji';
 import { dialects } from 'src/schemaValidator';
 import '../@types/utils';
 import { assertUnreachable } from '../global';
@@ -16,6 +16,7 @@ import { upPgHandler } from './commands/pgUp';
 import { upSinglestoreHandler } from './commands/singlestoreUp';
 import { upSqliteHandler } from './commands/sqliteUp';
 import {
+	assertPostgresDriverSupported,
 	prepareCheckParams,
 	prepareDropParams,
 	prepareExportConfig,
@@ -25,6 +26,7 @@ import {
 	preparePushConfig,
 	prepareStudioConfig,
 } from './commands/utils';
+import { Select } from './selector-ui';
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers, prefixes } from './validations/common';
 import { withStyle } from './validations/outputs';
@@ -127,26 +129,7 @@ export const migrate = command({
 		const { dialect, schema, table, out, credentials } = opts;
 		try {
 			if (dialect === 'postgresql') {
-				if ('driver' in credentials) {
-					const { driver } = credentials;
-					if (driver === 'aws-data-api') {
-						if (!(await ormVersionGt('0.30.10'))) {
-							console.log(
-								"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
-							);
-							process.exit(1);
-						}
-					} else if (driver === 'pglite') {
-						if (!(await ormVersionGt('0.30.6'))) {
-							console.log(
-								"To use 'pglite' driver - please update drizzle-orm to the latest version",
-							);
-							process.exit(1);
-						}
-					} else {
-						assertUnreachable(driver);
-					}
-				}
+				await assertPostgresDriverSupported(credentials);
 				const { preparePostgresDB } = await import('./connections');
 				const { migrate } = await preparePostgresDB(credentials);
 				await renderWithTask(
@@ -320,26 +303,7 @@ export const push = command({
 					casing,
 				);
 			} else if (dialect === 'postgresql') {
-				if ('driver' in credentials) {
-					const { driver } = credentials;
-					if (driver === 'aws-data-api') {
-						if (!(await ormVersionGt('0.30.10'))) {
-							console.log(
-								"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
-							);
-							process.exit(1);
-						}
-					} else if (driver === 'pglite') {
-						if (!(await ormVersionGt('0.30.6'))) {
-							console.log(
-								"To use 'pglite' driver - please update drizzle-orm to the latest version",
-							);
-							process.exit(1);
-						}
-					} else {
-						assertUnreachable(driver);
-					}
-				}
+				await assertPostgresDriverSupported(credentials);
 
 				const { pgPush } = await import('./commands/push');
 				await pgPush(
@@ -646,6 +610,130 @@ export const drop = command({
 
 		assertV1OutFolder(config.out);
 		await dropMigration(config);
+	},
+});
+
+export const reset = command({
+	name: 'reset',
+	options: {
+		config: optionConfig,
+		dialect: optionDialect,
+		casing: optionCasing,
+		schema: string().desc('Path to a schema file or folder'),
+		...optionsFilters,
+		...optionsDatabaseCredentials,
+		verbose: boolean()
+			.desc('Print all statements executed while resetting')
+			.default(false),
+		force: boolean()
+			.desc('Skip the confirmation prompt. Required to run in a CI environment')
+			.default(false),
+	},
+	transform: async (opts) => {
+		const from = assertCollisions(
+			'reset',
+			opts,
+			['force', 'verbose'],
+			[
+				'schema',
+				'dialect',
+				'driver',
+				'url',
+				'host',
+				'port',
+				'user',
+				'password',
+				'database',
+				'ssl',
+				'authToken',
+				'schemaFilters',
+				'extensionsFilters',
+				'tablesFilter',
+				'casing',
+				'tlsSecurity',
+			],
+		);
+
+		return preparePushConfig(opts, from);
+	},
+	handler: async (config) => {
+		await assertPackages('drizzle-orm');
+		await assertOrmCoreVersion();
+
+		const {
+			dialect,
+			schemaPath,
+			verbose,
+			credentials,
+			tablesFilter,
+			schemasFilter,
+			force,
+			casing,
+			entities,
+		} = config;
+
+		if (process.env.CI && !force) {
+			console.log(
+				error(
+					`Refusing to run 'reset' in a CI environment without '--force'. This command permanently deletes all data.`,
+				),
+			);
+			process.exit(1);
+		}
+
+		if (!force) {
+			console.log(withStyle.fullWarning(`This will delete ALL data and objects in the target database.`));
+			console.log(chalk.red.bold('THIS ACTION CANNOT BE REVERTED\n'));
+
+			const { status, data } = await render(
+				new Select(['No, abort', 'Yes, I want to reset the database']),
+			);
+			if (data?.index === 0) {
+				render(`[${chalk.red('x')}] Reset was aborted`);
+				process.exit(0);
+			}
+		}
+
+		try {
+			if (dialect === 'mysql') {
+				const { mysqlReset } = await import('./commands/reset');
+				await mysqlReset(schemaPath, verbose, credentials, tablesFilter, casing);
+			} else if (dialect === 'postgresql') {
+				await assertPostgresDriverSupported(credentials);
+
+				const { pgReset } = await import('./commands/reset');
+				await pgReset(
+					schemaPath,
+					verbose,
+					credentials,
+					tablesFilter,
+					schemasFilter,
+					entities,
+					casing,
+				);
+			} else if (dialect === 'sqlite') {
+				const { sqliteReset } = await import('./commands/reset');
+				await sqliteReset(schemaPath, verbose, credentials, tablesFilter, casing);
+			} else if (dialect === 'turso') {
+				const { libSQLReset } = await import('./commands/reset');
+				await libSQLReset(schemaPath, verbose, credentials, tablesFilter, casing);
+			} else if (dialect === 'singlestore') {
+				const { singlestoreReset } = await import('./commands/reset');
+				await singlestoreReset(schemaPath, verbose, credentials, tablesFilter, casing);
+			} else if (dialect === 'gel') {
+				console.log(
+					error(
+						`You can't use 'reset' command with Gel dialect`,
+					),
+				);
+				process.exit(1);
+			} else {
+				assertUnreachable(dialect);
+			}
+		} catch (e) {
+			console.error(e);
+		}
+		process.exit(0);
 	},
 });
 
