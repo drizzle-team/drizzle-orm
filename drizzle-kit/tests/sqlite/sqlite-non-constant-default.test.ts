@@ -56,6 +56,48 @@ describe('adding a column with a non-constant default', () => {
 		expect(sqlStatements.some((it) => it.includes('CREATE TABLE `__new_materials`'))).toBe(true);
 	});
 
+	test('recreates the table for a parenthesized function default', async () => {
+		const before = toDDL({ materials: materials() });
+		const after = toDDL({
+			materials: materials({
+				createdAt: text('created_at').default(sql`(datetime('now'))`),
+			}),
+		});
+
+		const { sqlStatements } = await ddlDiffDry(before, after, 'default');
+
+		expect(sqlStatements.some((it) => it.includes('ALTER TABLE `materials` ADD'))).toBe(false);
+		expect(sqlStatements.some((it) => it.includes('CREATE TABLE `__new_materials`'))).toBe(true);
+	});
+
+	test('stores a bare function default unwrapped', () => {
+		const after = toDDL({
+			materials: materials({
+				createdAt: text('created_at').default(sql`datetime('now')`),
+			}),
+		});
+
+		// sqlToStr passes the sql through as written, with no added parens
+		expect(after.columns.one({ name: 'created_at' })?.default).toBe(`datetime('now')`);
+	});
+
+	test('keeps ALTER TABLE ADD for a string literal that reads CURRENT_TIMESTAMP', async () => {
+		const before = toDDL({ materials: materials() });
+		const after = toDDL({
+			materials: materials({
+				label: text('label').default('CURRENT_TIMESTAMP'),
+			}),
+		});
+
+		// a plain string default is stored quoted, so it stays a constant
+		expect(after.columns.one({ name: 'label' })?.default).toBe(`'CURRENT_TIMESTAMP'`);
+
+		const { sqlStatements } = await ddlDiffDry(before, after, 'default');
+
+		expect(sqlStatements.some((it) => it.includes('ALTER TABLE `materials` ADD `label`'))).toBe(true);
+		expect(sqlStatements.some((it) => it.includes('__new_materials'))).toBe(false);
+	});
+
 	test('keeps ALTER TABLE ADD for a constant default', async () => {
 		const before = toDDL({ materials: materials() });
 		const after = toDDL({
