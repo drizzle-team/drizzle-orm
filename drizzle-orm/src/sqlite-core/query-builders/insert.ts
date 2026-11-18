@@ -115,7 +115,8 @@ export type SQLiteInsertWithout<T extends AnySQLiteInsert, TDynamic extends bool
 				T['_']['runResult'],
 				T['_']['returning'],
 				TDynamic,
-				T['_']['excludedMethods'] | K
+				T['_']['excludedMethods'] | K,
+				T['_']['hasSkipConflict']
 			>,
 			T['_']['excludedMethods'] | K
 		>;
@@ -131,7 +132,8 @@ export type SQLiteInsertReturning<
 		T['_']['runResult'],
 		SelectResultFields<TSelectedFields>,
 		TDynamic,
-		T['_']['excludedMethods']
+		T['_']['excludedMethods'],
+		T['_']['hasSkipConflict']
 	>,
 	TDynamic,
 	'returning'
@@ -147,7 +149,8 @@ export type SQLiteInsertReturningAll<
 		T['_']['runResult'],
 		T['_']['table']['$inferSelect'],
 		TDynamic,
-		T['_']['excludedMethods']
+		T['_']['excludedMethods'],
+		T['_']['hasSkipConflict']
 	>,
 	TDynamic,
 	'returning'
@@ -167,7 +170,8 @@ export type SQLiteInsertDynamic<T extends AnySQLiteInsert> = SQLiteInsert<
 	T['_']['table'],
 	T['_']['resultType'],
 	T['_']['runResult'],
-	T['_']['returning']
+	T['_']['returning'],
+	T['_']['hasSkipConflict']
 >;
 
 export type SQLiteInsertExecute<T extends AnySQLiteInsert> = T['_']['returning'] extends undefined ? T['_']['runResult']
@@ -179,7 +183,13 @@ export type SQLiteInsertPrepare<T extends AnySQLiteInsert> = SQLitePreparedQuery
 		run: T['_']['runResult'];
 		all: T['_']['returning'] extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'>
 			: T['_']['returning'][];
+		// onConflictDoNothing() means the insert may silently affect zero rows -
+		// RETURNING then produces nothing to index into, so .get() can genuinely
+		// resolve to undefined instead of throwing. See the "why" discussion in
+		// https://github.com/drizzle-team/drizzle-orm/issues/2474 for the runtime
+		// behavior this type is catching up to.
 		get: T['_']['returning'] extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'>
+			: T['_']['hasSkipConflict'] extends true ? T['_']['returning'] | undefined
 			: T['_']['returning'];
 		values: T['_']['returning'] extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
 			: any[][];
@@ -187,14 +197,15 @@ export type SQLiteInsertPrepare<T extends AnySQLiteInsert> = SQLitePreparedQuery
 	}
 >;
 
-export type AnySQLiteInsert = SQLiteInsertBase<any, any, any, any, any, any>;
+export type AnySQLiteInsert = SQLiteInsertBase<any, any, any, any, any, any, any>;
 
 export type SQLiteInsert<
 	TTable extends SQLiteTable = SQLiteTable,
 	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = unknown,
 	TReturning = any,
-> = SQLiteInsertBase<TTable, TResultType, TRunResult, TReturning, true, never>;
+	THasSkipConflict extends boolean = boolean,
+> = SQLiteInsertBase<TTable, TResultType, TRunResult, TReturning, true, never, THasSkipConflict>;
 
 export interface SQLiteInsertBase<
 	TTable extends SQLiteTable,
@@ -203,6 +214,11 @@ export interface SQLiteInsertBase<
 	TReturning = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
+	// Tracks whether onConflictDoNothing() is in the chain, since that's what
+	// allows RETURNING to legitimately come back empty despite the insert
+	// itself succeeding (as opposed to a WHERE clause matching nothing, which
+	// is what TReturning being non-undefined already models on its own).
+	THasSkipConflict extends boolean = false,
 > extends
 	SQLWrapper,
 	QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>,
@@ -215,6 +231,7 @@ export interface SQLiteInsertBase<
 		readonly runResult: TRunResult;
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
+		readonly hasSkipConflict: THasSkipConflict;
 		readonly excludedMethods: TExcludedMethods;
 		readonly result: TReturning extends undefined ? TRunResult : TReturning[];
 	};
@@ -230,6 +247,8 @@ export class SQLiteInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	THasSkipConflict extends boolean = false,
 > extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>
 	implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper
 {
@@ -302,8 +321,15 @@ export class SQLiteInsertBase<
 	 *   .values({ id: 1, brand: 'BMW' })
 	 *   .onConflictDoNothing({ target: cars.id });
 	 * ```
+	 *
+	 * A conflict means the row is silently skipped rather than inserted, so a
+	 * chained `.returning()` can legitimately come back empty for that row -
+	 * this is reflected in the return type by flipping `THasSkipConflict` to
+	 * `true`, which `.get()` uses to include `| undefined` in its result.
 	 */
-	onConflictDoNothing(config: { target?: IndexColumn | IndexColumn[]; where?: SQL } = {}): this {
+	onConflictDoNothing(
+		config: { target?: IndexColumn | IndexColumn[]; where?: SQL } = {},
+	): SQLiteInsertBase<TTable, TResultType, TRunResult, TReturning, TDynamic, TExcludedMethods, true> {
 		if (!this.config.onConflict) this.config.onConflict = [];
 
 		if (config.target === undefined) {
@@ -313,7 +339,7 @@ export class SQLiteInsertBase<
 			const whereSql = config.where ? sql` where ${config.where}` : sql``;
 			this.config.onConflict.push(sql` on conflict ${targetSql} do nothing${whereSql}`);
 		}
-		return this;
+		return this as any;
 	}
 
 	/**
