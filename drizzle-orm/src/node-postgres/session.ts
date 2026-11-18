@@ -253,6 +253,15 @@ export class NodePgSession<
 		const session = isPool
 			? new NodePgSession(await (<pg.Pool> this.client).connect(), this.dialect, this.schema, this.options)
 			: this;
+		// pg-pool removes its own `error` listener from a client while it is checked
+		// out. Without one, a connection the server drops mid-transaction emits
+		// `error` on a client nobody listens to, and Node exits. The statement in
+		// flight still rejects with the failure.
+		let connectionError: Error | undefined;
+		const onError = (error: Error) => {
+			connectionError = error;
+		};
+		if (isPool) (session.client as PoolClient).on('error', onError);
 		const tx = new NodePgTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 		try {
@@ -263,7 +272,11 @@ export class NodePgSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
-			if (isPool) (session.client as PoolClient).release();
+			if (isPool) {
+				(session.client as PoolClient).removeListener('error', onError);
+				// Released with the connection's error, the pool discards the client.
+				(session.client as PoolClient).release(connectionError);
+			}
 		}
 	}
 
