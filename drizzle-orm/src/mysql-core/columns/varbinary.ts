@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<{
@@ -60,18 +60,88 @@ export class MySqlVarBinary<
 	}
 }
 
-export interface MySqlVarbinaryOptions {
-	length: number;
+export type MySqlVarBinaryBufferBuilderInitial<TName extends string> = MySqlVarBinaryBufferBuilder<{
+	name: TName;
+	dataType: 'buffer';
+	columnType: 'MySqlVarBinaryBuffer';
+	data: Buffer;
+	driverParam: Buffer | string;
+	enumValues: undefined;
+}>;
+
+export class MySqlVarBinaryBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'MySqlVarBinaryBuffer'>>
+	extends MySqlColumnBuilder<T, MySqlVarbinaryOptions>
+{
+	static override readonly [entityKind]: string = 'MySqlVarBinaryBufferBuilder';
+
+	/** @internal */
+	constructor(name: T['name'], config: MySqlVarbinaryOptions) {
+		super(name, 'buffer', 'MySqlVarBinaryBuffer');
+		this.config.length = config?.length;
+	}
+
+	/** @internal */
+	override build<TTableName extends string>(
+		table: AnyMySqlTable<{ name: TTableName }>,
+	): MySqlVarBinaryBuffer<MakeColumnConfig<T, TTableName>> {
+		return new MySqlVarBinaryBuffer<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
+	}
 }
 
-export function varbinary(
-	config: MySqlVarbinaryOptions,
-): MySqlVarBinaryBuilderInitial<''>;
-export function varbinary<TName extends string>(
+export class MySqlVarBinaryBuffer<
+	T extends ColumnBaseConfig<'buffer', 'MySqlVarBinaryBuffer'>,
+> extends MySqlColumn<T, MySqlVarbinaryOptions> {
+	static override readonly [entityKind]: string = 'MySqlVarBinaryBuffer';
+
+	length: number | undefined = this.config.length;
+
+	override mapFromDriverValue(value: string | Buffer | Uint8Array): Buffer {
+		if (Buffer.isBuffer(value)) return value;
+		// drivers that decode binary columns as strings hand back one character per byte,
+		// so latin1 is what round-trips those bytes losslessly
+		if (typeof value === 'string') return Buffer.from(value, 'latin1');
+
+		return Buffer.from(value);
+	}
+
+	override mapToDriverValue(value: Buffer | Uint8Array | string): Buffer {
+		if (Buffer.isBuffer(value)) return value;
+		if (typeof value === 'string') return Buffer.from(value, 'latin1');
+
+		return Buffer.from(value);
+	}
+
+	getSQLType(): string {
+		return this.length === undefined ? `varbinary` : `varbinary(${this.length})`;
+	}
+}
+
+export type VarBinaryMode = 'string' | 'buffer';
+
+export interface MySqlVarbinaryOptions<TMode extends VarBinaryMode = VarBinaryMode> {
+	length: number;
+	/**
+	 * `'string'` (default) maps the column to `string`, `'buffer'` maps it to `Buffer`,
+	 * which is what `mysql2` returns for `varbinary` columns.
+	 */
+	mode?: TMode;
+}
+
+export function varbinary<TMode extends VarBinaryMode = 'string'>(
+	config: MySqlVarbinaryOptions<TMode>,
+): Equal<TMode, 'buffer'> extends true ? MySqlVarBinaryBufferBuilderInitial<''> : MySqlVarBinaryBuilderInitial<''>;
+export function varbinary<TName extends string, TMode extends VarBinaryMode = 'string'>(
 	name: TName,
-	config: MySqlVarbinaryOptions,
-): MySqlVarBinaryBuilderInitial<TName>;
+	config: MySqlVarbinaryOptions<TMode>,
+): Equal<TMode, 'buffer'> extends true ? MySqlVarBinaryBufferBuilderInitial<TName>
+	: MySqlVarBinaryBuilderInitial<TName>;
 export function varbinary(a?: string | MySqlVarbinaryOptions, b?: MySqlVarbinaryOptions) {
 	const { name, config } = getColumnNameAndConfig<MySqlVarbinaryOptions>(a, b);
+	if (config.mode === 'buffer') {
+		return new MySqlVarBinaryBufferBuilder(name, config);
+	}
 	return new MySqlVarBinaryBuilder(name, config);
 }
