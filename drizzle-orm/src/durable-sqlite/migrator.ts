@@ -46,40 +46,35 @@ export async function migrate<
 ): Promise<void> {
 	const migrations = readMigrationFiles(config);
 
-	db.transaction((tx) => {
-		try {
-			const migrationsTable = '__drizzle_migrations';
+	db.transaction(() => {
+		const migrationsTable = '__drizzle_migrations';
 
-			const migrationTableCreate = sql`
-				CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-					id SERIAL PRIMARY KEY,
-					hash text NOT NULL,
-					created_at numeric
-				)
-			`;
-			db.run(migrationTableCreate);
+		const migrationTableCreate = sql`
+			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
+				id SERIAL PRIMARY KEY,
+				hash text NOT NULL,
+				created_at numeric
+			)
+		`;
+		db.run(migrationTableCreate);
 
-			const dbMigrations = db.values<[number, string, string]>(
-				sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
-			);
+		const dbMigrations = db.values<[number, string, string]>(
+			sql`SELECT id, hash, created_at FROM ${sql.identifier(migrationsTable)} ORDER BY created_at DESC LIMIT 1`,
+		);
 
-			const lastDbMigration = dbMigrations[0] ?? undefined;
+		const lastDbMigration = dbMigrations[0] ?? undefined;
 
-			for (const migration of migrations) {
-				if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
-					for (const stmt of migration.sql) {
-						db.run(sql.raw(stmt));
-					}
-					db.run(
-						sql`INSERT INTO ${
-							sql.identifier(migrationsTable)
-						} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
-					);
+		for (const migration of migrations) {
+			if (!lastDbMigration || Number(lastDbMigration[2])! < migration.folderMillis) {
+				for (const stmt of migration.sql) {
+					db.run(sql.raw(stmt));
 				}
+				db.run(
+					sql`INSERT INTO ${
+						sql.identifier(migrationsTable)
+					} ("hash", "created_at") VALUES(${migration.hash}, ${migration.folderMillis})`,
+				);
 			}
-		} catch (error: any) {
-			tx.rollback();
-			throw error;
 		}
 	});
 }
