@@ -146,11 +146,21 @@ export const mysqlPush = async (
 			}
 
 			for (const dStmnt of uniqueSqlStatementsToExecute) {
-				await db.query(dStmnt);
+				try {
+					await db.query(dStmnt);
+				} catch (e) {
+					console.error(`Failed to execute statement:\n${dStmnt}`);
+					throw e;
+				}
 			}
 
 			for (const statement of uniqueFilteredSqlStatements) {
-				await db.query(statement);
+				try {
+					await db.query(statement);
+				} catch (e) {
+					console.error(`Failed to execute statement:\n${statement}`);
+					throw e;
+				}
 			}
 			if (filteredStatements.length > 0) {
 				render(`[${chalk.green('✓')}] Changes applied`);
@@ -160,6 +170,7 @@ export const mysqlPush = async (
 		}
 	} catch (e) {
 		console.log(e);
+		process.exit(1);
 	}
 };
 
@@ -396,7 +407,12 @@ export const pgPush = async (
 			}
 
 			for (const dStmnt of statementsToExecute) {
-				await db.query(dStmnt);
+				try {
+					await db.query(dStmnt);
+				} catch (e) {
+					console.error(`Failed to execute statement:\n${dStmnt}`);
+					throw e;
+				}
 			}
 
 			if (statements.statements.length > 0) {
@@ -407,6 +423,7 @@ export const pgPush = async (
 		}
 	} catch (e) {
 		console.error(e);
+		process.exit(1);
 	}
 };
 
