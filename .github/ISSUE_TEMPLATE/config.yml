@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Feature Request
+    url: https://github.com/drizzle-team/drizzle-orm/discussions/new?category=ideas
+    about: Suggest a new feature in GitHub Discussions
   - name: Ask a question
     url: https://discord.gg/JGrkEU4Scj
     about: Ask questions and discuss with other community members in Discord
