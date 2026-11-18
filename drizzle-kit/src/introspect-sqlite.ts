@@ -271,7 +271,14 @@ const mapColumnDefault = (defaultValue: any) => {
 	if (
 		typeof defaultValue === 'string'
 	) {
-		return defaultValue.substring(1, defaultValue.length - 1).replaceAll('"', '\\"').replaceAll("''", "'");
+		// The value is emitted inside a double-quoted TS string literal, so a backslash
+		// from the database must be escaped first, otherwise it starts an escape sequence
+		// (`'a\d'` would become `"a\d"`, i.e. the string `ad`)
+		return defaultValue
+			.substring(1, defaultValue.length - 1)
+			.replaceAll('\\', '\\\\')
+			.replaceAll('"', '\\"')
+			.replaceAll("''", "'");
 	}
 
 	return defaultValue;

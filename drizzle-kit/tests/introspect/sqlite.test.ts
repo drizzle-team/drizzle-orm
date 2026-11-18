@@ -75,6 +75,28 @@ test('instrospect strings with single quotes', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('introspect strings with backslashes', async () => {
+	const sqlite = new Database(':memory:');
+
+	const schema = {
+		columns: sqliteTable('columns', {
+			tag: text('tag').default('a\\d'),
+			path: text('path').default('C:\\temp'),
+			slash: text('slash').default('\\'),
+			mixed: text('mixed').default('back\\slash \'and\' "quotes"'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectSQLiteToFile(
+		sqlite,
+		schema,
+		'introspect-strings-with-backslashes',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('introspect checks', async () => {
 	const sqlite = new Database(':memory:');
 
