@@ -18,8 +18,11 @@ export const grey = (msg: string): string => {
 	return chalk.grey(msg);
 };
 
-const errorMessage = (err: unknown): string => {
-	return err instanceof Error ? err.message : String(err);
+const errorMessage = (err: unknown, depth = 0): string => {
+	if (!(err instanceof Error)) return String(err);
+	const cause = (err as Error & { cause?: unknown }).cause;
+	if (cause === undefined || depth >= 5) return err.message;
+	return `${err.message}: ${errorMessage(cause, depth + 1)}`;
 };
 
 export const error = (error: string, greyMsg: string = ''): string => {
@@ -547,10 +550,14 @@ export class MigrateProgress extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done' | 'rejected'): string {
+	render(status: 'pending' | 'done' | 'rejected', err?: unknown): string {
 		if (status === 'pending' || status === 'rejected') {
 			const spin = this.spinner.value();
-			return `[${spin}] applying migrations...`;
+			let text = `[${spin}] applying migrations...`;
+			if (status === 'rejected') {
+				text += `\n${chalk.red(`Error: ${errorMessage(err)}`)}\n`;
+			}
+			return text;
 		}
 		return `[${chalk.green('✓')}] migrations applied successfully!`;
 	}
