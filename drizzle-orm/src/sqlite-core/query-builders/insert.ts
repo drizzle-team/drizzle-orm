@@ -311,7 +311,7 @@ export class SQLiteInsertBase<
 		} else {
 			const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
 			const whereSql = config.where ? sql` where ${config.where}` : sql``;
-			this.config.onConflict.push(sql` on conflict ${targetSql} do nothing${whereSql}`);
+			this.config.onConflict.push(sql` on conflict ${targetSql}${whereSql} do nothing`);
 		}
 		return this;
 	}
