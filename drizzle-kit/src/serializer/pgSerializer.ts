@@ -41,6 +41,7 @@ import type {
 	View,
 } from '../serializer/pgSchema';
 import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
+import { parseCheckDefinition } from './pgCheckDefinition';
 import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
@@ -1370,7 +1371,7 @@ WHERE
 						let checkValue: string = checks.constraint_definition;
 						const constraintName: string = checks.constraint_name;
 
-						checkValue = checkValue.replace(/^CHECK\s*\(\(/, '').replace(/\)\)\s*$/, '');
+						checkValue = parseCheckDefinition(checkValue);
 
 						checkConstraints[constraintName] = {
 							name: constraintName,
