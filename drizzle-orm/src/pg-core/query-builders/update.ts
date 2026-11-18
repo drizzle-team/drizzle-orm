@@ -24,7 +24,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import {
@@ -66,6 +66,8 @@ export type PgUpdateSetSource<TTable extends PgTable> =
 			| GetColumnData<TTable['_']['columns'][Key]>
 			| SQL
 			| PgColumn
+			| Placeholder
+			| SQLWrapper
 			| undefined;
 	}
 	& {};

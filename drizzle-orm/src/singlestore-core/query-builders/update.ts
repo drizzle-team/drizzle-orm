@@ -36,6 +36,9 @@ export type SingleStoreUpdateSetSource<TTable extends SingleStoreTable> =
 		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL
+			| SingleStoreColumn
+			| Placeholder
+			| SQLWrapper
 			| undefined;
 	}
 	& {};
