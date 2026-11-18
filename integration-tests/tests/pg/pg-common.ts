@@ -1679,6 +1679,7 @@ export function tests() {
 						nameUpper: sql<string>`upper(${users2Table.name})`,
 					},
 					city: {
+						state: citiesTable.state,
 						id: citiesTable.id,
 						name: citiesTable.name,
 						nameUpper: sql<string>`upper(${citiesTable.name})`,
@@ -1691,7 +1692,7 @@ export function tests() {
 				{
 					id: 1,
 					user: { name: 'John', nameUpper: 'JOHN' },
-					city: { id: cityId, name: 'Paris', nameUpper: 'PARIS' },
+					city: { state: null, id: cityId, name: 'Paris', nameUpper: 'PARIS' },
 				},
 				{
 					id: 2,
