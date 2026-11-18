@@ -933,6 +933,24 @@ export abstract class SQLiteDialect {
 	}
 }
 
+/**
+ * Breakpoint splitting and hand-edited files can leave whitespace-only chunks, and a
+ * `drizzle-kit generate --custom` placeholder is blank until it is filled in. SQLite
+ * drivers disagree on empty statements (better-sqlite3 throws, expo-sqlite can crash
+ * natively), so blank chunks are dropped and a migration with nothing left to run is
+ * rejected instead of being recorded as applied.
+ */
+function migrationStatements(migration: MigrationMeta): string[] {
+	const statements = migration.sql.filter((stmt) => stmt.trim().length > 0);
+	if (statements.length === 0) {
+		throw new DrizzleError({
+			message:
+				`Migration created at ${migration.folderMillis} contains no SQL statements. Fill in or remove the empty migration file before migrating.`,
+		});
+	}
+	return statements;
+}
+
 export class SQLiteSyncDialect extends SQLiteDialect {
 	static override readonly [entityKind]: string = 'SQLiteSyncDialect';
 
@@ -974,7 +992,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 					!lastDbMigration
 					|| Number(lastDbMigration[2])! < migration.folderMillis
 				) {
-					for (const stmt of migration.sql) {
+					for (const stmt of migrationStatements(migration)) {
 						session.run(sql.raw(stmt));
 					}
 					session.run(
@@ -1030,7 +1048,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 					!lastDbMigration
 					|| Number(lastDbMigration[2])! < migration.folderMillis
 				) {
-					for (const stmt of migration.sql) {
+					for (const stmt of migrationStatements(migration)) {
 						await tx.run(sql.raw(stmt));
 					}
 					await tx.run(
