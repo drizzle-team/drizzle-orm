@@ -13,7 +13,7 @@ import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
 export type PgAsyncDelete<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = PgAsyncDeleteBase<TTable, TQueryResult, TSelectedFields, TReturning, true, never>;
 

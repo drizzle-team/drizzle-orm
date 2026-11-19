@@ -236,7 +236,12 @@ export type SQLiteUpdateDynamic<T extends AnySQLiteUpdate> = SQLiteUpdateKind<
 export type SQLiteUpdate<
 	TTable extends SQLiteTable = SQLiteTable,
 	TRunResult = any,
-	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined = undefined,
+	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined =
+		| SQLiteTable
+		| Subquery
+		| SQLiteViewBase
+		| SQL
+		| undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = SQLiteUpdateBase<SQLiteUpdateQueryBuilderHKT, TTable, TRunResult, TFrom, TReturning, true, never>;
 

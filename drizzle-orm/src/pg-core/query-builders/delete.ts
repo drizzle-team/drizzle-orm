@@ -34,7 +34,7 @@ export type PgDeleteWithout<
 export type PgDelete<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = PgDeleteBase<PgDeleteHKT, TTable, TQueryResult, TSelectedFields, TReturning, true, never>;
 

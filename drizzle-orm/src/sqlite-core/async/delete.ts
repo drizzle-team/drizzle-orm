@@ -25,7 +25,7 @@ export type SQLiteAsyncDelete<
 	TTable extends SQLiteTable = SQLiteTable,
 	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = unknown,
-	TReturning extends Record<string, unknown> | undefined = undefined,
+	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = SQLiteAsyncDeleteBase<TTable, TResultType, TRunResult, TReturning, true, never>;
 
 export type SQLiteAsyncDeleteExecute<T extends AnySQLiteAsyncDelete> = T['_']['returning'] extends undefined

@@ -30,7 +30,12 @@ export type AnySQLiteEffectUpdate = SQLiteEffectUpdateBase<any, any, any, any, a
 export type SQLiteEffectUpdate<
 	TTable extends SQLiteTable = SQLiteTable,
 	TRunResult = any,
-	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined = undefined,
+	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined =
+		| SQLiteTable
+		| Subquery
+		| SQLiteViewBase
+		| SQL
+		| undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > = SQLiteEffectUpdateBase<TTable, TRunResult, TFrom, TReturning, true, never, TEffectHKT>;

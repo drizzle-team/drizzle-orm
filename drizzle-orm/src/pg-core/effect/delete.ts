@@ -13,7 +13,7 @@ import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 export type PgEffectDelete<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > = PgEffectDeleteBase<TTable, TQueryResult, TSelectedFields, TReturning, true, never, TEffectHKT>;
