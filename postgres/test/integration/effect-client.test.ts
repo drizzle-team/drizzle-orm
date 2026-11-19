@@ -4,7 +4,7 @@ import { Context, Effect, Exit, Layer, Redacted, Tracer } from 'effect';
 import { SqlClient } from 'effect/sql/SqlClient';
 import type { SqlError } from 'effect/sql/SqlError';
 import { DrizzlePostgresClient } from '../../src/effect/index.ts';
-import { LOCAL_CONFIG as TEST_CONFIG, testConnect, testPool } from '../helpers/db.ts';
+import { caught, LOCAL_CONFIG as TEST_CONFIG, testConnect, testPool } from '../helpers/db.ts';
 import { runTest, testLayer } from '../helpers/effect.ts';
 
 const SELECT = 'select id, name, n8, amount, ok, data from t order by id';
@@ -104,23 +104,30 @@ describe('DrizzlePostgresClient layer', () => {
 		expect(err.error.reason._tag).toBe('AuthenticationError');
 	});
 
-	// `ssl: true` means one thing in the async entry point (encrypt, don't verify: libpq's sslmode=require) and another
-	// here (verify-full, as in @effect/sql-pg). Against this server's self-signed certificate, the same setting must
-	// connect in both or fail in both; which one is a decision still to make.
-	test('ssl: true gives the same outcome as in the async entry point', async () => {
-		const asyncOutcome = await testConnect({ host: 'localhost', ssl: true }).then(
-			async (c) => {
-				await c.end();
-				return 'connected';
-			},
-			() => 'rejected',
-		);
-		const effectOutcome = await runTest(
+	// What an `ssl` value means is the driver's logic, the same for both entry points: `true` encrypts without
+	// verifying (libpq's sslmode=require), 'verify-full' verifies. This server's certificate is self-signed.
+	const connects = (ssl: true | 'verify-full') =>
+		runTest(
 			Effect.gen(function*() {
 				yield* (yield* SqlClient)`select 1`;
 			}),
-			{ host: 'localhost', ssl: true },
+			{ host: 'localhost', ssl },
 		).then(() => 'connected', () => 'rejected');
-		expect(effectOutcome).toBe(asyncOutcome);
+
+	test('ssl: true connects to a server with a self-signed certificate, as in the async entry point', async () => {
+		const c = await testConnect({ host: 'localhost', ssl: true });
+		await c.end();
+
+		const res1 = await connects(true);
+
+		expect(res1).toBe('connected');
+	});
+
+	test("ssl: 'verify-full' rejects a self-signed certificate, as in the async entry point", async () => {
+		const res1 = await caught(() => testConnect({ host: 'localhost', ssl: 'verify-full' }));
+		const res2 = await connects('verify-full');
+
+		expect(res1).toBeInstanceOf(Error);
+		expect(res2).toBe('rejected');
 	});
 });

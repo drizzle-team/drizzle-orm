@@ -20,7 +20,6 @@ import { ConnectionError, SqlError, SqlSyntaxError, UnknownError } from 'effect/
 import type { Custom, Fragment } from 'effect/sql/Statement';
 import * as Statement from 'effect/sql/Statement';
 import * as Stream from 'effect/Stream';
-import type { ConnectionOptions } from 'node:tls';
 import { addBrand, isBrand } from '../brand.ts';
 import {
 	bulkIsChunked,
@@ -194,8 +193,10 @@ export interface DrizzlePostgresClientConfig {
 	readonly port?: number | undefined;
 	/** A unix-domain socket path, used instead of host and port. */
 	readonly path?: string | undefined;
-	/** `true` verifies the server certificate and host name, as in @effect/sql-pg. */
-	readonly ssl?: boolean | ConnectionOptions | undefined;
+	/** The driver's own setting, with the driver's meaning: `true` and `'require'` encrypt without verifying the
+	 *  server certificate, `'verify-ca'` and `'verify-full'` verify it, an object goes to `tls.connect`. In
+	 *  @effect/sql-pg `true` verifies: that is `'verify-full'` here. */
+	readonly ssl?: ConnectConfig['ssl'] | undefined;
 	readonly database?: string | undefined;
 	readonly username?: string | undefined;
 	readonly password?: Redacted.Redacted | undefined;
