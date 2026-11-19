@@ -391,7 +391,7 @@ export const fromPool = Effect.fnUntraced(
 						: options === undefined
 						? pool.transaction(body)
 						: pool.transaction(options, body);
-					done.then(
+					const settled = done.then(
 						() => resume(exit!),
 						(e: unknown) =>
 							resume(
@@ -400,6 +400,10 @@ export const fromPool = Effect.fnUntraced(
 									: Effect.fail(toSqlError(e, 'transaction', outerConnection ?? POOLED)),
 							),
 					);
+					// On an interrupt, `signal` interrupts the Effect in the callback, and the driver then rolls back. The
+					// interrupted fiber ends only after that, as a transaction's fiber does in effect/sql: by then the
+					// transaction holds no locks.
+					return Effect.promise(() => settled);
 				});
 			});
 
