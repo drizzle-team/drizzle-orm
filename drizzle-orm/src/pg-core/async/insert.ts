@@ -4,13 +4,14 @@ import type { PgTable } from '~/pg-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { tracer } from '~/tracing.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
-import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
+import type { PgAsyncPreparedQuery, PgAsyncRuntimeHKT, PgAsyncSession } from './session.ts';
 
 export interface PgAsyncInsertHKT extends PgInsertHKTBase {
+	runtime: PgAsyncRuntimeHKT;
 	_type: PgAsyncInsertBase<
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
@@ -71,27 +72,6 @@ export class PgAsyncInsertBase<
 	static override readonly [entityKind]: string = 'PgAsyncInsert';
 
 	declare protected session: PgAsyncSession;
-
-	/** @internal */
-	override _prepare(name?: string, generateName = false): PgInsertPrepare<this> {
-		return super._prepare(name, generateName) as PgInsertPrepare<this>;
-	}
-
-	prepare(name?: string): PgInsertPrepare<this> {
-		return this._prepare(name, true);
-	}
-
-	/**
-	 * Runs the query and returns a Promise of the result, with values for any `sql.placeholder()` it contains.
-	 *
-	 * Eager: the query is sent as soon as `execute` is called, whether or not the Promise is awaited. The builder
-	 * itself is lazy: awaiting it runs it the same way, and passing it to a batch runs it there instead.
-	 */
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
-		});
-	};
 }
 
-applyMixins(PgAsyncInsertBase, [QueryPromise]);
+applyMixins(PgAsyncInsertBase, [QueryPromise, PgRunnableQuery]);

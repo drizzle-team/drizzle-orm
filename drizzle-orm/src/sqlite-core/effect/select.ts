@@ -10,7 +10,9 @@ import type { ColumnsSelection } from '~/sql/sql.ts';
 import { SQLiteSelectBase, type SQLiteSelectBuilder } from '~/sqlite-core/query-builders/select.ts';
 import type { SelectedFields, SQLiteSelectHKTBase } from '~/sqlite-core/query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '~/sqlite-core/session.ts';
-import { type Assume, resolveNullableObjectPaths } from '~/utils.ts';
+import { applyMixins } from '~/utils.ts';
+import type { Assume } from '~/utils.ts';
+import { type SQLiteEffectRunnableMethods, SQLiteRunnableQuery } from '../query-builders/runnable.ts';
 import type { SQLiteEffectPreparedQuery, SQLiteEffectSession } from './session.ts';
 
 export type SQLiteEffectSelectExecute<T extends AnySQLiteEffectSelect> = T['_']['result'];
@@ -76,7 +78,12 @@ export interface SQLiteEffectSelectBase<
 	// oxlint-disable-next-line no-unused-vars
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
-> extends QueryEffectKind<TEffectHKT, TResult> {}
+> extends QueryEffectKind<TEffectHKT, TResult>, SQLiteEffectRunnableMethods {
+	/** @internal */
+	_prepare(prepare?: boolean): SQLiteEffectSelectPrepare<this, TEffectHKT>;
+
+	prepare(): SQLiteEffectSelectPrepare<this, TEffectHKT>;
+}
 
 export class SQLiteEffectSelectBase<
 	TTableName extends string | undefined,
@@ -105,53 +112,9 @@ export class SQLiteEffectSelectBase<
 	static override readonly [entityKind]: string = 'SQLiteEffectSelect';
 
 	declare protected session: SQLiteEffectSession<TRunResult, TEffectHKT, any>;
-
-	/** @internal */
-	_prepare(prepare = false): SQLiteEffectSelectPrepare<this, TEffectHKT> {
-		// Build query before accessing `fieldsFlat` - build mutates it
-		const sequel = this.getSQL();
-		const query = this.dialect.sqlToQuery(sequel);
-		const fieldsList = this.config.fieldsFlat!;
-		const mapper = this.dialect.mapperGenerators.rows(
-			fieldsList,
-			resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap),
-		);
-
-		const preparedQuery = this.session.prepareQuery(
-			query,
-			'arrays',
-			prepare,
-			'all',
-			mapper,
-		);
-		return preparedQuery as ReturnType<this['prepare']>;
-	}
-
-	prepare(): SQLiteEffectSelectPrepare<this, TEffectHKT> {
-		return this._prepare(true);
-	}
-
-	run: ReturnType<this['prepare']>['run'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().run(placeholderValues);
-	};
-
-	all: ReturnType<this['prepare']>['all'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().all(placeholderValues);
-	};
-
-	get: ReturnType<this['prepare']>['get'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().get(placeholderValues);
-	};
-
-	values: ReturnType<this['prepare']>['values'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().values(placeholderValues);
-	};
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().execute(placeholderValues);
-	};
 }
 
+applyMixins(SQLiteEffectSelectBase, [SQLiteRunnableQuery]);
 applyEffectWrapper(SQLiteEffectSelectBase);
 
 export type AnySQLiteEffectSelect = SQLiteEffectSelectBase<any, any, any, any, any, any, any, any, any, any>;

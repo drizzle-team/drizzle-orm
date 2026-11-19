@@ -8,11 +8,12 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import type { Assume } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
-import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
+import type { PgEffectPreparedQuery, PgEffectRuntimeHKT, PgEffectSession } from './session.ts';
 
 export type PgEffectSelectPrepare<
 	T extends AnyPgEffectSelect,
@@ -44,6 +45,7 @@ export type PgEffectSelect<
 >;
 
 export interface PgEffectSelectHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgSelectHKTBase {
+	runtime: PgEffectRuntimeHKT<TEffectHKT>;
 	_type: PgEffectSelectBase<
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
@@ -105,28 +107,9 @@ export class PgEffectSelectBase<
 	static override readonly [entityKind]: string = 'PgEffectSelectQueryBuilder';
 
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
-
-	/** @internal */
-	override _prepare(name?: string, generateName = false): PgEffectSelectPrepare<this, TEffectHKT> {
-		return super._prepare(name, generateName) as PgEffectSelectPrepare<this, TEffectHKT>;
-	}
-
-	/**
-	 * Create a prepared statement for this query. This allows
-	 * the database to remember this query for the given session
-	 * and call it by name, rather than specifying the full query.
-	 *
-	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
-	 */
-	prepare(name?: string): PgEffectSelectPrepare<this, TEffectHKT> {
-		return this._prepare(name, true);
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().execute(placeholderValues);
-	};
 }
 
+applyMixins(PgEffectSelectBase, [PgRunnableQuery]);
 applyEffectWrapper(PgEffectSelectBase);
 
 export type AnyPgEffectSelect = PgEffectSelectBase<any, any, any, any, any, any, any, any, any>;

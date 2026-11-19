@@ -6,6 +6,8 @@ import type { SQLiteDeleteHKTBase } from '~/sqlite-core/query-builders/delete.ts
 import { SQLiteDeleteBase } from '~/sqlite-core/query-builders/delete.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { applyMixins, type Assume, type DrizzleTypeError } from '~/utils.ts';
+import { type SQLiteRunnableMethods, SQLiteRunnableQuery } from '../query-builders/runnable.ts';
+import { SQLiteAsyncRunnableQuery } from './runnable.ts';
 import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig, SQLiteAsyncSession } from './session.ts';
 
 export interface SQLiteAsyncDeleteHKT extends SQLiteDeleteHKTBase {
@@ -66,7 +68,8 @@ export interface SQLiteAsyncDeleteBase<
 		TDynamic,
 		TExcludedMethods
 	>,
-	QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>
+	QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>,
+	SQLiteRunnableMethods
 {
 	readonly _:
 		& SQLiteDeleteBase<
@@ -78,6 +81,11 @@ export interface SQLiteAsyncDeleteBase<
 			TExcludedMethods
 		>['_']
 		& { readonly resultType: TResultType };
+
+	/** @internal */
+	_prepare(prepare?: boolean): SQLiteAsyncDeletePrepare<this>;
+
+	prepare(): SQLiteAsyncDeletePrepare<this>;
 }
 
 export class SQLiteAsyncDeleteBase<
@@ -100,41 +108,6 @@ export class SQLiteAsyncDeleteBase<
 	static override readonly [entityKind]: string = 'SQLiteAsyncDelete';
 
 	declare protected session: SQLiteAsyncSession<TResultType, TRunResult, any>;
-
-	/** @internal */
-	_prepare(prepare = false): SQLiteAsyncDeletePrepare<this> {
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
-			'arrays',
-			prepare,
-			this.config.returning ? 'all' : 'run',
-			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
-		) as SQLiteAsyncDeletePrepare<this>;
-	}
-
-	prepare(): SQLiteAsyncDeletePrepare<this> {
-		return this._prepare(true);
-	}
-
-	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
-		return this._prepare().run(placeholderValues);
-	};
-
-	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {
-		return this._prepare().all(placeholderValues);
-	};
-
-	get: ReturnType<this['prepare']>['get'] = (placeholderValues) => {
-		return this._prepare().get(placeholderValues);
-	};
-
-	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
-		return this._prepare().values(placeholderValues);
-	};
-
-	async execute(placeholderValues?: Record<string, unknown>): Promise<SQLiteAsyncDeleteExecute<this>> {
-		return this._prepare().execute(placeholderValues) as SQLiteAsyncDeleteExecute<this>;
-	}
 }
 
-applyMixins(SQLiteAsyncDeleteBase, [QueryPromise]);
+applyMixins(SQLiteAsyncDeleteBase, [QueryPromise, SQLiteRunnableQuery, SQLiteAsyncRunnableQuery]);

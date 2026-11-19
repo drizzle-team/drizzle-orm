@@ -1,7 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { MySqlSession } from '~/mysql-core/session.ts';
+import type { MySqlBasePreparedQuery, MySqlRunnableQueryMethods, MySqlSession } from '~/mysql-core/session.ts';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import { MySqlTable } from '~/mysql-core/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -20,7 +20,13 @@ import { SQL, sql } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
-import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
+import {
+	getTableColumns,
+	getTableLikeName,
+	haveSameKeys,
+	orderSelectedFields,
+	resolveNullableObjectPaths,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
 import type { IndexBuilder } from '../indexes.ts';
@@ -189,6 +195,27 @@ export type MySqlSelect<
 	true,
 	never
 >;
+
+export interface MySqlSelectBase<
+	THKT extends MySqlSelectHKTBase,
+	// oxlint-disable-next-line no-unused-vars
+	TTableName extends string | undefined,
+	// oxlint-disable-next-line no-unused-vars
+	TSelection extends ColumnsSelection,
+	// oxlint-disable-next-line no-unused-vars
+	TSelectMode extends SelectMode,
+	// oxlint-disable-next-line no-unused-vars
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
+	// oxlint-disable-next-line no-unused-vars
+	TDynamic extends boolean = false,
+	// oxlint-disable-next-line no-unused-vars
+	TExcludedMethods extends string = never,
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	// oxlint-disable-next-line no-unused-vars
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
+> extends MySqlRunnableQueryMethods<THKT['runtime'], TResult, TResult[number]> {
+}
 
 export class MySqlSelectBase<
 	THKT extends MySqlSelectHKTBase,
@@ -597,7 +624,7 @@ export class MySqlSelectBase<
 	 * @example
 	 *
 	 * ```ts
-	 * // Pair each city with every row its correlated subquery produces; cities with none are dropped
+	 * // Pair each city with every row it's correlated subquery produces; cities with none are dropped
 	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
 	 *
 	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()
@@ -1126,6 +1153,23 @@ export class MySqlSelectBase<
 
 	$dynamic(): MySqlSelectDynamic<this> {
 		return this as any;
+	}
+
+	/**
+	 * Prepares the query on the session, for both runtimes: the session decides what the prepared query's `execute`
+	 * returns. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(): MySqlBasePreparedQuery {
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		const fieldsList = this.config.fieldsFlat!;
+		const mapper = this.config.mapper ??= this.dialect.mapperGenerators.rows(
+			fieldsList,
+			resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap),
+		);
+
+		return this.session!.prepareQuery(query, 'arrays', mapper);
 	}
 }
 

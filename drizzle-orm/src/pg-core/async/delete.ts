@@ -5,10 +5,10 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
-import { tracer } from '~/tracing.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
-import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
+import type { PgAsyncPreparedQuery, PgAsyncRuntimeHKT, PgAsyncSession } from './session.ts';
 
 export type PgAsyncDelete<
 	TTable extends PgTable = PgTable,
@@ -27,6 +27,7 @@ export type PgAsyncDeletePrepare<T extends AnyAsyncPgDelete> = PgAsyncPreparedQu
 export type AnyAsyncPgDelete = PgAsyncDeleteBase<any, any, any, any, any, any>;
 
 export interface PgAsyncDeleteHKT extends PgDeleteHKTBase {
+	runtime: PgAsyncRuntimeHKT;
 	_type: PgAsyncDeleteBase<
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
@@ -48,7 +49,8 @@ export interface PgAsyncDeleteBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]> {}
+> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]> {
+}
 
 export class PgAsyncDeleteBase<
 	TTable extends PgTable,
@@ -70,27 +72,6 @@ export class PgAsyncDeleteBase<
 	static override readonly [entityKind]: string = 'PgAsyncDelete';
 
 	declare protected session: PgAsyncSession;
-
-	/** @internal */
-	override _prepare(name?: string, generateName = false): PgAsyncDeletePrepare<this> {
-		return super._prepare(name, generateName) as PgAsyncDeletePrepare<this>;
-	}
-
-	prepare(name?: string): PgAsyncDeletePrepare<this> {
-		return this._prepare(name, true);
-	}
-
-	/**
-	 * Runs the query and returns a Promise of the result, with values for any `sql.placeholder()` it contains.
-	 *
-	 * Eager: the query is sent as soon as `execute` is called, whether or not the Promise is awaited. The builder
-	 * itself is lazy: awaiting it runs it the same way, and passing it to a batch runs it there instead.
-	 */
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
-		});
-	};
 }
 
-applyMixins(PgAsyncDeleteBase, [QueryPromise]);
+applyMixins(PgAsyncDeleteBase, [QueryPromise, PgRunnableQuery]);

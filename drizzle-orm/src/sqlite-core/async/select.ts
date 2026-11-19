@@ -10,7 +10,9 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { SQLiteSelectBase, type SQLiteSelectBuilder } from '~/sqlite-core/query-builders/select.ts';
 import type { SelectedFields, SQLiteSelectHKTBase } from '~/sqlite-core/query-builders/select.types.ts';
-import { applyMixins, type Assume, resolveNullableObjectPaths } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
+import { type SQLiteRunnableMethods, SQLiteRunnableQuery } from '../query-builders/runnable.ts';
+import { SQLiteAsyncRunnableQuery } from './runnable.ts';
 import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig, SQLiteAsyncSession } from './session.ts';
 
 export type SQLiteAsyncSelectExecute<T extends AnySQLiteAsyncSelect> = T['_']['result'];
@@ -84,7 +86,8 @@ export interface SQLiteAsyncSelectBase<
 		TResult,
 		TSelectedFields
 	>,
-	QueryPromise<TResult>
+	QueryPromise<TResult>,
+	SQLiteRunnableMethods
 {
 	readonly _:
 		& SQLiteSelectBase<
@@ -100,6 +103,11 @@ export interface SQLiteAsyncSelectBase<
 			TSelectedFields
 		>['_']
 		& { readonly resultType: TResultType };
+
+	/** @internal */
+	_prepare(prepare?: boolean): SQLiteAsyncSelectPrepare<this>;
+
+	prepare(): SQLiteAsyncSelectPrepare<this>;
 }
 
 export class SQLiteAsyncSelectBase<
@@ -130,53 +138,8 @@ export class SQLiteAsyncSelectBase<
 	static override readonly [entityKind]: string = 'SQLiteAsyncSelect';
 
 	declare protected session: SQLiteAsyncSession<TResultType, TRunResult, any>;
-
-	/** @internal */
-	_prepare(prepare = false): SQLiteAsyncSelectPrepare<this> {
-		// Build query before accessing `fieldsFlat` - build mutates it
-		const sequel = this.getSQL();
-		const query = this.dialect.sqlToQuery(sequel);
-		const fieldsList = this.config.fieldsFlat!;
-		const mapper = this.config.mapper ??= this.dialect.mapperGenerators.rows(
-			fieldsList,
-			resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap),
-		);
-
-		const preparedQuery = this.session.prepareQuery(
-			query,
-			'arrays',
-			prepare,
-			'all',
-			mapper,
-		);
-		return preparedQuery as ReturnType<this['prepare']>;
-	}
-
-	prepare(): SQLiteAsyncSelectPrepare<this> {
-		return this._prepare(true);
-	}
-
-	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
-		return this._prepare().run(placeholderValues);
-	};
-
-	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {
-		return this._prepare().all(placeholderValues);
-	};
-
-	get: ReturnType<this['prepare']>['get'] = (placeholderValues) => {
-		return this._prepare().get(placeholderValues);
-	};
-
-	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
-		return this._prepare().values(placeholderValues);
-	};
-
-	async execute(): Promise<SQLiteAsyncSelectExecute<this>> {
-		return this._prepare().execute() as Promise<SQLiteAsyncSelectExecute<this>>;
-	}
 }
 
-applyMixins(SQLiteAsyncSelectBase, [QueryPromise]);
+applyMixins(SQLiteAsyncSelectBase, [QueryPromise, SQLiteRunnableQuery, SQLiteAsyncRunnableQuery]);
 
 export type AnySQLiteAsyncSelect = SQLiteAsyncSelectBase<any, any, any, any, any, any, any, any, any, any>;

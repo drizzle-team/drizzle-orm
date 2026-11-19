@@ -4,8 +4,10 @@ import { entityKind } from '~/entity.ts';
 import { MySqlUpdateBase, type MySqlUpdateHKTBase } from '~/mysql-core/query-builders/update.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
+import { applyMixins } from '~/utils.ts';
 import type { Assume } from '~/utils.ts';
-import type { MySqlEffectPreparedQuery, MySqlEffectSession } from './session.ts';
+import { MySqlRunnableQuery } from '../query-builders/runnable.ts';
+import type { MySqlEffectPreparedQuery, MySqlEffectRuntimeHKT, MySqlEffectSession } from './session.ts';
 
 export type MySqlEffectUpdate<
 	TTable extends MySqlTable = MySqlTable,
@@ -29,6 +31,7 @@ export type AnyMySqlEffectUpdate = MySqlEffectUpdateBase<any, any, any, any, any
 export interface MySqlEffectUpdateHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
 	extends MySqlUpdateHKTBase
 {
+	runtime: MySqlEffectRuntimeHKT<TEffectHKT>;
 	_type: MySqlEffectUpdateBase<
 		Assume<this['table'], MySqlTable>,
 		Assume<this['queryResult'], MySqlQueryResultHKT>,
@@ -59,18 +62,7 @@ export class MySqlEffectUpdateBase<
 	static override readonly [entityKind]: string = 'MySqlEffectUpdate';
 
 	declare protected session: MySqlEffectSession<TEffectHKT, TQueryResult, any>;
-
-	prepare(): MySqlEffectUpdatePrepare<this, TEffectHKT> {
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
-			'raw',
-			undefined,
-		) as MySqlEffectUpdatePrepare<this, TEffectHKT>;
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	};
 }
 
+applyMixins(MySqlEffectUpdateBase, [MySqlRunnableQuery]);
 applyEffectWrapper(MySqlEffectUpdateBase);

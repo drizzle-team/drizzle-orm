@@ -1,9 +1,16 @@
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgBasePreparedQuery, PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
+import type {
+	PgBasePreparedQuery,
+	PgQueryResultHKT,
+	PgQueryResultKind,
+	PgRunnableQueryMethods,
+	PgSession,
+} from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { QueryRuntimeHKT } from '~/query-builders/runtime.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -343,6 +350,8 @@ export type PgUpdate<
 >;
 
 export interface PgUpdateHKTBase {
+	/** How the builder's runtime wraps it's results */
+	runtime: QueryRuntimeHKT;
 	table: unknown;
 	joins: unknown;
 	nullabilityMap: unknown;
@@ -412,7 +421,11 @@ export interface PgUpdateBase<
 		TSelectedFields,
 		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
 	>,
-	SQLWrapper
+	SQLWrapper,
+	PgRunnableQueryMethods<
+		THKT['runtime'],
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+	>
 {
 	readonly _: {
 		readonly dialect: 'pg';

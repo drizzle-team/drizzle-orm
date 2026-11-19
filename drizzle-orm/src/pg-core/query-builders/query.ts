@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import type { QueryRuntimeHKT } from '~/query-builders/runtime.ts';
 import type {
 	BuildQueryResult,
 	BuildRelationalQueryResult,
@@ -10,7 +11,7 @@ import type {
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import type { PgDialect } from '../dialect.ts';
-import type { PgBasePreparedQuery, PgSession } from '../session.ts';
+import type { PgBasePreparedQuery, PgRunnableQueryMethods, PgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
 export type PgDBQueryConfigRoot<
@@ -88,6 +89,8 @@ export class RelationalQueryBuilder<
 }
 
 export interface PgRelationalQueryHKTBase {
+	/** How the builder's runtime wraps it's results */
+	runtime: QueryRuntimeHKT;
 	result: unknown;
 	_type: unknown;
 }
@@ -102,6 +105,11 @@ export type PgRelationalQueryKind<
 > = (T & {
 	result: TResult;
 })['_type'];
+
+export interface PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult>
+	extends PgRunnableQueryMethods<THKT['runtime'], TResult>
+{
+}
 
 export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgRelationalQueryV2';

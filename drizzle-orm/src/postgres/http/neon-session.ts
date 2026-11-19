@@ -87,7 +87,7 @@ export class PostgresNeonHttpSession<
 	// No `pipeline`: Neon's multi-statement endpoint always wraps the set in a transaction (that is `batch`)
 
 	/**
-	 * Non-atomic: sends every query as its own concurrent request
+	 * Non-atomic: sends every query as it's own concurrent request
 	 *
 	 * Never throws on a query failure: resolves with one `PromiseSettledResult` per query, in input order
 	 */

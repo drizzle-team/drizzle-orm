@@ -2,62 +2,63 @@ import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { upgradeIfNeeded } from '~/up-migrations/mysql.ts';
+import { asyncMigrationRunner, asyncQueryRuntime, runAsyncProgram } from '~/runtime/async.ts';
+import type { QueryRuntime } from '~/runtime/core.ts';
+import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
+import { migrate as migrateProgram } from '~/up-migrations/mysql-program.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import {
 	type AnyMySqlMapper,
 	MySqlBasePreparedQuery,
 	type MySqlPreparedQueryConfig,
 	type MySqlQueryResultHKT,
+	type MySqlRuntimeHKT,
 	MySqlSession,
 	type MySqlTransactionConfig,
 } from '../session.ts';
 import { MySqlAsyncDatabase } from './db.ts';
 
+type MySqlAsyncPreparedQueryOf<TResult, TRow> = MySqlAsyncPreparedQuery<
+	MySqlPreparedQueryConfig & { execute: TResult; iterator: TRow }
+>;
+
+/** Builders of the async runtime run as Promises */
+export interface MySqlAsyncRuntimeHKT extends MySqlRuntimeHKT {
+	readonly execute: Promise<this['result']>;
+	readonly prepared: MySqlAsyncPreparedQueryOf<this['result'], this['row']>;
+}
+
+export interface MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> {
+	/** Runs the query with values for it's placeholders and returns a Promise of the result */
+	execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+}
+
 export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlBasePreparedQuery {
 	static override readonly [entityKind]: string = 'MySqlAsyncPreparedQuery';
 
 	/** @internal */
-	readonly mapper: {
-		(rows: any[]): any;
-		body?: string;
-	} | undefined;
+	override get runtime(): QueryRuntime {
+		return asyncQueryRuntime;
+	}
 
 	constructor(
-		protected executor: (params?: unknown[]) => Promise<any>,
+		executor: (params?: unknown[]) => Promise<any>,
 		protected _iterator: ((params?: unknown[]) => AsyncGenerator<any[]>) | undefined,
 		query: Query,
 		mapper:
 			| AnyMySqlMapper
 			| undefined,
-		readonly mode: 'arrays' | 'objects' | 'raw',
-		protected logger: Logger,
-		protected paramsInErrors?: boolean | undefined,
+		mode: 'arrays' | 'objects' | 'raw',
+		logger: Logger,
+		paramsInErrors?: boolean | undefined,
 	) {
-		super(query);
-		this.mapper = mapper;
-	}
-
-	override async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
-		const { query, logger, executor, mapper } = this;
-		const sql = query._sql ? query._sql.join(' ') : query.sql;
-		const params = query.params.length === 0
-			? query.params
-			: fillPlaceholders(query.params, placeholderValues);
-		logger.logQuery(sql, params);
-		const res = executor(params).catch((e) => {
-			throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
-		});
-		if (!mapper) return res;
-
-		return res.then((rows) => mapper(rows));
+		super(executor, query, mapper, mode, logger, paramsInErrors);
 	}
 
 	async *iterator(placeholderValues: Record<string, unknown> = {}): AsyncGenerator<T['iterator']> {
-		const { query, logger, executor, _iterator, mapper } = this;
+		const { query, logger, _iterator, mapper } = this;
+		const executor = this.executor as (params?: unknown[]) => Promise<any>;
 		const sql = query._sql ? query._sql.join(' ') : query.sql;
 		const params = query.params.length === 0
 			? query.params
@@ -105,38 +106,33 @@ export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends
 	}
 }
 
+export interface MySqlAsyncSession<
+	// oxlint-disable-next-line no-unused-vars
+	TQueryResult extends MySqlQueryResultHKT = MySqlQueryResultHKT,
+	// oxlint-disable-next-line no-unused-vars
+	TRelations extends AnyRelations = EmptyRelations,
+> {
+	execute<T>(query: SQL): Promise<T>;
+	arrays<T>(query: SQL): Promise<T[]>;
+	objects<T>(query: SQL): Promise<T[]>;
+}
+
 export abstract class MySqlAsyncSession<
 	TQueryResult extends MySqlQueryResultHKT = MySqlQueryResultHKT,
 	TRelations extends AnyRelations = EmptyRelations,
 > extends MySqlSession {
 	static override readonly [entityKind]: string = 'MySqlAsyncSession';
 
+	/** @internal */
+	override get runtime(): QueryRuntime {
+		return asyncQueryRuntime;
+	}
+
 	abstract override prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (rows: any) => any,
 	): MySqlAsyncPreparedQuery<T>;
-
-	override execute<T>(query: SQL): Promise<T> {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T }>(
-			this.dialect.sqlToQuery(query),
-			'raw',
-		).execute();
-	}
-
-	override arrays<T>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T[] }>(
-			this.dialect.sqlToQuery(query),
-			'arrays',
-		).execute();
-	}
-
-	override objects<T>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T[] }>(
-			this.dialect.sqlToQuery(query),
-			'objects',
-		).execute();
-	}
 
 	abstract transaction<T>(
 		transaction: (
@@ -173,82 +169,17 @@ export abstract class MySqlAsyncTransaction<
 	): Promise<T>;
 }
 
-export async function migrate(
+/** Applies the migrations that the database doesn't have yet, in a transaction */
+export function migrate(
 	migrations: MigrationMeta[],
 	db: MySqlAsyncDatabase<MySqlQueryResultHKT, any>,
 	config: Omit<MigrationConfig, 'migrationsSchema'>,
 ): Promise<void | MigratorInitFailResponse> {
-	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
-
-	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeIfNeeded(
-		migrationsTable,
-		db.session,
-		migrations,
-	);
-
-	if (newDb) {
-		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash TEXT NOT NULL,
-				created_at BIGINT,
-				name TEXT,
-				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-			)
-		`;
-		await db.session.execute(migrationTableCreate);
-	}
-
-	const dbMigrations = await db.session.objects<{
-		id: number;
-		hash: string;
-		created_at: string;
-		name: string | null;
-	}>(
-		sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)}`,
-	);
-
-	if (typeof config === 'object' && config.init) {
-		if (dbMigrations.length) {
-			return { exitCode: 'databaseMigrations' as const };
-		}
-
-		if (migrations.length > 1) {
-			return { exitCode: 'localMigrations' as const };
-		}
-
-		const [migration] = migrations;
-
-		if (!migration) return;
-
-		await db.session.execute(
-			sql`insert into ${
-				sql.identifier(
-					migrationsTable,
-				)
-			} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-		);
-
-		return;
-	}
-
-	const migrationsToRun = getMigrationsToRun({
-		localMigrations: migrations,
-		dbMigrations,
+	const runner = asyncMigrationRunner({
+		execute: (query) => db.session.execute(query),
+		objects: (query) => db.session.objects(query),
+		transaction: (transaction) => db.transaction(transaction),
 	});
-	await db.transaction(async (tx) => {
-		for (const migration of migrationsToRun) {
-			for (const stmt of migration.sql) {
-				await tx.execute(sql.raw(stmt));
-			}
-			await tx.execute(
-				sql`insert into ${
-					sql.identifier(
-						migrationsTable,
-					)
-				} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-			);
-		}
-	});
+
+	return runAsyncProgram(() => migrateProgram(migrations, runner, config));
 }

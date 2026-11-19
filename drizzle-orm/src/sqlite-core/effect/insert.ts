@@ -6,7 +6,9 @@ import type { SQLiteInsertBuilder, SQLiteInsertHKTBase } from '~/sqlite-core/que
 import { SQLiteInsertBase } from '~/sqlite-core/query-builders/insert.ts';
 import type { PreparedQueryConfig } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
+import { applyMixins } from '~/utils.ts';
 import type { Assume, DrizzleTypeError } from '~/utils.ts';
+import { type SQLiteEffectRunnableMethods, SQLiteRunnableQuery } from '../query-builders/runnable.ts';
 import type { SQLiteEffectPreparedQuery, SQLiteEffectSession } from './session.ts';
 
 export interface SQLiteEffectInsertHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
@@ -73,7 +75,15 @@ export interface SQLiteEffectInsertBase<
 	// oxlint-disable-next-line no-unused-vars
 	TExcludedMethods extends string = never,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
-> extends QueryEffectKind<TEffectHKT, TReturning extends undefined ? TRunResult : TReturning[]> {}
+> extends
+	QueryEffectKind<TEffectHKT, TReturning extends undefined ? TRunResult : TReturning[]>,
+	SQLiteEffectRunnableMethods
+{
+	/** @internal */
+	_prepare(prepare?: boolean): SQLiteEffectInsertPrepare<this, TEffectHKT>;
+
+	prepare(): SQLiteEffectInsertPrepare<this, TEffectHKT>;
+}
 
 export class SQLiteEffectInsertBase<
 	TTable extends SQLiteTable,
@@ -97,41 +107,7 @@ export class SQLiteEffectInsertBase<
 	static override readonly [entityKind]: string = 'SQLiteEffectInsert';
 
 	declare protected session: SQLiteEffectSession<TRunResult, TEffectHKT, any>;
-
-	/** @internal */
-	_prepare(prepare = false): SQLiteEffectInsertPrepare<this, TEffectHKT> {
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
-			'arrays',
-			prepare,
-			this.config.returning ? 'all' : 'run',
-			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
-		) as SQLiteEffectInsertPrepare<this, TEffectHKT>;
-	}
-
-	prepare(): SQLiteEffectInsertPrepare<this, TEffectHKT> {
-		return this._prepare(true);
-	}
-
-	run: ReturnType<this['prepare']>['run'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().run(placeholderValues);
-	};
-
-	all: ReturnType<this['prepare']>['all'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().all(placeholderValues);
-	};
-
-	get: ReturnType<this['prepare']>['get'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().get(placeholderValues);
-	};
-
-	values: ReturnType<this['prepare']>['values'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().values(placeholderValues);
-	};
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().execute(placeholderValues);
-	};
 }
 
+applyMixins(SQLiteEffectInsertBase, [SQLiteRunnableQuery]);
 applyEffectWrapper(SQLiteEffectInsertBase);

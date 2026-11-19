@@ -1,55 +1,15 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { SQL, SQLWrapper } from '~/sql/sql.ts';
 import { applyMixins } from '~/utils.ts';
-import type { PgDialect } from '../dialect.ts';
 import { PgCountBuilder } from '../query-builders/count.ts';
-import type { PgTable } from '../table.ts';
-import type { PgViewBase } from '../view-base.ts';
-import type { BasePgAsyncSession } from './session.ts';
+import type { BasePgAsyncSession, PgAsyncRuntimeHKT } from './session.ts';
 
-export interface PgAsyncCountBuilder extends PgCountBuilder, QueryPromise<number> {}
+export interface PgAsyncCountBuilder extends PgCountBuilder<PgAsyncRuntimeHKT>, QueryPromise<number> {}
 
-export class PgAsyncCountBuilder extends PgCountBuilder {
+export class PgAsyncCountBuilder extends PgCountBuilder<PgAsyncRuntimeHKT> {
 	static override readonly [entityKind]: string = 'PgAsyncCountBuilder';
 
-	protected session: BasePgAsyncSession;
-
-	constructor(
-		{ source, dialect, filters, session }: {
-			source: PgTable | PgViewBase | SQL | SQLWrapper;
-			filters?: SQL<unknown>;
-			dialect: PgDialect;
-			session: BasePgAsyncSession;
-		},
-	) {
-		super({ source, dialect, filters });
-		this.session = session;
-	}
-
-	/**
-	 * Runs the query and returns a Promise of the result, with values for any `sql.placeholder()` it contains.
-	 *
-	 * Eager: the query is sent as soon as `execute` is called, whether or not the Promise is awaited. The builder
-	 * itself is lazy: awaiting it runs it the same way, and passing it to a batch runs it there instead.
-	 */
-	execute(placeholderValues?: Record<string, unknown>): Promise<number> {
-		return this.session.prepareQuery<{
-			execute: number;
-			objects: unknown;
-			arrays: unknown;
-			raw: unknown;
-		}>(
-			this.build(),
-			'arrays',
-			false,
-			(rows) => {
-				const v = rows[0]?.[0];
-				if (typeof v === 'number') return v;
-				return v ? Number(v) : 0;
-			},
-		).execute(placeholderValues);
-	}
+	declare protected session: BasePgAsyncSession;
 }
 
 applyMixins(PgAsyncCountBuilder, [QueryPromise]);

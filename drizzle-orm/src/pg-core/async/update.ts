@@ -7,9 +7,10 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import type { PgViewBase } from '../view-base.ts';
-import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
+import type { PgAsyncPreparedQuery, PgAsyncRuntimeHKT, PgAsyncSession } from './session.ts';
 
 export type PgAsyncUpdatePrepare<T extends AnyPgAsyncUpdate> = PgAsyncPreparedQuery<
 	PreparedQueryConfig & {
@@ -39,6 +40,7 @@ export type PgAsyncUpdate<
 >;
 
 export interface PgAsyncUpdateHKT extends PgUpdateHKTBase {
+	runtime: PgAsyncRuntimeHKT;
 	_type: PgAsyncUpdateBase<
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
@@ -70,7 +72,8 @@ export interface PgAsyncUpdateBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]> {}
+> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]> {
+}
 
 export class PgAsyncUpdateBase<
 	TTable extends PgTable,
@@ -97,25 +100,6 @@ export class PgAsyncUpdateBase<
 	static override readonly [entityKind]: string = 'PgAsyncUpdate';
 
 	declare protected session: PgAsyncSession;
-
-	/** @internal */
-	override _prepare(name?: string, generateName = false): PgAsyncUpdatePrepare<this> {
-		return super._prepare(name, generateName) as PgAsyncUpdatePrepare<this>;
-	}
-
-	prepare(name?: string): PgAsyncUpdatePrepare<this> {
-		return this._prepare(name, true);
-	}
-
-	/**
-	 * Runs the query and returns a Promise of the result, with values for any `sql.placeholder()` it contains.
-	 *
-	 * Eager: the query is sent as soon as `execute` is called, whether or not the Promise is awaited. The builder
-	 * itself is lazy: awaiting it runs it the same way, and passing it to a batch runs it there instead.
-	 */
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues: Record<string, unknown> = {}) => {
-		return this._prepare().execute(placeholderValues);
-	};
 }
 
-applyMixins(PgAsyncUpdateBase, [QueryPromise]);
+applyMixins(PgAsyncUpdateBase, [QueryPromise, PgRunnableQuery]);

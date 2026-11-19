@@ -256,6 +256,9 @@ const skip = [
 	'write + query all methods & verify data intergrity',
 	// Type 'bigint' not supported; unaliased selections with equal names overwrite each other (see #528)
 	'concat, substring expressions',
+	// Simulator bug: `@miniflare/d1`'s `raw()` builds arrays from object rows, so the two unaliased `rowid` columns
+	// overwrite each other and the row comes back a column short. Real D1's `raw()` returns every column
+	'rowId: a number, rowId.big: a bigint',
 ];
 // the driver returns integers as numbers: integer `numeric` values outside of the safe integer range have already lost
 // precision and throw an unsupported column type error, tests holding them are redefined with safe values

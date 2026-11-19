@@ -10,6 +10,7 @@ import { Expect } from 'type-tests/utils.ts';
 import type { SettledQueryResult } from '~/batch.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectPostgresDatabase } from '~/effect-drizzle-postgres/index.ts';
+import { drizzle as drizzleNeonHttp } from '~/neon-http/index.ts';
 import { integer, pgTable, text } from '~/pg-core/index.ts';
 import { drizzle, type PostgresBulkResult } from '~/postgres/index.ts';
 import { eq } from '~/sql/expressions/index.ts';
@@ -22,6 +23,7 @@ type MutuallyAssignable<A, B> = [A] extends [B] ? ([B] extends [A] ? true : fals
 // ---- async connector ----
 
 const db = drizzle.mock();
+const neonDb = drizzleNeonHttp.mock();
 
 async function asyncConnector() {
 	// batch: a tuple of results, in order
@@ -31,6 +33,18 @@ async function asyncConnector() {
 		db.update(items).set({ note: 'n' }).where(eq(items.id, 1)).returning({ note: items.note }),
 	]);
 	Expect<Equal<typeof batched, [Item[], { id: number }[], { note: string | null }[]]>>;
+
+	// `$count` runs in a batch like any builder, resolving to the count
+	const counted = await db.batch([db.$count(items), db.$count(items, eq(items.id, 1)), db.select().from(items)]);
+	Expect<Equal<typeof counted, [number, number, Item[]]>>;
+	const countedPipeline = await db.pipeline([
+		db.$count(items),
+		db.execute<{ n: number }>(sql`select 1 as n`, 'objects'),
+	]);
+	Expect<Equal<typeof countedPipeline, [SettledQueryResult<number>, SettledQueryResult<{ n: number }[]>]>>;
+
+	const neonCounted = await neonDb.batch([neonDb.$count(items), neonDb.select({ id: items.id }).from(items)]);
+	Expect<Equal<typeof neonCounted, [number, { id: number }[]]>>;
 
 	// Prepared and bound statements in a batch give what executing them gives
 	const getItem = db.select({ name: items.name }).from(items).where(eq(items.id, sql.placeholder('id'))).prepare(

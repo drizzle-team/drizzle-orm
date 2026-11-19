@@ -901,7 +901,7 @@ export function bulkTests(test: Test, variant: BulkVariant) {
 				expect(errors.map((e) => e.message)).toStrictEqual([
 					'`bulkInsert`: column "name" received an SQL expression, bulk operations only accept values',
 					'`bulkUpdate`: column "name" received an SQL expression, bulk operations only accept values',
-					'`bulkInsert`: column "mapped" maps its value to an SQL expression, bulk operations only accept values',
+					'`bulkInsert`: column "mapped" maps it\'s value to an SQL expression, bulk operations only accept values',
 					'`bulkInsert`: column "at" received an SQL expression, bulk operations only accept values',
 					'`bulkInsert`: column "at" received an SQL expression, bulk operations only accept values',
 					'`bulkUpdate`: column "at" received an SQL expression, bulk operations only accept values',

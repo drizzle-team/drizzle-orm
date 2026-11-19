@@ -13,6 +13,7 @@ import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-c
 import { pgRawTextTypeParser } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/index.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { getTransactionConfigSQL, setTransactionSnapshotSQL } from '~/pg-core/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
@@ -86,7 +87,7 @@ export class VercelPgSession<
 		const poolClient = typeof this.client === 'function' || this.client instanceof VercelPool
 			? await this.client.connect()
 			: undefined;
-		// pool detaches its own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
+		// pool detaches it's own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
 		let connectionError: Error | undefined;
 		let rollbackError: Error | undefined;
 		const onConnectionError = (e: Error) => {
@@ -111,7 +112,7 @@ export class VercelPgSession<
 		);
 
 		try {
-			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+			await tx.execute(sql`begin${config ? sql` ${getTransactionConfigSQL(config)}` : undefined}`);
 		} catch (e) {
 			// `begin` may still reach the server after failing on the client, session state is unknown so the client must not be reused
 			release(e as Error);
@@ -120,7 +121,7 @@ export class VercelPgSession<
 
 		try {
 			if (typeof config?.snapshot === 'string') {
-				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
+				await tx.execute(setTransactionSnapshotSQL(config.snapshot));
 			}
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);

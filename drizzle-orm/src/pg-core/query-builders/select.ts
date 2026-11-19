@@ -1,7 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import type { PgColumn } from '~/pg-core/columns/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgBasePreparedQuery, PgSession } from '~/pg-core/session.ts';
+import type { PgBasePreparedQuery, PgRunnableQueryMethods, PgSession } from '~/pg-core/session.ts';
 import type { SubqueryWithSelection } from '~/pg-core/subquery.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { PgViewBase } from '~/pg-core/view-base.ts';
@@ -201,6 +201,30 @@ export type PgSelectQueryBuilder<
 	TResult,
 	TSelectedFields
 >;
+
+export interface PgSelectBase<
+	THKT extends PgSelectHKTBase,
+	// oxlint-disable-next-line no-unused-vars
+	TTableName extends string | undefined,
+	// oxlint-disable-next-line no-unused-vars
+	TSelection extends ColumnsSelection | undefined,
+	// oxlint-disable-next-line no-unused-vars
+	TSelectMode extends SelectMode,
+	// oxlint-disable-next-line no-unused-vars
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
+	// oxlint-disable-next-line no-unused-vars
+	TDynamic extends boolean = false,
+	// oxlint-disable-next-line no-unused-vars
+	TExcludedMethods extends string = never,
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	// oxlint-disable-next-line no-unused-vars
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<
+		Assume<TSelection, ColumnsSelection>,
+		TNullabilityMap
+	>,
+> extends PgRunnableQueryMethods<THKT['runtime'], TResult> {
+}
 
 export class PgSelectBase<
 	THKT extends PgSelectHKTBase,
@@ -569,7 +593,7 @@ export class PgSelectBase<
 	 * @example
 	 *
 	 * ```ts
-	 * // Pair each city with every row its correlated subquery produces; cities with none are dropped
+	 * // Pair each city with every row it's correlated subquery produces; cities with none are dropped
 	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
 	 *
 	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()

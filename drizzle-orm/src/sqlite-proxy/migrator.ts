@@ -1,90 +1,24 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { sql } from '~/sql/sql.ts';
-import { upgradeAsyncIfNeeded } from '~/up-migrations/sqlite-proxy.ts';
+import { runAsyncProgram } from '~/runtime/async.ts';
+import { migrate as migrateProgram } from '~/up-migrations/sqlite-program.ts';
+import { arrayRowsToObjects, proxyMigrationRunner } from '~/up-migrations/utils.ts';
 import type { SqliteRemoteDatabase } from './driver.ts';
 
 export type ProxyMigrator = (migrationQueries: string[]) => Promise<void>;
 
-export async function migrate<TRelations extends AnyRelations>(
+export function migrate<TRelations extends AnyRelations>(
 	db: SqliteRemoteDatabase<any, TRelations>,
 	callback: ProxyMigrator,
 	config: MigrationConfig,
-) {
+): Promise<void | MigratorInitFailResponse> {
 	const migrations = readMigrationFiles(config);
+	// Rows are queried as arrays
+	const runner = proxyMigrationRunner(db.dialect, callback, {
+		execute: (query) => db.run(query),
+		objects: async (query, columns) => arrayRowsToObjects(await db.session.arrays<unknown[]>(query), columns),
+	});
 
-	const migrationsTable = typeof config === 'string'
-		? '__drizzle_migrations'
-		: config.migrationsTable ?? '__drizzle_migrations';
-
-	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, db, callback, migrations);
-
-	if (newDb) {
-		const migrationTableCreate = sql`
-		CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-			id INTEGER PRIMARY KEY,
-			hash text NOT NULL,
-			created_at numeric,
-			name text,
-			applied_at TEXT
-		);`;
-
-		await db.run(migrationTableCreate);
-	}
-
-	const dbMigrations = (await db.values<[number, string, string, string | null]>(
-		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
-	)).map(([id, hash, created_at, name]) => ({ id, hash, created_at, name }));
-
-	if (typeof config === 'object' && config.init) {
-		if (dbMigrations.length) {
-			return { exitCode: 'databaseMigrations' as const };
-		}
-
-		if (migrations.length > 1) {
-			return { exitCode: 'localMigrations' as const };
-		}
-
-		const [migration] = migrations;
-
-		if (!migration) return;
-
-		await callback(
-			[
-				db.dialect.sqlToQuery(
-					sql`insert into ${
-						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-						new Date().toISOString()
-					})`
-						.inlineParams(),
-				).sql,
-			],
-		);
-
-		return;
-	}
-
-	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
-	const queriesToRun: string[] = [];
-	for (const migration of migrationsToRun) {
-		queriesToRun.push(
-			...migration.sql,
-			db.dialect.sqlToQuery(
-				sql`insert into ${
-					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-					new Date().toISOString()
-				})`
-					.inlineParams(),
-			).sql,
-		);
-	}
-
-	await callback(queriesToRun);
-
-	return;
+	return runAsyncProgram(() => migrateProgram(migrations, runner, config));
 }

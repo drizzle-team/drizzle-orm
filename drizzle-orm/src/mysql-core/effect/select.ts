@@ -8,11 +8,13 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { type Assume, resolveNullableObjectPaths } from '~/utils.ts';
+import { applyMixins } from '~/utils.ts';
+import type { Assume } from '~/utils.ts';
+import { MySqlRunnableQuery } from '../query-builders/runnable.ts';
 import { MySqlSelectBase, type MySqlSelectBuilder } from '../query-builders/select.ts';
 import type { MySqlSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { MySqlPreparedQueryConfig } from '../session.ts';
-import type { MySqlEffectPreparedQuery, MySqlEffectSession } from './session.ts';
+import type { MySqlEffectPreparedQuery, MySqlEffectRuntimeHKT, MySqlEffectSession } from './session.ts';
 
 export type MySqlEffectSelectPrepare<
 	T extends AnyMySqlEffectSelect,
@@ -47,6 +49,7 @@ export type MySqlEffectSelect<
 export interface MySqlEffectSelectHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
 	extends MySqlSelectHKTBase
 {
+	runtime: MySqlEffectRuntimeHKT<TEffectHKT>;
 	_type: MySqlEffectSelectBase<
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
@@ -102,28 +105,9 @@ export class MySqlEffectSelectBase<
 	static override readonly [entityKind]: string = 'MySqlEffectSelectQueryBuilder';
 
 	declare readonly session: MySqlEffectSession<TEffectHKT, any, any>;
-
-	prepare(): MySqlEffectSelectPrepare<this, TEffectHKT> {
-		const sequel = this.getSQL();
-		const query = this.dialect.sqlToQuery(sequel);
-		const fieldsList = this.config.fieldsFlat!;
-		const mapper = this.dialect.mapperGenerators.rows(
-			fieldsList,
-			resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap),
-		);
-
-		const preparedQuery = this.session.prepareQuery<
-			MySqlPreparedQueryConfig & { execute: any }
-		>(query, 'arrays', mapper);
-
-		return preparedQuery as MySqlEffectSelectPrepare<this, TEffectHKT>;
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues?: Record<string, unknown>) => {
-		return this.prepare().execute(placeholderValues);
-	};
 }
 
+applyMixins(MySqlEffectSelectBase, [MySqlRunnableQuery]);
 applyEffectWrapper(MySqlEffectSelectBase);
 
 export type AnyMySqlEffectSelect = MySqlEffectSelectBase<any, any, any, any, any, any, any, any, any>;
