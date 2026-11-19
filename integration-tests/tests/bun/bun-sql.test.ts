@@ -840,6 +840,32 @@ test('json insert', async () => {
 	expect(result).toEqual([{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 });
 
+// A `json` column keeps the text it is given: the order of keys, and keys that repeat. `jsonb` sorts the keys.
+// A value sent as a `jsonb` parameter is parsed as `jsonb` first and only then cast to `json`, so it reaches
+// the `json` column with its keys already sorted
+test.only('a json column keeps the order of keys', async () => {
+	const jsonOrderTable = pgTable('jsontest', {
+		id: serial('id').primaryKey(),
+		json: json('json').notNull(),
+		jsonb: jsonb('jsonb').notNull(),
+	});
+
+	const value = { b: 1, a: 2, nested: { z: 1, y: 2 } };
+	await db.insert(jsonOrderTable).values({ json: value, jsonb: value });
+
+	const [stored] = await db
+		.select({ json: sql<string>`${jsonOrderTable.json}::text`, jsonb: sql<string>`${jsonOrderTable.jsonb}::text` })
+		.from(jsonOrderTable);
+	console.log('stored', stored);
+	expect(stored).toStrictEqual({
+		json: '{"b":1,"a":2,"nested":{"z":1,"y":2}}',
+		jsonb: '{"a": 2, "b": 1, "nested": {"y": 2, "z": 1}}',
+	});
+
+	const [row] = await db.select({ json: jsonOrderTable.json }).from(jsonOrderTable);
+	expect(Object.keys(row!.json as object)).toStrictEqual(['b', 'a', 'nested']);
+});
+
 test('char insert', async () => {
 	await db.insert(citiesTable).values({ name: 'Austin', state: 'TX' });
 	const result = await db
