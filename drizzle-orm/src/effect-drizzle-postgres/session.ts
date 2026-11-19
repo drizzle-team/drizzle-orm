@@ -2,18 +2,19 @@ import type { BatchMetrics, QueryResult, ShapeSpec } from '#postgres';
 import type { DrizzlePostgresClient as Client } from '#postgres/effect/core';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
+import * as Option from 'effect/Option';
 import * as Result from 'effect/Result';
 import type { SqlError } from 'effect/sql/SqlError';
 import type { BatchItem } from '~/batch.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { mapBatchResults, mapSettledResults } from '~/pg-core/async/session.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
-	type PgEffectBoundQuery,
+	PgEffectBoundQuery,
 	PgEffectPreparedQuery,
 	PgEffectSession,
 	PgEffectTransaction,
@@ -59,9 +60,9 @@ export type EffectPostgresBulkUpdateOptions<TBy = PgColumn | readonly [PgColumn,
 	& Pick<Client.BulkUpdateOptions<R>, 'onProgress'>;
 
 /**
- * One item of `batch` and `pipeline`: a query builder, a prepared query (`.prepare()`), or a prepared query with bound
- * placeholder values (`.prepare().bind({ … })`), the items the async driver takes. Prepared items run under their
- * statement name, so the server parses them once per connection and reuses the plan.
+ * One item of `batch`, `pipeline` or `parallel`: a query builder, a prepared query (`.prepare()`), or a prepared
+ * query with bound placeholder values (`.prepare().bind({ … })`), the items the async driver takes. Prepared items
+ * run under their statement name, so the server parses them once per connection and reuses the plan.
  */
 export type EffectPostgresBatchItem =
 	| BatchItem<'pg'>
@@ -84,10 +85,26 @@ export type EffectPostgresBatchResponseWithMetrics<T extends readonly EffectPost
 	& EffectPostgresBatchResponse<T>
 	& { metrics: BatchMetrics };
 
-/** One Result per statement of a `pipeline`: it's value, or the error it failed with */
-export type EffectPostgresPipelineResponse<T extends readonly EffectPostgresBatchItem[]> = {
+/** One Result per statement of a `pipeline` or `parallel`: it's value, or the error it failed with */
+export type EffectPostgresSettledBatchResponse<T extends readonly EffectPostgresBatchItem[]> = {
 	[K in keyof T]: Result.Result<EffectPostgresBatchItemResult<T[K]>, EffectDrizzleQueryError>;
 };
+
+export type EffectPostgresPipelineResponse<T extends readonly EffectPostgresBatchItem[]> =
+	EffectPostgresSettledBatchResponse<T>;
+
+/** The options of `batch`, the async driver's: `snapshot` needs `isolation: 'repeatable read' | 'serializable'` */
+export type EffectPostgresBatchOptions = PostgresBatchOptions;
+
+/** The Effect that runs an item of `parallel`, as it would run on it's own: under it's statement name, with it's bound values */
+function itemEffect(item: EffectPostgresBatchItem): Effect.Effect<unknown, EffectDrizzleQueryError> {
+	const effect = is(item, PgEffectBoundQuery)
+		? item.prepared.execute(item.placeholderValues)
+		: is(item, PgEffectPreparedQuery)
+		? item.execute()
+		: ((item as BatchItem<'pg'>)._prepare() as PgEffectPreparedQuery<any>).execute();
+	return effect as Effect.Effect<unknown, EffectDrizzleQueryError>;
+}
 
 export interface EffectPostgresSessionOptions {
 	logger: EffectLoggerShape;
@@ -239,6 +256,24 @@ export class EffectPostgresSession<
 						)
 					)
 				),
+		);
+	}
+
+	/**
+	 * Non-atomic: fans queries out across pooled connections concurrently. Inside a transaction the queries share it's
+	 * connection, so they run one at a time
+	 *
+	 * A failing query does not fail the others: each gives it's own `Result`, in input order
+	 */
+	parallel(
+		queries: readonly EffectPostgresBatchItem[],
+	): Effect.Effect<Result.Result<unknown, EffectDrizzleQueryError>[]> {
+		return Effect.flatMap(
+			Effect.serviceOption(this.client.transactionService),
+			(tx) =>
+				Effect.forEach(queries, (query) => Effect.result(itemEffect(query)), {
+					concurrency: Option.isSome(tx) ? 1 : 'unbounded',
+				}),
 		);
 	}
 

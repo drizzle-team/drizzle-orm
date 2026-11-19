@@ -94,7 +94,7 @@ export type PostgresBatchOptions = PostgresBatchTransactionOptions & {
 	metrics?: boolean | 'ms' | 'us';
 };
 
-type PostgresBatchTransactionOptions =
+export type PostgresBatchTransactionOptions =
 	| {
 		/** `snapshot` cannot be used with `isolation: 'read uncommitted' | 'read committed'` */
 		isolation?: 'serializable' | 'repeatable read' | 'read committed' | 'read uncommitted';

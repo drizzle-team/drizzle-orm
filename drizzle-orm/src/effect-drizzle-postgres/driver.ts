@@ -10,11 +10,10 @@ import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { EffectDrizzlePgConfig } from '~/pg-core/effect/utils.ts';
 import type { PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { postgresCodecs } from '~/postgres/codecs.ts';
 import type { PostgresBatchOptions, PostgresBulkInsertValue, PostgresBulkUpdateValue } from '~/postgres/session.ts';
-import { createShapeGenerator } from '~/postgres/shape.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { postgresCodecs } from './codecs.ts';
 import {
 	type EffectPostgresBatchItem,
 	type EffectPostgresBatchResponse,
@@ -25,8 +24,10 @@ import {
 	type EffectPostgresQueryEffectHKT,
 	type EffectPostgresQueryResultHKT,
 	EffectPostgresSession,
+	type EffectPostgresSettledBatchResponse,
 	type EffectPostgresTransaction,
 } from './session.ts';
+import { createShapeGenerator } from './shape.ts';
 export { DefaultServices } from '~/effect-core/defaults.ts';
 
 export class EffectPostgresDatabase<TRelations extends AnyRelations = EmptyRelations>
@@ -86,6 +87,32 @@ export class EffectPostgresDatabase<TRelations extends AnyRelations = EmptyRelat
 		batch: T,
 	): Effect.Effect<EffectPostgresPipelineResponse<T>> {
 		return this.session.pipeline(batch) as Effect.Effect<EffectPostgresPipelineResponse<T>>;
+	}
+
+	/**
+	 * Runs queries concurrently, fanned out across pooled connections, without a transaction
+	 *
+	 * Never fails because of a failing query: each gives it's own `Result`
+	 *
+	 * Failing query does not stop or roll back the others
+	 *
+	 * Takes the same items as `batch`:
+	 *
+	 * ```ts
+	 * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
+	 * const [alice, bob, inserted, allUsers] = yield* db.parallel([
+	 *   getUser.bind({ id: 1 }),
+	 *   getUser.bind({ id: 2 }),
+	 *   db.insert(users).values({ name: 'John' }).returning(),
+	 *   db.select().from(users),
+	 * ]);
+	 * // each is a `Result`: `Result.isSuccess(alice) ? alice.success : alice.failure`
+	 * ```
+	 */
+	parallel<U extends EffectPostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
+		batch: T,
+	): Effect.Effect<EffectPostgresSettledBatchResponse<T>> {
+		return this.session.parallel(batch) as Effect.Effect<EffectPostgresSettledBatchResponse<T>>;
 	}
 
 	/**

@@ -1,4 +1,5 @@
 import { PgliteClient } from '@effect/sql-pglite/PgliteClient';
+import type * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
@@ -73,7 +74,7 @@ export const make = Effect.fn('PgDrizzle.make')(
 		(<any> db).$client = client;
 
 		return db as EffectPgDatabase<TRelations> & {
-			$client: PgliteClient;
+			$client: Context.Service.Shape<typeof PgliteClient>;
 		};
 	},
 );

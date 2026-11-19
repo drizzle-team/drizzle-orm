@@ -1,10 +1,16 @@
-import type { PgClient } from '@effect/sql-pg/PgClient';
+import { DrizzlePostgresClient } from '#postgres/effect/core';
+import { PgClient } from '@effect/sql-pg/PgClient';
+import { PgliteClient } from '@effect/sql-pglite/PgliteClient';
+import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
+import type { SqlClient } from 'effect/sql/SqlClient';
 import type { SqlError } from 'effect/sql/SqlError';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
 import { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
+import { makeWithDefaults as makeDrizzlePostgresWithDefaults } from '~/effect-drizzle-postgres/index.ts';
+import { makeWithDefaults as makePgliteWithDefaults } from '~/effect-pglite/index.ts';
 import type { EffectPgDatabase, EffectPgQueryResult } from '~/effect-postgres/index.ts';
 import { make, makeWithDefaults } from '~/effect-postgres/index.ts';
 import { migrate } from '~/effect-postgres/migrator.ts';
@@ -23,7 +29,7 @@ type AsEffect<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.E
 	Expect<
 		Equal<
 			DbEffect,
-			Effect.Effect<EffectPgDatabase<EmptyRelations> & { $client: PgClient }, never, PgClient>
+			Effect.Effect<EffectPgDatabase<EmptyRelations> & { $client: PgClient & SqlClient }, never, PgClient>
 		>
 	>;
 }
@@ -36,7 +42,7 @@ type AsEffect<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.E
 		Equal<
 			DbEffect,
 			Effect.Effect<
-				EffectPgDatabase<EmptyRelations> & { $client: PgClient },
+				EffectPgDatabase<EmptyRelations> & { $client: PgClient & SqlClient },
 				never,
 				import('~/effect-core/logger.ts').EffectLogger | PgClient
 			>
@@ -341,4 +347,21 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	// concrete shape - rows of given shape
 	const typed = db.execute<UserInterface>(`select 1 as id, 'a' as name`);
 	Expect<Equal<AsEffect<typeof typed>, Raw<EffectPgQueryResult<UserInterface>>>>;
+}
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6685
+// `$client` must keep the full service shape so it can be re-provided via the native Effect service API
+{
+	Effect.gen(function*() {
+		const db = yield* makeWithDefaults();
+		return Context.make(PgClient, db.$client);
+	});
+	Effect.gen(function*() {
+		const db = yield* makePgliteWithDefaults();
+		return Context.make(PgliteClient, db.$client);
+	});
+	Effect.gen(function*() {
+		const db = yield* makeDrizzlePostgresWithDefaults();
+		return Context.make(DrizzlePostgresClient.DrizzlePostgresClient, db.$client);
+	});
 }
