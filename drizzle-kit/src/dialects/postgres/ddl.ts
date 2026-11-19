@@ -410,6 +410,43 @@ export const tableFromDDL = (
 	};
 };
 
+// `tableFromDDL` for many tables. It groups each entity type by table in one pass, where calling `tableFromDDL` for
+// every table scans all columns, constraints and policies once per table.
+export const tablesFromDDL = (tables: PostgresEntities['tables'][], ddl: PostgresDDL): Table[] => {
+	const keyOf = (it: { schema: string; table: string }) => JSON.stringify([it.schema, it.table]);
+	const byTable = <T extends { schema: string; table: string }>(rows: T[]) => {
+		const groups = new Map<string, T[]>();
+		for (const row of rows) {
+			const group = groups.get(keyOf(row));
+			if (group) group.push(row);
+			else groups.set(keyOf(row), [row]);
+		}
+		return groups;
+	};
+
+	const columns = byTable(ddl.columns.list());
+	const pks = byTable(ddl.pks.list());
+	const fks = byTable(ddl.fks.list());
+	const uniques = byTable(ddl.uniques.list());
+	const checks = byTable(ddl.checks.list());
+	const indexes = byTable(ddl.indexes.list());
+	const policies = byTable(ddl.policies.list());
+
+	return tables.map((table) => {
+		const key = keyOf({ schema: table.schema, table: table.name });
+		return {
+			...table,
+			columns: columns.get(key) ?? [],
+			pk: pks.get(key)?.[0] ?? null,
+			fks: fks.get(key) ?? [],
+			uniques: uniques.get(key) ?? [],
+			checks: checks.get(key) ?? [],
+			indexes: indexes.get(key) ?? [],
+			policies: policies.get(key) ?? [],
+		};
+	});
+};
+
 interface SchemaDuplicate {
 	type: 'schema_name_duplicate';
 	name: string;
