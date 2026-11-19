@@ -16,6 +16,7 @@ import type { PgDialect } from '../dialect.ts';
 import {
 	getTransactionConfigStatements,
 	PgBasePreparedQuery,
+	PgBoundQuery,
 	type PgQueryResultHKT,
 	PgSession,
 	type PgTransactionConfig,
@@ -53,6 +54,32 @@ export class PgEffectPreparedQuery<
 		paramsInErrors: boolean | undefined,
 	) {
 		super(executor, query, mapper, mode, logger, paramsInErrors);
+	}
+
+	/**
+	 * Pairs this query with values for it's placeholders without running it, for `batch` and `pipeline` of the
+	 * `drizzle-orm/effect-drizzle-postgres` driver, which run it under this query's statement name:
+	 *
+	 * ```ts
+	 * const [alice, bob] = yield* db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
+	 * ```
+	 */
+	bind(placeholderValues: Record<string, unknown> = {}): PgEffectBoundQuery<T, TEffectHKT> {
+		return new PgEffectBoundQuery(this, placeholderValues);
+	}
+}
+
+/** A prepared query with values for it's placeholders, not run yet. Created by {@link PgEffectPreparedQuery.bind}. */
+export class PgEffectBoundQuery<
+	T extends PreparedQueryConfig,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> extends PgBoundQuery {
+	static override readonly [entityKind]: string = 'PgEffectBoundQuery';
+
+	declare readonly prepared: PgEffectPreparedQuery<T, TEffectHKT>;
+
+	constructor(prepared: PgEffectPreparedQuery<T, TEffectHKT>, placeholderValues: Record<string, unknown>) {
+		super(prepared, placeholderValues);
 	}
 }
 

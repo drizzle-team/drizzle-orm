@@ -210,7 +210,16 @@ export function splitType(s: string): { pg: string; js?: JsTarget } {
 			} (use ':number', ':string', ':latin1', ':date', ':ms', ':bigint', ':precise', ':pretty', ':tuple', ':xy', ':abc', ':array', ':f32', ':sparse', ':hex', ':wkb' or ':geojson')`,
 		);
 	}
-	return { pg: s.slice(0, i).trim(), js: js as JsTarget };
+	const pg = s.slice(0, i).trim();
+	// money's text is the server's locale format ('-$1,234,567.89', '12,50 €'): there is no number to read from it
+	if (js === 'number' && /^money(\[\])?$/i.test(pg)) {
+		throw new Error(
+			`${
+				JSON.stringify(s)
+			}: money has no :number target, because its text is in the server's locale format. Use 'money' for that text, or cast the column to numeric in SQL and use 'numeric:number'`,
+		);
+	}
+	return { pg, js: js as JsTarget };
 }
 
 // PG type alias -> decode category.

@@ -144,9 +144,9 @@ runCommonEffectPgTests({
 				yield* createBulkUsers(db);
 
 				const [first, duplicate, selected] = yield* db.pipeline([
-					Effect.result(db.insert(bulkUsers).values({ id: 1, name: 'John' })),
-					Effect.result(db.insert(bulkUsers).values({ id: 1, name: 'Duplicate' })),
-					Effect.result(db.select({ id: bulkUsers.id, name: bulkUsers.name }).from(bulkUsers)),
+					db.insert(bulkUsers).values({ id: 1, name: 'John' }),
+					db.insert(bulkUsers).values({ id: 1, name: 'Duplicate' }),
+					db.select({ id: bulkUsers.id, name: bulkUsers.name }).from(bulkUsers),
 				]);
 				assert(Result.isSuccess(first));
 				assert(Result.isFailure(duplicate));
@@ -212,11 +212,11 @@ runCommonEffectPgTests({
 					.where(sql`name = ${name}`);
 
 				// batch and pipeline each keep their statements on one connection, in order
-				const batched = yield* db.batch([byId.execute({ id: 1 }), byId.execute({ id: 2 }), named]);
+				const batched = yield* db.batch([byId.bind({ id: 1 }), byId.bind({ id: 2 }), named]);
 				expect(batched).toStrictEqual([[{ id: 1, name: 'John' }], [{ id: 2, name: 'Jane' }], [{ name }]]);
 
-				const piped = yield* db.pipeline([byId.execute({ id: 2 }), named]);
-				expect(piped).toStrictEqual([[{ id: 2, name: 'Jane' }], [{ name }]]);
+				const piped = yield* db.pipeline([byId.bind({ id: 2 }), named]);
+				expect(piped).toStrictEqual([Result.succeed([{ id: 2, name: 'Jane' }]), Result.succeed([{ name }])]);
 			}));
 
 		it.effect('bulkInsert and bulkUpdate', () =>

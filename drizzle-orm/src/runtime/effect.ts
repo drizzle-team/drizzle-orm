@@ -14,7 +14,9 @@ const lift = (value: unknown): AnyEffect => Effect.isEffect(value) ? value : Eff
 export const effectQueryRuntime: QueryRuntime = {
 	suspend: (body) => Effect.suspend(() => lift(body())),
 	chain: (first, next) => Effect.flatMap(first as AnyEffect, (value) => lift(next(value))),
-	detach: (work) => Effect.forkDetach(Effect.suspend(work as () => AnyEffect), { startImmediately: true }),
+	// In the query's own fiber, as effect/sql runs its per-statement span and transformer: no fiber per query. The
+	// logger can't fail (`Effect<void, never>`), and one that is slow delays its query.
+	detach: (work) => Effect.suspend(work as () => AnyEffect),
 	attempt: (run, onError) => {
 		let query: AnyEffect;
 		try {

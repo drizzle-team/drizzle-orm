@@ -1,23 +1,31 @@
 import { DrizzlePostgresClient as Client } from '#postgres/effect/core';
 import * as Effect from 'effect/Effect';
+import type { SqlError } from 'effect/sql/SqlError';
 import { DefaultServices } from '~/effect-core/defaults.ts';
+import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { EffectDrizzlePgConfig } from '~/pg-core/effect/utils.ts';
+import type { PgTransactionConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { postgresCodecs } from '~/postgres/codecs.ts';
-import type { PostgresBulkInsertValue, PostgresBulkUpdateValue } from '~/postgres/session.ts';
+import type { PostgresBatchOptions, PostgresBulkInsertValue, PostgresBulkUpdateValue } from '~/postgres/session.ts';
 import { createShapeGenerator } from '~/postgres/shape.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import {
+	type EffectPostgresBatchItem,
+	type EffectPostgresBatchResponse,
+	type EffectPostgresBatchResponseWithMetrics,
 	type EffectPostgresBulkInsertOptions,
 	type EffectPostgresBulkUpdateOptions,
+	type EffectPostgresPipelineResponse,
 	type EffectPostgresQueryEffectHKT,
 	type EffectPostgresQueryResultHKT,
 	EffectPostgresSession,
+	type EffectPostgresTransaction,
 } from './session.ts';
 export { DefaultServices } from '~/effect-core/defaults.ts';
 
@@ -29,28 +37,55 @@ export class EffectPostgresDatabase<TRelations extends AnyRelations = EmptyRelat
 	/** @internal */
 	declare session: EffectPostgresSession<TRelations>;
 
-	/**
-	 * Runs the Effects in one transaction, with every statement pipelined on its connection
-	 *
-	 * A failing Effect fails the batch and rolls back the entire batch
-	 *
-	 * @example
-	 * ```ts
-	 * const [inserted, users] = yield* db.batch([db.insert(users).values({ name: 'John' }).returning(), db.select().from(users)]);
-	 * ```
-	 */
-	batch<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
-		return this.session.batch(effects);
+	override transaction<A, E, R>(
+		transaction: (tx: EffectPostgresTransaction<TRelations>) => Effect.Effect<A, E, R>,
+		config?: PgTransactionConfig,
+	): Effect.Effect<A, E | SqlError, R> {
+		return this.session.transaction(transaction, config);
 	}
 
 	/**
-	 * Runs the Effects concurrently on one pooled connection, without a transaction, so each statement commits on its own
+	 * Runs multiple queries at once in a transaction, as the async driver's `batch` does: one round trip on one pooled
+	 * connection
 	 *
-	 * Every statement runs to the end, and the first failure in statement order fails the pipeline.
-	 * Wrap an Effect in `Effect.result` to get its failure as a value instead.
+	 * A failing query fails the batch with it's error and rolls back the entire batch
+	 *
+	 * Takes query builders, prepared queries, and prepared queries with bound placeholder values. Prepared items run
+	 * under their statement name, so they are parsed once per connection:
+	 *
+	 * ```ts
+	 * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
+	 * const [alice, bob] = yield* db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
+	 * ```
+	 *
+	 * With `metrics` on, the response also carries the driver's telemetry for the batch as `response.metrics`.
 	 */
-	pipeline<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
-		return this.session.pipeline(effects);
+	batch<U extends EffectPostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
+		batch: T,
+		options: PostgresBatchOptions & { metrics: true | 'ms' | 'us' },
+	): Effect.Effect<EffectPostgresBatchResponseWithMetrics<T>, EffectDrizzleQueryError>;
+	batch<U extends EffectPostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
+		batch: T,
+		options?: PostgresBatchOptions,
+	): Effect.Effect<EffectPostgresBatchResponse<T>, EffectDrizzleQueryError>;
+	batch<U extends EffectPostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
+		batch: T,
+		options?: PostgresBatchOptions,
+	): Effect.Effect<EffectPostgresBatchResponse<T>, EffectDrizzleQueryError> {
+		return this.session.batch(batch, options) as Effect.Effect<EffectPostgresBatchResponse<T>, EffectDrizzleQueryError>;
+	}
+
+	/**
+	 * Pipelines queries back-to-back on a single pooled connection, without a transaction, as the async driver's
+	 * `pipeline` does
+	 *
+	 * Never fails because of a failing query: one Result per query, in input order. A failing query does not stop or
+	 * roll back the others
+	 */
+	pipeline<U extends EffectPostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
+		batch: T,
+	): Effect.Effect<EffectPostgresPipelineResponse<T>> {
+		return this.session.pipeline(batch) as Effect.Effect<EffectPostgresPipelineResponse<T>>;
 	}
 
 	/**

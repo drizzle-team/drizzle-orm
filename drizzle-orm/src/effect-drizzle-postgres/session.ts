@@ -1,26 +1,42 @@
-import type { QueryResult, ShapeSpec } from '#postgres';
+import type { BatchMetrics, QueryResult, ShapeSpec } from '#postgres';
 import type { DrizzlePostgresClient as Client } from '#postgres/effect/core';
+import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
+import * as Result from 'effect/Result';
 import type { SqlError } from 'effect/sql/SqlError';
+import type { BatchItem } from '~/batch.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
+import { mapBatchResults, mapSettledResults } from '~/pg-core/async/session.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
+import {
+	type PgEffectBoundQuery,
+	PgEffectPreparedQuery,
+	PgEffectSession,
+	PgEffectTransaction,
+} from '~/pg-core/effect/session.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { getTransactionConfigStatements } from '~/pg-core/session.ts';
+import { setTransactionSnapshotSQL } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import {
+	batchItemParams,
 	buildBulkInsert,
 	buildBulkUpdate,
+	buildPoolQueries,
+	type PostgresBatchOptions,
 	type PostgresBulkInsertOptions,
+	type PostgresBulkInsertValue,
 	type PostgresBulkResult,
 	type PostgresBulkUpdateOptions,
+	type PostgresBulkUpdateValue,
+	type PostgresMultiPrepared,
 } from '~/postgres/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
+import { effectQueryRuntime } from '~/runtime/effect.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
 
@@ -42,9 +58,61 @@ export type EffectPostgresBulkUpdateOptions<TBy = PgColumn | readonly [PgColumn,
 	& Omit<PostgresBulkUpdateOptions<TBy>, 'timeout' | 'signal' | 'onProgress'>
 	& Pick<Client.BulkUpdateOptions<R>, 'onProgress'>;
 
+/**
+ * One item of `batch` and `pipeline`: a query builder, a prepared query (`.prepare()`), or a prepared query with bound
+ * placeholder values (`.prepare().bind({ … })`), the items the async driver takes. Prepared items run under their
+ * statement name, so the server parses them once per connection and reuses the plan.
+ */
+export type EffectPostgresBatchItem =
+	| BatchItem<'pg'>
+	| PgEffectPreparedQuery<any, any>
+	| PgEffectBoundQuery<any, any>;
+
+/** What one {@link EffectPostgresBatchItem} gives, the same value running it on it's own would give. */
+export type EffectPostgresBatchItemResult<TItem> = TItem extends { readonly _: { readonly result: infer TResult } }
+	? TResult
+	: TItem extends { readonly prepared: { execute(...args: any[]): Effect.Effect<infer TResult, any, any> } } ? TResult
+	: TItem extends { execute(...args: any[]): Effect.Effect<infer TResult, any, any> } ? TResult
+	: never;
+
+export type EffectPostgresBatchResponse<T extends readonly EffectPostgresBatchItem[]> = {
+	[K in keyof T]: EffectPostgresBatchItemResult<T[K]>;
+};
+
+/** A batch's results together with the driver's telemetry for it, when `metrics` is on. */
+export type EffectPostgresBatchResponseWithMetrics<T extends readonly EffectPostgresBatchItem[]> =
+	& EffectPostgresBatchResponse<T>
+	& { metrics: BatchMetrics };
+
+/** One Result per statement of a `pipeline`: it's value, or the error it failed with */
+export type EffectPostgresPipelineResponse<T extends readonly EffectPostgresBatchItem[]> = {
+	[K in keyof T]: Result.Result<EffectPostgresBatchItemResult<T[K]>, EffectDrizzleQueryError>;
+};
+
 export interface EffectPostgresSessionOptions {
 	logger: EffectLoggerShape;
 	paramsInErrors?: boolean;
+}
+
+export class EffectPostgresPreparedQuery<
+	T extends PreparedQueryConfig,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> extends PgEffectPreparedQuery<T, TEffectHKT> {
+	static override readonly [entityKind]: string = 'EffectPostgresPreparedQuery';
+
+	constructor(
+		executor: (params?: unknown[]) => Effect.Effect<unknown, unknown, unknown>,
+		query: Query,
+		mapper: ((rows: any[]) => any) | undefined,
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
+		logger: EffectLoggerShape,
+		readonly shape: ShapeSpec | undefined,
+		paramsInErrors: boolean | undefined,
+		/** The server-side prepared statement name, when the query was created with `.prepare()` */
+		readonly name: string | undefined,
+	) {
+		super(executor, query, mapper, mode, logger, paramsInErrors);
+	}
 }
 
 export class EffectPostgresSession<
@@ -75,38 +143,103 @@ export class EffectPostgresSession<
 			: undefined;
 
 		const executor = (params?: unknown[]) => {
-			const result = this.query(query.sql, params ?? [], mode, shape, queryName);
+			const result = this.client.query(query.sql, params ?? [], {
+				name: queryName,
+				mode: mode === 'arrays' ? 'array' : 'object',
+				shape,
+			});
 
 			if (mode === 'raw') return result;
 			return Effect.map(result, (r) => r.rows);
 		};
 
-		return new PgEffectPreparedQuery<T, EffectPostgresQueryEffectHKT>(
+		return new EffectPostgresPreparedQuery<T, EffectPostgresQueryEffectHKT>(
 			executor,
 			query,
 			mapper,
 			mode,
 			this.options.logger,
+			shape,
 			this.options.paramsInErrors,
+			queryName,
 		);
 	}
 
-	private query(
-		sql: string,
-		params: unknown[],
-		mode: 'arrays' | 'objects' | 'raw' | 'call',
-		shape: ShapeSpec | undefined,
-		name?: string,
-	) {
-		return this.client.query(sql, params, { name, mode: mode === 'arrays' ? 'array' : 'object', shape });
+	/**
+	 * The items as the pool's queries, built and logged as the async driver does. Inside a transaction there is no
+	 * pool to run them on, as for the async driver's transaction.
+	 */
+	private buildMulti(method: 'batch' | 'pipeline', queries: readonly EffectPostgresBatchItem[]) {
+		return Effect.withFiber((fiber) => {
+			const inTransaction = Context.getOrUndefined(fiber.context, this.client.transactionService) !== undefined;
+			const logged: [sql: string, params: unknown[]][] = [];
+			const multi = buildPoolQueries(
+				inTransaction ? undefined : this.client.pool,
+				method,
+				queries,
+				(sql, params) => logged.push([sql, params]),
+			);
+			return Effect.as(
+				Effect.forEach(logged, ([sql, params]) => this.options.logger.logQuery(sql, params), { discard: true }),
+				multi,
+			);
+		});
 	}
 
-	batch<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
-		return this.client.batch(effects);
+	private queryError(prepared: PostgresMultiPrepared, cause: unknown, item: EffectPostgresBatchItem) {
+		return effectQueryRuntime.queryError(
+			prepared.getQuery().sql,
+			this.options.paramsInErrors ? batchItemParams(prepared, item) : undefined,
+			cause,
+		) as EffectDrizzleQueryError;
 	}
 
-	pipeline<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
-		return this.client.pipeline(effects);
+	/** Atomic: runs all queries in one transaction on a single pooled connection */
+	batch(
+		queries: readonly EffectPostgresBatchItem[],
+		options?: PostgresBatchOptions,
+	): Effect.Effect<any[], EffectDrizzleQueryError> {
+		return Effect.flatMap(this.buildMulti('batch', queries), ({ pool, prepared, built }) =>
+			Effect.tryPromise({
+				try: () =>
+					pool.batch(built, options as Parameters<typeof pool.batch>[1]).then((results) => {
+						const response = mapBatchResults(prepared as any[], results);
+						if (results.metrics) (response as { metrics?: BatchMetrics }).metrics = results.metrics;
+						return response;
+					}),
+				catch: (e) => {
+					const index = (e as { failedQueryIndex?: unknown } | null)?.failedQueryIndex;
+					const query = typeof index === 'number' ? prepared[index] : undefined;
+					// An error of no statement, such as a deferred constraint at COMMIT
+					if (!query) return effectQueryRuntime.queryError('commit', undefined, e) as EffectDrizzleQueryError;
+					return this.queryError(query, e, queries[index as number]!);
+				},
+			}));
+	}
+
+	/**
+	 * Non-atomic: pipelines all queries on a single pooled connection, each in it's own autocommit
+	 *
+	 * Never fails on a query failure: one Result per query, in input order
+	 */
+	pipeline(queries: readonly EffectPostgresBatchItem[]): Effect.Effect<Result.Result<any, EffectDrizzleQueryError>[]> {
+		return Effect.flatMap(
+			this.buildMulti('pipeline', queries),
+			({ pool, prepared, built }) =>
+				Effect.promise(() =>
+					pool.pipeline(built).then((results) =>
+						mapSettledResults(
+							prepared as any[],
+							results,
+							(i, cause) => this.queryError(prepared[i]!, cause, queries[i]!) as any,
+						).map((settled) =>
+							settled.status === 'fulfilled'
+								? Result.succeed(settled.value)
+								: Result.fail(settled.reason as unknown as EffectDrizzleQueryError)
+						)
+					)
+				),
+		);
 	}
 
 	bulkInsert<R = never>(
@@ -139,23 +272,31 @@ export class EffectPostgresSession<
 		});
 	}
 
+	/** As the async driver's transaction: the same settings go to the driver, and a snapshot is set inside */
 	override transaction<A, E, R>(
 		transaction: (tx: EffectPostgresTransaction<TRelations>) => Effect.Effect<A, E, R>,
 		config?: PgTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R> {
 		const { dialect, relations } = this;
 
-		return this.client.withTransaction(Effect.gen({ self: this }, function*() {
-			const tx = new EffectPostgresTransaction<TRelations>(dialect, this, relations);
+		return this.client.withTransaction(
+			Effect.gen({ self: this }, function*() {
+				const tx = new EffectPostgresTransaction<TRelations>(dialect, this, relations);
 
-			if (config) {
-				for (const statement of getTransactionConfigStatements(dialect, config)) {
-					yield* this.client.unsafe(statement);
+				if (typeof config?.snapshot === 'string') {
+					yield* this.client.query(dialect.sqlToQuery(setTransactionSnapshotSQL(config.snapshot)).sql, [], {
+						mode: 'object',
+					});
 				}
-			}
 
-			return yield* transaction(tx);
-		}));
+				return yield* transaction(tx);
+			}),
+			{
+				deferrable: config?.deferrable,
+				isolation: config?.isolationLevel,
+				readOnly: config?.accessMode === 'read only',
+			},
+		);
 	}
 }
 
@@ -164,11 +305,49 @@ export class EffectPostgresTransaction<
 > extends PgEffectTransaction<EffectPostgresQueryEffectHKT, EffectPostgresQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'EffectPostgresTransaction';
 
+	/** @internal */
+	declare session: EffectPostgresSession<TRelations>;
+
 	override transaction<A, E, R>(
 		transaction: (
 			tx: PgEffectTransaction<EffectPostgresQueryEffectHKT, EffectPostgresQueryResultHKT, TRelations>,
 		) => Effect.Effect<A, E, R>,
 	): Effect.Effect<A, E | SqlError, R> {
 		return this.session.transaction(transaction);
+	}
+
+	/**
+	 * Inserts rows in bulk as multi-row `values` statements, filling `$defaultFn` / `$onUpdateFn` like `tx.insert(...)`
+	 *
+	 * A cell a row leaves out gets the column's database default, and a column no row sets is left out of the statement
+	 */
+	bulkInsert<TTable extends PgTable, R = never>(
+		table: TTable,
+		rows: readonly PostgresBulkInsertValue<TTable>[],
+		options?: EffectPostgresBulkInsertOptions<R>,
+	) {
+		return this.session.bulkInsert(table, rows, options);
+	}
+
+	/**
+	 * Updates rows in bulk via driver-side `unnest`, matched by `by` key column(s), filling `$onUpdateFn` like `tx.update(...)`
+	 *
+	 * Every row must set the same columns, except for the ones filled by `$onUpdateFn`
+	 */
+	bulkUpdate<
+		TTable extends PgTable,
+		TBy extends
+			| TTable['_']['columns'][keyof TTable['_']['columns']]
+			| readonly [
+				TTable['_']['columns'][keyof TTable['_']['columns']],
+				...TTable['_']['columns'][keyof TTable['_']['columns']][],
+			],
+		R = never,
+	>(
+		table: TTable,
+		rows: readonly PostgresBulkUpdateValue<TTable, TBy>[],
+		options: EffectPostgresBulkUpdateOptions<TBy, R>,
+	) {
+		return this.session.bulkUpdate(table, rows, options as EffectPostgresBulkUpdateOptions<any, R>);
 	}
 }

@@ -8,7 +8,7 @@ import { type Logger, NoopLogger } from '~/logger.ts';
 import {
 	mapBatchResults,
 	mapSettledResults,
-	PgAsyncBoundQuery,
+	type PgAsyncBoundQuery,
 	PgAsyncPreparedQuery,
 	PgAsyncSession,
 	PgAsyncTransaction,
@@ -16,7 +16,7 @@ import {
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { setTransactionSnapshotSQL } from '~/pg-core/session.ts';
+import { PgBasePreparedQuery, PgBoundQuery, setTransactionSnapshotSQL } from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -143,8 +143,72 @@ export interface PostgresSessionOptions {
 }
 
 /** The placeholder values a batch item carries: only a bound prepared query has any. */
-function boundValues(item: PostgresBatchItem): Record<string, unknown> | undefined {
-	return is(item, PgAsyncBoundQuery) ? item.placeholderValues : undefined;
+function boundValues(item: unknown): Record<string, unknown> | undefined {
+	return is(item, PgBoundQuery) ? item.placeholderValues : undefined;
+}
+
+/** A prepared query of either runtime of the `drizzle-orm/postgres` drivers, with what the pool needs from it */
+export interface PostgresMultiPrepared extends PgBasePreparedQuery {
+	/** The server-side prepared statement name, when the query was created with `.prepare()` */
+	readonly name?: string;
+	readonly shape?: ShapeSpec;
+}
+
+/**
+ * The items of `batch`, `pipeline` or `parallel` as the pool's queries: the async and the Effect driver build them
+ * here, the same way. A prepared item runs under it's statement name, and a builder is prepared unnamed. Each query
+ * is passed to `logQuery`, as a query run on it's own is logged.
+ *
+ * @internal
+ */
+export function buildPoolQueries(
+	client: unknown,
+	method: 'batch' | 'pipeline' | 'parallel',
+	queries: readonly unknown[],
+	logQuery: (sql: string, params: unknown[]) => void,
+): { pool: Pool; prepared: PostgresMultiPrepared[]; built: PoolQuery[] } {
+	// `instanceof Pool` would load the bundled client for a pool from the standalone package.
+	if (!isBrand<Pool>(client, 'Pool')) throw new Error(`\`${method}\` method is only supported on connection pools!`);
+	const pool = client;
+
+	const prepared: PostgresMultiPrepared[] = new Array(queries.length);
+	const built: PoolQuery[] = new Array(queries.length);
+	for (let i = 0; i < queries.length; ++i) {
+		const item = queries[i]!;
+		// A prepared query is used as is, so it's statement name reaches the driver; a builder is prepared unnamed.
+		const preparedQuery = (is(item, PgBoundQuery)
+			? item.prepared
+			: is(item, PgBasePreparedQuery)
+			? item
+			: (item as BatchItem<'pg'>)._prepare()) as PostgresMultiPrepared;
+		const builtQuery = preparedQuery.getQuery();
+		const params = batchParams(builtQuery.params, boundValues(item));
+		logQuery(builtQuery.sql, params);
+		prepared[i] = preparedQuery;
+		built[i] = preparedQuery.mode === 'arrays'
+			? pool.query(builtQuery.sql, params, {
+				name: preparedQuery.name,
+				mode: 'array',
+				shape: preparedQuery.shape,
+			})
+			: pool.query(builtQuery.sql, params, {
+				name: preparedQuery.name,
+				mode: 'object',
+				shape: preparedQuery.shape,
+			});
+	}
+
+	return { pool, prepared, built };
+}
+
+/**
+ * The params of a batch item's query as the driver got them, for it's error: placeholders filled from the item's
+ * bound values
+ *
+ * @internal
+ */
+export function batchItemParams(prepared: PostgresMultiPrepared, item: unknown): unknown[] {
+	return batchParams(prepared.getQuery().params, boundValues(item));
 }
 
 /**
@@ -291,49 +355,22 @@ export class PostgresSession<
 		});
 	}
 
-	private queryError(prepared: PostgresPreparedQuery<any>, cause: unknown, item: PostgresBatchItem): DrizzleQueryError {
-		const { sql, params } = prepared.getQuery();
+	private queryError(prepared: PostgresMultiPrepared, cause: unknown, item: PostgresBatchItem): DrizzleQueryError {
 		return new DrizzleQueryError(
-			sql,
-			this.options.paramsInErrors ? batchParams(params, boundValues(item)) : undefined,
+			prepared.getQuery().sql,
+			this.options.paramsInErrors ? batchItemParams(prepared, item) : undefined,
 			cause as Error,
 		);
 	}
 
 	private buildMulti(method: 'batch' | 'pipeline' | 'parallel', queries: Readonly<PostgresBatchItem[]>) {
-		const pool = this.client;
-		// `instanceof Pool` would load the bundled client for a pool from the standalone package.
-		if (!isBrand<Pool>(pool, 'Pool')) throw new Error(`\`${method}\` method is only supported on connection pools!`);
-
-		const prepared: PostgresPreparedQuery<any>[] = new Array(queries.length);
-		const built: PoolQuery[] = new Array(queries.length);
-		for (let i = 0; i < queries.length; ++i) {
-			const item = queries[i]!;
-			// A prepared query is used as is, so it's statement name reaches the driver; a builder is prepared unnamed.
-			const preparedQuery = (is(item, PgAsyncBoundQuery)
-				? item.prepared
-				: is(item, PgAsyncPreparedQuery)
-				? item
-				: (item as BatchItem<'pg'>)._prepare()) as PostgresPreparedQuery<any>;
-			const builtQuery = preparedQuery.getQuery();
-			const params = batchParams(builtQuery.params, boundValues(item));
-			// logged like a query that is run on it's own
-			this.logger.logQuery(builtQuery.sql, params);
-			prepared[i] = preparedQuery;
-			built[i] = preparedQuery.mode === 'arrays'
-				? pool.query(builtQuery.sql, params, {
-					name: preparedQuery.name,
-					mode: 'array',
-					shape: preparedQuery.shape,
-				})
-				: pool.query(builtQuery.sql, params, {
-					name: preparedQuery.name,
-					mode: 'object',
-					shape: preparedQuery.shape,
-				});
-		}
-
-		return { pool, prepared, built };
+		const { pool, prepared, built } = buildPoolQueries(
+			this.client,
+			method,
+			queries,
+			(sql, params) => this.logger.logQuery(sql, params),
+		);
+		return { pool, prepared: prepared as PgAsyncPreparedQuery<any>[], built };
 	}
 
 	override async transaction<T>(

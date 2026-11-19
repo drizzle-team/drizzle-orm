@@ -4,7 +4,7 @@ import { Context, Effect, Exit, Layer, Redacted, Tracer } from 'effect';
 import { SqlClient } from 'effect/sql/SqlClient';
 import type { SqlError } from 'effect/sql/SqlError';
 import { DrizzlePostgresClient } from '../../src/effect/index.ts';
-import { testPool } from '../helpers/db.ts';
+import { LOCAL_CONFIG as TEST_CONFIG, testConnect, testPool } from '../helpers/db.ts';
 import { runTest, testLayer } from '../helpers/effect.ts';
 
 const SELECT = 'select id, name, n8, amount, ok, data from t order by id';
@@ -77,9 +77,9 @@ describe('DrizzlePostgresClient layer', () => {
 		for (const s of statements) {
 			expect(s.kind).toBe('client');
 			expect(s.attributes.get('db.system.name')).toBe('postgresql');
-			expect(s.attributes.get('db.namespace')).toBe('testdb');
-			expect(s.attributes.get('server.address')).toBe('127.0.0.1');
-			expect(s.attributes.get('server.port')).toBe(54329);
+			expect(s.attributes.get('db.namespace')).toBe(TEST_CONFIG.database);
+			expect(s.attributes.get('server.address')).toBe(TEST_CONFIG.host);
+			expect(s.attributes.get('server.port')).toBe(TEST_CONFIG.port);
 			expect(s.attributes.get('driver')).toBe('drizzle-postgres');
 		}
 	});
@@ -102,5 +102,25 @@ describe('DrizzlePostgresClient layer', () => {
 		expect(Exit.isFailure(exit)).toBe(true);
 		const err = (exit as Exit.Failure<unknown, SqlError>).cause.reasons[0] as unknown as { error: SqlError };
 		expect(err.error.reason._tag).toBe('AuthenticationError');
+	});
+
+	// `ssl: true` means one thing in the async entry point (encrypt, don't verify: libpq's sslmode=require) and another
+	// here (verify-full, as in @effect/sql-pg). Against this server's self-signed certificate, the same setting must
+	// connect in both or fail in both; which one is a decision still to make.
+	test('ssl: true gives the same outcome as in the async entry point', async () => {
+		const asyncOutcome = await testConnect({ host: 'localhost', ssl: true }).then(
+			async (c) => {
+				await c.end();
+				return 'connected';
+			},
+			() => 'rejected',
+		);
+		const effectOutcome = await runTest(
+			Effect.gen(function*() {
+				yield* (yield* SqlClient)`select 1`;
+			}),
+			{ host: 'localhost', ssl: true },
+		).then(() => 'connected', () => 'rejected');
+		expect(effectOutcome).toBe(asyncOutcome);
 	});
 });

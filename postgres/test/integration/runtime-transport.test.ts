@@ -8,8 +8,9 @@ import net from 'node:net';
 import { Duplex } from 'node:stream';
 import type { CodegenCol } from '../../src/decode.ts';
 import { connect } from '../../src/index.ts';
+import { LOCAL_CONFIG } from '../helpers/db.ts';
 
-const CFG = { host: '127.0.0.1', port: 54329, user: 'postgres', password: 'postgres', database: 'testdb' };
+const CFG = LOCAL_CONFIG;
 let open: Array<Awaited<ReturnType<typeof connect>>> = [];
 afterEach(async () => {
 	for (const c of open) await c.end().catch(() => {});

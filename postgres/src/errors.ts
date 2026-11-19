@@ -81,3 +81,20 @@ export function parseErrorFields(body: Buffer): PgErrorFields {
 	}
 	return out;
 }
+
+const CONNECTION_LOST = Symbol.for('@drizzle-team/postgres/connectionLost');
+
+/** Marks `error` as a failure because the connection was lost: the query may or may not have run. */
+export function markConnectionLost<E>(error: E): E {
+	if (typeof error === 'object' && error !== null && !(CONNECTION_LOST in error)) {
+		try {
+			Object.defineProperty(error, CONNECTION_LOST, { value: true });
+		} catch { /* a frozen error stays unmarked */ }
+	}
+	return error;
+}
+
+/** Whether a query failed because its connection was lost, as {@link markConnectionLost} marks it. */
+export function isConnectionLost(error: unknown): boolean {
+	return typeof error === 'object' && error !== null && CONNECTION_LOST in error;
+}

@@ -1,6 +1,6 @@
 // SqlError reasons from the Effect entry point, triggered against the local cluster.
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { Cause, Effect, Exit, Redacted } from 'effect';
+import { Cause, Effect, Exit, Fiber, Redacted } from 'effect';
 import { SqlClient } from 'effect/sql/SqlClient';
 import type { SqlError } from 'effect/sql/SqlError';
 import { DrizzlePostgresClient } from '../../src/effect/index.ts';
@@ -148,6 +148,31 @@ describe('SqlError reasons', () => {
 				yield* Effect.promise(() => killer.query('select pg_terminate_backend($1)', [row![0]]).then(() => {}));
 				yield* conn.executeValues('select 1', []);
 			})));
+			expect(err.reason._tag).toBe('ConnectionError');
+			expect(err.isRetryable).toBe(true);
+		} finally {
+			await killer.end();
+		}
+	});
+
+	// A statement outside a transaction runs as a pool query, so the client never sees its connection: the driver
+	// marks the error instead.
+	test('a pool statement whose connection is lost is a retryable ConnectionError', async () => {
+		const killer = testPool();
+		const marker = `effect_lost_${process.pid}`;
+		try {
+			const err = await sqlError(Effect.gen(function*() {
+				const sql = yield* SqlClient;
+				const fiber = yield* Effect.forkChild(sql.unsafe(`select pg_sleep(2) as ${marker}`));
+				yield* Effect.sleep('200 millis');
+				yield* Effect.promise(() =>
+					killer.query(
+						'select pg_terminate_backend(pid) from pg_stat_activity where query like $1 and pid <> pg_backend_pid()',
+						[`%${marker}%`],
+					).then(() => {})
+				);
+				return yield* Fiber.join(fiber);
+			}));
 			expect(err.reason._tag).toBe('ConnectionError');
 			expect(err.isRetryable).toBe(true);
 		} finally {

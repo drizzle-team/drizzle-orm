@@ -1,7 +1,7 @@
 // Regression tests pinning the bug fixes found during test planning.
 // Requires a running cluster: `bun run test:setup`.
 import { describe, expect, test } from 'bun:test';
-import { caught, PgError, REMOTE, testConnect, testPool } from '../../helpers/db.ts';
+import { caught, PgError, PGLITE, REMOTE, testConnect, testPool } from '../../helpers/db.ts';
 
 describe('settlement / liveness invariants', () => {
 	test('a decoder throw rejects the query instead of crashing, and the connection recovers', async () => {
@@ -38,7 +38,7 @@ describe('security', () => {
 	});
 
 	// asserts the local fixture password literal — skip on a remote target (REMOTE) where it differs.
-	test.skipIf(REMOTE)('password is not enumerable on the connection config', async () => {
+	test.skipIf(REMOTE || PGLITE)('password is not enumerable on the connection config', async () => {
 		const c = await testConnect();
 		expect(Object.keys(c.cfg)).not.toContain('password'); // not enumerable
 		expect(JSON.stringify(c.cfg)).not.toContain('password'); // no "password" key in serialized form

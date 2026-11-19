@@ -126,9 +126,8 @@ import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect/neon-ws'
 const Database = DrizzlePostgresClient.layer({ url: Redacted.make(process.env.DATABASE_URL!) })
 ```
 
-PGlite's layer takes the instance and leaves it open when its scope closes. Its pool has one connection, and
-interrupting a statement closes that connection, because PGlite can't cancel one; see
-[PGlite](../../README.md#pglite) for the session rules:
+PGlite's layer takes the instance and leaves it open when its scope closes. Its pool has one connection, and an
+interrupted statement runs to the end, as on a server; see [PGlite](../../README.md#pglite) for the session rules:
 
 ```ts
 import { PGlite } from '@electric-sql/pglite'
@@ -304,6 +303,14 @@ const n = await Effect.runPromise(Effect.gen(function* () {
 console.log(n) // 1
 ```
 
+## How statements run
+
+Every statement makes the same pool call as in the async entry point. Outside a transaction it is a pool query,
+which shares a connection with other fibers' statements, pipelined. `withTransaction` is `pool.transaction`, and a
+nested one is a savepoint on the transaction's connection. Bulk calls, COPY and cursors are the pool's own
+`bulkInsert`, `copyFrom`, `cursor` and the rest. Streams, `copyTo`, `reserve` and `pipeline` check a connection out
+for themselves.
+
 ## Queries with Drizzle Postgres's options
 
 `client.query`, where `client` is the `DrizzlePostgresClient` service, runs one statement with Drizzle Postgres's own options: `mode` picks the row format, a
@@ -357,15 +364,15 @@ const program = Effect.gen(function* () {
 await Effect.runPromise(program.pipe(Effect.provide(Database)))
 ```
 
-Interrupting a statement cancels it on the server. In a Pipeline, only the statement at the head
-gets the cancel request. A statement that waits behind it still runs on the server and can
-commit, so do not rely on an interrupt to undo writes in a Pipeline. Inside a transaction, the
-interrupt rolls the whole transaction back.
+Interrupting a statement doesn't cancel it on the server. The Effect ends at once, as interrupted, and
+the statement runs to the end, its result dropped, as an abandoned Promise does in the async entry
+point. A write can still commit, so don't rely on an interrupt to undo one. Inside a transaction, the
+interrupt rolls the whole transaction back. Interrupting `copyFrom` ends its source, so the COPY fails
+and leaves no rows.
 
-A cancel request can arrive at the server after its statement has already ended. The request then
-stops the next statement in the Pipeline. The stopped statement fails with SQLSTATE 57014, and the
-server rolls it back. The error is a `StatementTimeoutError` whose `cause` is a `PgError` with
-`isLateCancel: true`, and you can run the statement again.
+If a statement in a transaction fails and its error is caught, Postgres rolls the transaction back
+at COMMIT. The transaction then fails with an `UnknownError` instead of returning its value, because
+nothing in it was saved.
 
 ## Bulk writes and json
 
