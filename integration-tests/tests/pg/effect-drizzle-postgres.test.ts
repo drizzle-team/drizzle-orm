@@ -1,6 +1,8 @@
+import { type BatchMetrics, createPool as createPostgresPool } from '@drizzle-team/postgres';
 import { assert, expect, expectTypeOf } from '@effect/vitest';
 import {
 	defineRelations,
+	eq,
 	ExtractTablesFromSchema,
 	RelationsBuilder,
 	RelationsBuilderConfig,
@@ -23,12 +25,14 @@ import {
 	timestamp,
 } from 'drizzle-orm/pg-core';
 import { DrizzlePostgresClient } from 'drizzle-orm/postgres/client/effect';
+import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
 import * as Redacted from 'effect/Redacted';
 import * as Result from 'effect/Result';
+import { SqlError } from 'effect/sql/SqlError';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { Client as PgPeerClient } from 'pg';
 import { randomString } from '~/utils';
@@ -243,6 +247,113 @@ runCommonEffectPgTests({
 					{ name: 'Before' },
 					{ name: 'After' },
 				]);
+			}));
+
+		it.effect('batch metrics: the response carries the batch telemetry', () =>
+			Effect.gen(function*() {
+				const db = yield* PostgresDrizzle.makeWithDefaults();
+				yield* createBulkUsers(db);
+
+				const insertUser = db.insert(bulkUsers)
+					.values({ id: sql.placeholder('id'), name: sql.placeholder('name') })
+					.prepare('edp_metrics_insert');
+				const getUser = db.select({ name: bulkUsers.name }).from(bulkUsers)
+					.where(eq(bulkUsers.id, sql.placeholder('id')))
+					.prepare('edp_metrics_get');
+				const run = (id: number, metrics: true | 'us') =>
+					db.batch([insertUser.bind({ id, name: `user ${id}` }), getUser.bind({ id })], { metrics });
+
+				const first = yield* run(1, true);
+				expectTypeOf(first.metrics).toEqualTypeOf<BatchMetrics>();
+				expect([...first]).toMatchObject([{ rowCount: 1 }, [{ name: 'user 1' }]]);
+				// BEGIN, the two queries and COMMIT, pipelined in one round trip
+				expect(first.metrics).toMatchObject({ unit: 'ms', statements: 4, roundTrips: 1, parsed: 2, reused: 0 });
+				expect(first.metrics.queries.map((m) => m.statementName)).toEqual(['edp_metrics_insert', 'edp_metrics_get']);
+
+				// the same connection already holds both statements: no Parse, just Bind and Execute
+				const again = yield* run(2, 'us');
+				expect([...again]).toMatchObject([{ rowCount: 1 }, [{ name: 'user 2' }]]);
+				expect(again.metrics).toMatchObject({ unit: 'us', statements: 4, roundTrips: 1, parsed: 0, reused: 2 });
+
+				// builders stay unnamed, and the options still apply
+				const builders = yield* db.batch([db.select().from(bulkUsers), db.$count(bulkUsers)], {
+					metrics: 'ms',
+					readOnly: true,
+				});
+				expect(builders[1]).toBe(2);
+				expect(builders.metrics).toMatchObject({ unit: 'ms', statements: 4, roundTrips: 1, unnamed: 2 });
+
+				// without metrics the response is the plain tuple
+				const plain = yield* db.batch([db.select().from(bulkUsers)]);
+				expect('metrics' in plain).toBe(false);
+			}));
+
+		it.effect('batch: an error of no query fails it with a SqlError', () =>
+			Effect.gen(function*() {
+				const db = yield* PostgresDrizzle.makeWithDefaults();
+				const deferred = pgSchema(usedSchema).table('deferred_users', { id: integer().notNull() });
+				yield* db.execute(
+					sql`create table ${deferred} (id integer not null, constraint deferred_users_id unique (id) deferrable initially deferred)`,
+				);
+
+				// the duplicate is only caught at COMMIT, which belongs to no query
+				const atCommit = yield* Effect.flip(db.batch([
+					db.insert(deferred).values({ id: 1 }),
+					db.insert(deferred).values({ id: 1 }),
+				]));
+				assert(Predicate.isTagged(atCommit, 'SqlError'));
+				expect(errorMessages(atCommit)).toContain('deferred_users_id');
+				expect(yield* db.select().from(deferred)).toStrictEqual([]);
+
+				// and so is the snapshot import
+				const atSnapshot = yield* Effect.flip(db.batch([db.select().from(deferred)], {
+					isolation: 'repeatable read',
+					snapshot: '00000003-0000001B-1',
+				}));
+				assert(Predicate.isTagged(atSnapshot, 'SqlError'));
+				expect(errorMessages(atSnapshot)).toMatch(/snapshot .* does not exist/);
+			}));
+
+		it.effect('batch and pipeline: a query error carries a SqlError, as the query run on its own does', () =>
+			Effect.gen(function*() {
+				const db = yield* PostgresDrizzle.makeWithDefaults();
+				yield* createBulkUsers(db);
+				yield* db.insert(bulkUsers).values({ id: 1, name: 'John' });
+
+				const failing = () => db.insert(bulkUsers).values({ id: 1, name: 'Duplicate' });
+				/** The driver's error a query's error carries */
+				const reasonOf = (error: unknown): SqlError => {
+					assert(Predicate.isTagged(error, 'EffectDrizzleQueryError'));
+					const { cause } = error as EffectDrizzleQueryError;
+					assert(Cause.isCause(cause));
+					const reason = cause.reasons[0];
+					assert(reason !== undefined && Cause.isFailReason(reason) && reason.error instanceof SqlError);
+					return reason.error;
+				};
+
+				const alone = reasonOf(yield* Effect.flip(failing()));
+				const batched = reasonOf(yield* Effect.flip(db.batch([failing()])));
+				const [piped] = yield* db.pipeline([failing()]);
+				assert(Result.isFailure(piped));
+
+				for (const reason of [batched, reasonOf(piped.failure)]) {
+					expect(reason.reason._tag).toBe(alone.reason._tag);
+					expect((reason.reason.cause as { code?: string }).code).toBe('23505');
+				}
+			}));
+
+		it.effect('pipeline: no connection to run on fails it with a SqlError', () =>
+			Effect.gen(function*() {
+				const pool = createPostgresPool({ url: Redacted.value(connectionStr) });
+				const db = yield* PostgresDrizzle.makeWithDefaults().pipe(
+					Effect.provide(DrizzlePostgresClient.layerFromPool(pool)),
+				);
+				// the layer has connected: the pool has nothing to run on from here
+				yield* Effect.promise(() => pool.end());
+
+				const error = yield* Effect.flip(db.pipeline([db.select().from(bulkUsers)]));
+				assert(Predicate.isTagged(error, 'SqlError'));
+				expect(error.reason._tag).toBe('ConnectionError');
 			}));
 
 		it.effect('pipeline commits each query on its own', () =>

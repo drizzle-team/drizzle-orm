@@ -176,9 +176,13 @@
 		"node": ">=22.12"
 	},
 	"peerDependencies": {
-		"effect": "^4.1.3"
+		"@electric-sql/pglite": ">=0.3.0",
+		"effect": ">=4.1.3"
 	},
 	"peerDependenciesMeta": {
+		"@electric-sql/pglite": {
+			"optional": true
+		},
 		"effect": {
 			"optional": true
 		}

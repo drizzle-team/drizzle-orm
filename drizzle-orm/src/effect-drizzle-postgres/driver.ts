@@ -49,14 +49,20 @@ export class EffectPostgresDatabase<TRelations extends AnyRelations = EmptyRelat
 	 * Runs multiple queries at once in a transaction, as the async driver's `batch` does: one round trip on one pooled
 	 * connection
 	 *
-	 * A failing query fails the batch with it's error and rolls back the entire batch
+	 * A failing query fails the batch with it's `EffectDrizzleQueryError` and rolls back the entire batch. An error of
+	 * no query - a failed connection, the snapshot import, a deferred constraint at COMMIT - fails it with an `SqlError`
 	 *
 	 * Takes query builders, prepared queries, and prepared queries with bound placeholder values. Prepared items run
 	 * under their statement name, so they are parsed once per connection:
 	 *
 	 * ```ts
 	 * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
-	 * const [alice, bob] = yield* db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
+	 * const [alice, bob, inserted, allUsers] = yield* db.batch([
+	 *   getUser.bind({ id: 1 }),
+	 *   getUser.bind({ id: 2 }),
+	 *   db.insert(users).values({ name: 'John' }).returning(),
+	 *   db.select().from(users),
+	 * ]);
 	 * ```
 	 *
 	 * With `metrics` on, the response also carries the driver's telemetry for the batch as `response.metrics`.
@@ -64,16 +70,19 @@ export class EffectPostgresDatabase<TRelations extends AnyRelations = EmptyRelat
 	batch<U extends EffectPostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
 		options: PostgresBatchOptions & { metrics: true | 'ms' | 'us' },
-	): Effect.Effect<EffectPostgresBatchResponseWithMetrics<T>, EffectDrizzleQueryError>;
+	): Effect.Effect<EffectPostgresBatchResponseWithMetrics<T>, EffectDrizzleQueryError | SqlError>;
 	batch<U extends EffectPostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
 		options?: PostgresBatchOptions,
-	): Effect.Effect<EffectPostgresBatchResponse<T>, EffectDrizzleQueryError>;
+	): Effect.Effect<EffectPostgresBatchResponse<T>, EffectDrizzleQueryError | SqlError>;
 	batch<U extends EffectPostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
 		options?: PostgresBatchOptions,
-	): Effect.Effect<EffectPostgresBatchResponse<T>, EffectDrizzleQueryError> {
-		return this.session.batch(batch, options) as Effect.Effect<EffectPostgresBatchResponse<T>, EffectDrizzleQueryError>;
+	): Effect.Effect<EffectPostgresBatchResponse<T>, EffectDrizzleQueryError | SqlError> {
+		return this.session.batch(batch, options) as Effect.Effect<
+			EffectPostgresBatchResponse<T>,
+			EffectDrizzleQueryError | SqlError
+		>;
 	}
 
 	/**
@@ -81,12 +90,25 @@ export class EffectPostgresDatabase<TRelations extends AnyRelations = EmptyRelat
 	 * `pipeline` does
 	 *
 	 * Never fails because of a failing query: one Result per query, in input order. A failing query does not stop or
-	 * roll back the others
+	 * roll back the others. Fails with an `SqlError` when there is no connection to run them on
+	 *
+	 * Takes the same items as `batch`:
+	 *
+	 * ```ts
+	 * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
+	 * const [alice, bob, inserted, allUsers] = yield* db.pipeline([
+	 *   getUser.bind({ id: 1 }),
+	 *   getUser.bind({ id: 2 }),
+	 *   db.insert(users).values({ name: 'John' }).returning(),
+	 *   db.select().from(users),
+	 * ]);
+	 * // each is a `Result`: `Result.isSuccess(alice) ? alice.success : alice.failure`
+	 * ```
 	 */
 	pipeline<U extends EffectPostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
-	): Effect.Effect<EffectPostgresPipelineResponse<T>> {
-		return this.session.pipeline(batch) as Effect.Effect<EffectPostgresPipelineResponse<T>>;
+	): Effect.Effect<EffectPostgresPipelineResponse<T>, SqlError> {
+		return this.session.pipeline(batch) as Effect.Effect<EffectPostgresPipelineResponse<T>, SqlError>;
 	}
 
 	/**

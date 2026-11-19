@@ -1,10 +1,11 @@
 // Result types of the Drizzle Postgres connectors' own methods: batch and pipeline on the async connector
 // (drizzle-orm/postgres), batch, pipeline and the bulk writes on the Effect one (drizzle-orm/effect-drizzle-postgres), and
 // the Effect Aurora and HTTP branches (drizzle-orm/effect-drizzle-postgres/aurora, drizzle-orm/effect-drizzle-postgres/http).
-import type { BatchMetrics } from '#postgres';
+import type { BatchMetrics, Pool } from '#postgres';
 import { DrizzleAuroraClient } from '#postgres/effect/aurora';
 import type { DrizzlePostgresClient } from '#postgres/effect/core';
 import { DrizzlePostgresHttpClient } from '#postgres/effect/http';
+import { createPool as createPglitePool, type PGliteLike } from '#postgres/pglite';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import type * as Result from 'effect/Result';
@@ -19,7 +20,11 @@ import * as PostgresNeonHttpDrizzle from '~/effect-drizzle-postgres/http/neon.ts
 import type { EffectPostgresDatabase } from '~/effect-drizzle-postgres/index.ts';
 import { drizzle as drizzleNeonHttp } from '~/neon-http/index.ts';
 import { integer, pgTable, text } from '~/pg-core/index.ts';
+import { drizzle as drizzlePostgresCf } from '~/postgres/cf.ts';
+import { drizzle as drizzlePostgresDeno } from '~/postgres/deno.ts';
 import { drizzle, type PostgresBulkResult } from '~/postgres/index.ts';
+import { drizzle as drizzlePostgresNeonWs } from '~/postgres/neon-ws.ts';
+import { drizzle as drizzlePostgresPglite } from '~/postgres/pglite.ts';
 import { eq } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 
@@ -67,16 +72,65 @@ async function asyncConnector() {
 	Expect<Equal<typeof bound[0], typeof executed>>;
 	Expect<MutuallyAssignable<typeof bound, [{ name: string }[], { name: string }[]]>>;
 
-	// With metrics, the tuple also carries the batch's telemetry
+	// With metrics, the tuple also carries the batch's telemetry, in any unit and with any items
 	const measured = await db.batch([db.select().from(items)], { metrics: true });
 	Expect<Equal<typeof measured[0], Item[]>>;
 	Expect<Equal<typeof measured.metrics, BatchMetrics>>;
+	const inMs = await db.batch([getItem.bind({ id: 1 }), db.$count(items)], {
+		metrics: 'ms',
+		isolation: 'serializable',
+	});
+	Expect<Equal<typeof inMs[0], { name: string }[]>>;
+	Expect<Equal<typeof inMs[1], number>>;
+	Expect<Equal<typeof inMs.metrics, BatchMetrics>>;
+	const inUs = await db.batch([getItem], { metrics: 'us' });
+	Expect<Equal<typeof inUs.metrics, BatchMetrics>>;
+	// without it (or with it off) the response is the plain tuple
+	Expect<Equal<'metrics' extends keyof typeof batched ? true : false, false>>;
+	const off = await db.batch([db.select().from(items)], { metrics: false });
+	Expect<Equal<'metrics' extends keyof typeof off ? true : false, false>>;
+
+	// Every wire entry point is the same database: metrics come with all of them
+	for (
+		const wire of [
+			drizzlePostgresNeonWs.mock(),
+			drizzlePostgresCf.mock(),
+			drizzlePostgresDeno.mock(),
+			drizzlePostgresPglite.mock(),
+		]
+	) {
+		const wireMeasured = await wire.batch([wire.select().from(items)], { metrics: true });
+		Expect<Equal<typeof wireMeasured[0], Item[]>>;
+		Expect<Equal<typeof wireMeasured.metrics, BatchMetrics>>;
+	}
 
 	// pipeline: each statement's outcome, settled
 	const piped = await db.pipeline([db.select().from(items), db.delete(items).returning({ id: items.id })]);
 	Expect<Equal<typeof piped, [SettledQueryResult<Item[]>, SettledQueryResult<{ id: number }[]>]>>;
 }
 asyncConnector;
+
+// ---- PGlite wire connector ----
+
+declare const pg: PGliteLike;
+
+{
+	// on an instance of it's own (in memory, a data directory, PGlite's options) or the caller's: a pool on it
+	const inMemory = drizzlePostgresPglite();
+	Expect<Equal<typeof inMemory.$client, Pool>>;
+	drizzlePostgresPglite('memory://');
+	drizzlePostgresPglite('./data', { logger: true });
+	drizzlePostgresPglite({ connection: { dataDir: 'memory://', debug: 1 } });
+	const onInstance = drizzlePostgresPglite({ connection: pg });
+	Expect<Equal<typeof onInstance.$client, Pool>>;
+
+	// the caller's pool, kept as $client
+	const ownPool = drizzlePostgresPglite({ client: createPglitePool(pg, { prepare: false }) });
+	Expect<Equal<typeof ownPool.$client, Pool>>;
+
+	// @ts-expect-error - a PGlite instance is a `connection`, not a `client`
+	drizzlePostgresPglite({ client: pg });
+}
 
 // ---- Effect connector ----
 
@@ -94,6 +148,26 @@ declare const edb: EffectPostgresDatabase;
 			Effect.Effect<[Item[], { id: number }[]], EffectDrizzleQueryError | SqlError, never>
 		>
 	>;
+
+	// batch with `metrics`: the results carry the driver's telemetry for the batch, in any unit
+	const measured = edb.batch([edb.select().from(items)], { metrics: true });
+	Expect<
+		Equal<
+			typeof measured,
+			Effect.Effect<[Item[]] & { metrics: BatchMetrics }, EffectDrizzleQueryError | SqlError, never>
+		>
+	>;
+	const inMs = edb.batch([edb.$count(items)], { metrics: 'ms', isolation: 'serializable' });
+	Expect<
+		Equal<typeof inMs, Effect.Effect<[number] & { metrics: BatchMetrics }, EffectDrizzleQueryError | SqlError, never>>
+	>;
+	const inUs = edb.batch([edb.select().from(items)], { metrics: 'us' });
+	Expect<
+		Equal<typeof inUs, Effect.Effect<[Item[]] & { metrics: BatchMetrics }, EffectDrizzleQueryError | SqlError, never>>
+	>;
+	// with it off, the plain tuple
+	const off = edb.batch([edb.select().from(items)], { metrics: false });
+	Expect<Equal<typeof off, Effect.Effect<[Item[]], EffectDrizzleQueryError | SqlError, never>>>;
 
 	// pipeline: one connection, no transaction; each query settles on it's own
 	const piped = edb.pipeline([edb.select().from(items), edb.delete(items).returning({ id: items.id })]);
@@ -135,6 +209,13 @@ declare const edb: EffectPostgresDatabase;
 	// prepared queries, and prepared queries with bound placeholder values, run under their statement name
 	const byId = edb.select().from(items).where(eq(items.id, sql.placeholder('id'))).prepare('by_id');
 	const counted = edb.batch([byId.bind({ id: 1 }), byId, edb.$count(items)]);
+	const countedMeasured = edb.batch([byId.bind({ id: 1 }), byId], { metrics: true });
+	Expect<
+		Equal<
+			typeof countedMeasured,
+			Effect.Effect<[Item[], Item[]] & { metrics: BatchMetrics }, EffectDrizzleQueryError | SqlError, never>
+		>
+	>;
 	Expect<Equal<typeof counted, Effect.Effect<[Item[], Item[], number], EffectDrizzleQueryError | SqlError, never>>>;
 
 	const settled = edb.pipeline([byId.bind({ id: 2 })]);

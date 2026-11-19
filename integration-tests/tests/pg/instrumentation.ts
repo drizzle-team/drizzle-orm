@@ -6,6 +6,7 @@ import { createPool as createAuroraClient } from '@drizzle-team/postgres/aurora'
 import { client as createHttpClient } from '@drizzle-team/postgres/http';
 import { createPool as createPostgresNeonHttpClient } from '@drizzle-team/postgres/neon-http';
 import { createPool as createPostgresNeonWsPool } from '@drizzle-team/postgres/neon-ws';
+import { createPool as createPostgresPglitePool } from '@drizzle-team/postgres/pglite';
 import { createProvider, requireEnv } from '@drizzle/test-utils';
 import { PGlite } from '@electric-sql/pglite';
 import {
@@ -43,6 +44,7 @@ import { drizzle as drizzleAurora } from 'drizzle-orm/postgres/aurora';
 import { drizzle as drizzleHttp } from 'drizzle-orm/postgres/http';
 import { drizzle as drizzlePostgresNeonHttp } from 'drizzle-orm/postgres/http/neon';
 import { drizzle as drizzlePostgresNeonWs } from 'drizzle-orm/postgres/neon-ws';
+import { drizzle as drizzlePostgresPglite } from 'drizzle-orm/postgres/pglite';
 import { Client as ClientNodePostgres } from 'pg';
 import postgres from 'postgres';
 import { test as base } from 'vitest';
@@ -415,6 +417,23 @@ export const preparePglite = async () => {
 	return { client, query, batch, database: undefined };
 };
 
+/** The Drizzle Postgres pool on an in-process PGlite: UTC as a startup setting, so a reset session keeps it */
+export const preparePostgresPglite = async () => {
+	const client = createPostgresPglitePool(new PGlite(), { options: '-c TimeZone=UTC' });
+	await client.query('create schema "mySchema";');
+
+	const query = async (sql: string, params: any[] = []) => {
+		const res = await client.query(sql, params);
+		return res.rows as any[];
+	};
+
+	const batch = async (statements: string[]) => {
+		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
+	};
+
+	return { client, query, batch, database: undefined };
+};
+
 export const prepareNodePostgres = async (db: string) => {
 	const url = new URL(process.env['PG_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
@@ -604,7 +623,7 @@ export interface SnapshotPeer {
 }
 
 const openPeer = async (vendor: Vendor, database: string | undefined): Promise<SnapshotPeer | undefined> => {
-	if (vendor === 'pglite' || database === undefined) return undefined;
+	if (vendor === 'pglite' || vendor === 'postgres-pglite' || database === undefined) return undefined;
 
 	const hosted = vendor === 'neon-serverless' || vendor === 'netlify-db' || vendor === 'postgres-neon-ws'
 		|| vendor === 'postgres-neon-http';
@@ -648,6 +667,7 @@ type Vendor =
 	| 'neon-http'
 	| 'neon-serverless'
 	| 'pglite'
+	| 'postgres-pglite'
 	| 'node-postgres'
 	| 'postgres'
 	| 'postgresjs'
@@ -679,6 +699,18 @@ export const provideForPglite = async () => {
 		await preparePglite(),
 		await preparePglite(),
 		await preparePglite(),
+	];
+
+	return createProvider(clients);
+};
+
+export const provideForPostgresPglite = async () => {
+	const clients = [
+		await preparePostgresPglite(),
+		await preparePostgresPglite(),
+		await preparePostgresPglite(),
+		await preparePostgresPglite(),
+		await preparePostgresPglite(),
 	];
 
 	return createProvider(clients);
@@ -801,6 +833,7 @@ type ProviderPostgresNeonHttp = Awaited<ReturnType<typeof provideForPostgresNeon
 type ProviderNeonHttp = Awaited<ReturnType<typeof providerForNeonHttp>>;
 type ProviderNeonWs = Awaited<ReturnType<typeof providerForNeonWs>>;
 type ProvideForPglite = Awaited<ReturnType<typeof provideForPglite>>;
+type ProvideForPostgresPglite = Awaited<ReturnType<typeof provideForPostgresPglite>>;
 type ProvideForNodePostgres = Awaited<ReturnType<typeof provideForNodePostgres>>;
 type ProvideForPostgres = Awaited<ReturnType<typeof provideForPostgres>>;
 type ProvideForPostgresjs = Awaited<ReturnType<typeof provideForPostgresjs>>;
@@ -816,6 +849,7 @@ type Provider =
 	| ProviderNeonHttp
 	| ProviderNeonWs
 	| ProvideForPglite
+	| ProvideForPostgresPglite
 	| ProvideForNodePostgres
 	| ProvideForPostgres
 	| ProvideForPostgresjs
@@ -866,6 +900,8 @@ const testFor = (vendor: Vendor) => {
 					? await providerForNeonWs()
 					: vendor === 'pglite'
 					? await provideForPglite()
+					: vendor === 'postgres-pglite'
+					? await provideForPostgresPglite()
 					: vendor === 'node-postgres'
 					? await provideForNodePostgres()
 					: vendor === 'postgres'
@@ -948,6 +984,8 @@ const testFor = (vendor: Vendor) => {
 					? drizzleNeonWs({ client: kit.client as any, relations })
 					: vendor === 'pglite'
 					? drizzlePglite({ client: kit.client as any, relations })
+					: vendor === 'postgres-pglite'
+					? drizzlePostgresPglite({ client: kit.client as any, relations })
 					: vendor === 'node-postgres'
 					? drizzleNodePostgres({ client: kit.client as any, relations })
 					: vendor === 'postgres'
@@ -1027,6 +1065,14 @@ const testFor = (vendor: Vendor) => {
 					if (vendor === 'pglite') {
 						return drizzlePglite({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
 					}
+					if (vendor === 'postgres-pglite') {
+						return drizzlePostgresPglite({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+						});
+					}
 					if (vendor === 'node-postgres') {
 						return drizzleNodePostgres({
 							client: kit.client as any,
@@ -1095,6 +1141,7 @@ export const neonHttpTest = testFor('neon-http').extend<{ neonhttp: NeonHttpData
 
 export const neonWsTest = testFor('neon-serverless');
 export const pgliteTest = testFor('pglite');
+export const postgresPgliteTest = testFor('postgres-pglite');
 export const nodePostgresTest = testFor('node-postgres');
 export const postgresTest = testFor('postgres');
 export const postgresHttpTest = testFor('http');

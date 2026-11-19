@@ -1,7 +1,7 @@
 // drizzle-orm/effect-drizzle-postgres/http/neon over Neon's SQL-over-HTTP endpoint (NEON_CONNECTION_STRING: real Neon,
 // or the local proxy CI runs). HTTP holds no session, so every statement is a request of it's own: there are no
 // interactive transactions, and session settings do not stick. The tests run concurrently, each on a database of the
-// pool with every schema recreated.
+// pool with `public` recreated (every schema is reset once, when the pool is prepared).
 import { createProvider } from '@drizzle/test-utils';
 import { assert, expect, expectTypeOf, it } from '@effect/vitest';
 import {
@@ -39,7 +39,13 @@ import {
 	boundsRelations,
 	boundsSchema,
 } from './all-types';
-import { neonPoolDatabases, preparePostgresNeonHttpClient, resetSchemas } from './instrumentation';
+import {
+	DB as CommonDB,
+	pushStatements as push,
+	relations as commonRelations,
+	runCommonEffectPgTests,
+} from './effect-common';
+import { neonPoolDatabases, preparePostgresNeonHttpClient } from './instrumentation';
 import { usersMigratorTable } from './schema';
 
 /**
@@ -73,18 +79,8 @@ const createDB = <
 >(
 	schema: TSchema,
 	relationsOf: (helpers: RelationsBuilder<TTables>) => TConfig,
-) => PostgresNeonHttpDrizzle.makeWithDefaults({ relations: defineRelations(schema, relationsOf) });
-
-let _diff!: (_: {}, schema: Record<string, unknown>, renames: []) => Promise<{ sqlStatements: string[] }>;
-const getDiff = async () => _diff ??= (await import('../../../drizzle-kit/tests/postgres/mocks' as string)).diff;
-
-/** Creates the schema's entities one statement at a time: HTTP runs no interactive transaction to group them in */
-const push = (db: PostgresNeonHttpDrizzle.EffectPostgresNeonHttpDatabase<any>, schema: Record<string, unknown>) =>
-	Effect.gen(function*() {
-		const diff = yield* Effect.promise(() => getDiff());
-		const { sqlStatements } = yield* Effect.promise(() => diff({}, schema, []));
-		for (const statement of sqlStatements) yield* db.execute(statement);
-	});
+	useJitMappers?: boolean,
+) => PostgresNeonHttpDrizzle.makeWithDefaults({ relations: defineRelations(schema, relationsOf), jit: useJitMappers });
 
 /** The messages along an error's `reason` / `cause` chain */
 const errorMessages = (error: unknown): string => {
@@ -123,6 +119,8 @@ class DBTag extends Context.Service<DBTag, PostgresNeonHttpDrizzle.EffectPostgre
 
 interface Database {
 	readonly db: PostgresNeonHttpDrizzle.EffectPostgresNeonHttpDatabase<typeof relations>;
+	/** The database with the relations of the common suite */
+	readonly commonDb: PostgresNeonHttpDrizzle.EffectPostgresNeonHttpDatabase<typeof commonRelations>;
 	readonly client: DrizzlePostgresHttpClient.DrizzlePostgresHttpClient;
 }
 
@@ -133,12 +131,13 @@ const provideDatabase = () =>
 		const prepared: Database[] = [];
 		for (const name of DATABASES) {
 			const client = DrizzlePostgresHttpClient.fromClient((await preparePostgresNeonHttpClient(name)).client);
-			const db = await Effect.runPromise(
-				PostgresNeonHttpDrizzle.makeWithDefaults({ relations }).pipe(
-					Effect.provideService(DrizzlePostgresHttpClient.DrizzlePostgresHttpClient, client),
-				),
+			const [db, commonDb] = await Effect.runPromise(
+				Effect.all([
+					PostgresNeonHttpDrizzle.makeWithDefaults({ relations }),
+					PostgresNeonHttpDrizzle.makeWithDefaults({ relations: commonRelations }),
+				]).pipe(Effect.provideService(DrizzlePostgresHttpClient.DrizzlePostgresHttpClient, client)),
 			);
-			prepared.push({ db, client });
+			prepared.push({ db, commonDb, client });
 		}
 		return createProvider(prepared);
 	})();
@@ -153,240 +152,266 @@ beforeAll(async () => {
 	await provideDatabase();
 }, 180_000);
 
-describe.concurrent('effect-drizzle-postgres/http/neon', () => {
-	/** Runs a test on a database of it's own, with recreated schemas */
-	const test = (
-		name: string,
-		body: () => Effect.Effect<unknown, unknown, DBTag | DrizzlePostgresHttpClient.DrizzlePostgresHttpClient>,
-	) =>
-		it.effect(name, () =>
-			Effect.scoped(Effect.gen(function*() {
-				const { db, client } = yield* database;
+runCommonEffectPgTests<DBTag | DrizzlePostgresHttpClient.DrizzlePostgresHttpClient>({
+	// Each test on a database of the pool
+	provideTest: (test) =>
+		Effect.scoped(Effect.gen(function*() {
+			const { db, commonDb, client } = yield* database;
+			return yield* test.pipe(
+				Effect.provideService(CommonDB, commonDb),
+				Effect.provideService(DBTag, db),
+				Effect.provideService(DrizzlePostgresHttpClient.DrizzlePostgresHttpClient, client),
+			);
+		})),
+	PgDrizzle: PostgresNeonHttpDrizzle,
+	createDB,
+	usedSchema: 'public',
+	push,
+	// No interactive transactions, and no session to set a time zone in
+	skipTests: [
+		'transaction',
+		'transaction rollback',
+		'nested transaction',
+		'nested transaction rollback',
+		'transaction with an empty options object',
+		'transaction with options (accessMode read only)',
+		'transaction with options (deferrable)',
+		'transaction with options (set isolationLevel)',
+		'transaction snapshot: does not let the id inject SQL',
+		'transaction snapshot: rejects a malformed id',
+		'transaction: an interrupt in the body rolls back, and the database stays usable',
+		'transaction: the body runs in the caller fiber and sees its services',
+		'Query error params - transaction',
+		'RQB v2 one shape run again with other values',
+		'RQB v2 transaction find first - no rows',
+		'RQB v2 transaction find first - multiple rows',
+		'RQB v2 transaction find first - with relation',
+		'RQB v2 transaction find first - placeholders',
+		'RQB v2 transaction find many - no rows',
+		'RQB v2 transaction find many - multiple rows',
+		'RQB v2 transaction find many - with relation',
+		'RQB v2 transaction find many - placeholders',
+		'time zones are preserved - non-UTC session',
+		// The driver decodes values through the shape, so raw rows without one do not match the codec normalization
+		'all types ~codecs~',
+	],
+	addTests: (it) => {
+		const pushUsers = Effect.gen(function*() {
+			const db = yield* DBTag;
+			yield* push(db, { usersTable, postsTable });
+			return db;
+		});
+
+		it.effect('raw db.execute type matches returned data', () =>
+			Effect.gen(function*() {
+				const db = yield* DBTag;
+				const table = sql.identifier('raw_execute_types');
+
+				const created = yield* db.execute<never>(
+					sql`create table ${table} ("id" integer primary key, "name" text not null)`,
+				);
+				expectTypeOf(created).toEqualTypeOf<
+					{ rows: never[]; columns: string[]; command: string | null; rowCount: number | null }
+				>();
+				expect(created).toEqual(expect.objectContaining({ rows: [], command: expect.any(String) }));
+
+				const inserted = yield* db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+				expect(inserted).toEqual(expect.objectContaining({ rows: [], rowCount: 1 }));
+
+				const selected = yield* db.execute<{ id: number; name: string }>(
+					sql`select "id", "name" from ${table} order by "id"`,
+				);
+				expect(selected).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }], columns: ['id', 'name'] }));
+			}));
+
+		it.effect('interactive transactions are rejected', () =>
+			Effect.gen(function*() {
+				const db = yield* DBTag;
+				const exit = yield* Effect.exit(db.transaction(() => Effect.void));
+
+				assert(Exit.isFailure(exit));
+				expect(String(exit.cause)).toMatch(/No interactive transactions/);
+			}));
+
+		it.effect('backend errors keep their SQLSTATE across the HTTP hop', () =>
+			Effect.gen(function*() {
+				const db = yield* DBTag;
+				const error = yield* Effect.flip(db.execute(sql`select * from definitely_not_a_table`));
+
+				expect(error._tag).toBe('EffectDrizzleQueryError');
+				expect(errorMessages(error)).toMatch(/does not exist/i);
+				expect(sqlState(error)).toBe('42P01');
+			}));
+
+		it.effect('the gateway database rejects a Neon client', () =>
+			Effect.gen(function*() {
+				const exit = yield* Effect.exit(PostgresHttpDrizzle.makeWithDefaults());
+
+				assert(Exit.isFailure(exit));
+				expect(String(exit.cause)).toContain(
+					'`drizzle-orm/effect-drizzle-postgres/http` needs a gateway `DrizzlePostgresHttpClient`, but got a Neon HTTP one',
+				);
+			}));
+
+		// Can't test shapes via generic codecs test
+		it.effect('all types ~shapes~', () =>
+			Effect.gen(function*() {
+				const db = yield* createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+					...allTypesRelations(r),
+					...boundsRelations(r),
+				}));
+				yield* push(db, { en: allTypesEnum, allTypesTable });
+				yield* db.insert(allTypesTable).values(allTypesData);
+
+				const [flat] = yield* db.select().from(allTypesTable);
+				expect(flat).toStrictEqual(allTypesData);
+
+				const nested = yield* db.query.allTypesTable.findFirst({ with: { self: true } });
+				expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
+
 				const context = yield* Effect.context<never>();
-				yield* Effect.promise(() =>
-					resetSchemas((statement) => Effect.runPromiseWith(context)(db.execute(statement)).then((r) => r.rows))
-				);
-				yield* body().pipe(
-					Effect.provideService(DBTag, db),
-					Effect.provideService(DrizzlePostgresHttpClient.DrizzlePostgresHttpClient, client),
-				);
-			})), 60_000);
-
-	const pushUsers = Effect.gen(function*() {
-		const db = yield* DBTag;
-		yield* push(db, { usersTable, postsTable });
-		return db;
-	});
-
-	test('raw db.execute type matches returned data', () =>
-		Effect.gen(function*() {
-			const db = yield* DBTag;
-			const table = sql.identifier('raw_execute_types');
-
-			const created = yield* db.execute<never>(
-				sql`create table ${table} ("id" integer primary key, "name" text not null)`,
-			);
-			expectTypeOf(created).toEqualTypeOf<
-				{ rows: never[]; columns: string[]; command: string | null; rowCount: number | null }
-			>();
-			expect(created).toEqual(expect.objectContaining({ rows: [], command: expect.any(String) }));
-
-			const inserted = yield* db.execute<never>(sql`insert into ${table} values (1, 'John')`);
-			expect(inserted).toEqual(expect.objectContaining({ rows: [], rowCount: 1 }));
-
-			const selected = yield* db.execute<{ id: number; name: string }>(
-				sql`select "id", "name" from ${table} order by "id"`,
-			);
-			expect(selected).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }], columns: ['id', 'name'] }));
-		}));
-
-	test('interactive transactions are rejected', () =>
-		Effect.gen(function*() {
-			const db = yield* DBTag;
-			const exit = yield* Effect.exit(db.transaction(() => Effect.void));
-
-			assert(Exit.isFailure(exit));
-			expect(String(exit.cause)).toMatch(/No interactive transactions/);
-		}));
-
-	test('backend errors keep their SQLSTATE across the HTTP hop', () =>
-		Effect.gen(function*() {
-			const db = yield* DBTag;
-			const error = yield* Effect.flip(db.execute(sql`select * from definitely_not_a_table`));
-
-			expect(error._tag).toBe('EffectDrizzleQueryError');
-			expect(errorMessages(error)).toMatch(/does not exist/i);
-			expect(sqlState(error)).toBe('42P01');
-		}));
-
-	test('the gateway database rejects a Neon client', () =>
-		Effect.gen(function*() {
-			const exit = yield* Effect.exit(PostgresHttpDrizzle.makeWithDefaults());
-
-			assert(Exit.isFailure(exit));
-			expect(String(exit.cause)).toContain(
-				'`drizzle-orm/effect-drizzle-postgres/http` needs a gateway `DrizzlePostgresHttpClient`, but got a Neon HTTP one',
-			);
-		}));
-
-	// Can't test shapes via generic codecs test
-	test('all types ~shapes~', () =>
-		Effect.gen(function*() {
-			const db = yield* createDB({ allTypesTable, ...boundsSchema }, (r) => ({
-				...allTypesRelations(r),
-				...boundsRelations(r),
+				const run = (query: any) => Effect.runPromiseWith(context)(query);
+				const asyncDb = db as any;
+				yield* Effect.promise(() => assertAllTypesUnions(asyncDb, allTypesTable, run));
+				yield* Effect.promise(() => assertAllTypesBounds(asyncDb, { run, rqb: true }));
+				yield* Effect.promise(() => assertAllTypesNullArrayElements(asyncDb, { run, rqb: true }));
+				yield* Effect.promise(() => assertAllTypesTemporalBounds(asyncDb, { run, rqb: true }));
+				yield* Effect.promise(() => assertAllTypesEmptyArrays(asyncDb, allTypesTable, { run, rqb: true }));
 			}));
-			yield* push(db, { en: allTypesEnum, allTypesTable });
-			yield* db.insert(allTypesTable).values(allTypesData);
 
-			const [flat] = yield* db.select().from(allTypesTable);
-			expect(flat).toStrictEqual(allTypesData);
+		// ---- batch ----
 
-			const nested = yield* db.query.allTypesTable.findFirst({ with: { self: true } });
-			expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
+		it.effect('batch api example', () =>
+			Effect.gen(function*() {
+				const db = yield* pushUsers;
 
-			const context = yield* Effect.context<never>();
-			const run = (query: any) => Effect.runPromiseWith(context)(query);
-			const asyncDb = db as any;
-			yield* Effect.promise(() => assertAllTypesUnions(asyncDb, allTypesTable, run));
-			yield* Effect.promise(() => assertAllTypesBounds(asyncDb, { run, rqb: true }));
-			yield* Effect.promise(() => assertAllTypesNullArrayElements(asyncDb, { run, rqb: true }));
-			yield* Effect.promise(() => assertAllTypesTemporalBounds(asyncDb, { run, rqb: true }));
-			yield* Effect.promise(() => assertAllTypesEmptyArrays(asyncDb, allTypesTable, { run, rqb: true }));
-		}));
+				const batchResponse = yield* db.batch([
+					db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
+					db.insert(usersTable).values({ id: 2, name: 'Dan' }),
+					db.select().from(usersTable).orderBy(usersTable.id),
+					db.query.usersTable.findFirst({ columns: { id: true, name: true }, where: { id: 2 } }),
+				]);
 
-	// ---- batch ----
-
-	test('batch api example', () =>
-		Effect.gen(function*() {
-			const db = yield* pushUsers;
-
-			const batchResponse = yield* db.batch([
-				db.insert(usersTable).values({ id: 1, name: 'John' }).returning({ id: usersTable.id }),
-				db.insert(usersTable).values({ id: 2, name: 'Dan' }),
-				db.select().from(usersTable).orderBy(usersTable.id),
-				db.query.usersTable.findFirst({ columns: { id: true, name: true }, where: { id: 2 } }),
-			]);
-
-			expect(batchResponse[0]).toEqual([{ id: 1 }]);
-			expect(batchResponse[1]).toMatchObject({ rows: [], rowCount: 1 });
-			expect(batchResponse[2]).toEqual([
-				{ id: 1, name: 'John', verified: 0 },
-				{ id: 2, name: 'Dan', verified: 0 },
-			]);
-			expect(batchResponse[3]).toEqual({ id: 2, name: 'Dan' });
-		}));
-
-	test('batch: rolls the whole set back on error', () =>
-		Effect.gen(function*() {
-			const db = yield* pushUsers;
-			yield* db.insert(usersTable).values({ id: 1, name: 'Survivor' });
-
-			const error = yield* Effect.flip(db.batch([
-				db.insert(usersTable).values({ id: 2, name: 'Doomed' }),
-				db.insert(postsTable).values(orphanPost),
-			]));
-			expect(errorMessages(error)).toMatch(/foreign key|violates/i);
-
-			expect(yield* db.select({ name: usersTable.name }).from(usersTable)).toEqual([{ name: 'Survivor' }]);
-		}));
-
-	test('batch: honours transaction options', () =>
-		Effect.gen(function*() {
-			const db = yield* pushUsers;
-			yield* db.insert(usersTable).values({ id: 1, name: 'ReadMe' });
-
-			const res = yield* db.batch(
-				[db.select({ name: usersTable.name }).from(usersTable)],
-				{ isolation: 'serializable', readOnly: true },
-			);
-			expect(res[0]).toEqual([{ name: 'ReadMe' }]);
-
-			const error = yield* Effect.flip(db.batch([db.insert(usersTable).values({ id: 2, name: 'Nope' })], {
-				readOnly: true,
+				expect(batchResponse[0]).toEqual([{ id: 1 }]);
+				expect(batchResponse[1]).toMatchObject({ rows: [], rowCount: 1 });
+				expect(batchResponse[2]).toEqual([
+					{ id: 1, name: 'John', verified: 0 },
+					{ id: 2, name: 'Dan', verified: 0 },
+				]);
+				expect(batchResponse[3]).toEqual({ id: 2, name: 'Dan' });
 			}));
-			expect(errorMessages(error)).toMatch(/read-only|read only/i);
-		}));
 
-	// ---- parallel ----
+		it.effect('batch: rolls the whole set back on error', () =>
+			Effect.gen(function*() {
+				const db = yield* pushUsers;
+				yield* db.insert(usersTable).values({ id: 1, name: 'Survivor' });
 
-	test('parallel api example', () =>
-		Effect.gen(function*() {
-			const db = yield* pushUsers;
-			yield* db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
+				const error = yield* Effect.flip(db.batch([
+					db.insert(usersTable).values({ id: 2, name: 'Doomed' }),
+					db.insert(postsTable).values(orphanPost),
+				]));
+				expect(errorMessages(error)).toMatch(/foreign key|violates/i);
 
-			const response = yield* db.parallel([
-				db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
-					.where(inArray(usersTable.id, [1, 2])).orderBy(usersTable.id),
-				db.insert(usersTable).values({ id: 3, name: 'Jane' }).returning({ id: usersTable.id }),
-				db.query.usersTable.findFirst({ columns: { id: true, name: true }, where: { id: 2 } }),
-				db.execute<{ one: number }>(sql`select 1 as one`),
-			]);
+				expect(yield* db.select({ name: usersTable.name }).from(usersTable)).toEqual([{ name: 'Survivor' }]);
+			}));
 
-			expectTypeOf(response[1]).toEqualTypeOf<Result.Result<{ id: number }[], EffectDrizzleQueryError>>();
-			expect(response[0]).toStrictEqual(Result.succeed([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]));
-			expect(response[1]).toStrictEqual(Result.succeed([{ id: 3 }]));
-			expect(response[2]).toStrictEqual(Result.succeed({ id: 2, name: 'Dan' }));
-			assert(Result.isSuccess(response[3]));
-			expect(response[3].success).toMatchObject({ rows: [{ one: 1 }] });
-		}));
+		it.effect('batch: honours transaction options', () =>
+			Effect.gen(function*() {
+				const db = yield* pushUsers;
+				yield* db.insert(usersTable).values({ id: 1, name: 'ReadMe' });
 
-	test('parallel: failures come back as failed Results, the rest still commit', () =>
-		Effect.gen(function*() {
-			const db = yield* pushUsers;
+				const res = yield* db.batch(
+					[db.select({ name: usersTable.name }).from(usersTable)],
+					{ isolation: 'serializable', readOnly: true },
+				);
+				expect(res[0]).toEqual([{ name: 'ReadMe' }]);
 
-			const failing = db.insert(postsTable).values(orphanPost);
-			const response = yield* db.parallel([
-				failing,
-				db.insert(usersTable).values({ id: 1, name: 'Survivor' }).returning({ id: usersTable.id }),
-				db.execute(sql`select 1/0`),
-			]);
+				const error = yield* Effect.flip(db.batch([db.insert(usersTable).values({ id: 2, name: 'Nope' })], {
+					readOnly: true,
+				}));
+				expect(errorMessages(error)).toMatch(/read-only|read only/i);
+			}));
 
-			expect(response.map((r: Result.Result<unknown, unknown>) => Result.isSuccess(r))).toEqual([false, true, false]);
-			assert(Result.isFailure(response[0]));
-			expectQueryError(response[0].failure, failing.toSQL().sql, '23503');
-			expect(response[1]).toStrictEqual(Result.succeed([{ id: 1 }]));
-			assert(Result.isFailure(response[2]));
-			expectQueryError(response[2].failure, 'select 1/0', '22012');
+		// ---- parallel ----
 
-			expect(yield* db.select({ name: usersTable.name }).from(usersTable)).toEqual([{ name: 'Survivor' }]);
-		}));
+		it.effect('parallel api example', () =>
+			Effect.gen(function*() {
+				const db = yield* pushUsers;
+				yield* db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
 
-	// ---- migrator ----
+				const response = yield* db.parallel([
+					db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
+						.where(inArray(usersTable.id, [1, 2])).orderBy(usersTable.id),
+					db.insert(usersTable).values({ id: 3, name: 'Jane' }).returning({ id: usersTable.id }),
+					db.query.usersTable.findFirst({ columns: { id: true, name: true }, where: { id: 2 } }),
+					db.execute<{ one: number }>(sql`select 1 as one`),
+				]);
 
-	test('migrator : default migration strategy', () =>
-		Effect.gen(function*() {
-			const db = yield* DBTag;
+				expectTypeOf(response[1]).toEqualTypeOf<Result.Result<{ id: number }[], EffectDrizzleQueryError>>();
+				expect(response[0]).toStrictEqual(Result.succeed([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]));
+				expect(response[1]).toStrictEqual(Result.succeed([{ id: 3 }]));
+				expect(response[2]).toStrictEqual(Result.succeed({ id: 2, name: 'Dan' }));
+				assert(Result.isSuccess(response[3]));
+				expect(response[3].success).toMatchObject({ rows: [{ one: 1 }] });
+			}));
 
-			yield* migrate(db, { migrationsFolder: './drizzle2/pg' });
-			yield* db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		it.effect('parallel: failures come back as failed Results, the rest still commit', () =>
+			Effect.gen(function*() {
+				const db = yield* pushUsers;
 
-			expect(yield* db.select().from(usersMigratorTable)).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-		}));
+				const failing = db.insert(postsTable).values(orphanPost);
+				const response = yield* db.parallel([
+					failing,
+					db.insert(usersTable).values({ id: 1, name: 'Survivor' }).returning({ id: usersTable.id }),
+					db.execute(sql`select 1/0`),
+				]);
 
-	test('migrator : a failing migration leaves nothing applied', () =>
-		Effect.gen(function*() {
-			const db = yield* DBTag;
+				expect(response.map((r: Result.Result<unknown, unknown>) => Result.isSuccess(r))).toEqual([false, true, false]);
+				assert(Result.isFailure(response[0]));
+				expectQueryError(response[0].failure, failing.toSQL().sql, '23503');
+				expect(response[1]).toStrictEqual(Result.succeed([{ id: 1 }]));
+				assert(Result.isFailure(response[2]));
+				expectQueryError(response[2].failure, 'select 1/0', '22012');
 
-			const migrationDir = './migrations/effect-drizzle-postgres-neon-http-fail';
-			if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
-			mkdirSync(`${migrationDir}/20240101010101_ok`, { recursive: true });
-			writeFileSync(`${migrationDir}/20240101010101_ok/migration.sql`, 'CREATE TABLE "neon_mig_ok" ("id" integer);');
-			mkdirSync(`${migrationDir}/20240202020202_bad`, { recursive: true });
-			writeFileSync(`${migrationDir}/20240202020202_bad/migration.sql`, 'CREATE TABLE "neon_mig_ok" ("id" integer);');
+				expect(yield* db.select({ name: usersTable.name }).from(usersTable)).toEqual([{ name: 'Survivor' }]);
+			}));
 
-			const error = yield* Effect.flip(migrate(db, { migrationsFolder: migrationDir }));
-			rmSync(migrationDir, { recursive: true });
-			expect(errorMessages(error)).toMatch(/already exists/i);
+		// ---- migrator ----
 
-			const present = yield* db.execute<{ present: boolean }>(
-				sql`select to_regclass('public.neon_mig_ok') is not null as present`,
-			);
-			expect(present.rows[0]!.present).toBe(false);
+		it.effect('migrator : default migration strategy', () =>
+			Effect.gen(function*() {
+				const db = yield* DBTag;
 
-			const applied = yield* db.execute<{ n: number }>(
-				sql`select count(*)::int as n from drizzle.__drizzle_migrations`,
-			);
-			expect(applied.rows[0]!.n).toBe(0);
-		}));
+				yield* migrate(db, { migrationsFolder: './drizzle2/pg' });
+				yield* db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+
+				expect(yield* db.select().from(usersMigratorTable)).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+			}));
+
+		it.effect('migrator : a failing migration leaves nothing applied', () =>
+			Effect.gen(function*() {
+				const db = yield* DBTag;
+
+				const migrationDir = './migrations/effect-drizzle-postgres-neon-http-fail';
+				if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
+				mkdirSync(`${migrationDir}/20240101010101_ok`, { recursive: true });
+				writeFileSync(`${migrationDir}/20240101010101_ok/migration.sql`, 'CREATE TABLE "neon_mig_ok" ("id" integer);');
+				mkdirSync(`${migrationDir}/20240202020202_bad`, { recursive: true });
+				writeFileSync(`${migrationDir}/20240202020202_bad/migration.sql`, 'CREATE TABLE "neon_mig_ok" ("id" integer);');
+
+				const error = yield* Effect.flip(migrate(db, { migrationsFolder: migrationDir }));
+				rmSync(migrationDir, { recursive: true });
+				expect(errorMessages(error)).toMatch(/already exists/i);
+
+				const present = yield* db.execute<{ present: boolean }>(
+					sql`select to_regclass('public.neon_mig_ok') is not null as present`,
+				);
+				expect(present.rows[0]!.present).toBe(false);
+
+				const applied = yield* db.execute<{ n: number }>(
+					sql`select count(*)::int as n from drizzle.__drizzle_migrations`,
+				);
+				expect(applied.rows[0]!.n).toBe(0);
+			}));
+	},
 });
