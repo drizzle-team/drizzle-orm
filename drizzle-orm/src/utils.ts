@@ -45,12 +45,16 @@ export function mapResultRow<TResult>(
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
+						const tableName = getTableName(field.table);
 						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-						) {
-							nullifyMap[objectName] = false;
+							nullifyMap[objectName] = rawValue === null ? tableName : false;
+						} else if (typeof nullifyMap[objectName] === 'string') {
+							// A nullable joined object is absent only when every selected
+							// raw column from its table is null. A non-null raw value proves
+							// that the joined row exists, even if its decoder returns null.
+							if (rawValue !== null || nullifyMap[objectName] !== tableName) {
+								nullifyMap[objectName] = false;
+							}
 						}
 					}
 				}
