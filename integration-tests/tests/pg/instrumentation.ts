@@ -139,7 +139,7 @@ const localNeonDatabase = (driver: string, name: string, connectionString: strin
 	isLocalNeon(connectionString) ? `${driver}_${name}` : name;
 
 /** The databases a provider hands to concurrent tests: the hosted names on Neon, per-driver local ones otherwise. */
-const neonPoolDatabases = (hosted: string[], connectionString: string | undefined) =>
+export const neonPoolDatabases = (hosted: string[], connectionString: string | undefined) =>
 	isLocalNeon(connectionString) ? hosted.map((_, i) => `pool${i}`) : hosted;
 
 /** Prepares a provider's clients one after another, as the providers always did. */
@@ -254,7 +254,7 @@ export const _push = async (
 /**
  * Reset potentially broken by previous test runs schemas on hosted dbs
  */
-const resetSchemas = async (run: (sql: string) => Promise<any[]>) => {
+export const resetSchemas = async (run: (sql: string) => Promise<any[]>) => {
 	const schemas = await run(
 		`select nspname from pg_namespace where nspname not in ('information_schema', 'neon_auth') and nspname !~ '^pg_'`,
 	);
@@ -738,6 +738,10 @@ export const provideForProxy = async () => {
 	return createProvider(await prepareSequentially(dbs, prepareProxy));
 };
 
+/**
+ * db10-db14 are also in the pool of `effect-drizzle-postgres-neon-http.test.ts` (on NEON_CONNECTION_STRING): it runs in
+ * the `test:neon` invocation after this provider's, so the two never run at the same time
+ */
 export const provideForNetlifyDb = async () => {
 	const url = requireEnv('NETLIFY_DB_URL');
 

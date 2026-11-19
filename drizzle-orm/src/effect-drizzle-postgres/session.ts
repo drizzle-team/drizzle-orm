@@ -1,20 +1,29 @@
 import type { QueryResult, ShapeSpec } from '#postgres';
-import type { DrizzlePostgresClient as Client } from '#postgres/effect/core';
+import { DrizzlePostgresClient as Client } from '#postgres/effect/core';
 import * as Effect from 'effect/Effect';
+import * as Option from 'effect/Option';
+import type * as Result from 'effect/Result';
 import type { SqlError } from 'effect/sql/SqlError';
+import type { BatchItem } from '~/batch.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
+import {
+	PgEffectBoundQuery,
+	PgEffectPreparedQuery,
+	PgEffectSession,
+	PgEffectTransaction,
+} from '~/pg-core/effect/session.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { getTransactionConfigStatements } from '~/pg-core/session.ts';
+import { getTransactionConfigStatements, setTransactionSnapshotSQL } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import {
 	buildBulkInsert,
 	buildBulkUpdate,
+	type PostgresBatchTransactionOptions,
 	type PostgresBulkInsertOptions,
 	type PostgresBulkResult,
 	type PostgresBulkUpdateOptions,
@@ -41,6 +50,44 @@ export type EffectPostgresBulkInsertOptions<R = never> =
 export type EffectPostgresBulkUpdateOptions<TBy = PgColumn | readonly [PgColumn, ...PgColumn[]], R = never> =
 	& Omit<PostgresBulkUpdateOptions<TBy>, 'timeout' | 'signal' | 'onProgress'>
 	& Pick<Client.BulkUpdateOptions<R>, 'onProgress'>;
+
+/**
+ * One item of `batch`, `pipeline` or `parallel`: a query builder, a prepared query (`.prepare()`), or a prepared
+ * query with bound placeholder values (`.prepare().bind({ … })`). Prepared items run under their statement name,
+ * so the server parses them once per connection and reuses the plan.
+ */
+export type EffectPostgresBatchItem =
+	| BatchItem<'pg'>
+	| PgEffectPreparedQuery<any, any>
+	| PgEffectBoundQuery<any, any>;
+
+/** What one {@link EffectPostgresBatchItem} gives, the same value running it on it's own would give. */
+export type EffectPostgresBatchItemResult<TItem> = TItem extends { readonly _: { readonly result: infer TResult } }
+	? TResult
+	: TItem extends { readonly prepared: { execute(...args: any[]): Effect.Effect<infer TResult, any, any> } } ? TResult
+	: TItem extends { execute(...args: any[]): Effect.Effect<infer TResult, any, any> } ? TResult
+	: never;
+
+export type EffectPostgresBatchResponse<T extends readonly EffectPostgresBatchItem[]> = {
+	[K in keyof T]: EffectPostgresBatchItemResult<T[K]>;
+};
+
+export type EffectPostgresSettledBatchResponse<T extends readonly EffectPostgresBatchItem[]> = {
+	[K in keyof T]: Result.Result<EffectPostgresBatchItemResult<T[K]>, EffectDrizzleQueryError>;
+};
+
+/** The transaction settings of `batch`: `snapshot` needs `isolation: 'repeatable read' | 'serializable'` */
+export type EffectPostgresBatchOptions = PostgresBatchTransactionOptions;
+
+/** The Effect that runs a batch item, as it would run on it's own: under it's statement name, with it's bound values */
+function itemEffect(item: EffectPostgresBatchItem): Effect.Effect<unknown, EffectDrizzleQueryError> {
+	const effect = is(item, PgEffectBoundQuery)
+		? item.prepared.execute(item.placeholderValues)
+		: is(item, PgEffectPreparedQuery)
+		? item.execute()
+		: ((item as BatchItem<'pg'>)._prepare() as PgEffectPreparedQuery<any>).execute();
+	return effect as Effect.Effect<unknown, EffectDrizzleQueryError>;
+}
 
 export interface EffectPostgresSessionOptions {
 	logger: EffectLoggerShape;
@@ -101,12 +148,60 @@ export class EffectPostgresSession<
 		return this.client.query(sql, params, { name, mode: mode === 'arrays' ? 'array' : 'object', shape });
 	}
 
-	batch<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
-		return this.client.batch(effects);
+	/** Atomic: runs all queries in one transaction, every statement pipelined on one pooled connection */
+	batch(
+		queries: readonly EffectPostgresBatchItem[],
+		options?: EffectPostgresBatchOptions,
+	): Effect.Effect<unknown[], EffectDrizzleQueryError | SqlError> {
+		return Effect.suspend(() => {
+			const effects = queries.map(itemEffect);
+			if (!options) return this.client.batch(effects);
+
+			const { snapshot, ...transaction } = options;
+			const statements = Effect.provideService(
+				Effect.all(effects, { concurrency: 'unbounded' }),
+				Client.Pipelined,
+				true,
+			);
+			return this.client.withTransaction(
+				typeof snapshot === 'string'
+					? Effect.andThen(
+						this.client.unsafe(this.dialect.sqlToQuery(setTransactionSnapshotSQL(snapshot)).sql),
+						statements,
+					)
+					: statements,
+				transaction,
+			);
+		});
 	}
 
-	pipeline<const Arg extends Iterable<Effect.Effect<any, any, any>>>(effects: Arg) {
-		return this.client.pipeline(effects);
+	/**
+	 * Non-atomic: pipelines all queries on a single pooled connection, each in it's own autocommit
+	 *
+	 * A failing query does not fail the others: each gives it's own `Result`, in input order
+	 */
+	pipeline(
+		queries: readonly EffectPostgresBatchItem[],
+	): Effect.Effect<Result.Result<unknown, EffectDrizzleQueryError>[], SqlError> {
+		return Effect.suspend(() => this.client.pipeline(queries.map((query) => Effect.result(itemEffect(query)))));
+	}
+
+	/**
+	 * Non-atomic: fans queries out across pooled connections concurrently. Inside a transaction the queries share it's
+	 * connection, so they run one at a time
+	 *
+	 * A failing query does not fail the others: each gives it's own `Result`, in input order
+	 */
+	parallel(
+		queries: readonly EffectPostgresBatchItem[],
+	): Effect.Effect<Result.Result<unknown, EffectDrizzleQueryError>[]> {
+		return Effect.flatMap(
+			Effect.serviceOption(this.client.transactionService),
+			(tx) =>
+				Effect.forEach(queries, (query) => Effect.result(itemEffect(query)), {
+					concurrency: Option.isSome(tx) ? 1 : 'unbounded',
+				}),
+		);
 	}
 
 	bulkInsert<R = never>(

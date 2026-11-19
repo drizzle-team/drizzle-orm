@@ -196,8 +196,9 @@ const runDeepNullification = (db: PgEffectDatabase<any, any, any>) =>
 		]);
 	});
 
-export interface RunCommonEffectPgTestsOptions {
-	testLayer: Layer.Layer<DB | SqlClient, SqlError, never>;
+/** `TClient` - the driver's own client tag (`PgClient`, `PgliteClient`, ...), which isn't a `SqlClient` subtype since effect 4.1 */
+export interface RunCommonEffectPgTestsOptions<TClient = never> {
+	testLayer: Layer.Layer<DB | SqlClient | TClient, SqlError, never>;
 	PgDrizzle: {
 		// Methods: parameters checked bivariantly, so drivers requiring config (`effect-d1`) fit
 		make<TRelations extends AnyRelations = EmptyRelations>(
@@ -223,7 +224,7 @@ export interface RunCommonEffectPgTestsOptions {
 	>;
 	usedSchema: string;
 	skipTests?: string[];
-	addTests?: (it: Vitest.MethodsNonLive<DB | SqlClient>) => void;
+	addTests?: (it: Vitest.MethodsNonLive<DB | SqlClient | TClient>) => void;
 }
 
 const failureMessage = (failure: unknown): string => {
@@ -241,7 +242,7 @@ const failureMessage = (failure: unknown): string => {
 	return messages.join(' | ');
 };
 
-export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): void => {
+export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgTestsOptions<TClient>): void => {
 	const { testLayer, usedSchema, PgDrizzle, createDB, addTests, skipTests = [] } = opts;
 
 	it.layer(testLayer)('common', (layerIt) => {

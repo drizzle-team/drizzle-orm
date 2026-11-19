@@ -35,7 +35,7 @@ export const TypeId = '~@drizzle/postgres/DrizzlePostgresClient';
 export type TypeId = typeof TypeId;
 
 /** A SqlClient that runs on Drizzle Postgres. Its layers provide it under both this service and SqlClient. */
-export interface DrizzlePostgresClient extends Client.SqlClient {
+export interface DrizzlePostgresClient extends Client.Base {
 	readonly [TypeId]: TypeId;
 	readonly config: DrizzlePostgresClientConfig;
 	/** The Drizzle Postgres pool that runs every statement. */
@@ -175,7 +175,7 @@ export interface PostgresQuery {
 
 export type { TransactionOptions };
 
-export const DrizzlePostgresClient = Context.Service<DrizzlePostgresClient>(
+export const DrizzlePostgresClient = Context.Service<DrizzlePostgresClient, DrizzlePostgresClient & Client.SqlClient>(
 	'@drizzle/postgres/DrizzlePostgresClient',
 );
 
@@ -569,7 +569,7 @@ export const fromPool = Effect.fnUntraced(
 			copyFrom,
 			copyTo,
 			cursor,
-		}) as DrizzlePostgresClient;
+		}) as DrizzlePostgresClient & Client.SqlClient;
 	},
 );
 
@@ -813,7 +813,7 @@ export const toSqlError = (cause: unknown, operation: string, conn?: { readonly 
 };
 
 export const layerFrom = <E, R>(
-	build: Effect.Effect<DrizzlePostgresClient, E, R>,
+	build: Effect.Effect<DrizzlePostgresClient & Client.SqlClient, E, R>,
 ) =>
 	Layer.effectContext(
 		Effect.map(build, (client) => {

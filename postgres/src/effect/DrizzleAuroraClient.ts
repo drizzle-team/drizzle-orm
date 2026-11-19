@@ -26,7 +26,7 @@ export const TypeId = '~@drizzle/postgres/DrizzleAuroraClient';
 export type TypeId = typeof TypeId;
 
 /** A SqlClient over the Aurora Data API. Its layers provide it under both this service and SqlClient. */
-export interface DrizzleAuroraClient extends Client.SqlClient {
+export interface DrizzleAuroraClient extends Client.Base {
 	readonly [TypeId]: TypeId;
 	readonly config: DrizzleAuroraClientConfig;
 	/** The Data API client that runs statements outside transactions. */
@@ -82,7 +82,9 @@ export interface AuroraQuery {
 	): Effect.Effect<QueryResult<unknown[]>, SqlError>;
 }
 
-export const DrizzleAuroraClient = Context.Service<DrizzleAuroraClient>('@drizzle/postgres/DrizzleAuroraClient');
+export const DrizzleAuroraClient = Context.Service<DrizzleAuroraClient, DrizzleAuroraClient & Client.SqlClient>(
+	'@drizzle/postgres/DrizzleAuroraClient',
+);
 
 /** The Aurora client's settings, with the AWS secrets as Redacted, plus the SqlClient settings. */
 export interface DrizzleAuroraClientConfig extends Omit<AuroraConfig, 'credentials'> {
@@ -290,7 +292,7 @@ export const fromClient = Effect.fnUntraced(
 			batch,
 			pipeline,
 			batchExecute,
-		}) as DrizzleAuroraClient;
+		}) as DrizzleAuroraClient & Client.SqlClient;
 	},
 );
 
@@ -310,7 +312,7 @@ export const make = (config: DrizzleAuroraClientConfig) =>
 		(base) => fromClient(base, config),
 	);
 
-const layerFrom = <E, R>(build: Effect.Effect<DrizzleAuroraClient, E, R>) =>
+const layerFrom = <E, R>(build: Effect.Effect<DrizzleAuroraClient & Client.SqlClient, E, R>) =>
 	Layer.effectContext(
 		Effect.map(
 			build,

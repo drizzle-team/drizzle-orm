@@ -4,7 +4,7 @@ import { MigratorInitError } from '~/effect-core/errors.ts';
 import { EffectTransactionRollbackError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import type { QueryRuntimeHKT } from '~/query-builders/runtime.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -54,6 +54,50 @@ export class PgEffectPreparedQuery<
 	) {
 		super(executor, query, mapper, mode, logger, paramsInErrors);
 	}
+
+	/**
+	 * Pairs this query with values for it's placeholders without running it: the lazy counterpart of
+	 * {@link execute}. Nothing is sent until the result is run as an item of `batch`, `pipeline` or `parallel`
+	 * of the `drizzle-orm/effect-drizzle-postgres` driver, which runs it under this query's statement name:
+	 *
+	 * ```ts
+	 * const [alice, bob] = yield* db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
+	 * ```
+	 *
+	 * Other drivers' batches don't accept it.
+	 */
+	bind(placeholderValues: Record<string, unknown> = {}): PgEffectBoundQuery<T, TEffectHKT> {
+		return new PgEffectBoundQuery(this, placeholderValues);
+	}
+}
+
+/**
+ * A prepared query paired with values for it's placeholders, not run yet:
+ *
+ * ```ts
+ * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
+ * const [alice, bob] = yield* db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
+ * ```
+ *
+ * Accepted by `batch`, `pipeline` and `parallel` of the `drizzle-orm/effect-drizzle-postgres` driver, which run it
+ * under the prepared statement's name. Created by {@link PgEffectPreparedQuery.bind}.
+ */
+export class PgEffectBoundQuery<
+	T extends PreparedQueryConfig,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> {
+	static readonly [entityKind]: string = 'PgEffectBoundQuery';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	// No `_` result marker on purpose: with it, this class would match the builder-only batch item type that the
+	// other pg drivers take, and they would send it's placeholders unfilled.
+
+	constructor(
+		readonly prepared: PgEffectPreparedQuery<T, TEffectHKT>,
+		readonly placeholderValues: Record<string, unknown>,
+	) {}
 }
 
 type PgEffectPreparedQueryOf<TResult, TEffectHKT extends QueryEffectHKTBase> = PgEffectPreparedQuery<

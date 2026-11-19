@@ -29,6 +29,7 @@ export default defineConfig({
 					'tests/pg/postgres-neon-ws.test.ts',
 					'tests/pg/postgres-neon-http.test.ts',
 					'tests/pg/postgres-neon-http-batch.test.ts',
+					'tests/pg/effect-drizzle-postgres-neon-http.test.ts',
 					'tests/dsql/node-postgres.test.ts',
 					'tests/dsql/postgres-js.test.ts',
 					'tests/dsql/pg.test.ts',
