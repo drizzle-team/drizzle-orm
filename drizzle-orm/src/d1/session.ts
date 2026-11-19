@@ -23,6 +23,7 @@ import { mapResultRow } from '~/utils.ts';
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	withSession?: D1SessionBookmark | D1SessionConstraint | 'disabled';
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -35,6 +36,9 @@ export class SQLiteD1Session<
 
 	private logger: Logger;
 	private cache: Cache;
+	private replicationSessionInstance: D1DatabaseSession | D1Database;
+	private initialBookmark: D1SessionBookmark | D1SessionConstraint | null;
+	private meta: D1Meta | null;
 
 	constructor(
 		private client: D1Database,
@@ -45,6 +49,38 @@ export class SQLiteD1Session<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+
+		// D1 Sessions are disabled by default as of 2025-07-22:
+		// https://developers.cloudflare.com/d1/best-practices/read-replication/#enable-read-replication
+		// So if a user doesn't specify it, we need to use the default client.
+
+		if (options.withSession == 'disabled') {
+			console.log('D1 Session is disabled at session');
+			this.replicationSessionInstance = this.client;
+			this.initialBookmark = null;
+		} else {
+			console.log('D1 Session is enabled at session');
+			this.initialBookmark = options.withSession ?? 'first-unconstrained';
+			this.replicationSessionInstance = this.client.withSession(this.initialBookmark);
+		}
+		this.meta = null;
+	}
+
+	getBookmark(): D1SessionBookmark | D1SessionConstraint | null {
+		return (this.replicationSessionInstance as D1DatabaseSession).getBookmark();
+	}
+
+	getInitialBookmark(): D1SessionBookmark | D1SessionConstraint | null {
+		return this.initialBookmark;
+	}
+
+	getMeta(): D1Meta | null {
+		return this.meta;
+	}
+
+	/** @internal */
+	setMeta(meta: D1Meta | null): void {
+		this.meta = meta;
 	}
 
 	prepareQuery(
@@ -59,7 +95,8 @@ export class SQLiteD1Session<
 		},
 		cacheConfig?: WithCacheConfig,
 	): D1PreparedQuery {
-		const stmt = this.client.prepare(query.sql);
+		const stmt = this.replicationSessionInstance.prepare(query.sql);
+
 		return new D1PreparedQuery(
 			stmt,
 			query,
@@ -71,6 +108,7 @@ export class SQLiteD1Session<
 			executeMethod,
 			isResponseInArrayMode,
 			customResultMapper,
+			this,
 		);
 	}
 
@@ -87,12 +125,12 @@ export class SQLiteD1Session<
 			} else {
 				const builtQuery = preparedQuery.getQuery();
 				builtQueries.push(
-					this.client.prepare(builtQuery.sql).bind(...builtQuery.params),
+					this.replicationSessionInstance.prepare(builtQuery.sql).bind(...builtQuery.params),
 				);
 			}
 		}
 
-		const batchResults = await this.client.batch<any>(builtQueries);
+		const batchResults = await this.replicationSessionInstance.batch<any>(builtQueries);
 		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
 	}
 
@@ -189,6 +227,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
+		private session?: SQLiteD1Session<any, any>,
 	) {
 		super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
 		this.customResultMapper = customResultMapper;
@@ -213,7 +252,6 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 				return stmt.bind(...params).all().then(({ results }) => this.mapAllResult(results!));
 			});
 		}
-
 		const rows = await this.values(placeholderValues);
 
 		return this.mapAllResult(rows);
@@ -278,7 +316,11 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return await this.queryWithCache(this.query.sql, params, async () => {
-			return this.stmt.bind(...params).raw();
+			const result = await this.stmt.bind(...params).run();
+			if (this.session) {
+				this.session.setMeta(result.meta ?? null);
+			}
+			return d1ToRawMapping((result as D1Result).results) as T[];
 		});
 	}
 

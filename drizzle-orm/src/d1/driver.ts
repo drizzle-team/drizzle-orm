@@ -26,6 +26,22 @@ export class DrizzleD1Database<
 > extends BaseSQLiteDatabase<'async', D1Result, TSchema> {
 	static override readonly [entityKind]: string = 'D1Database';
 
+	constructor(...args: ConstructorParameters<typeof BaseSQLiteDatabase<'async', D1Result, TSchema>>) {
+		super(...args);
+	}
+
+	getBookmark(): D1SessionBookmark | D1SessionConstraint | null {
+		return this.session.getBookmark();
+	}
+
+	getInitialBookmark(): D1SessionBookmark | D1SessionConstraint | null {
+		return this.session.getInitialBookmark();
+	}
+
+	getMeta(): D1Meta | null {
+		return this.session.getMeta();
+	}
+
 	/** @internal */
 	declare readonly session: SQLiteD1Session<TSchema, ExtractTablesWithRelations<TSchema>>;
 
@@ -42,6 +58,7 @@ export function drizzle<
 >(
 	client: TClient,
 	config: DrizzleConfig<TSchema> = {},
+	withSession: D1SessionBookmark | D1SessionConstraint | null = null,
 ): DrizzleD1Database<TSchema> & {
 	$client: TClient;
 } {
@@ -66,7 +83,17 @@ export function drizzle<
 		};
 	}
 
-	const session = new SQLiteD1Session(client as D1Database, dialect, schema, { logger, cache: config.cache });
+	if (withSession === null) {
+		withSession = 'disabled';
+		console.log('D1 Session is disabled at driver');
+	}
+
+	const session = new SQLiteD1Session(client as D1Database, dialect, schema, {
+		logger,
+		cache: config.cache,
+		withSession: withSession,
+	});
+
 	const db = new DrizzleD1Database('async', dialect, session, schema) as DrizzleD1Database<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
