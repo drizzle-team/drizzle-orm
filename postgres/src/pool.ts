@@ -48,6 +48,10 @@ interface SharedWaiter {
 // connection, because on a shared one the queries pipelined behind it would run inside it.
 const OPENS_TX = /\b(?:begin|start\s+transaction)\b/i;
 
+// What an aborted query rejects with: the signal's reason, as a connection does
+const abortReason = (signal: AbortSignal): Error =>
+	(signal.reason as Error) ?? Object.assign(new Error('query aborted'), { name: 'AbortError' });
+
 // The txGuard marker. `active` is flipped off when the transaction settles, so work that was merely
 // STARTED inside the callback but runs after it (a detached task) is not falsely rejected — the ban is
 // scoped to the transaction's LIFETIME, not just to the async context that inherits it.
@@ -551,33 +555,55 @@ export class Pool {
 
 	/** @internal Run one standalone query: shared with other queries when the pool pipelines, else on
 	 *  a connection checked out for it alone. */
-	_run(sql: string, params: unknown[], opts: QueryOptions): Promise<QueryResult<never>> {
+	_run(
+		sql: string,
+		params: unknown[],
+		opts: QueryOptions,
+		onConnection?: (c: Connection) => void,
+	): Promise<QueryResult<never>> {
 		// A cancel stops whatever the backend runs at that moment, which on a shared connection can be
-		// someone else's query; a snapshot query is a transaction of its own.
+		// someone else's query, so only an abort that sends none (`cancel: false`) may share; a snapshot query is
+		// a transaction of its own.
 		if (
-			!this.shareQueries || opts.timeout != null || opts.signal !== undefined || opts.snapshot !== undefined
-			|| OPENS_TX.test(sql)
+			!this.shareQueries || (opts.cancel !== false && (opts.timeout != null || opts.signal !== undefined))
+			|| opts.snapshot !== undefined || OPENS_TX.test(sql)
 		) {
-			return this.runExclusive(sql, params, opts);
+			// on a connection of its own, a cancel can only stop this query: send it
+			if (opts.cancel === false) {
+				const { cancel: _, ...rest } = opts;
+				opts = rest;
+			}
+			return this.runExclusive(sql, params, opts, onConnection);
 		}
+		const signal = opts.signal;
+		if (signal?.aborted) return Promise.reject(abortReason(signal));
 		if (this.closed) return Promise.reject(new Error('pool is closed'));
 		if (this.als?.getStore()?.active) return Promise.reject(new Error(TX_GUARD_MSG));
 		if (this.broken) return Promise.reject(this.broken);
-		if (this.down && this.rcEnabled) return this.waitForRecovery().then(() => this._run(sql, params, opts));
+		if (this.down && this.rcEnabled) {
+			return this.waitForRecovery().then(() => this._run(sql, params, opts, onConnection));
+		}
 		const c = this.pickShared();
-		if (c) return this.runShared(c, sql, params, opts);
+		if (c) return this.runShared(c, sql, params, opts, onConnection);
 		return new Promise<QueryResult<never>>((resolve, reject) => {
 			this.waitShared(
-				(conn) => this.runShared(conn, sql, params, opts).then(resolve, reject),
+				(conn) => this.runShared(conn, sql, params, opts, onConnection).then(resolve, reject),
 				reject,
-				() => this._run(sql, params, opts).then(resolve, reject),
+				() => this._run(sql, params, opts, onConnection).then(resolve, reject),
+				signal,
 			);
 		});
 	}
 
-	private async runExclusive(sql: string, params: unknown[], opts: QueryOptions): Promise<QueryResult<never>> {
+	private async runExclusive(
+		sql: string,
+		params: unknown[],
+		opts: QueryOptions,
+		onConnection?: (c: Connection) => void,
+	): Promise<QueryResult<never>> {
 		const conn = await this.acquire();
 		try {
+			onConnection?.(conn);
 			return await (conn.query as unknown as Runner)(sql, params, opts);
 		} finally {
 			this.release(conn);
@@ -632,8 +658,15 @@ export class Pool {
 		});
 	}
 
-	private runShared(c: Connection, sql: string, params: unknown[], opts: QueryOptions): Promise<QueryResult<never>> {
+	private runShared(
+		c: Connection,
+		sql: string,
+		params: unknown[],
+		opts: QueryOptions,
+		onConnection?: (c: Connection) => void,
+	): Promise<QueryResult<never>> {
 		if (this.idleMs > 0) this.clearIdleTimer(c);
+		onConnection?.(c);
 		const p = (c.query as unknown as Runner)(sql, params, opts);
 		const after = () => this.afterShared(c);
 		p.then(after, after);
@@ -666,36 +699,53 @@ export class Pool {
 		}
 	}
 
-	// No connection is checked in. Wait for one, bounded by acquireTimeoutMillis like an exclusive acquire.
-	private waitShared(run: (c: Connection) => void, reject: (e: Error) => void, retry: () => void): void {
-		if (this.acquireMs <= 0) {
+	// No connection is checked in. Wait for one, bounded by acquireTimeoutMillis like an exclusive acquire. An
+	// abort of `signal` leaves the queue at once, so the query is never sent.
+	private waitShared(
+		run: (c: Connection) => void,
+		reject: (e: Error) => void,
+		retry: () => void,
+		signal?: AbortSignal,
+	): void {
+		if (this.acquireMs <= 0 && signal === undefined) {
 			this.sharedWaiters.push({ run, reject, retry });
 			return;
 		}
+		let to: ReturnType<typeof setTimeout> | undefined;
+		const done = () => {
+			if (to !== undefined) clearTimeout(to);
+			signal?.removeEventListener('abort', onAbort);
+		};
 		const w: SharedWaiter = {
 			run: (c) => {
-				clearTimeout(to);
+				done();
 				run(c);
 			},
 			reject: (e) => {
-				clearTimeout(to);
+				done();
 				reject(e);
 			},
 			retry: () => {
-				clearTimeout(to);
+				done();
 				retry();
 			},
 		};
-		const to = setTimeout(() => {
+		const leave = (e: Error) => {
 			const i = this.sharedWaiters.indexOf(w);
 			if (i >= 0) this.sharedWaiters.splice(i, 1);
-			reject(
-				new Error(
-					`@drizzle/postgres: pool acquire timed out after ${this.acquireMs}ms — all ${this.max} connection(s) are checked out.${this.stuckHint()}`,
-				),
-			);
-		}, this.acquireMs);
-		(to as { unref?: () => void }).unref?.();
+			w.reject(e);
+		};
+		const onAbort = () => leave(abortReason(signal!));
+		if (this.acquireMs > 0) {
+			to = setTimeout(() =>
+				leave(
+					new Error(
+						`@drizzle/postgres: pool acquire timed out after ${this.acquireMs}ms — all ${this.max} connection(s) are checked out.${this.stuckHint()}`,
+					),
+				), this.acquireMs);
+			(to as { unref?: () => void }).unref?.();
+		}
+		signal?.addEventListener('abort', onAbort, { once: true });
 		this.sharedWaiters.push(w);
 	}
 

@@ -377,6 +377,13 @@ export interface QueryOptions {
 	/** Cancel the query when this AbortSignal fires. Needs a pooled connection, and a late cancel can
 	 *  stop the next pipelined query, as described for `timeout`. */
 	signal?: AbortSignal;
+	/** `false`: when `signal` or `timeout` fires, don't send a CancelRequest. A query not yet sent is removed and
+	 *  never runs; one already sent runs to the end on the server, and its result is dropped. The query then
+	 *  rejects with the abort reason at once. A CancelRequest stops whatever its backend runs, so `pool.query`
+	 *  gives a query that may send one a connection to itself; with `false` it can share a connection with other
+	 *  queries. Where the pool doesn't share connections, the query gets one to itself anyway, and is then
+	 *  canceled on the server as without this option. */
+	cancel?: boolean;
 	/** Repropagate error to preserve link to original call stack */
 	trace?: boolean;
 }

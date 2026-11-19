@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
+import { preparedNameTests } from './common-prepared-names';
 import { assertDroppedConnectionRejectsTransaction } from './connection-drop';
 import { neonWsTest as test } from './instrumentation';
 import { usersMigratorTable, usersMySchemaTable, usersTable } from './schema';
@@ -23,6 +24,7 @@ import {
 	thus extra execute statements below
  */
 tests(test, []);
+preparedNameTests(test);
 
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as NeonDatabase;

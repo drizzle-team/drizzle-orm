@@ -155,6 +155,70 @@ runCommonEffectPgTests({
 				expect(selected.success).toStrictEqual([{ id: 1, name: 'John' }]);
 			}));
 
+		// The Effect form of common-prepared-names.ts. In a transaction, so the statements and the
+		// pg_prepared_statements read share a connection.
+		it.effect('a name given to prepare() is the name of the statement on the server', () =>
+			Effect.gen(function*() {
+				const db = yield* createDB({ bulkUsers }, () => ({}));
+				yield* createBulkUsers(db);
+				const prefix = `pn_${Math.random().toString(36).slice(2, 8)}`;
+				const id = sql.placeholder('id');
+
+				const { results, names } = yield* db.transaction((tx) =>
+					Effect.gen(function*() {
+						const results = [
+							yield* tx.insert(bulkUsers).values({ id: 1, name: sql.placeholder('name') })
+								.returning({ id: bulkUsers.id, name: bulkUsers.name })
+								.prepare(`${prefix}_insert`).execute({ name: 'John' }),
+							yield* tx.select({ id: bulkUsers.id, name: bulkUsers.name }).from(bulkUsers)
+								.where(sql`${bulkUsers.id} = ${id}`)
+								.prepare(`${prefix}_select`).execute({ id: 1 }),
+							yield* tx.update(bulkUsers).set({ name: 'Jane' }).where(sql`${bulkUsers.id} = ${id}`)
+								.returning({ id: bulkUsers.id, name: bulkUsers.name })
+								.prepare(`${prefix}_update`).execute({ id: 1 }),
+							yield* tx.query.bulkUsers.findFirst({ columns: { id: true, name: true }, where: { id: { eq: id } } })
+								.prepare(`${prefix}_find_first`).execute({ id: 1 }),
+							yield* tx.delete(bulkUsers).where(sql`${bulkUsers.id} = ${id}`)
+								.returning({ id: bulkUsers.id, name: bulkUsers.name })
+								.prepare(`${prefix}_delete`).execute({ id: 1 }),
+						];
+						const names = yield* tx.select({ name: sql<string>`name` }).from(sql`pg_prepared_statements`)
+							.where(sql`name like ${prefix + '\\_%'}`).orderBy(sql`name`);
+						return { results, names: names.map((row) => row.name) };
+					})
+				);
+
+				expect(results).toStrictEqual([
+					[{ id: 1, name: 'John' }],
+					[{ id: 1, name: 'John' }],
+					[{ id: 1, name: 'Jane' }],
+					{ id: 1, name: 'Jane' },
+					[{ id: 1, name: 'Jane' }],
+				]);
+				expect(names).toStrictEqual(
+					['delete', 'find_first', 'insert', 'select', 'update'].map((kind) => `${prefix}_${kind}`),
+				);
+			}));
+
+		it.effect('a prepared statement in batch and pipeline runs under its name', () =>
+			Effect.gen(function*() {
+				const db = yield* PostgresDrizzle.makeWithDefaults();
+				yield* createBulkUsers(db);
+				yield* db.insert(bulkUsers).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+				const name = `pn_multi_${Math.random().toString(36).slice(2, 8)}`;
+				const byId = db.select({ id: bulkUsers.id, name: bulkUsers.name }).from(bulkUsers)
+					.where(sql`${bulkUsers.id} = ${sql.placeholder('id')}`).prepare(name);
+				const named = db.select({ name: sql<string>`name` }).from(sql`pg_prepared_statements`)
+					.where(sql`name = ${name}`);
+
+				// batch and pipeline each keep their statements on one connection, in order
+				const batched = yield* db.batch([byId.execute({ id: 1 }), byId.execute({ id: 2 }), named]);
+				expect(batched).toStrictEqual([[{ id: 1, name: 'John' }], [{ id: 2, name: 'Jane' }], [{ name }]]);
+
+				const piped = yield* db.pipeline([byId.execute({ id: 2 }), named]);
+				expect(piped).toStrictEqual([[{ id: 2, name: 'Jane' }], [{ name }]]);
+			}));
+
 		it.effect('bulkInsert and bulkUpdate', () =>
 			Effect.gen(function*() {
 				const db = yield* PostgresDrizzle.makeWithDefaults();

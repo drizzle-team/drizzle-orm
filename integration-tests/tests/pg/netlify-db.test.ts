@@ -42,6 +42,7 @@ import pg from 'pg';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
+import { preparedNameTests } from './common-prepared-names';
 import { assertDroppedConnectionRejectsTransaction } from './connection-drop';
 import { netlifyDbTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
@@ -57,6 +58,8 @@ const connectionString = process.env['NETLIFY_DB_URL']!;
 
 // COMMON
 tests(test, skips);
+// queries outside a transaction go over HTTP, which keeps no statements; a transaction runs on a WebSocket session
+preparedNameTests(test);
 
 const testItems = pgTable('netlify_db_test_items', {
 	id: serial('id').primaryKey(),

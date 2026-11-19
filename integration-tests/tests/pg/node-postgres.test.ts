@@ -8,6 +8,7 @@ import { Pool, type QueryResult } from 'pg';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
+import { preparedNameTests } from './common-prepared-names';
 import { assertDroppedConnectionRejectsTransaction } from './connection-drop';
 import { nodePostgresTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
@@ -18,6 +19,7 @@ import {
 } from './snapshot';
 
 tests(test, []);
+preparedNameTests(test);
 
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as NodePgDatabase;

@@ -22,6 +22,7 @@ import {
 	makeAllTypes,
 } from './all-types';
 import { tests } from './common';
+import { preparedNameTests } from './common-prepared-names';
 import { localNeonWsOptions, postgresNeonWsTest as test } from './instrumentation';
 import { type BulkDrizzle, bulkTests } from './postgres-bulk';
 import { usersMigratorTable } from './schema';
@@ -37,6 +38,7 @@ const skips = [
 ];
 
 tests(test, skips);
+preparedNameTests(test);
 
 bulkTests(test, { name: 'neon_ws', drizzle: drizzleNeonWs as BulkDrizzle });
 

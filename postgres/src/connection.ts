@@ -77,6 +77,7 @@ const OPTION_KEYS = new Set([
 	'debug',
 	'timeout',
 	'signal',
+	'cancel',
 	'trace',
 ]);
 import { Cursor, type CursorOptions } from './cursor.ts';
@@ -187,6 +188,14 @@ const mergeUnknownCols = (cols: CodegenCol[], fields: Field[]): CodegenCol[] =>
 	mergeUnknown(cols, fields, (f) => f.dataTypeOid);
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+// Whether two result-format specs (one code for every column, or one per column) ask for the same formats
+const sameFormats = (a: number | readonly number[], b: number | readonly number[]): boolean => {
+	if (typeof a === 'number' || typeof b === 'number') return a === b;
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+	return true;
+};
 
 const parseKey = (
 	t: Task,
@@ -538,6 +547,8 @@ interface Task {
 	binary?: boolean; // { binary: true }: force all columns binary; build the mapper binary from RowDescription OIDs
 	timeout?: number;
 	signal?: AbortSignal;
+	// false: an abort never sends a CancelRequest (QueryOptions.cancel). Set only on a query with signal or timeout
+	cancel?: false;
 	timer?: ReturnType<typeof setTimeout>;
 	graceTimer?: ReturnType<typeof setTimeout>;
 	settled?: boolean; // caller already resolved/rejected (by timeout/abort) — don't settle again
@@ -721,7 +732,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private paramPlanCache = new WeakMap<readonly number[], ParamsEncoder | null>();
 	// JIT Bind+Execute+Sync encoders, keyed by binary-plan identity (stable per statement/paramTypes). Rebuilt
 	// only when the statement name or result-format changes for that plan. Empty unless encode:'jit'/'auto'+eval.
-	private jitEncodeCache = new Map<ParamsEncoder, { jit: BindEncoder | null; name: string; rfSig: number | string }>();
+	private jitEncodeCache = new Map<ParamsEncoder, { jit: BindEncoder | null; name: string; rf: number | number[] }>();
 	private jitEncode = false; // eval available AND encode !== 'interpreted'
 	// bulkInsert: (table+columns+returning) -> generated unnest SQL + array OIDs (stable identity) + auto statement name
 	private insertMeta = new Map<string, { sql: string; oids: number[]; name: string }>();
@@ -866,11 +877,15 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		oids: readonly number[],
 		rf: number | number[],
 	): BindEncoder | null {
-		const rfSig = typeof rf === 'number' ? rf : rf.join(',');
 		const je = this.jitEncodeCache.get(plan);
-		if (je !== undefined && je.name === name && je.rfSig === rfSig) return je.jit;
+		// A repeat execution passes the same result-format array (cached on its statement or shape, never changed),
+		// so it matches by identity; comparing contents would build a string on every query.
+		if (je !== undefined && je.name === name && (je.rf === rf || sameFormats(je.rf, rf))) {
+			je.rf = rf;
+			return je.jit;
+		}
 		const jit = compileBindEncoder(name, oids, rf); // null when the row width exceeds the JIT cap -> caller falls back
-		this.jitEncodeCache.set(plan, { jit, name, rfSig });
+		this.jitEncodeCache.set(plan, { jit, name, rf });
 		return jit;
 	}
 
@@ -1795,8 +1810,9 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		return pooledConnections.has(this);
 	}
 
-	private canCancel(opts: { timeout?: number; signal?: AbortSignal }): boolean {
-		return this.isPooled || (opts.timeout == null && opts.signal === undefined);
+	// A CancelRequest needs the pool's connection settings; an abort that sends none works on any connection
+	private canCancel(opts: { timeout?: number; signal?: AbortSignal; cancel?: boolean }): boolean {
+		return this.isPooled || (opts.timeout == null && opts.signal === undefined) || opts.cancel === false;
 	}
 
 	// Cancel a task: settle the caller immediately, and if it's in flight, send an
@@ -1810,10 +1826,11 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			// Already on the wire: settle the caller now; its result still streams back and finishTask discards
 			// it (it's settled). An out-of-band CancelRequest cancels whatever the backend is CURRENTLY running —
 			// accurate only for the head (idx 0); for a query queued behind the head in the pipeline we just let
-			// it run and drop the result (cancelling would hit the wrong query).
+			// it run and drop the result (cancelling would hit the wrong query). A task with `cancel: false` is
+			// never canceled on the server, as it may share the connection with other callers' queries.
 			this.fireEnd(task, reason);
 			this.rejectTask(task, reason);
-			if (idx === 0) {
+			if (idx === 0 && task.cancel !== false) {
 				// CopyFail ends a COPY FROM STDIN, and the server holds back a CancelRequest while it reads COPY data.
 				if (!task.copySource) this.sendCancelRequest(task);
 				task.graceTimer = setTimeout(() => {
@@ -2335,6 +2352,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				reject,
 				timeout: opts.timeout,
 				signal: opts.signal,
+				cancel: opts.cancel === false && (opts.signal !== undefined || opts.timeout != null) ? false : undefined,
 				debug: opts.debug,
 				paramTypes: opts.params && resolveParamTypes(opts.params),
 				group: this.batchGroup,

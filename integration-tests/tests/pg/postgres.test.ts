@@ -33,6 +33,7 @@ import {
 	makeAllTypes,
 } from './all-types';
 import { tests } from './common';
+import { preparedNameTests } from './common-prepared-names';
 import { postgresTest as test } from './instrumentation';
 import { type BulkDrizzle, bulkTests } from './postgres-bulk';
 import { usersMigratorTable, usersTable } from './schema';
@@ -43,6 +44,7 @@ import {
 } from './snapshot';
 
 tests(test, ['all types ~codecs~']);
+preparedNameTests(test);
 
 bulkTests(test, { name: 'pool', drizzle: drizzlePostgres as BulkDrizzle });
 bulkTests(test, {

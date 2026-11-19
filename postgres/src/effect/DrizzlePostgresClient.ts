@@ -202,6 +202,14 @@ export interface DrizzlePostgresClientConfig {
 	/** Adds Drizzle Postgres's per-query timings and sizes to each statement span, and turns on Effect's
 	 *  SpanPropagationEnabled for the layer. Off by default, and then the driver collects no timings. */
 	readonly metrics?: boolean | undefined;
+	/** As in @effect/sql-pg: a statement outside a transaction, `reserve` and `pipeline` shares a pool connection
+	 *  with other fibers' statements, pipelined, instead of taking one to itself. Interrupting such a statement
+	 *  sends no CancelRequest, because that stops whatever its backend runs, possibly another fiber's statement: a
+	 *  statement not yet sent never runs, and one already sent runs to the end on the server. Transactions,
+	 *  `reserve`, streams, cursors, COPY, bulk calls and `pipeline` keep a connection to themselves and are canceled
+	 *  on the server when interrupted. Off by default. Where the pool doesn't share connections (`pipeline: false`,
+	 *  or behind a transaction pooler), every statement keeps a connection to itself. */
+	readonly multiplex?: boolean | undefined;
 
 	readonly decode?: ConnectConfig['decode'];
 	readonly temporal?: ConnectConfig['temporal'];
@@ -214,7 +222,7 @@ export interface DrizzlePostgresClientConfig {
 /** The client settings that apply on top of an existing pool. */
 export type FromPoolOptions = Pick<
 	DrizzlePostgresClientConfig,
-	'spanAttributes' | 'transformResultNames' | 'transformQueryNames' | 'transformJson' | 'metrics'
+	'spanAttributes' | 'transformResultNames' | 'transformQueryNames' | 'transformJson' | 'metrics' | 'multiplex'
 >;
 
 let clientIdCounter = 0;
@@ -262,6 +270,14 @@ export const fromPool = Effect.fnUntraced(
 			Effect.serviceOption(pipelineConnection),
 			(pinned) => Effect.map(Option.isSome(pinned) ? Effect.succeed(pinned.value) : poolConnection, toSqlConnection),
 		);
+		// multiplex: a statement outside a transaction (SqlClient handles those) and outside a Pipeline runs as a
+		// shared pool query. Streams, transactions and `reserve` keep the acquirer.
+		const shared = config.multiplex === true ? new SharedConnectionImpl(pool, config.metrics === true) : undefined;
+		const borrower = shared && (<A, E, R>(f: (connection: SqlConnection) => Effect.Effect<A, E, R>) =>
+			Effect.flatMap(
+				Effect.serviceOption(pipelineConnection),
+				(pinned) => f(Option.isSome(pinned) ? toSqlConnection(pinned.value) : shared),
+			));
 
 		const spanAttributes = [
 			...(config.spanAttributes ? Object.entries(config.spanAttributes) : []),
@@ -273,6 +289,7 @@ export const fromPool = Effect.fnUntraced(
 		] satisfies ReadonlyArray<readonly [string, unknown]>;
 		const client = yield* Client.make({
 			acquirer,
+			borrower,
 			// A transaction always takes its own connection, so it never pulls the pipeline's statements into it.
 			transactionAcquirer: Effect.map(poolConnection, toSqlConnection),
 			compiler,
@@ -295,30 +312,59 @@ export const fromPool = Effect.fnUntraced(
 		const withConnection = <A, E>(f: (conn: Connection) => Effect.Effect<A, E>) =>
 			Effect.scoped(Effect.flatMap(scopedConnection, f));
 
-		// A span per operation, named and attributed as Effect names the spans of sql statements.
+		// A span per operation, named and attributed as Effect names the spans of sql statements. Like those, it
+		// captures no stack trace: that costs about 6 µs per query, and the frame would be inside this client.
 		const spanName = Statement.spanName(spanAttributes);
+		const baseAttributes = Object.fromEntries(spanAttributes);
 		const spanOptions = (operation: string, text: string) => ({
 			kind: 'client' as const,
-			attributes: { ...Object.fromEntries(spanAttributes), 'db.operation.name': operation, 'db.query.text': text },
+			captureStackTrace: false,
+			attributes: { ...baseAttributes, 'db.operation.name': operation, 'db.query.text': text },
 		});
+		// Without a tracer installed (the fiber has only Effect's default one) nothing reads the span: skip it
 		const traced = <A, E, R>(operation: string, text: string, effect: Effect.Effect<A, E, R>) =>
-			Effect.withSpan(effect, spanName, spanOptions(operation, text));
+			Effect.withFiber((fiber) =>
+				fiber.cache.tracerEnabled && fiber.cache.tracer !== undefined
+					? Effect.withSpan(effect, spanName, spanOptions(operation, text))
+					: effect
+			);
 
 		const metrics = config.metrics === true;
+		const onConnection = <A>(
+			sql: string,
+			params: Params,
+			options: QueryOptions,
+			conn: Connection,
+		): Effect.Effect<A, SqlError> =>
+			annotateMetrics(Effect.tryPromise({
+				try: (signal) => conn.query(sql, params, { metrics, ...options, signal } as never) as Promise<A>,
+				catch: (e) => toSqlError(e, 'query', conn),
+			}) as Effect.Effect<QueryResult<unknown>, SqlError>) as Effect.Effect<A, SqlError>;
+		// multiplex: outside a transaction and a Pipeline, a shared pool query
+		const sharedQuery = shared === undefined
+			? undefined
+			: <A>(sql: string, params: Params, options: QueryOptions): Effect.Effect<A, SqlError> =>
+				Effect.flatMap(
+					Effect.serviceOption(client.transactionService),
+					(tx) =>
+						Option.isSome(tx)
+							? onConnection<A>(sql, params, options, (tx.value[0] as ConnectionImpl).conn)
+							: Effect.flatMap(
+								Effect.serviceOption(pipelineConnection),
+								(pinned) =>
+									Option.isSome(pinned)
+										? onConnection<A>(sql, params, options, pinned.value)
+										: shared.run<A>('query', sql, params, options),
+							),
+				);
 		// oxlint-disable-next-line typescript/no-useless-default-assignment -- JavaScript callers can omit both
 		const query = ((sql: string, params: Params = [], options: QueryOptions = {}) =>
 			traced(
 				'query',
 				sql,
-				withConnection((conn) =>
-					annotateMetrics(Effect.tryPromise({
-						try: (signal) =>
-							conn.query(sql, params, { metrics, ...options, signal } as never) as Promise<
-								QueryResult<unknown> | Uint8Array[]
-							>,
-						catch: (e) => toSqlError(e, 'query', conn),
-					}))
-				),
+				sharedQuery
+					? sharedQuery(sql, params, options)
+					: withConnection((conn) => onConnection(sql, params, options, conn)),
 			)) as PostgresQuery;
 
 		const plainWithTransaction = client.withTransaction;
@@ -604,6 +650,80 @@ class ConnectionImpl implements SqlConnection {
 	}
 }
 addBrand(ConnectionImpl, 'ConnectionImpl');
+
+// multiplex: statements as shared pool queries, pipelined with other fibers' statements on the pool's
+// connections. An interrupt aborts the query without a CancelRequest (`cancel: false`): one not yet sent never
+// runs, one already sent runs to the end on the server.
+class SharedConnectionImpl implements SqlConnection {
+	constructor(readonly pool: Pool, readonly metrics = false) {}
+
+	run<A>(operation: string, sql: string, params: Params, options: QueryOptions): Effect.Effect<A, SqlError> {
+		let conn: Connection | undefined; // the connection the pool ran it on, if it got that far
+		const result = Effect.tryPromise({
+			try: (signal) =>
+				this.pool._run(
+					sql,
+					params as unknown[],
+					{ metrics: this.metrics, ...options, signal, cancel: false } as PostgresQueryOptions,
+					(c) => {
+						conn = c;
+					},
+				) as Promise<A>,
+			catch: (e) => toSqlError(e, operation, conn),
+		});
+		return this.metrics
+			? annotateMetrics(result as Effect.Effect<QueryResult<unknown>, SqlError>) as Effect.Effect<A, SqlError>
+			: result;
+	}
+
+	private rows<Row>(sql: string, params: ReadonlyArray<unknown>, mode: 'object' | 'array') {
+		return Effect.map(
+			this.run<QueryResult<Row>>('execute', sql, params as unknown[], { mode: mode as 'object' }),
+			(r) => r.rows,
+		);
+	}
+
+	execute(
+		sql: string,
+		params: ReadonlyArray<unknown>,
+		transformRows: (<A extends object>(row: ReadonlyArray<A>) => ReadonlyArray<A>) | undefined,
+	) {
+		const rows = this.rows<Record<string, unknown>>(sql, params, 'object');
+		return transformRows ? Effect.map(rows, transformRows) : rows;
+	}
+	executeUnprepared(
+		sql: string,
+		params: ReadonlyArray<unknown>,
+		transformRows: (<A extends object>(row: ReadonlyArray<A>) => ReadonlyArray<A>) | undefined,
+	) {
+		return this.execute(sql, params, transformRows);
+	}
+	executeValues(sql: string, params: ReadonlyArray<unknown>) {
+		return this.rows<unknown[]>(sql, params, 'array');
+	}
+	executeValuesUnprepared(sql: string, params: ReadonlyArray<unknown>) {
+		return this.executeValues(sql, params);
+	}
+	executeRaw(sql: string, params: ReadonlyArray<unknown>) {
+		return this.run<QueryResult<Record<string, unknown>>>('executeRaw', sql, params as unknown[], { mode: 'object' });
+	}
+	// SqlClient streams through the acquirer, never through here; a stream needs a connection to itself
+	executeStream(
+		sql: string,
+		params: ReadonlyArray<unknown>,
+		transformRows: (<A extends object>(row: ReadonlyArray<A>) => ReadonlyArray<A>) | undefined,
+	) {
+		const pool = this.pool;
+		const metrics = this.metrics;
+		return Stream.unwrap(
+			Effect.map(
+				Effect.acquireRelease(acquire(pool, () => {}), (conn) => Effect.sync(() => pool.release(conn))),
+				(conn) => new ConnectionImpl(conn, metrics).executeStream(sql, params, transformRows),
+			),
+		);
+	}
+}
+addBrand(SharedConnectionImpl, 'SharedConnectionImpl');
 
 const annotateMetrics = <A extends QueryResult<unknown> | Uint8Array[], E>(effect: Effect.Effect<A, E>) =>
 	Effect.tap(
