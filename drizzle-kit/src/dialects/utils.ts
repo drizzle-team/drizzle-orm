@@ -1,5 +1,6 @@
 import type { DB, Simplify } from '../utils';
 import type { CockroachDDL } from './cockroach/ddl';
+import { isEqual } from './dialect';
 import type { MssqlDDL } from './mssql/ddl';
 import type { MysqlDDL } from './mysql/ddl';
 import type { PostgresDDL } from './postgres/ddl';
@@ -125,20 +126,43 @@ export const preserveEntityNames = <
 	mode: 'push' | 'default',
 ) => {
 	const items = collection1.list().filter((x) => mode === 'push' || !x.nameExplicit);
+
+	// The implicitly named rows of collection2 by table, so each row of collection1 is compared only with the rows of
+	// its own table instead of the whole collection. These are the stored rows, which a rename changes in place, so
+	// the groups stay up to date without being built again.
+	const tableOf = (it: { schema?: string; table: string }) => JSON.stringify([it.schema ?? null, it.table]);
+	const groupByTable = () => {
+		const groups = new Map<string, Record<string, unknown>[]>();
+		for (const row of collection2.list({ nameExplicit: false } as any)) {
+			const group = groups.get(tableOf(row));
+			if (group) group.push(row);
+			else groups.set(tableOf(row), [row]);
+		}
+		return groups;
+	};
+	let candidatesByTable = groupByTable();
+
 	for (const left of items) {
 		const { entityType: _1, name: _2, nameExplicit: _3, ...filter } = left;
 
-		const match = collection2.list({ ...filter, nameExplicit: false } as any);
+		const match = (candidatesByTable.get(tableOf(left)) ?? []).filter((row) =>
+			Object.entries(filter).every(([field, value]) => isEqual(row[field], value))
+		);
 
 		if (match.length !== 1 || match[0].name === left.name) continue;
 
-		collection2.update({
+		const { status } = collection2.update({
 			set: { name: left.name },
 			where: {
 				...filter,
 				nameExplicit: false,
 			} as any,
 		});
+		// A rename that conflicts is rolled back: the rows are changed in place first, then the store is refilled with
+		// copies taken before the change. The grouped rows are then no longer the stored ones, and the conflicting row
+		// keeps the rejected name. The name is what decides above whether a row still needs renaming, so the groups are
+		// built again from the store.
+		if (status !== 'OK') candidatesByTable = groupByTable();
 	}
 };
 

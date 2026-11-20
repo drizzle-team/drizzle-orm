@@ -25,10 +25,19 @@ import type {
 	UniqueConstraint,
 	View,
 } from './ddl';
-import { createDDL, tableFromDDL } from './ddl';
+import { createDDL, tablesFromDDL } from './ddl';
 import { defaults, defaultsCommutative, isSerialType } from './grammar';
 import type { JsonAlterCheck, JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
+
+const columnKey = (it: { schema: string; table: string; name: string }) =>
+	JSON.stringify([it.schema, it.table, it.name]);
+
+// The columns that are in a primary key of `ddl`, by `columnKey`, so a check per column doesn't scan every primary key
+const pkColumnsOf = (ddl: PostgresDDL) =>
+	new Set(
+		ddl.pks.list().flatMap((pk) => pk.columns.map((name) => columnKey({ schema: pk.schema, table: pk.table, name }))),
+	);
 
 export const ddlDiffDry = async (
 	ddlFrom: PostgresDDL,
@@ -423,10 +432,10 @@ export const ddlDiff = async (
 		}
 	}
 
-	const jsonDropTables = deletedTables.map((it) => {
-		const oldSchema = renamedSchemas.find((x) => x.to.name === it.schema);
-		const key = oldSchema ? `"${oldSchema.from.name}"."${it.name}"` : `"${it.schema}"."${it.name}"`;
-		return prepareStatement('drop_table', { table: tableFromDDL(it, ddl2), key });
+	const jsonDropTables = tablesFromDDL(deletedTables, ddl2).map((table) => {
+		const oldSchema = renamedSchemas.find((x) => x.to.name === table.schema);
+		const key = oldSchema ? `"${oldSchema.from.name}"."${table.name}"` : `"${table.schema}"."${table.name}"`;
+		return prepareStatement('drop_table', { table, key });
 	});
 	const jsonRenameTables = renamedTables.map((it) =>
 		prepareStatement('rename_table', {
@@ -440,6 +449,7 @@ export const ddlDiff = async (
 	const jsonDropColumnsStatemets = columnsToDelete.filter(tablesFilter('deleted')).map((it) =>
 		prepareStatement('drop_column', { column: it })
 	);
+	const pkColumnsBeforeAdd = pkColumnsOf(ddl2);
 	const jsonAddColumnsStatemets = columnsToCreate.filter(tablesFilter('created')).map((it) =>
 		prepareStatement('add_column', {
 			column: it,
@@ -447,7 +457,7 @@ export const ddlDiff = async (
 			// this flag is needed for column recreation (generated)
 			// see tests: "drizzle-kit/tests/postgres/pg-constraints.test.ts" => "remove/add pk" and below
 			isPK: false, // ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
-			isCompositePK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null,
+			isCompositePK: pkColumnsBeforeAdd.has(columnKey(it)),
 		})
 	);
 
@@ -809,6 +819,7 @@ export const ddlDiff = async (
 		}
 	}
 
+	const pkColumnsBeforeAlter = pkColumnsOf(ddl2);
 	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated && it.generated.to !== null))
 		.filter((it) => {
 			// if column is of type enum we're about to recreate - we will reset default anyway
@@ -825,8 +836,7 @@ export const ddlDiff = async (
 				delete it.notNull;
 			}
 
-			const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
-			if (it.notNull && pkIn2) {
+			if (it.notNull && pkColumnsBeforeAlter.has(columnKey(it))) {
 				delete it.notNull;
 			}
 
@@ -881,7 +891,7 @@ export const ddlDiff = async (
 	const dropSchemas = deletedSchemas.map((it) => prepareStatement('drop_schema', it));
 	const renameSchemas = renamedSchemas.map((it) => prepareStatement('rename_schema', it));
 
-	const createTables = createdTables.map((it) => prepareStatement('create_table', { table: tableFromDDL(it, ddl2) }));
+	const createTables = tablesFromDDL(createdTables, ddl2).map((table) => prepareStatement('create_table', { table }));
 
 	const createViews = createdViews.map((it) => prepareStatement('create_view', { view: it }));
 
