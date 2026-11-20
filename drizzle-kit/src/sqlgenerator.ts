@@ -148,6 +148,18 @@ const parseType = (schemaPrefix: string, type: string) => {
 		: `${schemaPrefix}"${withoutArrayDefinition}"${arrayDefinition}`;
 };
 
+// SQLite requires expression defaults (function calls like datetime('now'))
+// to be wrapped in parentheses: DEFAULT (datetime('now')).
+// Simple literals (strings, numbers, NULL, CURRENT_*) do not need wrapping.
+const wrapSqliteExprDefault = (val: unknown): string => {
+	const s = String(val);
+	if (typeof val !== 'string') return s;
+	if (s.startsWith('(') || s.startsWith("'") || s.startsWith('"')) return s;
+	if (/^-?\d+(\.\d+)?$/.test(s)) return s;
+	if (/^(NULL|TRUE|FALSE|CURRENT_TIME|CURRENT_DATE|CURRENT_TIMESTAMP)$/i.test(s)) return s;
+	return `(${s})`;
+};
+
 abstract class Convertor {
 	abstract can(
 		statement: JsonStatement,
@@ -677,7 +689,9 @@ export class SQLiteCreateTableConvertor extends Convertor {
 
 			const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
 			const notNullStatement = column.notNull ? ' NOT NULL' : '';
-			const defaultStatement = column.default !== undefined ? ` DEFAULT ${column.default}` : '';
+			const defaultStatement = column.default !== undefined
+				? ` DEFAULT ${wrapSqliteExprDefault(column.default)}`
+				: '';
 
 			const autoincrementStatement = column.autoincrement
 				? ' AUTOINCREMENT'
@@ -1872,7 +1886,7 @@ export class SQLiteAlterTableAddColumnConvertor extends Convertor {
 		const { tableName, column, referenceData } = statement;
 		const { name, type, notNull, primaryKey, generated } = column;
 
-		const defaultStatement = `${column.default !== undefined ? ` DEFAULT ${column.default}` : ''}`;
+		const defaultStatement = `${column.default !== undefined ? ` DEFAULT ${wrapSqliteExprDefault(column.default)}` : ''}`;
 		const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 		const primaryKeyStatement = `${primaryKey ? ' PRIMARY KEY' : ''}`;
 		const referenceAsObject = referenceData
