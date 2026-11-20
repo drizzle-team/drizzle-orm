@@ -1,8 +1,6 @@
 import type { AuroraDSQLClient, AuroraDSQLPool, OCCRetryConfig } from '@aws/aurora-dsql-node-postgres-connector';
 import type { CustomTypesConfig, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import {
@@ -13,7 +11,7 @@ import {
 	surfaceDsqlOccCode,
 } from '~/pg-core/async/dsql/session.ts';
 import { PgAsyncPreparedQuery } from '~/pg-core/async/session.ts';
-import { pgRawTextOids } from '~/pg-core/codecs.ts';
+import { pgRawTextTypeParser } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT } from '~/pg-core/session.ts';
 import type { PreparedQueryConfig } from '~/pg-core/session.ts';
@@ -22,12 +20,10 @@ import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
-const rawText = (value: string) => value;
-
 export const nodePgDsqlRawTextTypes: CustomTypesConfig = {
-	getTypeParser:
-		<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
-			pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format as any)),
+	getTypeParser: <CustomTypesConfig['getTypeParser']> pgRawTextTypeParser((typeId, format) =>
+		types.getTypeParser(typeId, format)
+	),
 };
 
 const { types } = pg;
@@ -65,7 +61,6 @@ export interface NodePgDsqlTransactionConfig extends DsqlTransactionConfig {
 
 export interface NodePgDsqlSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -75,7 +70,6 @@ export class NodePgDsqlSession<
 	static override readonly [entityKind]: string = 'NodePgDsqlSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		/** `PoolClient` only comes from the pool's own `transaction()`, never from drizzle constructor */
@@ -86,7 +80,6 @@ export class NodePgDsqlSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -94,8 +87,6 @@ export class NodePgDsqlSession<
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	) {
 		const queryName = typeof name === 'string'
 			? name
@@ -118,9 +109,6 @@ export class NodePgDsqlSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

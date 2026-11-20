@@ -1501,6 +1501,7 @@ await db
 		.crossJoinLateral(view);
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/571
 // Dialect-agnostic test - do not duplicate
 {
 	const res = await db.select({
@@ -1542,6 +1543,7 @@ await db
 	>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4232
 {
 	const tripTable = pgTable('tripTable', {
 		id: integer(),

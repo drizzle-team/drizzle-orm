@@ -37,17 +37,11 @@ import {
 	defineRelations,
 	type ExtractTablesFromSchema,
 	type ExtractTablesWithRelations,
-	getCacheKey,
-	is,
 	type RelationsBuilder,
 	type RelationsBuilderConfig,
-	Table,
 } from 'drizzle-orm';
 import { drizzle as drizzleBetterSqlite3 } from 'drizzle-orm/better-sqlite3';
 import { betterSQLite3Codecs } from 'drizzle-orm/better-sqlite3/codecs';
-import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
-import { binarySerializer } from 'drizzle-orm/cache/core';
-import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1';
 import { drizzle as drizzleLibSQL, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { drizzle as drizzleLibSQLHttp } from 'drizzle-orm/libsql/http';
@@ -62,82 +56,12 @@ import { drizzle as drizzleProxy, type SqliteProxyExecutors } from 'drizzle-orm/
 import { drizzle as drizzleTursoDatabaseSls } from 'drizzle-orm/tursodatabase-serverless';
 import { drizzle as drizzleTursoDatabaseSync } from 'drizzle-orm/tursodatabase-sync';
 import { drizzle as drizzleTursoDatabase } from 'drizzle-orm/tursodatabase/database';
-import Keyv from 'keyv';
 import { DatabaseSync } from 'node:sqlite';
 import type { Database as SQLJsDatabase } from 'sql.js';
 import initSqlJs from 'sql.js';
 import { test as base } from 'vitest';
 import relations from './relations';
 import sqliteRelations from './sqlite.relations';
-
-// raw rows hold bigints with drivers reading integers as bigints on decoded queries, which JSON can't store
-const bigintSafeKeyvOptions = {
-	serialize: binarySerializer.serialize,
-	deserialize: binarySerializer.deserialize,
-} as any;
-
-export class TestCache extends Cache {
-	private globalTtl: number = 1000;
-	private usedTablesPerKey: Record<string, string[]> = {};
-
-	constructor(private readonly strat: 'explicit' | 'all', private kv: Keyv = new Keyv(bigintSafeKeyvOptions)) {
-		super();
-	}
-
-	override strategy() {
-		return this.strat;
-	}
-
-	override async get(key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
-		const res = await this.kv.get(key) ?? undefined;
-		return res;
-	}
-
-	override async put(
-		key: string,
-		response: any,
-		tables: string[],
-		isTag: boolean,
-		config?: CacheConfig,
-	): Promise<void> {
-		await this.kv.set(key, response, config ? config.ex : this.globalTtl);
-		for (const table of tables) {
-			const keys = this.usedTablesPerKey[table];
-			if (keys === undefined) {
-				this.usedTablesPerKey[table] = [key];
-			} else {
-				keys.push(key);
-			}
-		}
-	}
-
-	override async onMutate(params: MutationOption): Promise<void> {
-		const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
-		const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
-
-		const keysToDelete = new Set<string>();
-
-		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-			const keys = this.usedTablesPerKey[tableName] ?? [];
-			for (const key of keys) keysToDelete.add(key);
-		}
-
-		if (keysToDelete.size > 0 || tagsArray.length > 0) {
-			for (const tag of tagsArray) {
-				await this.kv.delete(tag);
-			}
-
-			for (const key of keysToDelete) {
-				await this.kv.delete(key);
-				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-					this.usedTablesPerKey[tableName] = [];
-				}
-			}
-		}
-	}
-}
 
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
@@ -766,16 +690,11 @@ const testFor = (
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				jit?: boolean,
 				paramsInErrors?: boolean,
-				cache?: Cache,
 			): SQLiteAsyncDatabase<
 				'async' | 'sync',
 				any,
 				ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>
 			>;
-		};
-		caches: {
-			all: SQLiteAsyncDatabase<'async' | 'sync', any, typeof relations>;
-			explicit: SQLiteAsyncDatabase<'async' | 'sync', any, typeof relations>;
 		};
 	}>({
 		provider: [
@@ -890,44 +809,43 @@ const testFor = (
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					jit?: boolean,
 					paramsInErrors?: boolean,
-					cache?: Cache,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'sqlite-cloud') {
-						return drizzleSqliteCloud({ client: kit.client, relations, jit, paramsInErrors, cache });
+						return drizzleSqliteCloud({ client: kit.client, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'tursodatabase') {
-						return drizzleTursoDatabase({ client: kit.client, relations, jit, paramsInErrors, cache });
+						return drizzleTursoDatabase({ client: kit.client, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'tursodatabase-sync') {
-						return drizzleTursoDatabaseSync({ client: kit.client, relations, jit, paramsInErrors, cache });
+						return drizzleTursoDatabaseSync({ client: kit.client, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'tursodatabase-serverless') {
-						return drizzleTursoDatabaseSls({ client: kit.client, relations, jit, paramsInErrors, cache });
+						return drizzleTursoDatabaseSls({ client: kit.client, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'libsql' || vendor === 'libsql-turso' || vendor === 'libsql-turso-v1') {
-						return drizzleLibSQL({ client: kit.client, relations, jit, paramsInErrors, cache });
+						return drizzleLibSQL({ client: kit.client, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'libsql-ws') {
-						return drizzleLibSQLWs({ client: kit.client, relations, jit, paramsInErrors, cache });
+						return drizzleLibSQLWs({ client: kit.client, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'libsql-sqlite3') {
-						return drizzleLibSQLSqlite3({ client: kit.client, relations, jit, paramsInErrors, cache });
+						return drizzleLibSQLSqlite3({ client: kit.client, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'libsql-node') {
-						return drizzleLibSQLNode({ client: kit.client, relations, jit, paramsInErrors, cache });
+						return drizzleLibSQLNode({ client: kit.client, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'libsql-http') {
-						return drizzleLibSQLHttp({ client: kit.client, relations, jit, paramsInErrors, cache });
+						return drizzleLibSQLHttp({ client: kit.client, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'better-sqlite3') {
-						return drizzleBetterSqlite3({ client: kit.client, relations, jit, paramsInErrors, cache });
+						return drizzleBetterSqlite3({ client: kit.client, relations, jit, paramsInErrors });
 					}
-					if (vendor === 'd1') return drizzleD1(kit.client, { relations, paramsInErrors, cache });
-					if (vendor === 'sql-js') return drizzleSqlJs(kit.client, { relations, jit, paramsInErrors, cache });
+					if (vendor === 'd1') return drizzleD1(kit.client, { relations, paramsInErrors });
+					if (vendor === 'sql-js') return drizzleSqlJs(kit.client, { relations, jit, paramsInErrors });
 					if (vendor === 'node-sqlite') {
-						return drizzleNodeSQLite({ client: kit.client, relations, jit, paramsInErrors, cache });
+						return drizzleNodeSQLite({ client: kit.client, relations, jit, paramsInErrors });
 					}
 
 					if (vendor === 'proxy') {
@@ -937,94 +855,12 @@ const testFor = (
 							jit,
 							paramsInErrors,
 							codecs: betterSQLite3Codecs,
-							cache,
 						});
 					}
 					throw new Error();
 				};
 
 				await use(createDB);
-			},
-			{ scope: 'test' },
-		],
-		caches: [
-			async ({ kit }, use) => {
-				if (vendor === 'proxy') {
-					const serverSimulator = new ServerSimulator(kit.client);
-					const db1 = drizzleProxy(proxyExecutors(serverSimulator), {
-						relations,
-						cache: new TestCache('all'),
-						codecs: betterSQLite3Codecs,
-					});
-					const db2 = drizzleProxy(proxyExecutors(serverSimulator), {
-						relations,
-						cache: new TestCache('explicit'),
-						codecs: betterSQLite3Codecs,
-					});
-					await use({ all: db1, explicit: db2 });
-					return;
-				}
-
-				const config1 = { client: kit.client as any, relations, cache: new TestCache('all') };
-				const config2 = { client: kit.client as any, relations, cache: new TestCache('explicit') };
-
-				const db1 = vendor === 'sqlite-cloud'
-					? drizzleSqliteCloud(config1)
-					: vendor === 'tursodatabase'
-					? drizzleTursoDatabase(config1)
-					: vendor === 'tursodatabase-sync'
-					? drizzleTursoDatabaseSync(config1)
-					: vendor === 'tursodatabase-serverless'
-					? drizzleTursoDatabaseSls(config1)
-					: vendor === 'libsql' || vendor === 'libsql-turso' || vendor === 'libsql-turso-v1'
-					? drizzleLibSQL(config1)
-					: vendor === 'libsql-ws'
-					? drizzleLibSQLWs(config1)
-					: vendor === 'libsql-sqlite3'
-					? drizzleLibSQLSqlite3(config1)
-					: vendor === 'libsql-node'
-					? drizzleLibSQLNode(config1)
-					: vendor === 'libsql-http'
-					? drizzleLibSQLHttp(config1)
-					: vendor === 'better-sqlite3'
-					? drizzleBetterSqlite3(config1)
-					: vendor === 'd1'
-					? drizzleD1(config1.client, { cache: config1.cache, relations: config1.relations })
-					: vendor === 'sql-js'
-					? drizzleSqlJs(config1.client, { cache: config1.cache, relations: config1.relations })
-					: vendor === 'node-sqlite'
-					? drizzleNodeSQLite(config1)
-					: '' as never;
-
-				const db2 = vendor === 'sqlite-cloud'
-					? drizzleSqliteCloud(config2)
-					: vendor === 'tursodatabase'
-					? drizzleTursoDatabase(config2)
-					: vendor === 'tursodatabase-sync'
-					? drizzleTursoDatabaseSync(config2)
-					: vendor === 'tursodatabase-serverless'
-					? drizzleTursoDatabaseSls(config2)
-					: vendor === 'libsql' || vendor === 'libsql-turso' || vendor === 'libsql-turso-v1'
-					? drizzleLibSQL(config2)
-					: vendor === 'libsql-ws'
-					? drizzleLibSQLWs(config2)
-					: vendor === 'libsql-sqlite3'
-					? drizzleLibSQLSqlite3(config2)
-					: vendor === 'libsql-node'
-					? drizzleLibSQLNode(config2)
-					: vendor === 'libsql-http'
-					? drizzleLibSQLHttp(config2)
-					: vendor === 'better-sqlite3'
-					? drizzleBetterSqlite3(config2)
-					: vendor === 'd1'
-					? drizzleD1(config2.client, { cache: config2.cache, relations: config2.relations })
-					: vendor === 'sql-js'
-					? drizzleSqlJs(config2.client, { cache: config2.cache, relations: config2.relations })
-					: vendor === 'node-sqlite'
-					? drizzleNodeSQLite(config2)
-					: '' as never;
-
-				await use({ all: db1, explicit: db2 });
 			},
 			{ scope: 'test' },
 		],

@@ -1,7 +1,4 @@
 import type { SQLPluginResult, SQLQueryResult } from '@xata.io/client';
-import type { Cache } from '~/cache/core/index.ts';
-import { NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -23,7 +20,6 @@ export interface QueryResults<ArrayMode extends 'json' | 'array'> {
 
 export interface XataHttpSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -34,7 +30,6 @@ export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSes
 	static override readonly [entityKind]: string = 'XataHttpSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: XataHttpClient,
@@ -44,7 +39,6 @@ export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSes
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -52,8 +46,6 @@ export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSes
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	) {
 		const executor = async (params?: unknown[]) => {
 			if (mode === 'raw') return this.client.sql<Record<string, any>>({ statement: query.sql, params });
@@ -80,9 +72,6 @@ export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSes
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

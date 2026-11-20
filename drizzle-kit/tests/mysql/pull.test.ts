@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { postponed } from '@drizzle/test-utils';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	AnyMySqlColumn,
@@ -39,6 +40,7 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
+import { Year } from 'src/dialects/mysql/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
@@ -1415,6 +1417,27 @@ test('introspect default expression of a fractional seconds column with a backsl
 	// and `diffIntrospect` keeps the pulled file when the diff has statements.
 	await expect(diffIntrospect(db, {}, 'fractional-seconds-defaults-with-template-unsafe-text')).resolves.toBeDefined();
 	fs.rmSync('tests/mysql/tmp/fractional-seconds-defaults-with-template-unsafe-text.ts', { force: true });
+});
+
+test.skipIf(postponed)('introspect year column with a number default', async () => {
+	await db.query("create table `t` (`y` year default 2025, `y_text` year default '2026');");
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, ddlFromPulledTsSchema } = await diffIntrospect(
+		db,
+		{},
+		'year-number-default',
+	);
+	fs.rmSync('tests/mysql/tmp/year-number-default.ts', { force: true });
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	// the pulled file declares the same defaults that the database has
+	const defaults = (ddl: typeof ddlAfterPull) => ddl.columns.list({ table: 't' }).map((it) => [it.name, it.default]);
+	expect(defaults(ddlFromPulledTsSchema)).toStrictEqual(defaults(ddlAfterPull));
+
+	// in the pulled file a four digit year is a value and not an expression
+	expect(Year.toTs('year', '2025')).toStrictEqual({ options: {}, default: '2025' });
+	expect(Year.toTs('year', '(year(curdate()))').default).toBe('sql`(year(curdate()))`');
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6493

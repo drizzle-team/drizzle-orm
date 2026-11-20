@@ -6,6 +6,7 @@ import * as Context from 'effect/Context';
 import * as Data from 'effect/Data';
 import type * as Duration from 'effect/Duration';
 import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
 import * as Fiber from 'effect/Fiber';
 import * as Layer from 'effect/Layer';
 import * as Option from 'effect/Option';
@@ -15,27 +16,36 @@ import type * as Redacted from 'effect/Redacted';
 import type * as Scope from 'effect/Scope';
 import * as Client from 'effect/sql/SqlClient';
 import type { Connection as SqlConnection } from 'effect/sql/SqlConnection';
-import { ConnectionError, SqlError, SqlSyntaxError, UnknownError } from 'effect/sql/SqlError';
-import type { Custom, Fragment } from 'effect/sql/Statement';
+import { SqlError } from 'effect/sql/SqlError';
+import type { Fragment } from 'effect/sql/Statement';
 import * as Statement from 'effect/sql/Statement';
 import * as Stream from 'effect/Stream';
-import type { ConnectionOptions } from 'node:tls';
-import { addBrand } from '../brand.ts';
-import { bulkIsChunked, type BulkProgress, type Connection } from '../connection.ts';
-import { Cursor, type CursorOptions } from '../cursor.ts';
+import { addBrand, isBrand } from '../brand.ts';
+import {
+	bulkIsChunked,
+	type BulkProgress,
+	type Connection,
+	inTransactionLevel,
+	type TransactionLevel,
+	transactionLevel,
+} from '../connection.ts';
+import type { CursorOptions } from '../cursor.ts';
 import type { RawParams } from '../encode.ts';
 import { PgError } from '../errors.ts';
 import { metricAttributes } from '../plugin.ts';
 import type { Pool } from '../pool.ts';
 import type { PgType } from '../spec.ts';
 import type { ConnectConfig, QueryOptions as PostgresQueryOptions, QueryResult } from '../types.ts';
-import { classifySqlState, setTransaction, type TransactionOptions } from './shared.ts';
+import { makeCompiler, PostgresJson, toSqlError, type TransactionOptions } from './shared.ts';
+
+// Shared with the Aurora and HTTP clients, which load them from ./shared.ts without this client's connection code
+export { makeCompiler, toSqlError } from './shared.ts';
 
 export const TypeId = '~@drizzle/postgres/DrizzlePostgresClient';
 export type TypeId = typeof TypeId;
 
 /** A SqlClient that runs on Drizzle Postgres. Its layers provide it under both this service and SqlClient. */
-export interface DrizzlePostgresClient extends Client.SqlClient {
+export interface DrizzlePostgresClient extends Client.Base {
 	readonly [TypeId]: TypeId;
 	readonly config: DrizzlePostgresClientConfig;
 	/** The Drizzle Postgres pool that runs every statement. */
@@ -175,7 +185,7 @@ export interface PostgresQuery {
 
 export type { TransactionOptions };
 
-export const DrizzlePostgresClient = Context.Service<DrizzlePostgresClient>(
+export const DrizzlePostgresClient = Context.Service<DrizzlePostgresClient, DrizzlePostgresClient & Client.SqlClient>(
 	'@drizzle/postgres/DrizzlePostgresClient',
 );
 
@@ -186,8 +196,10 @@ export interface DrizzlePostgresClientConfig {
 	readonly port?: number | undefined;
 	/** A unix-domain socket path, used instead of host and port. */
 	readonly path?: string | undefined;
-	/** `true` verifies the server certificate and host name, as in @effect/sql-pg. */
-	readonly ssl?: boolean | ConnectionOptions | undefined;
+	/** The driver's own setting, with the driver's meaning: `true` and `'require'` encrypt without verifying the
+	 *  server certificate, `'verify-ca'` and `'verify-full'` verify it, an object goes to `tls.connect`. In
+	 *  @effect/sql-pg `true` verifies: that is `'verify-full'` here. */
+	readonly ssl?: ConnectConfig['ssl'] | undefined;
 	readonly database?: string | undefined;
 	readonly username?: string | undefined;
 	readonly password?: Redacted.Redacted | undefined;
@@ -257,11 +269,24 @@ export const fromPool = Effect.fnUntraced(
 		const pipelineConnection = Context.Service<Connection>(
 			`@drizzle/postgres/DrizzlePostgresClient/Pipeline/${clientIdCounter++}`,
 		);
-		const toSqlConnection = (conn: Connection) => new ConnectionImpl(conn, config.metrics === true);
+		// Inside `withTransaction`, the driver's level of that transaction or savepoint.
+		const transactionLevelService = Context.Service<TransactionLevel>(
+			`@drizzle/postgres/DrizzlePostgresClient/TransactionLevel/${clientIdCounter++}`,
+		);
+		const metrics = config.metrics === true;
+		const toTarget = (conn: Connection) => new TargetConnection(conn, metrics);
+		const poolTarget = new TargetConnection(pool, metrics);
 		const acquirer = Effect.flatMap(
 			Effect.serviceOption(pipelineConnection),
-			(pinned) => Effect.map(Option.isSome(pinned) ? Effect.succeed(pinned.value) : poolConnection, toSqlConnection),
+			(pinned) => Effect.map(Option.isSome(pinned) ? Effect.succeed(pinned.value) : poolConnection, toTarget),
 		);
+		// A statement outside a transaction (SqlClient finds that one itself) runs where drizzle-orm's async session runs
+		// it: on the Pipeline's connection inside a Pipeline, else as a pool query. Streams and `reserve` keep the acquirer.
+		const borrower = <A, E, R>(f: (connection: SqlConnection) => Effect.Effect<A, E, R>) =>
+			Effect.withFiber<A, E, R>((fiber) => {
+				const pinned = Context.getOrUndefined(fiber.context, pipelineConnection);
+				return f(pinned === undefined ? poolTarget : toTarget(pinned));
+			});
 
 		const spanAttributes = [
 			...(config.spanAttributes ? Object.entries(config.spanAttributes) : []),
@@ -273,65 +298,116 @@ export const fromPool = Effect.fnUntraced(
 		] satisfies ReadonlyArray<readonly [string, unknown]>;
 		const client = yield* Client.make({
 			acquirer,
-			// A transaction always takes its own connection, so it never pulls the pipeline's statements into it.
-			transactionAcquirer: Effect.map(poolConnection, toSqlConnection),
+			borrower,
+			// `reserve` takes a connection of its own, out of any Pipeline. Transactions don't go through SqlClient's
+			// own: withTransaction below replaces it.
+			transactionAcquirer: Effect.map(poolConnection, toTarget),
 			compiler,
-			prepareTransactionControls: true,
-			commit,
-			releaseSavepoint: (name) => `RELEASE SAVEPOINT ${name}`,
 			spanAttributes,
 			transformRows,
 			driver: 'drizzle-postgres',
 		});
+		const transactionService = client.transactionService;
 
+		// Where a call runs, as drizzle-orm's async session decides it: on the transaction's connection inside a
+		// transaction, on the Pipeline's connection inside a Pipeline, else on the pool.
+		const targetOf = (context: Context.Context<never>): Pool | Connection => {
+			const tx = Context.getOrUndefined(context, transactionService);
+			if (tx !== undefined) return (tx[0] as TargetConnection).target;
+			return Context.getOrUndefined(context, pipelineConnection) ?? pool;
+		};
+		// `copyTo` streams on one connection: the transaction's, or one checked out for it
 		const scopedConnection = Effect.flatMap(
-			Effect.serviceOption(client.transactionService),
+			Effect.serviceOption(transactionService),
 			(tx) =>
 				Effect.map(
 					Option.isSome(tx) ? Effect.succeed(tx.value[0]) : acquirer,
-					(sqlConnection) => (sqlConnection as ConnectionImpl).conn,
+					(sqlConnection) => (sqlConnection as TargetConnection).target as Connection,
 				),
 		);
-		const withConnection = <A, E>(f: (conn: Connection) => Effect.Effect<A, E>) =>
-			Effect.scoped(Effect.flatMap(scopedConnection, f));
 
-		// A span per operation, named and attributed as Effect names the spans of sql statements.
+		// A span per operation, named and attributed as Effect names the spans of sql statements. Like those, it
+		// captures no stack trace: that costs about 6 µs per query, and the frame would be inside this client.
 		const spanName = Statement.spanName(spanAttributes);
+		const baseAttributes = Object.fromEntries(spanAttributes);
 		const spanOptions = (operation: string, text: string) => ({
 			kind: 'client' as const,
-			attributes: { ...Object.fromEntries(spanAttributes), 'db.operation.name': operation, 'db.query.text': text },
+			captureStackTrace: false,
+			attributes: { ...baseAttributes, 'db.operation.name': operation, 'db.query.text': text },
 		});
+		// Without a tracer installed (the fiber has only Effect's default one) nothing reads the span: skip it
 		const traced = <A, E, R>(operation: string, text: string, effect: Effect.Effect<A, E, R>) =>
-			Effect.withSpan(effect, spanName, spanOptions(operation, text));
+			Effect.withFiber((fiber) =>
+				fiber.cache.tracerEnabled && fiber.cache.tracer !== undefined
+					? Effect.withSpan(effect, spanName, spanOptions(operation, text))
+					: effect
+			);
 
-		const metrics = config.metrics === true;
 		// oxlint-disable-next-line typescript/no-useless-default-assignment -- JavaScript callers can omit both
 		const query = ((sql: string, params: Params = [], options: QueryOptions = {}) =>
 			traced(
 				'query',
 				sql,
-				withConnection((conn) =>
-					annotateMetrics(Effect.tryPromise({
-						try: (signal) =>
-							conn.query(sql, params, { metrics, ...options, signal } as never) as Promise<
-								QueryResult<unknown> | Uint8Array[]
-							>,
-						catch: (e) => toSqlError(e, 'query', conn),
-					}))
-				),
+				Effect.withFiber((fiber) => {
+					const target = targetOf(fiber.context);
+					return run(target, 'query', metrics, () => queryOn(target, sql, params, withMetrics(options, metrics)));
+				}),
 			)) as PostgresQuery;
 
-		const plainWithTransaction = client.withTransaction;
+		// A transaction runs as drizzle-orm's async session runs it: `pool.transaction`, or, inside an open one,
+		// `transaction` on its connection, which makes a savepoint. The Effect runs in the callback with that
+		// connection as the SqlClient transaction, so every statement in it, drizzle's and `sql`'s, runs there. An
+		// interrupt interrupts the Effect, which rolls the transaction back; it doesn't cancel a statement.
 		const withTransaction = <R, E, A>(self: Effect.Effect<A, E, R>, options?: TransactionOptions) =>
-			Effect.suspend(() => {
-				const set = options && setTransaction(options);
-				if (!set) {
-					return plainWithTransaction(self);
-				}
-				return Effect.flatMap(Effect.serviceOption(client.transactionService), (outer) =>
-					Option.isSome(outer)
-						? plainWithTransaction(self)
-						: plainWithTransaction(Effect.andThen(client.unsafe(set), self)));
+			Effect.withFiber<A, E | SqlError, R>((fiber) => {
+				const outer = Context.getOrUndefined(fiber.context, transactionService);
+				const outerConnection = outer === undefined ? undefined : (outer[0] as TargetConnection).target as Connection;
+				const depth = outer === undefined ? 0 : outer[1] + 1;
+				const outerLevel = Context.getOrUndefined(fiber.context, transactionLevelService);
+				const context = fiber.context as Context.Context<R>;
+				return Effect.callback<A, E | SqlError>((resume, signal) => {
+					let exit: Exit.Exit<A, E> | undefined;
+					// pool.transaction marks its callback's async context as inside the transaction, and Effect's scheduler
+					// can run other fibers' work in that context, where the mark would reject their pool queries: the
+					// Effect runs outside it.
+					const body = (conn: Connection) => {
+						// the driver calls this as code of the new transaction or savepoint: the level to nest in
+						const level = transactionLevel();
+						const inner = Context.add(context, transactionService, [toTarget(conn), depth]);
+						return pool.outsideTransaction(() =>
+							Effect.runPromiseExitWith(
+								level === undefined ? inner : Context.add(inner, transactionLevelService, level),
+							)(self, { signal })
+						).then((result) => {
+							exit = result;
+							if (Exit.isFailure(result)) throw ROLLBACK;
+						});
+					};
+					// A fiber's async context is the one of whatever resumed it, so the driver can't read from it which
+					// transaction this fiber is in: the nested call names its level.
+					const nested = (conn: Connection) =>
+						options === undefined ? conn.transaction(body) : conn.transaction(options, body);
+					const done = outerConnection !== undefined
+						? outerLevel === undefined
+							? nested(outerConnection)
+							: inTransactionLevel(outerLevel, () => nested(outerConnection))
+						: options === undefined
+						? pool.transaction(body)
+						: pool.transaction(options, body);
+					const settled = done.then(
+						() => resume(exit!),
+						(e: unknown) =>
+							resume(
+								e === ROLLBACK && exit !== undefined
+									? exit
+									: Effect.fail(toSqlError(e, 'transaction', outerConnection ?? POOLED)),
+							),
+					);
+					// On an interrupt, `signal` interrupts the Effect in the callback, and the driver then rolls back. The
+					// interrupted fiber ends only after that, as a transaction's fiber does in effect/sql: by then the
+					// transaction holds no locks.
+					return Effect.promise(() => settled);
+				});
 			});
 
 		// A bulk call whose rows go out in more than one chunk with `atomic` runs them in a transaction: the open one, or
@@ -343,10 +419,10 @@ export const fromPool = Effect.fnUntraced(
 			rows: BulkRows,
 			options: EffectBulkOptions<O, R>,
 			send: (
-				conn: Connection,
+				// the pool or a connection: both take the same bulk calls
+				target: Connection,
 				options: Omit<EffectBulkOptions<O, R>, 'onProgress'> & {
-					signal: AbortSignal;
-					metrics: boolean;
+					metrics?: boolean;
 					onProgress?: (progress: BulkProgress) => void;
 				},
 			) => Promise<QueryResult<never>>,
@@ -354,22 +430,28 @@ export const fromPool = Effect.fnUntraced(
 			const { onProgress, ...driverOptions } = options;
 			const atomic = driverOptions.atomic !== false;
 			const chunked = bulkIsChunked(operation, Object.keys(columns), rows, driverOptions.chunk);
-			const run = withProgress(onProgress, (report) =>
-				withConnection((conn) =>
-					annotateMetrics(Effect.tryPromise({
-						try: (signal) => send(conn, { metrics, ...driverOptions, onProgress: report, signal }),
-						catch: (e) => toBulkError(e, operation, conn, !atomic && chunked),
-					}))
-				));
+			const call = withProgress(onProgress, (report) =>
+				Effect.withFiber((fiber) => {
+					const target = targetOf(fiber.context);
+					const options = withMetrics(
+						report === undefined ? driverOptions : { ...driverOptions, onProgress: report },
+						metrics,
+					);
+					const effect = Effect.tryPromise({
+						try: () => send(target as Connection, options),
+						catch: (e) => toBulkError(e, operation, stateOf(target), !atomic && chunked),
+					});
+					return metrics ? annotateMetrics(effect) : effect;
+				}));
 			return traced(
 				operation,
 				table,
-				Effect.flatMap(Effect.serviceOption(client.transactionService), (tx): Effect.Effect<
+				Effect.flatMap(Effect.serviceOption(transactionService), (tx): Effect.Effect<
 					QueryResult<never>,
 					BulkError,
 					R
 				> => {
-					if (Option.isNone(tx) || atomic || !chunked) return run;
+					if (Option.isNone(tx) || atomic || !chunked) return call;
 					return Effect.fail(
 						new BulkInputError({
 							operation,
@@ -432,31 +514,47 @@ export const fromPool = Effect.fnUntraced(
 					// failure is kept here to fail with it instead.
 					let sourceFailure: { error: unknown } | undefined;
 					const inner = Stream.toAsyncIterableWith(Stream.mapError(source, (e) => new SourceFailure(e)), context);
-					const payload = {
+					// The driver call takes no AbortSignal. An interrupt ends the source instead, as a failed source does:
+					// the driver sends CopyFail on the COPY's own connection, so no rows remain, and a source that never
+					// ends can't hold the connection.
+					const payload = (signal: AbortSignal) => ({
 						[Symbol.asyncIterator]: () => {
 							const it = inner[Symbol.asyncIterator]();
 							return {
 								next: () =>
-									it.next().catch((e: unknown) => {
-										sourceFailure = { error: e };
-										throw e;
+									new Promise<IteratorResult<Uint8Array | string>>((resolve, reject) => {
+										if (signal.aborted) return reject(signal.reason);
+										const onAbort = () => reject(signal.reason);
+										signal.addEventListener('abort', onAbort, { once: true });
+										it.next().then((result) => {
+											signal.removeEventListener('abort', onAbort);
+											resolve(result);
+										}, (e: unknown) => {
+											signal.removeEventListener('abort', onAbort);
+											sourceFailure = { error: e };
+											reject(e);
+										});
 									}),
 								return: () => it.return!(),
 							};
 						},
-					};
-					return withConnection((conn) =>
-						annotateMetrics(Effect.tryPromise({
-							try: (signal) => conn.copyFrom(sql, payload, { signal, metrics }),
-							catch: (e) => sourceFailure ? sourceFailure.error : toSqlError(e, 'copyFrom', conn),
-						})).pipe(Effect.catch((e): Effect.Effect<never, SqlError | E> =>
-							e instanceof SourceFailure
-								? Effect.fail(e.error as E)
-								: e instanceof SqlError
-								? Effect.fail(e)
-								: Effect.die(e)
-						))
-					);
+					});
+					return Effect.withFiber((fiber) => {
+						const target = targetOf(fiber.context);
+						const effect = Effect.tryPromise({
+							try: (signal) => (target as Connection).copyFrom(sql, payload(signal), withMetrics({}, metrics)),
+							catch: (e) => sourceFailure ? sourceFailure.error : toSqlError(e, 'copyFrom', stateOf(target)),
+						});
+						return (metrics ? annotateMetrics(effect) : effect).pipe(
+							Effect.catch((e): Effect.Effect<never, SqlError | E> =>
+								e instanceof SourceFailure
+									? Effect.fail(e.error as E)
+									: e instanceof SqlError
+									? Effect.fail(e)
+									: Effect.die(e)
+							),
+						);
+					});
 				}),
 			);
 
@@ -466,9 +564,11 @@ export const fromPool = Effect.fnUntraced(
 					[Symbol.asyncIterator]: () => conn.copyTo(sql, options),
 				}, (e) => toSqlError(e, 'copyTo', conn)))).pipe(Stream.withSpan(spanName, spanOptions('copyTo', sql)));
 
+		// `pool.cursor`, as in the async entry point: the cursor checks out a connection for itself and releases it
+		// when it's drained or closed, which closing the Stream does.
 		const cursor = <Row = Record<string, unknown>>(options: CursorOptions) =>
-			Stream.unwrap(Effect.map(poolConnection, (conn) => {
-				const serverCursor = new Cursor<Row>(() => Promise.resolve({ conn, release: () => {} }), options);
+			Stream.unwrap(Effect.sync(() => {
+				const serverCursor = pool.cursor<Row>(options);
 				const batches = {
 					[Symbol.asyncIterator]: () => ({
 						next: async () => {
@@ -481,15 +581,14 @@ export const fromPool = Effect.fnUntraced(
 						},
 					}),
 				};
-				return Stream.fromAsyncIterable(batches, (e) => toSqlError(e, 'cursor', conn));
+				return Stream.fromAsyncIterable(batches, (e) => toSqlError(e, 'cursor', POOLED));
 			})).pipe(Stream.withSpan(spanName, spanOptions('cursor', options.sql)));
 
 		const all = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) =>
 			Effect.provideService(Effect.all(effects, { concurrency: 'unbounded' }), Pipelined, true);
 		const batch = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) => withTransaction(all(effects));
-		// Effect.all interrupts the other statements when one fails, and an interrupt cancels the running one
-		// on the server. Each pipeline statement commits on its own, so all of them run to the end, and the
-		// first failure in statement order is the result.
+		// Effect.all interrupts the other statements when one fails. Each pipeline statement commits on its own, so all
+		// of them run to the end, and the first failure in statement order is the result.
 		const allSettled = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) =>
 			Effect.flatMap(
 				Effect.provideService(
@@ -523,7 +622,7 @@ export const fromPool = Effect.fnUntraced(
 			copyFrom,
 			copyTo,
 			cursor,
-		}) as DrizzlePostgresClient;
+		}) as DrizzlePostgresClient & Client.SqlClient;
 	},
 );
 
@@ -543,22 +642,49 @@ const acquire = (pool: Pool, onAcquired: (conn: Connection) => void) =>
 		);
 	});
 
-class ConnectionImpl implements SqlConnection {
-	constructor(readonly conn: Connection, readonly metrics = false) {}
+/** What a pool query's error is checked against: whether the pool's connection was lost shows in the error itself,
+ *  which the driver marks. */
+const POOLED = { state: 'ready' } as const;
+const isPool = (target: Pool | Connection): target is Pool => isBrand<Pool>(target, 'Pool');
+const stateOf = (target: Pool | Connection): { readonly state: string } => isPool(target) ? POOLED : target;
 
-	private query<Row>(
-		operation: string,
-		f: (options: { signal: AbortSignal; metrics: boolean }) => Promise<QueryResult<Row>>,
-	) {
-		const result = Effect.tryPromise({
-			try: (signal) => f({ signal, metrics: this.metrics }),
-			catch: (e) => toSqlError(e, operation, this.conn),
-		});
-		return this.metrics ? annotateMetrics(result) : result;
-	}
+/** Thrown out of a transaction's callback when its Effect failed, so the driver rolls the transaction back. */
+const ROLLBACK = Symbol('rollback');
 
-	private rows<Row>(f: (options: { signal: AbortSignal; metrics: boolean }) => Promise<QueryResult<Row>>) {
-		return Effect.map(this.query('execute', f), (r) => r.rows);
+/** `options` with `metrics` on when the client collects them, else as they are. */
+const withMetrics = <O extends object>(options: O, metrics: boolean): O =>
+	metrics ? { metrics: true, ...options } : options;
+
+/** `query` on the pool or a connection, the call drizzle-orm's async session makes. */
+const queryOn = (target: Pool | Connection, sql: string, params: Params, options: PostgresQueryOptions) =>
+	(target as unknown as {
+		query(sql: string, params: Params, options: PostgresQueryOptions): PromiseLike<any>;
+	}).query(sql, params, options);
+
+/** One driver call as an Effect. It takes no AbortSignal: an interrupt doesn't cancel the call, which runs to the
+ *  end, and its result is dropped. */
+const run = <A>(
+	target: Pool | Connection,
+	operation: string,
+	metrics: boolean,
+	f: () => PromiseLike<A>,
+): Effect.Effect<A, SqlError> => {
+	const effect = Effect.tryPromise({ try: () => f(), catch: (e) => toSqlError(e, operation, stateOf(target)) });
+	return metrics ? annotateMetrics(effect as Effect.Effect<QueryResult<unknown>, SqlError>) as typeof effect : effect;
+};
+
+/** Effect's SqlConnection over the pool or one of its connections: every statement is the `query` call that
+ *  drizzle-orm's async session makes on it. */
+class TargetConnection implements SqlConnection {
+	constructor(readonly target: Pool | Connection, readonly metrics = false) {}
+
+	private result<Row>(operation: string, sql: string, params: ReadonlyArray<unknown>, mode: 'object' | 'array') {
+		return run(
+			this.target,
+			operation,
+			this.metrics,
+			() => queryOn(this.target, sql, params as unknown[], withMetrics({ mode }, this.metrics)),
+		) as Effect.Effect<QueryResult<Row>, SqlError>;
 	}
 
 	execute(
@@ -566,7 +692,7 @@ class ConnectionImpl implements SqlConnection {
 		params: ReadonlyArray<unknown>,
 		transformRows: (<A extends object>(row: ReadonlyArray<A>) => ReadonlyArray<A>) | undefined,
 	) {
-		const rows = this.rows((options) => this.conn.query(sql, params, { ...options, mode: 'object' }));
+		const rows = Effect.map(this.result<Record<string, unknown>>('execute', sql, params, 'object'), (r) => r.rows);
 		return transformRows ? Effect.map(rows, transformRows) : rows;
 	}
 	executeUnprepared(
@@ -577,23 +703,32 @@ class ConnectionImpl implements SqlConnection {
 		return this.execute(sql, params, transformRows);
 	}
 	executeValues(sql: string, params: ReadonlyArray<unknown>) {
-		return this.rows((options) => this.conn.query(sql, params, { ...options, mode: 'array' }));
+		return Effect.map(this.result<unknown[]>('execute', sql, params, 'array'), (r) => r.rows);
 	}
 	executeValuesUnprepared(sql: string, params: ReadonlyArray<unknown>) {
 		return this.executeValues(sql, params);
 	}
 	executeRaw(sql: string, params: ReadonlyArray<unknown>) {
-		return this.query('executeRaw', (options) => this.conn.query(sql, params, { ...options, mode: 'object' }));
+		return this.result<Record<string, unknown>>('executeRaw', sql, params, 'object');
 	}
+	// SqlClient streams through the acquirer, so the target is a connection; on the pool, the stream checks one out
 	executeStream(
 		sql: string,
 		params: ReadonlyArray<unknown>,
 		transformRows: (<A extends object>(row: ReadonlyArray<A>) => ReadonlyArray<A>) | undefined,
 	) {
-		const rows = Stream.fromAsyncIterable(
-			{ [Symbol.asyncIterator]: () => this.conn.stream<Record<string, unknown>>(sql, params, { mode: 'object' }) },
-			(e) => toSqlError(e, 'executeStream', this.conn),
-		);
+		const target = this.target;
+		const streamOn = (conn: Connection) =>
+			Stream.fromAsyncIterable(
+				{ [Symbol.asyncIterator]: () => conn.stream<Record<string, unknown>>(sql, params, { mode: 'object' }) },
+				(e) => toSqlError(e, 'executeStream', conn),
+			);
+		const rows = isPool(target)
+			? Stream.unwrap(Effect.map(
+				Effect.acquireRelease(acquire(target, () => {}), (conn) => Effect.sync(() => target.release(conn))),
+				streamOn,
+			))
+			: streamOn(target);
 		// transformRows keeps every row, so the fallback to `chunk` only satisfies the non-empty type.
 		return transformRows
 			? Stream.mapArray(rows, (chunk) => {
@@ -603,7 +738,7 @@ class ConnectionImpl implements SqlConnection {
 			: rows;
 	}
 }
-addBrand(ConnectionImpl, 'ConnectionImpl');
+addBrand(TargetConnection, 'TargetConnection');
 
 const annotateMetrics = <A extends QueryResult<unknown> | Uint8Array[], E>(effect: Effect.Effect<A, E>) =>
 	Effect.tap(
@@ -633,7 +768,12 @@ const withProgress = <A, E, R>(
 
 /** A driver error that is no PgError and leaves the connection usable came from the input. With `atomic: false` and
  *  more than one chunk, the driver reports how many rows the chunks before the failed one committed. */
-const toBulkError = (cause: unknown, operation: BulkOperation, conn: Connection, partial: boolean): BulkError => {
+const toBulkError = (
+	cause: unknown,
+	operation: BulkOperation,
+	conn: { readonly state: string },
+	partial: boolean,
+): BulkError => {
 	const sqlError = toSqlError(cause, operation, conn);
 	const error = !(cause instanceof PgError) && sqlError.reason._tag === 'UnknownError'
 		? new BulkInputError({ operation, message: sqlError.reason.message, cause })
@@ -654,46 +794,10 @@ class SourceFailure {
 }
 addBrand(SourceFailure, 'SourceFailure');
 
-/** Postgres answers COMMIT with the ROLLBACK tag when the transaction was already aborted. */
-const commit = (conn: SqlConnection) =>
-	Effect.flatMap(conn.executeRaw('COMMIT', []), (result) =>
-		(result as QueryResult<never>).command === 'ROLLBACK'
-			? Effect.fail(
-				new SqlError({
-					reason: new UnknownError({
-						cause: new Error('COMMIT rolled back an aborted transaction'),
-						message:
-							'DrizzlePostgresClient: COMMIT rolled back the transaction, because a statement in it failed earlier. Find that statement, fix it, and run the transaction again.',
-						operation: 'commit',
-					}),
-				}),
-			)
-			: Effect.void);
-
-/** Maps a Drizzle Postgres failure to a SqlError. A failure that leaves the connection closed is a ConnectionError. */
-export const toSqlError = (cause: unknown, operation: string, conn?: { readonly state: string }) => {
-	const isConnectionLost = conn !== undefined && conn.state !== 'ready';
-	const message = cause instanceof Error ? cause.message : String(cause);
-	if (cause instanceof PgError && !isConnectionLost) {
-		if (cause.code === '42601' && /multiple commands/.test(message)) {
-			return new SqlError({
-				reason: new SqlSyntaxError({
-					cause,
-					message:
-						'SQL with several statements is not supported: Drizzle Postgres sends each query as one statement. Run the statements one by one.',
-					operation,
-				}),
-			});
-		}
-		return new SqlError({ reason: classifySqlState(cause.code, cause.constraint, { cause, message, operation }) });
-	}
-	const props = { cause, message, operation };
-	if (isConnectionLost || conn === undefined) return new SqlError({ reason: new ConnectionError(props) });
-	return new SqlError({ reason: new UnknownError(props) });
-};
-
+/** Maps a Drizzle Postgres failure to a SqlError. A failure that leaves the connection closed, or that the driver
+ *  marks as one that lost its connection, is a ConnectionError. */
 export const layerFrom = <E, R>(
-	build: Effect.Effect<DrizzlePostgresClient, E, R>,
+	build: Effect.Effect<DrizzlePostgresClient & Client.SqlClient, E, R>,
 ) =>
 	Layer.effectContext(
 		Effect.map(build, (client) => {
@@ -706,30 +810,3 @@ export const layerFrom = <E, R>(
 /** A layer over a pool that the caller owns. Closing the layer's scope leaves the pool open. */
 export const layerFromPool = (pool: Pool, options?: FromPoolOptions) =>
 	layerFrom(fromPool({ ...options, acquire: Effect.succeed(pool) }));
-
-/** The Postgres statement compiler: $n placeholders, double-quoted identifiers, and json fragments as jsonb. */
-export const makeCompiler = (transform?: (_: string) => string, transformJson = true) => {
-	const transformValue = transformJson && transform ? Statement.defaultTransforms(transform).value : undefined;
-	return Statement.makeCompiler<PostgresJson>({
-		dialect: 'pg',
-		placeholder: (i) => `$${i}`,
-		onIdentifier: transform
-			? (value, withoutTransform) => escape(withoutTransform ? value : transform(value))
-			: escape,
-		onRecordUpdate(placeholders, valueAlias, valueColumns, values, returning) {
-			return [
-				`(values ${placeholders}) AS ${valueAlias}${valueColumns}${returning ? ` RETURNING ${returning[0]}` : ''}`,
-				returning ? values.flat().concat(returning[1]) : values.flat(),
-			];
-		},
-		onCustom(type, placeholder, withoutTransform) {
-			const value = withoutTransform || transformValue === undefined ? type.paramA : transformValue(type.paramA);
-			return [`${placeholder(undefined)}::jsonb`, [JSON.stringify(value)]];
-		},
-	});
-};
-
-const escape = Statement.defaultEscape('"');
-
-interface PostgresJson extends Custom<'PostgresJson', unknown> {}
-const PostgresJson = Statement.custom<PostgresJson>('PostgresJson');

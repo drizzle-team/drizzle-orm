@@ -31,8 +31,8 @@ export interface PGliteClientConfig extends
 	>
 {}
 
-/** Creates a client over `pg`. Its pool opens now and ends when the scope closes; `pg` stays open. An interrupt
- *  can't cancel a statement in PGlite, so it closes the connection, and the next statement opens a new one. */
+/** Creates a client over `pg`. Its pool opens now and ends when the scope closes; `pg` stays open. An interrupted
+ *  statement runs to the end, as on a server, and the next statement runs after it. */
 export const make = (pg: PGliteLike, config: PGliteClientConfig = {}) =>
 	makeWithOwnPool(config, () =>
 		createPool(pg, {

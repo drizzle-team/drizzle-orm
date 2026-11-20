@@ -1,4 +1,4 @@
-import { assert, expect, expectTypeOf, it, vi, Vitest } from '@effect/vitest';
+import { assert, expect, expectTypeOf, it, Vitest } from '@effect/vitest';
 import {
 	and,
 	asc,
@@ -16,8 +16,6 @@ import {
 	max,
 	sql,
 } from 'drizzle-orm';
-import type { Cache } from 'drizzle-orm/cache/core';
-import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache-effect';
 import { EffectLogger, type EffectLoggerShape, QueryEffectHKTBase } from 'drizzle-orm/effect-core';
 import {
 	alias,
@@ -58,13 +56,11 @@ import * as Effect from 'effect/Effect';
 import * as Fiber from 'effect/Fiber';
 import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
-import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
-import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
+import { describe } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import { expectRecentTime } from '~/recent-time';
-import { type UpstashTestCache, withUpstashCache } from '~/upstash-cache';
 import {
 	type AllTypes,
 	allTypesData,
@@ -78,7 +74,6 @@ import {
 	boundsSchema,
 	makeAllTypes,
 } from './all-types';
-import { TestCache } from './instrumentation';
 import { relations } from './relations';
 import { rqbPost, rqbUser } from './schema';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -103,6 +98,21 @@ export const push = (db: PgEffectDatabase<any, any, any>, schema: Record<string,
 				}
 			})
 		);
+	});
+
+/** The suite's default `push`, under a name the suite's own `push` option doesn't shadow */
+const pushTransaction = push;
+
+/** {@link push} for drivers with no interactive transactions (HTTP): creates the entities one statement at a time */
+export const pushStatements = (db: PgEffectDatabase<any, any, any>, schema: Record<string, any>) =>
+	Effect.gen(function*() {
+		const diff = yield* Effect.promise(() => getDiff());
+
+		const { sqlStatements } = yield* Effect.promise(() => diff({}, schema, []));
+
+		for (const s of sqlStatements) {
+			yield* db.execute(s);
+		}
 	});
 
 const dnStaff = pgTable('dn_staff', (t) => ({ userId: t.integer('user_id').primaryKey() }));
@@ -201,8 +211,23 @@ const runDeepNullification = (db: PgEffectDatabase<any, any, any>) =>
 		]);
 	});
 
-export interface RunCommonEffectPgTestsOptions {
-	testLayer: Layer.Layer<DB | SqlClient, SqlError, never>;
+/**
+ * How the tests get their services: one layer for the whole suite, or a provider handing each test it's own (a pool of
+ * databases, as the hosted suites take turns on) - the tests of a provider run concurrently
+ */
+type CommonEffectPgTestsProvision<TClient> =
+	| { testLayer: Layer.Layer<DB | TClient, SqlError, never>; provideTest?: never }
+	| {
+		testLayer?: never;
+		/** Runs a test with it's services, scoped to the test */
+		provideTest: <A, E>(test: Effect.Effect<A, E, DB | TClient>) => Effect.Effect<A, E, never>;
+	};
+
+/**
+ * `TClient` - the driver's own client tag (`PgClient`, `PgliteClient`, ...), which isn't a `SqlClient` subtype since effect
+ * 4.1, and `SqlClient` for the drivers that provide it
+ */
+export type RunCommonEffectPgTestsOptions<TClient = never> = CommonEffectPgTestsProvision<TClient> & {
 	PgDrizzle: {
 		// Methods: parameters checked bivariantly, so drivers requiring config (`effect-d1`) fit
 		make<TRelations extends AnyRelations = EmptyRelations>(
@@ -221,16 +246,17 @@ export interface RunCommonEffectPgTestsOptions {
 		schema: TSchema,
 		relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 		useJitMappers?: boolean,
-		cache?: Cache,
 	) => Effect.Effect<
 		PgEffectDatabase<QueryEffectHKTBase, any, ExtractTablesWithRelations<TConfig, TTables>>,
 		never,
 		any
 	>;
+
 	usedSchema: string;
+	push?: typeof push;
 	skipTests?: string[];
-	addTests?: (it: Vitest.MethodsNonLive<DB | SqlClient>) => void;
-}
+	addTests?: (it: Vitest.MethodsNonLive<DB | TClient>) => void;
+};
 
 const failureMessage = (failure: unknown): string => {
 	const seen = new Set<unknown>();
@@ -247,16 +273,19 @@ const failureMessage = (failure: unknown): string => {
 	return messages.join(' | ');
 };
 
-export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): void => {
-	const { testLayer, usedSchema, PgDrizzle, createDB, addTests, skipTests = [] } = opts;
+export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgTestsOptions<TClient>): void => {
+	const { testLayer, provideTest, usedSchema, PgDrizzle, createDB, addTests, skipTests = [] } = opts;
+	const push = opts.push ?? pushTransaction;
 
-	it.layer(testLayer)('common', (layerIt) => {
+	const suite = (layerIt: Vitest.MethodsNonLive<DB | TClient>) => {
 		// Run setup before each test.
 		const _effect = layerIt.effect;
+		// The services of a provider come with each test, not from the layer's context
+		const provide: <A, E>(test: Effect.Effect<A, E, any>) => Effect.Effect<A, E, any> = provideTest ?? ((test) => test);
 		const effect: typeof layerIt.effect = Object.assign(
 			(testName: string, fn: () => Effect.Effect<any, any, any>, timeout?: number) =>
 				_effect(testName, () =>
-					Effect.andThen(
+					provide(Effect.andThen(
 						Effect.gen(function*() {
 							const db = yield* DB;
 
@@ -269,7 +298,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 							yield* db.execute(sql`SET TIME ZONE 'UTC';`);
 						}),
 						fn(),
-					), timeout),
+					)), timeout),
 			layerIt.effect,
 		);
 		const it = new Proxy(layerIt, {
@@ -324,91 +353,6 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 				expect(parseStoredJson(stored)).toStrictEqual(output);
 			}));
-
-		const createUpstashDB = (cache: UpstashTestCache, name: string) => {
-			const { en, allTypesTable } = makeAllTypes(`all_types_${name}_upstash_ef`, `en_${name}_upstash_ef`);
-
-			return createDB(
-				{ allTypesTable, ...boundsSchema },
-				(r) => ({
-					...allTypesRelations(r),
-					...boundsRelations(r),
-				}),
-				false,
-				cache,
-			).pipe(Effect.map((db) => ({ db, en, allTypesTable })));
-		};
-
-		it.effect('all types - upstash', () =>
-			withUpstashCache((cache, run) =>
-				Effect.gen(function*() {
-					const { db, en, allTypesTable } = yield* createUpstashDB(cache, 'plain');
-					yield* push(db, { en, allTypesTable });
-
-					yield* Effect.promise(() =>
-						cache.expectHits('all types', async () => {
-							await run(db.insert(allTypesTable).values(allTypesData));
-							expect(await run(db.select().from(allTypesTable))).toStrictEqual([allTypesData]);
-						})
-					);
-				})
-			));
-
-		it.effect('all types ~codecs~ - upstash', () =>
-			withUpstashCache((cache, run) =>
-				Effect.gen(function*() {
-					const { db, en, allTypesTable } = yield* createUpstashDB(cache, 'cdc');
-					yield* push(db, { en, allTypesTable });
-
-					yield* Effect.promise(async () => {
-						await cache.expectHits('all types', async () => {
-							await run(db.insert(allTypesTable).values(allTypesData));
-							expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
-								...allTypesData,
-								self: [allTypesData],
-							});
-						});
-						await cache.expectHits('unions', () => assertAllTypesUnions(db as any, allTypesTable, run));
-						await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run, rqb: true }));
-						await cache.expectHits(
-							'null array elements',
-							() => assertAllTypesNullArrayElements(db as any, { run, rqb: true }),
-						);
-						await cache.expectHits(
-							'temporal bounds',
-							() => assertAllTypesTemporalBounds(db as any, { run, rqb: true }),
-						);
-						await cache.expectHits(
-							'empty arrays',
-							() => assertAllTypesEmptyArrays(db as any, allTypesTable, { run, rqb: true }),
-						);
-					});
-				})
-			));
-
-		it.effect('all types ~json~ - upstash', () =>
-			withUpstashCache((cache, run) =>
-				Effect.gen(function*() {
-					const { db } = yield* createUpstashDB(cache, 'json');
-					const table = pgTable('all_types_json_upstash', {
-						id: integer('id').primaryKey(),
-						json: json('json'),
-						jsonb: jsonb('jsonb'),
-						arrjson: json('arrjson').array(),
-						arrjsonb: jsonb('arrjsonb').array(),
-					});
-					yield* push(db, { table });
-
-					const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
-
-					yield* Effect.promise(() =>
-						cache.expectHits('json', async () => {
-							await run(db.insert(table).values(input));
-							expect(await run(db.select().from(table).orderBy(table.id))).toStrictEqual(output);
-						})
-					);
-				})
-			));
 
 		// @effect/sql-pg can't decode multidimensional arrays - skip mtx fields
 		it.effect('time zones are preserved', () =>
@@ -1984,6 +1928,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		it.effect('select distinct ordered by cast columns', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -2023,6 +1968,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		it.effect('order by aliased cast columns', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -2952,169 +2898,6 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				expect(loggedQueries.length).toBeGreaterThanOrEqual(2);
 				expect(loggedQueries.some((q) => q.query.toLowerCase().includes('insert'))).toBe(true);
 				expect(loggedQueries.some((q) => q.query.toLowerCase().includes('select'))).toBe(true);
-			}));
-
-		it.effect('custom EffectCache override - user provided cache takes precedence over default', () =>
-			Effect.gen(function*() {
-				const cacheOperations = yield* Ref.make<Array<{ op: 'get' | 'put' | 'mutate'; key?: string }>>([]);
-
-				const customCacheService: EffectCacheShape = {
-					strategy: () => 'all' as const,
-					get: (key: string, _tables: string[], _isTag: boolean, _isAutoInvalidate?: boolean) =>
-						Effect.gen(function*() {
-							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'get' as const, key }]);
-							return undefined;
-						}),
-					put: (key: string, _response: any, _tables: string[], _isTag: boolean, _config?: any) =>
-						Effect.gen(function*() {
-							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'put' as const, key }]);
-						}),
-					onMutate: (_params: any) =>
-						Effect.gen(function*() {
-							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'mutate' as const }]);
-						}),
-				};
-				const customCacheLayer = Layer.succeed(EffectCache, customCacheService);
-
-				const db = yield* PgDrizzle.make({ relations }).pipe(
-					Effect.provide(customCacheLayer),
-					Effect.provide(PgDrizzle.DefaultServices),
-				);
-
-				const users = pgTable('users_custom_cache', {
-					id: serial('id').primaryKey(),
-					name: text('name').notNull(),
-				});
-
-				yield* push(db, { users });
-				yield* db.insert(users).values({ name: 'John' });
-				yield* db.select().from(users).$withCache();
-
-				const ops = yield* Ref.get(cacheOperations);
-				expect(ops.some((o) => o.op === 'mutate')).toBe(true);
-				expect(ops.some((o) => o.op === 'get')).toBe(true);
-			}));
-
-		it.effect('Cache: onMutate runs after the write is committed', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('explicit');
-
-				const db = yield* PgDrizzle.make({ relations }).pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
-					Effect.provide(PgDrizzle.DefaultServices),
-				);
-
-				const users = pgTable('users_cache_mutate_order', {
-					id: integer('id').primaryKey(),
-					name: text('name').notNull(),
-				});
-
-				yield* push(db, { users });
-
-				const context = yield* Effect.context<never>();
-				const run = (query: any) => Effect.runPromiseWith(context)(query);
-				const seen: string[][] = [];
-				using spyInvalidate = vi.spyOn(baseCache, 'onMutate').mockImplementation(async () => {
-					const rows = await run(db.select({ name: users.name }).from(users)) as { name: string }[];
-					seen.push(rows.map((r) => r.name));
-				});
-
-				yield* db.insert(users).values({ id: 1, name: 'John' });
-
-				expect(spyInvalidate).toHaveBeenCalledTimes(1);
-				expect(seen).toStrictEqual([['John']]);
-			}));
-
-		it.effect('Cache: relational query - withCache, used tables, invalidation', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('explicit');
-
-				const db = yield* PgDrizzle.make({ relations }).pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
-					Effect.provide(PgDrizzle.DefaultServices),
-				);
-
-				yield* push(db, { rqbUser, rqbPost });
-				const createdAt = new Date(120000);
-				yield* db.insert(rqbUser).values({ id: 1, name: 'John', createdAt });
-				yield* db.insert(rqbPost).values({ id: 1, userId: 1, content: 'First', createdAt });
-
-				using spyPut = vi.spyOn(baseCache, 'put');
-				using spyGet = vi.spyOn(baseCache, 'get');
-
-				const query = (withCache?: boolean) =>
-					db.query.rqbUser.findMany({
-						columns: { name: true },
-						with: { posts: { columns: { content: true }, orderBy: { id: 'asc' } } },
-						withCache,
-					});
-
-				yield* query();
-				expect(spyGet).toHaveBeenCalledTimes(0);
-
-				expect(yield* query(true)).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
-				expect(spyPut.mock.calls[0]![2]).toStrictEqual(['user_rqb_test', 'post_rqb_test']);
-
-				// Bypasses cache invalidation, cached result is served
-				yield* db.execute(sql`insert into ${rqbPost} values (2, 1, 'Unseen', now())`);
-				expect(yield* query(true)).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
-				expect(spyGet).toHaveBeenCalledTimes(2);
-				expect(spyPut).toHaveBeenCalledTimes(1);
-
-				yield* db.insert(rqbPost).values({ id: 3, userId: 1, content: 'Third', createdAt });
-				expect(yield* query(true)).toStrictEqual([{
-					name: 'John',
-					posts: [{ content: 'First' }, { content: 'Unseen' }, { content: 'Third' }],
-				}]);
-				expect(spyPut).toHaveBeenCalledTimes(2);
-			}));
-
-		it.effect('Cache: relational query - all strategy unless withCache: false', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('all');
-
-				const db = yield* PgDrizzle.make({ relations }).pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
-					Effect.provide(PgDrizzle.DefaultServices),
-				);
-
-				yield* push(db, { rqbUser });
-
-				using spyPut = vi.spyOn(baseCache, 'put');
-				using spyGet = vi.spyOn(baseCache, 'get');
-
-				yield* db.query.rqbUser.findMany({ withCache: false });
-				expect(spyGet).toHaveBeenCalledTimes(0);
-
-				yield* db.query.rqbUser.findFirst();
-				expect(spyGet).toHaveBeenCalledTimes(1);
-				expect(spyPut).toHaveBeenCalledTimes(1);
-				expect(spyPut.mock.calls[0]![2]).toStrictEqual(['user_rqb_test']);
-			}));
-
-		it.effect('Cache: no onMutate on failed write', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('explicit');
-
-				const db = yield* PgDrizzle.make({ relations }).pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
-					Effect.provide(PgDrizzle.DefaultServices),
-				);
-
-				const users = pgTable('users_cache_failed_write', {
-					id: integer('id').primaryKey(),
-					name: text('name').notNull(),
-				});
-
-				yield* push(db, { users });
-				yield* db.insert(users).values({ id: 1, name: 'John' });
-
-				using spyInvalidate = vi.spyOn(baseCache, 'onMutate');
-
-				const res = yield* db.insert(users).values({ id: 1, name: 'Jane' }).pipe(Effect.result);
-
-				assert(Result.isFailure(res));
-				expect(spyInvalidate).toHaveBeenCalledTimes(0);
 			}));
 
 		it.effect('makeWithDefaults - convenience function that includes DefaultServices', () =>
@@ -4976,6 +4759,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		it.effect('Column as decoder applies codecs', () =>
 			Effect.gen(function*() {
 				let customCast = false;
@@ -5211,6 +4995,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		it.effect('Column as decoder applies codecs - Jit mappers', () =>
 			Effect.gen(function*() {
 				let customCast = false;
@@ -5446,6 +5231,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4464
 		it.effect('db.execute modes', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -5493,6 +5279,8 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -5518,6 +5306,8 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list - select', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -5544,6 +5334,8 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list - on conflict', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -5666,6 +5458,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				});
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/1772
 		it.effect('transaction with an empty options object', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -5748,6 +5541,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				}]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params', () =>
 			Effect.gen(function*() {
 				for (const paramsInErrors of [undefined, false, true]) {
@@ -5765,6 +5559,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				}
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params - transaction', () =>
 			Effect.gen(function*() {
 				for (const paramsInErrors of [undefined, false, true]) {
@@ -5783,7 +5578,11 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 			}));
 
 		addTests?.(it);
-	});
+	};
+
+	if (testLayer) it.layer(testLayer)('common', suite);
+	// No layer: each test's services come from `provideTest`
+	else describe.concurrent('common', () => suite(it as unknown as Vitest.MethodsNonLive<DB | TClient>));
 };
 
 export { relations } from './relations';

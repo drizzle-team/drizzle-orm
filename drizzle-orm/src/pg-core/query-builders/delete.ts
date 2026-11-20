@@ -1,8 +1,15 @@
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgBasePreparedQuery, PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
+import type {
+	PgBasePreparedQuery,
+	PgQueryResultHKT,
+	PgQueryResultKind,
+	PgRunnableQueryMethods,
+	PgSession,
+} from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { QueryRuntimeHKT } from '~/query-builders/runtime.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type CommentInput, type Query, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
@@ -34,7 +41,7 @@ export type PgDeleteWithout<
 export type PgDelete<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = PgDeleteBase<PgDeleteHKT, TTable, TQueryResult, TSelectedFields, TReturning, true, never>;
 
@@ -98,6 +105,8 @@ export type PgDeleteDynamic<T extends AnyPgDelete> = PgDeleteKind<
 export type AnyPgDelete = PgDeleteBase<any, any, any, any, any, any, any>;
 
 export interface PgDeleteHKTBase {
+	/** How the builder's runtime wraps it's results */
+	runtime: QueryRuntimeHKT;
 	table: unknown;
 	queryResult: unknown;
 	selectedFields: unknown;
@@ -149,7 +158,11 @@ export interface PgDeleteBase<
 		TSelectedFields,
 		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
 	>,
-	SQLWrapper
+	SQLWrapper,
+	PgRunnableQueryMethods<
+		THKT['runtime'],
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+	>
 {
 	readonly _: {
 		readonly dialect: 'pg';
@@ -312,7 +325,6 @@ export class PgDeleteBase<
 	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
 		const { session, dialect, config } = this;
 		return prepareMutation(
-			'delete',
 			session,
 			dialect,
 			config,

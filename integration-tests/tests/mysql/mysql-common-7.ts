@@ -136,6 +136,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5780
 	test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
 		let counter = 0;
 		const table = mysqlTable('on_update_call_test', {
@@ -174,6 +175,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/4464
 	test.concurrent('db.execute modes', async ({ db, push }) => {
 		const users = mysqlTable('users_execute_modes_1', (t) => ({
 			id: t.int().primaryKey(),
@@ -313,6 +315,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/3608
 	test.concurrent('insert into ... select with generated column', async ({ db, push }) => {
 		const users1 = mysqlTable('users1_iswgc', {
 			id: serial('id').primaryKey(),

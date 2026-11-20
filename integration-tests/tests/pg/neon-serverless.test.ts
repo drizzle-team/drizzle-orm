@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
+import { preparedNameTests } from './common-prepared-names';
 import { assertDroppedConnectionRejectsTransaction } from './connection-drop';
 import { neonWsTest as test } from './instrumentation';
 import { usersMigratorTable, usersMySchemaTable, usersTable } from './schema';
@@ -23,7 +24,9 @@ import {
 	thus extra execute statements below
  */
 tests(test, []);
+preparedNameTests(test);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as NeonDatabase;
 	const table = sql.identifier('raw_execute_types');
@@ -715,10 +718,16 @@ describe('transaction snapshot', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6437
 test('transaction rejects when pooled connection is dropped', async ({ db, peer }) => {
 	await assertDroppedConnectionRejectsTransaction(db, peer!, expect);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6023
+// https://github.com/drizzle-team/drizzle-orm/issues/6114
+// https://github.com/drizzle-team/drizzle-orm/issues/6241
+// https://github.com/drizzle-team/drizzle-orm/issues/6341
+// https://github.com/drizzle-team/drizzle-orm/issues/6622
 test('failed begin on transaction does not return client to the pool', async ({ kit, peer }) => {
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${kit.database}`;

@@ -1,19 +1,8 @@
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
-import { type Program, user } from '~/runtime/index.ts';
+import { perform, type QueryProgram } from '~/runtime/core.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
-import { GET_VERSION_FOR, type UpgradeResult } from './utils.ts';
-
-/**
- * What the Postgres migrator needs from a database, for both runtimes: each method returns what the runtime runs,
- * a Promise for the async API or an Effect for the Effect API
- */
-export interface PgMigrationRunner {
-	execute(query: SQL): unknown;
-	objects(query: SQL): unknown;
-	/** Runs the statements so that all of them apply or none: in a transaction, or the driver's equivalent */
-	atomically(statements: SQL[]): unknown;
-}
+import { GET_VERSION_FOR, type MigrationRunner, type UpgradeResult } from './utils.ts';
 
 /**
  * Upgrade from version 0 to version 1:
@@ -27,15 +16,14 @@ export interface PgMigrationRunner {
 function* upToV1(
 	migrationsSchema: string,
 	migrationsTable: string,
-	runner: PgMigrationRunner,
+	runner: MigrationRunner,
 	localMigrations: MigrationMeta[],
-): Program<void> {
-	const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
-
+	table: SQL,
+): QueryProgram<void> {
 	// 1. Read all existing DB migrations
 	// Sort them by ids asc (order how they were applied)
-	const dbRows = yield* user<{ id: number; hash: string; created_at: string }[]>(
-		runner.objects(sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`),
+	const dbRows = yield* perform<{ id: number; hash: string; created_at: string }[]>(
+		runner.objects(sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`, ['id', 'hash', 'created_at']),
 	);
 
 	// 2. Sort ASC by millis and if the same - sort by name
@@ -105,7 +93,7 @@ function* upToV1(
 		);
 	}
 
-	yield* user(runner.atomically(statements));
+	yield* perform(runner.atomically(statements));
 }
 
 /**
@@ -117,15 +105,18 @@ function* upToV1(
 export function* upgradeIfNeeded(
 	migrationsSchema: string,
 	migrationsTable: string,
-	runner: PgMigrationRunner,
+	runner: MigrationRunner,
 	localMigrations: MigrationMeta[],
-): Program<UpgradeResult> {
+	/** How statements reference the table: qualified with `migrationsSchema` by default */
+	table: SQL = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
+): QueryProgram<UpgradeResult> {
 	// Check if the table exists at all
-	const result = yield* user<unknown[]>(
+	const result = yield* perform<unknown[]>(
 		runner.objects(
 			sql`SELECT 1 FROM information_schema.tables
 			WHERE table_schema = ${migrationsSchema}
 			AND table_name = ${migrationsTable}`,
+			['1'],
 		),
 	);
 
@@ -134,7 +125,7 @@ export function* upgradeIfNeeded(
 	}
 
 	// Table exists, check table shape
-	const rows = yield* user<{ schema: string; table_name: string; column_name: string; type: string }[]>(
+	const rows = yield* perform<{ schema: string; table_name: string; column_name: string; type: string }[]>(
 		runner.objects(
 			sql`SELECT
 				n.nspname AS "schema",
@@ -151,43 +142,56 @@ export function* upgradeIfNeeded(
 				AND n.nspname = ${migrationsSchema}
 				AND c.relname = ${migrationsTable}
 			ORDER BY a.attnum;`,
+			['schema', 'table_name', 'column_name', 'type'],
 		),
 	);
 
 	const version = GET_VERSION_FOR.pg(rows.map((r) => r.column_name));
 
-	if (version < 1) yield* upToV1(migrationsSchema, migrationsTable, runner, localMigrations);
+	if (version < 1) yield* upToV1(migrationsSchema, migrationsTable, runner, localMigrations, table);
 
 	return { newDb: false };
 }
 
 /**
- * Applies the migrations that the database doesn't have yet, in one transaction. With `init`, records the single
- * local migration as applied, or gives the reason it can't
+ * Applies the migrations that the database doesn't have yet, in one transaction (or the driver's equivalent). With
+ * `init`, records the single local migration as applied, or gives the reason it can't.
+ *
+ * `schemaless`: the table is referenced unqualified, from the session's `search_path`, and no schema is created; the
+ * upgrade looks for it in `public` (`xata-http`)
  */
 export function* migrate(
 	migrations: MigrationMeta[],
-	runner: PgMigrationRunner,
-	config: string | MigrationConfig,
-): Program<void | MigratorInitFailResponse> {
+	runner: MigrationRunner,
+	config: string | Omit<MigrationConfig, 'migrationsFolder'>,
+	schemaless?: boolean,
+): QueryProgram<void | MigratorInitFailResponse> {
 	const migrationsTable = typeof config === 'string'
 		? '__drizzle_migrations'
 		: config.migrationsTable ?? '__drizzle_migrations';
-	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
-	const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
+	const migrationsSchema = schemaless
+		? 'public'
+		: typeof config === 'string'
+		? 'drizzle'
+		: config.migrationsSchema ?? 'drizzle';
+	const table = schemaless
+		? sql`${sql.identifier(migrationsTable)}`
+		: sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 	const record = (migration: MigrationMeta) =>
 		sql`insert into ${table} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${
 			migration.name ?? null
 		})`;
 
-	yield* user(runner.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`));
+	if (!schemaless) {
+		yield* perform(runner.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`));
+	}
 
 	// Detect DB version and upgrade table schema if needed
-	const { newDb } = yield* upgradeIfNeeded(migrationsSchema, migrationsTable, runner, migrations);
+	const { newDb } = yield* upgradeIfNeeded(migrationsSchema, migrationsTable, runner, migrations, table);
 
 	// Create table with latest schema (version 1) if this is a new database
 	if (newDb) {
-		yield* user(
+		yield* perform(
 			runner.execute(sql`
 				CREATE TABLE IF NOT EXISTS ${table} (
 					id SERIAL PRIMARY KEY,
@@ -200,8 +204,8 @@ export function* migrate(
 		);
 	}
 
-	const dbMigrations = yield* user<{ id: number; hash: string; created_at: string; name: string }[]>(
-		runner.objects(sql`select id, hash, created_at, name from ${table}`),
+	const dbMigrations = yield* perform<{ id: number; hash: string; created_at: string; name: string }[]>(
+		runner.objects(sql`select id, hash, created_at, name from ${table}`, ['id', 'hash', 'created_at', 'name']),
 	);
 
 	if (typeof config === 'object' && config.init) {
@@ -211,7 +215,7 @@ export function* migrate(
 		const [migration] = migrations;
 		if (!migration) return;
 
-		yield* user(runner.execute(record(migration)));
+		yield* perform(runner.atomically([record(migration)]));
 		return;
 	}
 
@@ -221,5 +225,5 @@ export function* migrate(
 		statements.push(record(migration));
 	}
 
-	yield* user(runner.atomically(statements));
+	if (statements.length) yield* perform(runner.atomically(statements));
 }

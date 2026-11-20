@@ -49,7 +49,6 @@ const skips = [
 	'time zones are preserved',
 	'time zones are preserved - non-UTC session',
 	'all types ~codecs~ - non-UTC session',
-	'all types ~codecs~ - non-UTC session - upstash',
 	// local-data-api ignores `longReturnType`, returning `int8` as JSON numbers that lose precision past 2^53
 	'issue 5760. bigint precision',
 	// Data API returns json as text, results without codecs (raw, untyped `sql`) keep it as a string, redefined below
@@ -58,9 +57,7 @@ const skips = [
 	'set json/jsonb fields with strings and retrieve with the -> operator',
 	// Data API has no representation for `null` array elements
 	'all types ~codecs~ - null array elements',
-	'all types ~codecs~ - null array elements - upstash',
 	'all types ~codecs~ - custom type null array elements',
-	'all types ~codecs~ - custom type null array elements - upstash',
 ];
 
 describe('aws-data-api/pg', () => {
@@ -81,6 +78,7 @@ describe('aws-data-api/pg', () => {
 		arrbigintstr: ['1'],
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/661
 	test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 		const db = fixtureDb as unknown as AwsDataApiPgDatabase;
 		const table = sql.identifier('raw_execute_types');

@@ -8,7 +8,6 @@ import { migrate } from 'drizzle-orm/tidb-serverless/migrator';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { tidbTest as test } from './instrumentation';
 import { tests } from './mysql-common';
-import { runTests as cacheTests } from './mysql-common-cache';
 import { usersMigratorTable } from './schema2';
 
 const skip = new Set([
@@ -75,7 +74,6 @@ const skip = new Set([
 	'RQB v2 find many - bigint precision loss',
 	'select from a one subquery',
 	'all types',
-	'all types - upstash',
 	'Column as decoder applies codecs',
 	'Column as decoder applies codecs - Jit mappers',
 	'Mappers: relational',
@@ -83,8 +81,8 @@ const skip = new Set([
 ]);
 
 tests(test, skip);
-cacheTests('mysql', test);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as TiDBServerlessDatabase;
 	const table = sql.identifier('raw_execute_types');

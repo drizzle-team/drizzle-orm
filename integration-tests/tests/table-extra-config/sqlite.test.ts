@@ -33,6 +33,7 @@ const foreignClass = sqliteTable('users', { id: integer('id') }, () => [new Unre
 // @ts-expect-error
 const foreignDialect = sqliteTable('users', { id: integer('id') }, () => [pgIndex]);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6140
 describe('sqlite extra config', () => {
 	test('Expected form', () => {
 		const config = getTableConfig(users);

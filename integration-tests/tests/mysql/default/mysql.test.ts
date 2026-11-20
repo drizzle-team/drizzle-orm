@@ -12,11 +12,9 @@ import { describe, expect, expectTypeOf } from 'vitest';
 import { allTypesDataWith, makeAllTypes } from '../all-types';
 import { mysqlTest as test } from '../instrumentation';
 import { tests } from '../mysql-common';
-import { runTests } from '../mysql-common-cache';
 import { usersMigratorTable } from '../schema2';
 import { allTypesWithReplacementsSkips, allTypesWithReplacementsTests } from '../unsupported-types';
 
-runTests('mysql', test);
 // MySQL rounds `float` to 6 significant digits in the text protocol the driver uses, with no per-query alternative
 // (a driver quirk): all-types tests are redefined with a `float` value that rounds to itself
 tests(test, new Set(allTypesWithReplacementsSkips));
@@ -346,7 +344,7 @@ describe('migrator', () => {
 	});
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/5972
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as MySql2Database;
 	const table = sql.identifier('raw_execute_types');
@@ -382,6 +380,7 @@ test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	await db.execute<never>(sql`drop table ${table}`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5972
 describe('driver init', () => {
 	const resolveConfig = (client: any) => {
 		const cfg = client.config ?? client.pool?.config ?? client.connection?.config;

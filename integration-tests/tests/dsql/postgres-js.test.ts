@@ -26,6 +26,7 @@ tests(test, [
 	'set json/jsonb fields with strings and retrieve with the -> operator',
 ]);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresJsDsqlDatabase;
 	const table = sql.identifier('raw_execute_types');

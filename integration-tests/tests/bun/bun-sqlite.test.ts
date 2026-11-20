@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { SQL } from 'bun';
-import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, spyOn, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, test } from 'bun:test';
 import {
 	and,
 	asc,
@@ -13,12 +13,10 @@ import {
 	DrizzleQueryError,
 	eq,
 	exists,
-	getCacheKey,
 	getTableColumns,
 	gt,
 	gte,
 	inArray,
-	is,
 	lt,
 	max,
 	min,
@@ -27,16 +25,11 @@ import {
 	sql,
 	sum,
 	sumDistinct,
-	Table,
 	TransactionRollbackError,
 } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sql';
 import { migrate } from 'drizzle-orm/bun-sql/migrator';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sql/sqlite';
-import type { MutationOption } from 'drizzle-orm/cache/core';
-import { Cache } from 'drizzle-orm/cache/core';
-import { binarySerializer } from 'drizzle-orm/cache/core';
-import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import {
 	alias,
 	blob,
@@ -62,7 +55,6 @@ import {
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import Keyv from 'keyv';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import type { Equal } from '~/utils';
 import { Expect } from '~/utils';
@@ -77,12 +69,6 @@ import {
 	dropAllTypes,
 	makeAllTypes,
 } from '../sqlite/all-types';
-
-// raw rows hold bigints with drivers reading integers as bigints on decoded queries, which JSON can't store
-const bigintSafeKeyvOptions = {
-	serialize: binarySerializer.serialize,
-	deserialize: binarySerializer.deserialize,
-} as any;
 
 export const rqbUser = sqliteTable('user_rqb_test', {
 	id: integer().primaryKey().notNull(),
@@ -250,8 +236,6 @@ const aggregateTable = sqliteTable('aggregate_table', {
 const ENABLE_LOGGING = false;
 
 let db: BunSQLiteDatabase<typeof relations> & { $client: SQL };
-let dbGlobalCached: BunSQLiteDatabase & { $client: SQL };
-let cachedDb: BunSQLiteDatabase & { $client: SQL };
 let client: SQL;
 
 beforeAll(async () => {
@@ -259,8 +243,6 @@ beforeAll(async () => {
 	// `bun`'s `SQL` has no per-query integer mode: drizzle requires `safeIntegers` for lossless integers
 	client = new SQL(dbPath, { safeIntegers: true });
 	db = drizzle.sqlite({ client, logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle.sqlite({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle.sqlite({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 test('rejects clients returning integers as numbers', () => {
@@ -276,8 +258,6 @@ test('rejects clients returning integers as numbers', () => {
 
 afterAll(async () => {
 	await client?.close();
-	await cachedDb?.$client.end();
-	await dbGlobalCached?.$client.end();
 });
 
 test('migrator', async () => {
@@ -825,6 +805,8 @@ describe('common', () => {
 		}]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list', async () => {
 		const table = sqliteTable('column_selection', {
 			id: integer('id').primaryKey({ autoIncrement: true }),
@@ -853,6 +835,8 @@ describe('common', () => {
 		await db.run(sql`drop table ${table}`);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list - select', async () => {
 		const src = sqliteTable('column_selection_select_src', {
 			id: integer('id').primaryKey(),
@@ -885,6 +869,8 @@ describe('common', () => {
 		await db.run(sql`drop table ${dst}`);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list - on conflict', async () => {
 		const table = sqliteTable('column_selection_conflict', {
 			id: integer('id').primaryKey(),
@@ -3072,6 +3058,7 @@ describe('common', () => {
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5780
 	test('$onUpdateFn called only when needed', async () => {
 		let counter = 0;
 		const table = sqliteTable('on_update_call_test', {
@@ -4366,407 +4353,6 @@ test('sql operator as cte', async () => {
 	expect(result2).toStrictEqual([{ userId: 2, data: { name: 'Jane' } }]);
 });
 
-export class TestGlobalCache extends Cache {
-	private globalTtl: number = 1000;
-	private usedTablesPerKey: Record<string, string[]> = {};
-
-	constructor(private kv: Keyv = new Keyv(bigintSafeKeyvOptions)) {
-		super();
-	}
-
-	override strategy(): 'explicit' | 'all' {
-		return 'all';
-	}
-	override async get(key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
-		const res = await this.kv.get(key) ?? undefined;
-		return res;
-	}
-	override async put(
-		key: string,
-		response: any,
-		tables: string[],
-		isTag: boolean,
-		config?: CacheConfig,
-	): Promise<void> {
-		await this.kv.set(key, response, config ? config.ex : this.globalTtl);
-		for (const table of tables) {
-			const keys = this.usedTablesPerKey[table];
-			if (keys === undefined) {
-				this.usedTablesPerKey[table] = [key];
-			} else {
-				keys.push(key);
-			}
-		}
-	}
-	override async onMutate(params: MutationOption): Promise<void> {
-		const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
-		const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
-
-		const keysToDelete = new Set<string>();
-
-		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-			const keys = this.usedTablesPerKey[tableName] ?? [];
-			for (const key of keys) keysToDelete.add(key);
-		}
-
-		if (keysToDelete.size > 0 || tagsArray.length > 0) {
-			for (const tag of tagsArray) {
-				await this.kv.delete(tag);
-			}
-
-			for (const key of keysToDelete) {
-				await this.kv.delete(key);
-				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-					this.usedTablesPerKey[tableName] = [];
-				}
-			}
-		}
-	}
-}
-
-export class TestCache extends TestGlobalCache {
-	override strategy(): 'explicit' | 'all' {
-		return 'explicit';
-	}
-}
-const usersTableCache = sqliteTable('users', {
-	id: integer('id').primaryKey({ autoIncrement: true }),
-	name: text('name').notNull(),
-	verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
-	jsonb: text('jsonb', { mode: 'json' }).$type<string[]>(),
-	createdAt: integer('created_at', { mode: 'timestamp' }),
-});
-
-const postsTableCache = sqliteTable('posts', {
-	id: integer().primaryKey({ autoIncrement: true }),
-	description: text().notNull(),
-	userId: integer('user_id').references(() => usersTableCache.id),
-});
-
-describe('common_cache', () => {
-	beforeEach(async () => {
-		const db = cachedDb;
-		await db.run(sql`drop table if exists users`);
-		await db.run(sql`drop table if exists posts`);
-		await db.$cache?.invalidate({ tables: 'users' });
-		await dbGlobalCached.$cache?.invalidate({ tables: 'users' });
-		// public users
-		await db.run(
-			sql`
-				create table users (
-					id integer primary key AUTOINCREMENT,
-					name text not null,
-					verified integer not null default 0,
-					jsonb text,
-					created_at integer
-				)
-			`,
-		);
-		await db.run(
-			sql`
-				create table posts (
-					id integer primary key AUTOINCREMENT,
-					description text not null,
-					user_id int
-				)
-			`,
-		);
-	});
-
-	test('test force invalidate', async () => {
-		const db = cachedDb;
-
-		const spyInvalidate = spyOn(db.$cache, 'invalidate');
-		await db.$cache?.invalidate({ tables: 'users' });
-		expect(spyInvalidate).toHaveBeenCalledTimes(1);
-	});
-
-	test('default global config - no cache should be hit', async () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache);
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('default global config + enable cache on select: get, put', async () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache();
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('default global config + enable cache on select + write: get, put, onMutate', async () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache({ config: { ex: 1 } });
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-		spyPut.mockClear();
-		spyGet.mockClear();
-		spyInvalidate.mockClear();
-
-		await db.insert(usersTableCache).values({ name: 'John' });
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(1);
-	});
-
-	test('default global config + enable cache on select + disable invalidate: get, put', async () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache({ tag: 'custom', autoInvalidate: false, config: { ex: 1 } });
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-		await db.insert(usersTableCache).values({ name: 'John' });
-
-		// invalidate force
-		await db.$cache?.invalidate({ tags: ['custom'] });
-	});
-
-	test('global: true + disable cache', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache(false);
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('global: true - cache should be hit', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache);
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('global: true - cache: false on select - no cache hit', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache(false);
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('global: true - disable invalidate - cache hit + no invalidate', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache({ autoInvalidate: false });
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-		spyPut.mockClear();
-		spyGet.mockClear();
-		spyInvalidate.mockClear();
-
-		await db.insert(usersTableCache).values({ name: 'John' });
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(1);
-	});
-
-	test('global: true - with custom tag', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache({ tag: 'custom', autoInvalidate: false });
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-		await db.insert(usersTableCache).values({ name: 'John' });
-
-		// invalidate force
-		await db.$cache?.invalidate({ tags: ['custom'] });
-	});
-
-	// check select used tables
-	test('check simple select used tables', () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		expect(db.select().from(usersTableCache).getUsedTables()).toStrictEqual(['users']);
-		// @ts-expect-error
-		expect(db.select().from(sql`${usersTableCache}`).getUsedTables()).toStrictEqual(['users']);
-	});
-	// check select+join used tables
-	test('select+join', () => {
-		const db = cachedDb;
-
-		expect(
-			db.select().from(usersTableCache).leftJoin(postsTableCache, eq(usersTableCache.id, postsTableCache.userId))
-				// @ts-expect-error
-				.getUsedTables(),
-		)
-			.toStrictEqual(['users', 'posts']);
-		expect(
-			db.select().from(sql`${usersTableCache}`).leftJoin(
-				postsTableCache,
-				eq(usersTableCache.id, postsTableCache.userId),
-				// @ts-expect-error
-			).getUsedTables(),
-		).toStrictEqual(['users', 'posts']);
-	});
-	// check select+2join used tables
-	test('select+2joins', () => {
-		const db = cachedDb;
-
-		expect(
-			db.select().from(usersTableCache).leftJoin(
-				postsTableCache,
-				eq(usersTableCache.id, postsTableCache.userId),
-			).leftJoin(
-				alias(postsTableCache, 'post2'),
-				eq(usersTableCache.id, postsTableCache.userId),
-			)
-				// @ts-expect-error
-				.getUsedTables(),
-		)
-			.toStrictEqual(['users', 'posts']);
-		expect(
-			db.select().from(sql`${usersTableCache}`).leftJoin(
-				postsTableCache,
-				eq(usersTableCache.id, postsTableCache.userId),
-			).leftJoin(
-				alias(postsTableCache, 'post2'),
-				eq(usersTableCache.id, postsTableCache.userId),
-				// @ts-expect-error
-			).getUsedTables(),
-		).toStrictEqual(['users', 'posts']);
-	});
-	// select subquery used tables
-	test('select+join', () => {
-		const db = cachedDb;
-
-		const sq = db.select().from(usersTableCache).where(eq(usersTableCache.id, 42)).as('sq');
-
-		// @ts-expect-error
-		expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
-	});
-});
-
 test("No nullification on non-joined table's all-null object", async () => {
 	const users = sqliteTable('nullify1_users', (t) => ({
 		id: t.integer('id').primaryKey(),
@@ -5305,6 +4891,7 @@ test('Default value priority', async () => {
 	await db.run(sql`DROP TABLE no_default_override`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params', async () => {
 	await db.run(sql`drop table if exists params_in_errors`);
 	await db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);
@@ -5343,6 +4930,7 @@ test('Query error params', async () => {
 	await db.run(sql`drop table params_in_errors`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params - transaction', async () => {
 	await db.run(sql`drop table if exists params_in_errors`);
 	await db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);

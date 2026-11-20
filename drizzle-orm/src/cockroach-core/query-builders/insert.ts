@@ -250,6 +250,7 @@ export type CockroachInsertPrepare<T extends AnyCockroachInsert> = CockroachPrep
 export type CockroachInsertDynamic<T extends AnyCockroachInsert> = CockroachInsert<
 	T['_']['table'],
 	T['_']['queryResult'],
+	T['_']['selectedFields'],
 	T['_']['returning']
 >;
 

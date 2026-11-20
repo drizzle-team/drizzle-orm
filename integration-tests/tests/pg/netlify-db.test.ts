@@ -42,6 +42,7 @@ import pg from 'pg';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
+import { preparedNameTests } from './common-prepared-names';
 import { assertDroppedConnectionRejectsTransaction } from './connection-drop';
 import { netlifyDbTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
@@ -57,6 +58,8 @@ const connectionString = process.env['NETLIFY_DB_URL']!;
 
 // COMMON
 tests(test, skips);
+// queries outside a transaction go over HTTP, which keeps no statements; a transaction runs on a WebSocket session
+preparedNameTests(test);
 
 const testItems = pgTable('netlify_db_test_items', {
 	id: serial('id').primaryKey(),
@@ -79,6 +82,7 @@ async function teardownTestTable(database: { execute: (query: any) => Promise<an
 	await database.execute(sql`drop table if exists netlify_db_test_items`);
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as NetlifyDbDatabase;
 	const table = sql.identifier('raw_execute_types');
@@ -863,10 +867,16 @@ describe('transaction snapshot', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6437
 test('transaction rejects when pooled connection is dropped', async ({ db, peer }) => {
 	await assertDroppedConnectionRejectsTransaction(db, peer!, expect);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6023
+// https://github.com/drizzle-team/drizzle-orm/issues/6114
+// https://github.com/drizzle-team/drizzle-orm/issues/6241
+// https://github.com/drizzle-team/drizzle-orm/issues/6341
+// https://github.com/drizzle-team/drizzle-orm/issues/6622
 test('failed begin on transaction does not return client to the pool', async ({ kit, peer }) => {
 	const url = new URL(process.env['NETLIFY_DB_URL']!);
 	url.pathname = `/${kit.database}`;

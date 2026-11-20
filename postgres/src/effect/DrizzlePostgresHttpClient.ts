@@ -10,7 +10,7 @@ import type { SqlError } from 'effect/sql/SqlError';
 import type { HttpBatchQuery, HttpClient, HttpQueryOptions } from '../http.ts';
 import type { NeonHttpClient } from '../neon-http.ts';
 import type { BatchOptions, QueryResult } from '../types.ts';
-import { toSqlError } from './DrizzlePostgresClient.ts';
+import { toSqlError } from './shared.ts';
 
 export const TypeId = '~@drizzle/postgres/DrizzlePostgresHttpClient';
 export type TypeId = typeof TypeId;

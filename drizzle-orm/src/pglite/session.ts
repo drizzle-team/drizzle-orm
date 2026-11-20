@@ -1,6 +1,4 @@
 import type { ParserOptions, PGlite, Results, Row, Transaction } from '@electric-sql/pglite';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession } from '~/pg-core/async/session.ts';
@@ -20,7 +18,6 @@ export type PgliteClient = PGlite;
 
 export interface PgliteSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -28,7 +25,6 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 	static override readonly [entityKind]: string = 'PgliteSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: PgliteClient | Transaction,
@@ -38,7 +34,6 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -46,8 +41,6 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const executor = async (params?: unknown[]) => {
 			return this.client.query(query.sql, params, {
@@ -62,9 +55,6 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

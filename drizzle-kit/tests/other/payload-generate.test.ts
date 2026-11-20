@@ -29,6 +29,7 @@ const pgSnapshots = async () => {
 	return { prev, cur };
 };
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6053
 test('ambiguity in two entity kinds is listed in one error and resolves with create hints built from it', async () => {
 	const prev = await pgJson({
 		a: pgTable('a', { id: integer('id').primaryKey() }),
@@ -63,6 +64,7 @@ test('ambiguity in two entity kinds is listed in one error and resolves with cre
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6053
 test('resolving with hints prints nothing', async () => {
 	const { prev, cur } = await pgSnapshots();
 	const log = vi.spyOn(console, 'log');
@@ -74,6 +76,7 @@ test('resolving with hints prints nothing', async () => {
 	expect(log).not.toHaveBeenCalled();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6053
 test('rename hint emits a rename instead of drop and create', async () => {
 	const { prev, cur } = await pgSnapshots();
 
@@ -120,6 +123,7 @@ test('createSchemaIfNotExists gives a migration that runs on a database that alr
 	await returnPGlite(client);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6053
 test('invalid hints are rejected with one error type', async () => {
 	const { prev, cur } = await pgSnapshots();
 
@@ -136,6 +140,7 @@ test('invalid hints are rejected with one error type', async () => {
 	})).rejects.toMatchObject({ name: 'InvalidHintsCliError', code: 'invalid_hints' });
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6053
 test('sqlite hint ids use the public schema', async () => {
 	const prev = await sqliteJson({ a: sqliteTable('a', { id: sqliteInteger('id').primaryKey() }) });
 	const cur = await sqliteJson({ b: sqliteTable('b', { id: sqliteInteger('id').primaryKey() }) });
@@ -183,6 +188,7 @@ test('sqlite up converts a format 6 snapshot that gives no SQL against the same 
 	expect((await sqliteMigration(snapshots['20250101000000_init'], cur)).sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6053
 test('mysql hint ids use the public schema', async () => {
 	const prev = await mysqlJson({ a: mysqlTable('a', { id: mysqlInt('id').primaryKey() }) });
 	const cur = await mysqlJson({ b: mysqlTable('b', { id: mysqlInt('id').primaryKey() }) });
@@ -199,6 +205,7 @@ test('mysql hint ids use the public schema', async () => {
 	expect(sql).toEqual(['RENAME TABLE `a` TO `b`;']);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6053
 test('mssql hint ids use the dbo schema', async () => {
 	const prev = await mssqlJson({ a: mssqlTable('a', { id: mssqlInt('id').primaryKey() }) });
 	const cur = await mssqlJson({ b: mssqlTable('b', { id: mssqlInt('id').primaryKey() }) });

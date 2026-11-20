@@ -1,8 +1,6 @@
 import { expect, expectTypeOf, it, Vitest } from '@effect/vitest';
-import { sql } from 'drizzle-orm';
 import * as Effect from 'effect/Effect';
 import { SqlClient } from 'effect/sql/SqlClient';
-import { withUpstashCache } from '~/upstash-cache';
 import type { AllTypes } from './all-types';
 import {
 	allTypesDataWith,
@@ -22,7 +20,7 @@ import { DB, push, type RunCommonEffectSQLiteTestsOptions } from './effect-commo
 // register the copies via `addTests`.
 
 /** Shared tests holding unsafe integers in `numeric` columns, redefined by {@link unsafeNumericTests} */
-export const unsafeNumericSkips = ['all types', 'all types - upstash'];
+export const unsafeNumericSkips = ['all types'];
 
 /** Copies of {@link unsafeNumericSkips} with unsafe `numeric` integers replaced */
 export const unsafeNumericTests = (
@@ -53,42 +51,4 @@ export const unsafeNumericTests = (
 			yield* Effect.promise(() => assertAllTypesBounds(db as any, { run, data: safeIntegerBoundsData }));
 			yield* Effect.promise(() => assertAllTypesTemporalBounds(db as any, { run }));
 		}));
-
-	it.effect('all types - upstash (safe integers)', () =>
-		withUpstashCache((cache, run) =>
-			Effect.gen(function*() {
-				const allTypesTable = makeAllTypes('all_types_upstash');
-				const db = yield* createDB({ allTypesTable }, () => ({}), false, cache);
-				yield* db.run(sql`drop table if exists ${allTypesTable}`);
-				yield* push(db, { allTypesTable });
-
-				const query = db.select().from(allTypesTable);
-				yield* Effect.promise(async () => {
-					await cache.expectHits('all types', async () => {
-						await run(db.insert(allTypesTable).values(input));
-
-						expect(await run(query)).toStrictEqual([data]);
-						expect(await run(query.all())).toStrictEqual([data]);
-						expect(await run(query.get())).toStrictEqual(data);
-						expect(await run(query.values())).toHaveLength(1);
-					});
-				});
-
-				// `.run()` is never read from or written to cache (checked by the cache suites), but mutations it executes still invalidate
-				yield* db.delete(allTypesTable).run();
-				yield* Effect.promise(async () => {
-					expect(await run(query)).toStrictEqual([]);
-				});
-				yield* db.insert(allTypesTable).values(input).run();
-
-				yield* Effect.promise(async () => {
-					await cache.expectHits(
-						'unions',
-						() => assertAllTypesUnions(db as any, allTypesTable, run, safeIntegerReplacements),
-					);
-					await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run, data: safeIntegerBoundsData }));
-					await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db as any, { run }));
-				});
-			})
-		));
 };

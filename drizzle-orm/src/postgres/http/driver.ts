@@ -7,14 +7,14 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { postgresCodecs } from '../codecs.ts';
-import { createShapeGenerator } from '../shape.ts';
+import { postgresCodecs } from './codecs.ts';
 import {
 	type PostgresHttpBatchOptions,
 	type PostgresHttpQueryResultHKT,
 	type PostgresHttpRequestOptions,
 	PostgresHttpSession,
 } from './session.ts';
+import { createShapeGenerator } from './shape.ts';
 
 export class PostgresHttpDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
@@ -90,7 +90,6 @@ function construct<
 	const relations = config.relations ?? {};
 	const session = new PostgresHttpSession(client, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 
@@ -100,10 +99,6 @@ function construct<
 		relations,
 	) as PostgresHttpDatabase<TRelations>;
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }

@@ -1,64 +1,52 @@
-// The Effect side. Importing this module makes every op an Effect, so Effect.gen runs core programs natively: in the
-// caller's fiber, with its context, interruption and typed errors. Nothing else in this package imports `effect`.
+import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
-import * as Effectable from 'effect/Effectable';
-import * as Result from 'effect/Result';
-import { Attempt, Fail, Io, opClasses, type Outcome, type Program, User, Using } from './index.ts';
+import { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
+import type { SQL } from '~/sql/sql.ts';
+import { hasTelemetry } from '~/tracing.ts';
+import type { MigrationRunner } from '~/up-migrations/utils.ts';
+import { type QueryProgram, type QueryRuntime, runProgram, tracedSpan } from './core.ts';
 
-/** Runs a core program as an Effect. `body` runs again on every run, so the Effect can run any number of times.
- *  The error and requirement types are the caller's to declare: the core doesn't know them. */
-export const fromProgram = <A, E = unknown, R = never>(body: () => Program<A>): Effect.Effect<A, E, R> =>
-	Effect.gen(body as never) as Effect.Effect<A, E, R>;
+type AnyEffect = Effect.Effect<unknown, unknown, unknown>;
 
-const TO_EFFECT = Symbol.for('drizzle.runtime.toEffect');
+/** A plain value returned where an Effect is expected, as {@link QueryRuntime}'s `suspend` and `andThen` allow */
+const lift = (value: unknown): AnyEffect => Effect.isEffect(value) ? value : Effect.succeed(value);
 
-// Effect's prototype becomes the parent of each op class's prototype, so ops are Effects, and no keys are added to a
-// prototype already in use. Each op keeps its own one-shot iterator, which yields the op to Effect.gen as the Effect
-// to run. Evaluating an op calls its class's own TO_EFFECT method, one call instead of a chain of instanceof checks.
-const effectProto = Effectable.Prototype({
-	label: 'DrizzleRuntimeOp',
-	evaluate(this: Record<symbol, () => Effect.Effect<unknown, unknown, unknown>>) {
-		return this[TO_EFFECT]!();
+export const effectQueryRuntime: QueryRuntime = {
+	suspend: (body) => Effect.suspend(() => lift(body())),
+	chain: (first, next) => Effect.flatMap(first as AnyEffect, (value) => lift(next(value))),
+	// In the query's own fiber, as effect/sql runs its per-statement span and transformer: no fiber per query. The
+	// logger can't fail (`Effect<void, never>`), and one that is slow delays its query.
+	detach: (work) => Effect.suspend(work as () => AnyEffect),
+	attempt: (run, onError) => {
+		let query: AnyEffect;
+		try {
+			query = run() as AnyEffect;
+		} catch (e) {
+			return Effect.fail(onError(e));
+		}
+		return Effect.catch(query, (e) => Effect.fail(onError(e)));
 	},
-} as never);
-for (const op of opClasses) Object.setPrototypeOf(op.prototype, effectProto);
-
-const define = <T>(
-	op: abstract new(...args: any[]) => T,
-	toEffect: (this: T) => Effect.Effect<unknown, unknown, unknown>,
-) => {
-	(op.prototype as Record<symbol, unknown>)[TO_EFFECT] = toEffect;
+	queryError: (query, params, cause) =>
+		new EffectDrizzleQueryError({ query, params: params as any[] | undefined, cause: Cause.fail(cause) }),
 };
 
-const identity = (error: unknown) => error;
+export const tracedEffectQueryRuntime: QueryRuntime = {
+	...effectQueryRuntime,
+	span: hasTelemetry ? tracedSpan : undefined,
+};
 
-// `try` is the op's own function: tryPromise allocates an AbortController only for a function that takes the signal,
-// so an Io that can't be canceled doesn't pay for one. `catch` is the domain's mapper, created once by its owner:
-// a new closure per op costs ~110 ns on V8.
-define(Io, function() {
-	return Effect.tryPromise({ try: this.run as never, catch: this.domain?.toEffectError ?? identity });
-});
-define(User, function() {
-	return this.value as Effect.Effect<unknown, unknown, unknown>;
-});
-define(Fail, function() {
-	return Effect.fail(this.error);
-});
-define(Attempt, function() {
-	return Effect.map(
-		Effect.result(fromProgram(this.body)),
-		(r): Outcome<unknown> => Result.isSuccess(r) ? { ok: true, value: r.success } : { ok: false, error: r.failure },
-	);
-});
-define(Using, function() {
-	const { acquire, use, release } = this;
-	return Effect.acquireUseRelease(
-		fromProgram(acquire),
-		(resource) => fromProgram(() => use(resource)),
-		(resource) => Effect.orDie(fromProgram(() => release(resource))),
-	);
-});
+export const runEffectProgram = <A, E = unknown, R = never>(body: () => QueryProgram<A>): Effect.Effect<A, E, R> =>
+	runProgram(effectQueryRuntime, body) as Effect.Effect<A, E, R>;
 
-/** An op as the Effect it is once this module is loaded. For entries that return a single op to their caller. */
-export const asEffect = <A, E = unknown, R = never>(op: { [Symbol.iterator](): Iterator<unknown, A, any> }) =>
-	op as unknown as Effect.Effect<A, E, R>;
+export interface EffectMigrationSession {
+	execute(query: SQL): AnyEffect;
+	objects(query: SQL): AnyEffect;
+	transaction(transaction: (tx: { execute(query: SQL): AnyEffect }) => AnyEffect): AnyEffect;
+}
+
+export const effectMigrationRunner = (session: EffectMigrationSession): MigrationRunner => ({
+	execute: (query) => session.execute(query),
+	objects: (query) => session.objects(query),
+	atomically: (statements) =>
+		session.transaction((tx) => Effect.forEach(statements, (statement) => tx.execute(statement), { discard: true })),
+});

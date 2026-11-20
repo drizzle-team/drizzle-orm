@@ -25,7 +25,6 @@ ALL_IMAGES=(
   neon
   turso
   planetscale
-  upstash
 )
 
 _resolve_compose_file() {
@@ -49,7 +48,6 @@ _resolve_compose_file() {
     neon)             echo "neon.yml" ;;
     turso)            echo "turso.yml" ;;
     planetscale)      echo "planetscale.yml" ;;
-    upstash)          echo "upstash.yml" ;;
     *)
       echo "Unknown image '$1'. Valid images: ${ALL_IMAGES[*]}" >&2
       return 1
@@ -77,8 +75,40 @@ _up_one() {
   fi
   # Readiness is compose/wait.sh's probe from the host, not `up --wait`: some images' own healthchecks call
   # tools they do not ship (nc in cockroach and azure-sql-edge), so those containers never report healthy.
+  _before_up "$image"
   _compose "$image" up -d
   bash compose/wait.sh "$image"
+  _after_up "$image"
+}
+
+# What an image needs on the host before it starts.
+_before_up() {
+  case "$1" in
+    # The self-signed certificate (CN=localhost) the server presents, for the Drizzle Postgres driver's TLS tests.
+    # Made here because the alpine image has no openssl; compose/postgres/entrypoint.sh installs it.
+    postgres)
+      mkdir -p postgres/test/.pgdata
+      [ -f postgres/test/.pgdata/server.key ] && [ -f postgres/test/.pgdata/server.crt ] ||
+        openssl req -new -x509 -days 3650 -nodes -subj '/CN=localhost' \
+          -out postgres/test/.pgdata/server.crt -keyout postgres/test/.pgdata/server.key >/dev/null 2>&1
+      ;;
+  esac
+}
+
+# What an image's tests need from it besides the port.
+_after_up() {
+  case "$1" in
+    # The Drizzle Postgres driver's suite (postgres/) runs on this server too. Its roles and its testdb database
+    # with the fixture table are made here, and left as they are when they exist. Its TLS tests read the server's
+    # certificate as their CA (SERVER_CA_PATH in postgres/test/helpers/db.ts). It is read back from the server,
+    # which on a shared machine another checkout started with its own. With cat: `docker cp` can't read a tmpfs.
+    postgres)
+      _compose postgres exec -T postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q \
+        -f /drizzle/driver-fixtures.sql >/dev/null
+      _compose postgres exec -T postgres cat /etc/drizzle/server.crt > postgres/test/.pgdata/server.crt.tmp
+      mv postgres/test/.pgdata/server.crt.tmp postgres/test/.pgdata/server.crt
+      ;;
+  esac
 }
 
 # A server all runner instances share (compose/ports.sh): started by the first job that needs it and left running.
@@ -86,12 +116,14 @@ _up_one() {
 # start it at the same moment race to create the container; the losers' `up` fails and their retry finds it.
 _up_shared() {
   local image="$1" attempt
+  _before_up "$image"
   for attempt in 1 2 3 4 5; do
     _compose "$image" up -d --no-recreate >/dev/null 2>&1 && break
     [ "$attempt" -eq 5 ] && { _compose "$image" up -d --no-recreate; return 1; }
     sleep $((attempt * 2))
   done
   bash compose/wait.sh "$image"
+  _after_up "$image"
   _recreate_job_database "$image"
 }
 

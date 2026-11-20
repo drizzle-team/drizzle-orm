@@ -11,11 +11,21 @@ export interface EncodedParam {
 	bytes: Buffer | null; // null = SQL NULL
 }
 
+/** A value that is bytes, as a Buffer over the same memory: a Buffer, any other Uint8Array (how Deno, Workers and
+ *  browsers hold bytes), or an ArrayBuffer. Anything else is not bytes. */
+export const bytesOf = (v: unknown): Buffer | undefined =>
+	v instanceof Uint8Array
+		? (Buffer.isBuffer(v) ? v : Buffer.from(v.buffer, v.byteOffset, v.byteLength))
+		: v instanceof ArrayBuffer
+		? Buffer.from(v)
+		: undefined;
+
 /** Encode a JS param value for a Bind message. Kept for compatibility (tests, W.bind); the hot
  *  path uses the zero-alloc write-through `encodeValueInto` below. */
 export function encodeParam(v: unknown): EncodedParam {
 	if (v == null) return { format: 0, bytes: null };
-	if (Buffer.isBuffer(v)) return { format: 1, bytes: v };
+	const bytes = bytesOf(v);
+	if (bytes) return { format: 1, bytes };
 	if (v instanceof Date) return { format: 0, bytes: Buffer.from(v.toISOString(), 'utf8') };
 	if (typeof v === 'boolean') return { format: 0, bytes: Buffer.from(v ? 't' : 'f', 'utf8') };
 	if (Array.isArray(v)) return { format: 0, bytes: Buffer.from(arrayLiteral(v), 'utf8') }; // JS array -> PG '{…}' literal, not JSON
@@ -36,8 +46,8 @@ export function encodeValueInto(w: Writer, v: unknown): number {
 		w.int32(-1);
 		return 0;
 	}
-	if (Buffer.isBuffer(v)) {
-		w.lpBytes(v);
+	if (v instanceof Uint8Array || v instanceof ArrayBuffer) {
+		w.lpBytes(bytesOf(v)!);
 		return 1;
 	}
 	switch (typeof v) {
@@ -362,9 +372,10 @@ function copyTextCellInto(w: Writer, v: unknown): void {
 		writeIso(w, v);
 		return;
 	}
-	if (Buffer.isBuffer(v)) {
+	const bytes = bytesOf(v);
+	if (bytes) {
 		w.asc('\\\\x');
-		w.asc(v.toString('hex'));
+		w.asc(bytes.toString('hex'));
 		return;
 	} // literal '\\x' + hex (already COPY-escaped)
 	writeEscCopy(w, typeof v === 'object' ? JSON.stringify(v) : String(v));
@@ -420,8 +431,8 @@ export function arrayLiteral(arr: readonly unknown[]): string {
 		}
 		const str = v instanceof Date
 			? v.toISOString()
-			: Buffer.isBuffer(v)
-			? '\\x' + v.toString('hex')
+			: bytesOf(v)
+			? '\\x' + bytesOf(v)!.toString('hex')
 			: typeof v === 'object'
 			? JSON.stringify(v)
 			: String(v); // object element (json[]/jsonb[]) -> its JSON text
@@ -502,7 +513,7 @@ function writeArrayBody(w: Writer, arr: readonly unknown[]): void {
 		if (v instanceof Date) writeIso(w, v); // ISO-8601 has no '"'/'\' -> no escaping
 		else {writeEscQuoted(
 				w,
-				Buffer.isBuffer(v) ? '\\x' + v.toString('hex') : typeof v === 'object' ? JSON.stringify(v) : String(v),
+				bytesOf(v) ? '\\x' + bytesOf(v)!.toString('hex') : typeof v === 'object' ? JSON.stringify(v) : String(v),
 			);}
 		w.byte(0x22); // '"'
 	}

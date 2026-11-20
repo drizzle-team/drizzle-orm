@@ -10,7 +10,6 @@ import {
 	DrizzleQueryError,
 	eq,
 	exists,
-	type ExtractTablesFromSchema,
 	getColumns,
 	getTableColumns,
 	getTableName,
@@ -27,7 +26,6 @@ import {
 	min,
 	Name,
 	notInArray,
-	type RelationsBuilder,
 	sql,
 	sum,
 	sumDistinct,
@@ -58,10 +56,9 @@ import {
 	unique,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
-import { concat, substring } from 'drizzle-orm/sqlite-core/expressions';
+import { concat, rowId, substring } from 'drizzle-orm/sqlite-core/expressions';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
-import { UpstashTestCache } from '~/upstash-cache';
 import type { Equal } from '~/utils';
 import { Expect } from '~/utils';
 import type { AllTypes } from './all-types';
@@ -680,6 +677,7 @@ export function tests(
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		test.concurrent('select distinct ordered by cast columns', async ({ db }) => {
 			const table = sqliteTable('distinct_cast_order', {
 				id: integer('id').notNull(),
@@ -708,6 +706,7 @@ export function tests(
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		test.concurrent('order by aliased cast columns', async ({ db }) => {
 			const table = sqliteTable('alias_cast_order', {
 				id: integer('id').notNull(),
@@ -949,6 +948,8 @@ export function tests(
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent(
 			'insert with explicit column list',
 			async ({ db }) => {
@@ -983,6 +984,8 @@ export function tests(
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent(
 			'insert with explicit column list - select',
 			async ({ db }) => {
@@ -1018,6 +1021,8 @@ export function tests(
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent(
 			'insert with explicit column list - on conflict',
 			async ({ db }) => {
@@ -3081,6 +3086,7 @@ export function tests(
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6531
 		test.concurrent(
 			'insert with onConflict do nothing using partial index as target',
 			async ({ db }) => {
@@ -4436,6 +4442,7 @@ export function tests(
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5780
 		test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
 			let counter = 0;
 			const table = sqliteTable('on_update_call_test', {
@@ -5598,6 +5605,7 @@ export function tests(
 			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
 			const items = sqliteTable('pagination_2', { id: integer('id').primaryKey() });
 			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
@@ -5618,6 +5626,39 @@ export function tests(
 			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
+		// SQLite accepts `offset` only after `limit`, so an offset alone has to reach the database with a limit
+		test.skipIf(postponed).concurrent(
+			'pagination: offset without limit',
+			async ({ db, push }) => {
+				const items = sqliteTable('pagination_5', { id: integer('id').primaryKey() });
+				await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+				await push({ items });
+				await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+				const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+				expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+				expect(await query().offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+				expect(await query().offset(5)).toStrictEqual([]);
+			},
+		);
+
+		test.concurrent('rowId: a number, rowId.big: a bigint', async ({ db, push }) => {
+			const items = sqliteTable('row_id_1', { name: text('name').notNull() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+			await push({ items });
+			await db.insert(items).values([{ name: 'a' }, { name: 'b' }]);
+
+			const rows = await db.select({ id: rowId(), big: rowId.big(), name: items.name }).from(items).orderBy(rowId());
+			expect(rows).toStrictEqual([{ id: 1, big: 1n, name: 'a' }, { id: 2, big: 2n, name: 'b' }]);
+			expectTypeOf(rows).toEqualTypeOf<{ id: number; big: bigint; name: string }[]>();
+			// what a `number` is for: both of these throw on a bigint
+			expect(JSON.stringify(rows.map((row) => row.id + 1))).toBe('[2,3]');
+
+			expect(await db.select({ name: items.name }).from(items).where(eq(rowId(), 2))).toStrictEqual([{ name: 'b' }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: placeholders', async ({ db, push }) => {
 			const items = sqliteTable('pagination_3', { id: integer('id').primaryKey() });
 			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
@@ -5636,6 +5677,7 @@ export function tests(
 			expect(await stmt.all({ limit: 2, offset: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: set operations', async ({ db, push }) => {
 			const items = sqliteTable('pagination_4', { id: integer('id').primaryKey() });
 			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
@@ -5953,91 +5995,6 @@ export function tests(
 
 			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 			expect(parseStoredJson(stored)).toStrictEqual(output);
-		});
-
-		const upstashTable = makeAllTypes('all_types_upstash');
-		const upstashSchema = { allTypesTable: upstashTable, ...boundsSchema };
-		const upstashRelations = (r: RelationsBuilder<ExtractTablesFromSchema<typeof upstashSchema>>) => ({
-			...allTypesRelations(r),
-			...boundsRelations(r),
-		});
-
-		test('all types - upstash', async ({ createDB, push }) => {
-			await using cache = new UpstashTestCache();
-			const { run } = cache;
-			const table = upstashTable;
-			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
-			await db.run(sql.raw(dropAllTypes('all_types_upstash')));
-			await push({ table });
-
-			await cache.expectHits('all types', async () => {
-				await run(db.insert(table).values(allTypesInput));
-
-				const query = db.select().from(table);
-				expect(await run(query)).toStrictEqual([allTypesData]);
-				expect(await run(() => query.all())).toStrictEqual([allTypesData]);
-				expect(await run(() => query.get())).toStrictEqual(allTypesData);
-
-				expect(await run(() => query.values())).toHaveLength(1);
-			});
-
-			// `.run()` is never read from or written to cache (checked by the cache suites), but mutations it executes still invalidate
-			await db.delete(table).run();
-			expect(await run(db.select().from(table))).toStrictEqual([]);
-			await db.insert(table).values(allTypesInput).run();
-
-			await cache.expectHits('unions', () => assertAllTypesUnions(db as any, table, run));
-			await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run }));
-			await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db as any, { run }));
-		});
-
-		test('all types ~codecs~ - upstash', async ({ createDB, push }) => {
-			await using cache = new UpstashTestCache();
-			const { run } = cache;
-			const table = upstashTable;
-			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
-			await db.run(sql.raw(dropAllTypes('all_types_upstash')));
-			await push({ table });
-
-			await cache.expectHits('all types', async () => {
-				await run(db.insert(table).values(allTypesInput));
-				expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
-					...allTypesData,
-					self: [allTypesData],
-				});
-				expect(await run(db.query.allTypesTable.findMany({ with: { self: true } }))).toStrictEqual([{
-					...allTypesData,
-					self: [allTypesData],
-				}]);
-			});
-			await cache.expectHits('unions', () => assertAllTypesUnions(db as any, table, run));
-			await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run, rqb: true }));
-			await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db as any, { run, rqb: true }));
-		});
-
-		test('all types ~json~ - upstash', async ({ createDB, push }) => {
-			await using cache = new UpstashTestCache();
-			const { run } = cache;
-			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
-			const table = sqliteTable('all_types_json_upstash', {
-				id: integer('id').primaryKey(),
-				jsonText: text('jsonText', { mode: 'json' }),
-				jsonBlob: blob('jsonBlob', { mode: 'json' }),
-			});
-			await db.run(sql`drop table if exists ${table}`);
-			await push({ table });
-
-			const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
-
-			await cache.expectHits('json', async () => {
-				await run(db.insert(table).values(input));
-
-				const query = db.select().from(table).orderBy(table.id);
-				expect(await run(query)).toStrictEqual(output);
-				expect(await run(() => query.all())).toStrictEqual(output);
-				expect(await run(() => query.get())).toStrictEqual(output[0]);
-				expect(await run(() => query.values())).toHaveLength(output.length);
-			});
 		});
 
 		test.concurrent('concat, substring expressions', async ({ db, push }) => {
@@ -6508,6 +6465,7 @@ export function tests(
 		},
 	);
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/3608
 	test.concurrent('insert into ... select with generated column', async ({ db }) => {
 		const users1 = sqliteTable('users1_iswgc', {
 			id: integer('id').primaryKey({ autoIncrement: true }),
@@ -6874,6 +6832,7 @@ export function tests(
 		expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/1603
 	test.concurrent('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
 		const orgs = sqliteTable('issue1603_orgs_jit', (t) => ({
 			id: t.integer('id').primaryKey(),
@@ -8304,6 +8263,7 @@ export function tests(
 		]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;
@@ -8431,6 +8391,7 @@ export function tests(
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;
@@ -8565,6 +8526,7 @@ export function tests(
 			.rejects.toBeInstanceOf(DrizzleQueryError);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test('Query error params', async ({ createDB }) => {
 		const queries = [
 			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
@@ -8598,6 +8560,7 @@ export function tests(
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test('Query error params - transaction', async ({ createDB }) => {
 		const queries = [
 			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
@@ -8643,6 +8606,7 @@ export function tests(
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test('Query error params - sync transaction', async ({ createDB }) => {
 		const queries = [
 			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },

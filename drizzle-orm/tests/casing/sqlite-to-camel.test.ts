@@ -63,6 +63,7 @@ const rqbDb = drizzle({ client: new Database(':memory:'), relations: rqbRelation
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('sqlite to camel case', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/6082
 	it('unicode column names', ({ expect }) => {
 		const unicode = camelCase.table('unicode', {
 			칼럼명: text(),
@@ -73,6 +74,7 @@ describe('sqlite to camel case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5734
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = camelCase.table('a', { id: integer('id').primaryKey(), cId: integer().notNull() });
 		const b = camelCase.table('b', { id: integer('id').primaryKey(), cId: integer().notNull(), label: text() });
@@ -89,6 +91,7 @@ describe('sqlite to camel case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/3096
 	it('qualifier preservation for subquery fields', ({ expect }) => {
 		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
 		const query = db
@@ -516,6 +519,7 @@ describe('sqlite to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6531
 	it('insert (on conflict do nothing) with target where', ({ expect }) => {
 		const query = db
 			.insert(users)
@@ -544,6 +548,8 @@ describe('sqlite to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection)', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name', 'age')
@@ -556,6 +562,8 @@ describe('sqlite to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, multiple rows)', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name')
@@ -567,6 +575,8 @@ describe('sqlite to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, omitted optional column)', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name', 'age')
@@ -578,6 +588,8 @@ describe('sqlite to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) with select', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name')
@@ -589,6 +601,8 @@ describe('sqlite to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) emits columns in list order', ({ expect }) => {
 		const query = db
 			.insert(users, 'age', 'last_name', 'first_name')
@@ -600,6 +614,8 @@ describe('sqlite to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) on conflict do update', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name', 'age')

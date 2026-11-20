@@ -1,147 +1,80 @@
-import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
-import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
-import { EffectDrizzleQueryError, EffectTransactionRollbackError, MigratorInitError } from '~/effect-core/errors.ts';
+import { EffectTransactionRollbackError, MigratorInitError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
-import { entityKind, is } from '~/entity.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import { entityKind } from '~/entity.ts';
+import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { upgradeIfNeeded } from '~/up-migrations/effect-mysql.ts';
-import { assertUnreachable } from '~/utils.ts';
+import type { QueryRuntime } from '~/runtime/core.ts';
+import { effectMigrationRunner, effectQueryRuntime, runEffectProgram } from '~/runtime/effect.ts';
+import type { Query, SQL } from '~/sql/sql.ts';
+import { migrate as migrateProgram } from '~/up-migrations/mysql-program.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import {
 	MySqlBasePreparedQuery,
 	type MySqlPreparedQueryConfig,
 	type MySqlQueryResultHKT,
+	type MySqlRuntimeHKT,
 	MySqlSession,
 } from '../session.ts';
 import { MySqlEffectDatabase } from './db.ts';
 
-export class MySqlEffectPreparedQuery<
+type MySqlEffectPreparedQueryOf<TResult, TRow, TEffectHKT extends QueryEffectHKTBase> = MySqlEffectPreparedQuery<
+	MySqlPreparedQueryConfig & { execute: TResult; iterator: TRow },
+	TEffectHKT
+>;
+
+/** Builders of the Effect runtime run as Effects */
+export interface MySqlEffectRuntimeHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
+	extends MySqlRuntimeHKT
+{
+	readonly execute: QueryEffectKind<TEffectHKT, this['result']>;
+	readonly prepared: MySqlEffectPreparedQueryOf<this['result'], this['row'], TEffectHKT>;
+}
+
+export interface MySqlEffectPreparedQuery<
 	T extends MySqlPreparedQueryConfig,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> {
+	execute(placeholderValues?: Record<string, unknown>): QueryEffectKind<TEffectHKT, T['execute']>;
+}
+
+export class MySqlEffectPreparedQuery<
+	// oxlint-disable-next-line no-unused-vars
+	T extends MySqlPreparedQueryConfig,
+	// oxlint-disable-next-line no-unused-vars
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > extends MySqlBasePreparedQuery {
 	static override readonly [entityKind]: string = 'MySqlEffectPreparedQuery';
 
 	/** @internal */
-	readonly mapper: {
-		(rows: any[]): any;
-		body?: string;
-	} | undefined;
+	override get runtime(): QueryRuntime {
+		return effectQueryRuntime;
+	}
 
 	constructor(
-		protected executor: (params?: unknown[]) => Effect.Effect<unknown, unknown, unknown>,
+		executor: (params?: unknown[]) => Effect.Effect<unknown, unknown, unknown>,
 		query: Query,
 		mapper: ((rows: any[]) => any) | undefined,
-		readonly mode: 'arrays' | 'objects' | 'raw',
-		private logger: EffectLoggerShape,
-		// cache instance
-		protected cache: EffectCacheShape,
-		// per query related metadata
-		protected queryMetadata: QueryMetadata | undefined,
-		// config that was passed through $withCache
-		protected cacheConfig: WithCacheConfig | undefined,
-		protected paramsInErrors: boolean | undefined,
+		mode: 'arrays' | 'objects' | 'raw',
+		logger: EffectLoggerShape,
+		paramsInErrors: boolean | undefined,
 	) {
-		super(query);
-		this.mapper = mapper;
-		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
-			this.cacheConfig = { enabled: true, autoInvalidate: true };
-		}
-		if (!this.cacheConfig?.enabled) {
-			this.cacheConfig = undefined;
-		}
+		super(executor, query, mapper, mode, logger, paramsInErrors);
 	}
+}
 
-	override execute(placeholderValues: Record<string, unknown> = {}): QueryEffectKind<TEffectHKT, T['execute']> {
-		return Effect.gen({ self: this }, function*() {
-			const { query, mapper, logger } = this;
-			const sql = query._sql ? query._sql.join(' ') : query.sql;
-			const params = query.params.length === 0
-				? query.params
-				: fillPlaceholders(query.params, placeholderValues);
-
-			yield* logger.logQuery(sql, params);
-
-			const result = this.queryWithCache(sql, params, Effect.suspend(() => this.executor(params)));
-
-			if (!mapper) return yield* result;
-
-			return yield* result.pipe(Effect.map((rows) => mapper(rows as unknown[])));
-		});
-	}
-
-	/** @internal */
-	protected queryWithCache<A, E, R>(
-		queryString: string,
-		params: any[],
-		query: Effect.Effect<A, E, R>,
-	) {
-		return Effect.gen({ self: this }, function*() {
-			const { cacheConfig, queryMetadata } = this;
-			const cache = yield* EffectCache;
-
-			const cacheStrat: Awaited<ReturnType<typeof strategyFor>> = cache && !(cache.cache && is(cache.cache, NoopCache))
-				? yield* Effect.tryPromise(
-					() => strategyFor(queryString, params, queryMetadata, cacheConfig),
-				)
-				: { type: 'skip' as const };
-
-			if (cacheStrat.type === 'skip') {
-				return yield* query;
-			}
-
-			if (cacheStrat.type === 'invalidate') {
-				const result = yield* query;
-				yield* cache!.onMutate({ tables: cacheStrat.tables });
-
-				return result;
-			}
-
-			if (cacheStrat.type === 'try') {
-				const { tables, key, isTag, autoInvalidate, config } = cacheStrat;
-				const fromCache: any[] | undefined = yield* cache!.get(
-					key,
-					tables,
-					isTag,
-					autoInvalidate,
-				);
-
-				if (typeof fromCache !== 'undefined') return fromCache as unknown as A;
-
-				const result = yield* query;
-
-				yield* cache!.put(
-					key,
-					result,
-					autoInvalidate ? tables : [],
-					isTag,
-					config,
-				);
-
-				return result;
-			}
-
-			assertUnreachable(cacheStrat);
-		}).pipe(
-			Effect.provideService(EffectCache, this.cache),
-			Effect.catch((e) => {
-				return Effect.fail(
-					new EffectDrizzleQueryError({
-						query: queryString,
-						params: this.paramsInErrors ? params : undefined,
-						cause: Cause.fail(e),
-					}),
-				);
-			}),
-		);
-	}
+export interface MySqlEffectSession<
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+	// oxlint-disable-next-line no-unused-vars
+	TQueryResult extends MySqlQueryResultHKT = MySqlQueryResultHKT,
+	// oxlint-disable-next-line no-unused-vars
+	TRelations extends AnyRelations = EmptyRelations,
+> {
+	execute<T>(query: SQL): QueryEffectKind<TEffectHKT, T>;
+	arrays<T>(query: SQL): QueryEffectKind<TEffectHKT, T[]>;
+	objects<T>(query: SQL): QueryEffectKind<TEffectHKT, T[]>;
 }
 
 export abstract class MySqlEffectSession<
@@ -151,6 +84,11 @@ export abstract class MySqlEffectSession<
 > extends MySqlSession {
 	static override readonly [entityKind]: string = 'MySqlEffectSession';
 
+	/** @internal */
+	override get runtime(): QueryRuntime {
+		return effectQueryRuntime;
+	}
+
 	constructor(dialect: MySqlDialect) {
 		super(dialect);
 	}
@@ -159,30 +97,7 @@ export abstract class MySqlEffectSession<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (rows: any) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): MySqlEffectPreparedQuery<T, TEffectHKT>;
-
-	override execute<T>(query: SQL) {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T }>(
-			this.dialect.sqlToQuery(query),
-			'raw',
-		).execute();
-	}
-
-	override arrays<T>(query: SQL) {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T[] }>(
-			this.dialect.sqlToQuery(query),
-			'arrays',
-		).execute();
-	}
-
-	override objects<T>(query: SQL) {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T[] }>(
-			this.dialect.sqlToQuery(query),
-			'objects',
-		).execute();
-	}
 
 	abstract transaction<A, E, R>(
 		transaction: (
@@ -224,75 +139,13 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 	session: MySqlEffectSession<TEffectHKT>,
 	config: Omit<MigrationConfig, 'migrationsSchema'>,
 ) {
-	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+	// The shared MySQL migrator (`up-migrations/mysql-program.ts`), run natively by Effect. What the async API
+	// returns as an init failure is a typed failure here
+	const initFailure = yield* runEffectProgram<
+		void | MigratorInitFailResponse,
+		TEffectHKT['error'] | SqlError,
+		TEffectHKT['context']
+	>(() => migrateProgram(migrations, effectMigrationRunner(session), config));
 
-	const { newDb } = yield* upgradeIfNeeded(migrationsTable, session, migrations);
-
-	if (newDb) {
-		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash TEXT NOT NULL,
-				created_at BIGINT,
-				name TEXT,
-				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-			)
-		`;
-		yield* session.execute(migrationTableCreate);
-	}
-
-	const dbMigrations = yield* session.objects<{
-		id: number;
-		hash: string;
-		created_at: string;
-		name: string | null;
-	}>(
-		sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)}`,
-	);
-
-	if (typeof config === 'object' && config.init) {
-		if (dbMigrations.length) {
-			return yield* new MigratorInitError({ exitCode: 'databaseMigrations' });
-		}
-
-		if (migrations.length > 1) {
-			return yield* new MigratorInitError({ exitCode: 'localMigrations' });
-		}
-
-		const [migration] = migrations;
-
-		if (!migration) return;
-
-		yield* session.execute(
-			sql`insert into ${
-				sql.identifier(
-					migrationsTable,
-				)
-			} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-		);
-
-		return;
-	}
-
-	const migrationsToRun = getMigrationsToRun({
-		localMigrations: migrations,
-		dbMigrations,
-	});
-
-	yield* session.transaction((tx) =>
-		Effect.gen(function*() {
-			for (const migration of migrationsToRun) {
-				for (const stmt of migration.sql) {
-					yield* tx.execute(sql.raw(stmt));
-				}
-				yield* tx.execute(
-					sql`insert into ${
-						sql.identifier(
-							migrationsTable,
-						)
-					} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-				);
-			}
-		})
-	);
+	if (initFailure) return yield* new MigratorInitError({ exitCode: initFailure.exitCode });
 });

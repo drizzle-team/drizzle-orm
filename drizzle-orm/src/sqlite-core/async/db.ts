@@ -1,9 +1,6 @@
-import type { Cache } from '~/cache/core/cache.ts';
-import { entityKind, is } from '~/entity.ts';
-import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import { entityKind } from '~/entity.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import type { SQL, SQLWrapper } from '~/sql/sql.ts';
 import { SQLiteAsyncDeleteBase } from '~/sqlite-core/async/delete.ts';
 import { SQLiteAsyncInsertBase, type SQLiteAsyncInsertBuilder } from '~/sqlite-core/async/insert.ts';
 import { type DBResult, SQLiteAsyncRaw } from '~/sqlite-core/async/raw.ts';
@@ -11,41 +8,50 @@ import { SQLiteAsyncSelectBase, type SQLiteAsyncSelectBuilder } from '~/sqlite-c
 import type { Result, SQLiteAsyncSession, SQLiteAsyncTransaction } from '~/sqlite-core/async/session.ts';
 import { SQLiteAsyncUpdateBase, type SQLiteAsyncUpdateBuilder } from '~/sqlite-core/async/update.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
-import {
-	type NoDuplicateColumns,
-	QueryBuilder,
-	SQLiteInsertBuilder,
-	SQLiteSelectBuilder,
-	SQLiteUpdateBuilder,
-} from '~/sqlite-core/query-builders/index.ts';
+import type { NoDuplicateColumns } from '~/sqlite-core/query-builders/index.ts';
 import type { SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
-import { WithSubquery } from '~/subquery.ts';
+import type { WithSubquery } from '~/subquery.ts';
 import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
 import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
-import { RelationalQueryBuilder } from '../query-builders/query.ts';
+import type { RelationalQueryBuilder } from '../query-builders/query.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
-import type { WithBuilder } from '../subquery.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
 import { SQLiteAsyncCountBuilder, type SQLiteAsyncCountBuilderKind, SQLiteSyncCountBuilder } from './count.ts';
 import { SQLiteAsyncRelationalQuery, type SQLiteAsyncRelationalQueryHKT, SQLiteSyncRelationalQuery } from './query.ts';
 
-export class SQLiteAsyncDatabase<
+import type { Query } from '~/sql/sql.ts';
+import { SQLiteDatabase, type SQLiteDatabaseBuilders } from '../db.ts';
+import type { SQLiteExecuteMethod, SQLitePreparedQuery } from '../session.ts';
+
+const sqliteAsyncBuilders: SQLiteDatabaseBuilders = {
+	select: SQLiteAsyncSelectBase,
+	insert: SQLiteAsyncInsertBase,
+	update: SQLiteAsyncUpdateBase,
+	delete: SQLiteAsyncDeleteBase,
+	count: SQLiteAsyncCountBuilder,
+	raw: SQLiteAsyncRaw,
+	relationalQuery: SQLiteAsyncRelationalQuery,
+};
+
+/** Sync drivers' builders: their counts and relational queries also run with `.sync()` */
+const sqliteSyncBuilders: SQLiteDatabaseBuilders = {
+	...sqliteAsyncBuilders,
+	count: SQLiteSyncCountBuilder,
+	relationalQuery: SQLiteSyncRelationalQuery,
+};
+
+/** The query builders of {@link SQLiteAsyncDatabase.with}: they run with it's CTEs */
+export type SQLiteAsyncWithBuilders<TResultKind extends 'sync' | 'async', TRunResult> = Pick<
+	SQLiteAsyncDatabase<TResultKind, TRunResult, any>,
+	'select' | 'selectDistinct' | 'update' | 'insert' | 'delete'
+>;
+
+export interface SQLiteAsyncDatabase<
 	TResultKind extends 'sync' | 'async',
 	TRunResult,
 	TRelations extends AnyRelations = EmptyRelations,
 > {
-	static readonly [entityKind]: string = 'BaseSQLiteDatabase';
-	static [Symbol.hasInstance](value: unknown): boolean {
-		return is(value, this);
-	}
-
-	declare readonly _: {
-		readonly relations: TRelations;
-		readonly session: SQLiteAsyncSession<TResultKind, TRunResult, TRelations>;
-		readonly resultKind: TResultKind;
-	};
-
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
 	query: {
 		[K in keyof TRelations]: RelationalQueryBuilder<
@@ -56,116 +62,10 @@ export class SQLiteAsyncDatabase<
 		>;
 	};
 
-	constructor(
-		private resultKind: TResultKind,
-		/** @internal */
-		readonly dialect: SQLiteDialect,
-		/** @internal */
-		readonly session: SQLiteAsyncSession<TResultKind, TRunResult, TRelations>,
-		relations: TRelations,
-		readonly forbidJsonb?: boolean,
-	) {
-		this._ = {
-			relations,
-			session,
-			resultKind,
-		};
-		this.query = {} as typeof this['query'];
-		for (const [tableName, relation] of Object.entries(relations)) {
-			(this.query as SQLiteAsyncDatabase<
-				TResultKind,
-				TRunResult,
-				AnyRelations
-			>['query'])[tableName] = new RelationalQueryBuilder(
-				resultKind,
-				relations,
-				relations[relation.name]!.table as SQLiteTable,
-				relation,
-				dialect,
-				session as SQLiteAsyncSession<any, any, any>,
-				forbidJsonb,
-				resultKind === 'sync' ? SQLiteSyncRelationalQuery : SQLiteAsyncRelationalQuery,
-			);
-		}
-		this.$cache = { invalidate: async (_params: any) => {} };
-	}
-
-	/**
-	 * Creates a subquery that defines a temporary named result set as a CTE.
-	 *
-	 * It is useful for breaking down complex queries into simpler parts and for reusing the result set in subsequent parts of the query.
-	 *
-	 * See docs: {@link https://orm.drizzle.team/docs/select#with-clause}
-	 *
-	 * @param alias The alias for the subquery.
-	 *
-	 * Failure to provide an alias will result in a DrizzleTypeError, preventing the subquery from being referenced in other queries.
-	 *
-	 * @example
-	 *
-	 * ```ts
-	 * // Create a subquery with alias 'sq' and use it in the select query
-	 * const sq = db.$with('sq').as(db.select().from(users).where(eq(users.id, 42)));
-	 *
-	 * const result = await db.with(sq).select().from(sq);
-	 * ```
-	 *
-	 * To select arbitrary SQL values as fields in a CTE and reference them in other CTEs or in the main query, you need to add aliases to them:
-	 *
-	 * ```ts
-	 * // Select an arbitrary SQL value as a field in a CTE and reference it in the main query
-	 * const sq = db.$with('sq').as(db.select({
-	 *   name: sql<string>`upper(${users.name})`.as('name'),
-	 * })
-	 * .from(users));
-	 *
-	 * const result = await db.with(sq).select({ name: sq.name }).from(sq);
-	 * ```
-	 */
-	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
-		const self = this;
-		const as = (
-			qb:
-				| TypedQueryBuilder<ColumnsSelection | undefined>
-				| SQL
-				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
-		) => {
-			if (typeof qb === 'function') {
-				qb = qb(new QueryBuilder(self.dialect));
-			}
-
-			const sql = qb.getSQL();
-			return new Proxy(
-				new WithSubquery(
-					sql,
-					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
-					alias,
-					true,
-				),
-				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-			);
-		};
-		return { as };
-	};
-
 	$count(
 		source: SQLiteTable | SQLiteViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
-	): SQLiteAsyncCountBuilderKind<TResultKind> {
-		return this.resultKind === 'async'
-			? new SQLiteAsyncCountBuilder({
-				source,
-				filters,
-				session: this.session,
-				dialect: this.dialect,
-			}) as SQLiteAsyncCountBuilderKind<TResultKind>
-			: new SQLiteSyncCountBuilder({
-				source,
-				filters,
-				session: this.session,
-				dialect: this.dialect,
-			});
-	}
+	): SQLiteAsyncCountBuilderKind<TResultKind>;
 
 	/**
 	 * Incorporates a previously defined CTE (using `$with`) into the main query.
@@ -186,221 +86,7 @@ export class SQLiteAsyncDatabase<
 	 * const result = await db.with(sq).select().from(sq);
 	 * ```
 	 */
-	with(...queries: WithSubquery[]) {
-		const self = this;
-
-		/**
-		 * Creates a select query.
-		 *
-		 * Calling this method with no arguments will select all columns from the table. Pass a selection object to specify the columns you want to select.
-		 *
-		 * Use `.from()` method to specify which table to select from.
-		 *
-		 * See docs: {@link https://orm.drizzle.team/docs/select}
-		 *
-		 * @param fields The selection object.
-		 *
-		 * @example
-		 *
-		 * ```ts
-		 * // Select all columns and all rows from the 'cars' table
-		 * const allCars: Car[] = await db.select().from(cars);
-		 *
-		 * // Select specific columns and all rows from the 'cars' table
-		 * const carsIdsAndBrands: { id: number; brand: string }[] = await db.select({
-		 *   id: cars.id,
-		 *   brand: cars.brand
-		 * })
-		 *   .from(cars);
-		 * ```
-		 *
-		 * Like in SQL, you can use arbitrary expressions as selection fields, not just table columns:
-		 *
-		 * ```ts
-		 * // Select specific columns along with expression and all rows from the 'cars' table
-		 * const carsIdsAndLowerNames: { id: number; lowerBrand: string }[] = await db.select({
-		 *   id: cars.id,
-		 *   lowerBrand: sql<string>`lower(${cars.brand})`,
-		 * })
-		 *   .from(cars);
-		 * ```
-		 */
-		function select(): SQLiteAsyncSelectBuilder<undefined, TResultKind, TRunResult>;
-		function select<TSelection extends SelectedFields>(
-			fields: TSelection,
-		): SQLiteAsyncSelectBuilder<TSelection, TResultKind, TRunResult>;
-		function select(
-			fields?: SelectedFields,
-		): SQLiteAsyncSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
-			return new SQLiteSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-			}, SQLiteAsyncSelectBase);
-		}
-
-		/**
-		 * Adds `distinct` expression to the select query.
-		 *
-		 * Calling this method will return only unique values. When multiple columns are selected, it returns rows with unique combinations of values in these columns.
-		 *
-		 * Use `.from()` method to specify which table to select from.
-		 *
-		 * See docs: {@link https://orm.drizzle.team/docs/select#distinct}
-		 *
-		 * @param fields The selection object.
-		 *
-		 * @example
-		 *
-		 * ```ts
-		 * // Select all unique rows from the 'cars' table
-		 * await db.selectDistinct()
-		 *   .from(cars)
-		 *   .orderBy(cars.id, cars.brand, cars.color);
-		 *
-		 * // Select all unique brands from the 'cars' table
-		 * await db.selectDistinct({ brand: cars.brand })
-		 *   .from(cars)
-		 *   .orderBy(cars.brand);
-		 * ```
-		 */
-		function selectDistinct(): SQLiteAsyncSelectBuilder<undefined, TResultKind, TRunResult>;
-		function selectDistinct<TSelection extends SelectedFields>(
-			fields: TSelection,
-		): SQLiteAsyncSelectBuilder<TSelection, TResultKind, TRunResult>;
-		function selectDistinct(
-			fields?: SelectedFields,
-		): SQLiteAsyncSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
-			return new SQLiteSelectBuilder({
-				fields: fields ?? undefined,
-				session: self.session,
-				dialect: self.dialect,
-				withList: queries,
-				distinct: true,
-			}, SQLiteAsyncSelectBase);
-		}
-
-		/**
-		 * Creates an update query.
-		 *
-		 * Calling this method without `.where()` clause will update all rows in a table. The `.where()` clause specifies which rows should be updated.
-		 *
-		 * Use `.set()` method to specify which values to update.
-		 *
-		 * See docs: {@link https://orm.drizzle.team/docs/update}
-		 *
-		 * @param table The table to update.
-		 *
-		 * @example
-		 *
-		 * ```ts
-		 * // Update all rows in the 'cars' table
-		 * await db.update(cars).set({ color: 'red' });
-		 *
-		 * // Update rows with filters and conditions
-		 * await db.update(cars).set({ color: 'red' }).where(eq(cars.brand, 'BMW'));
-		 *
-		 * // Update with returning clause
-		 * const updatedCar: Car[] = await db.update(cars)
-		 *   .set({ color: 'red' })
-		 *   .where(eq(cars.id, 1))
-		 *   .returning();
-		 * ```
-		 */
-		function update<TTable extends SQLiteTable>(
-			table: TTable,
-		): SQLiteAsyncUpdateBuilder<TTable, TResultKind, TRunResult> {
-			return new SQLiteUpdateBuilder(table, self.session, self.dialect, queries, SQLiteAsyncUpdateBase);
-		}
-
-		/**
-		 * Creates an insert query.
-		 *
-		 * Calling this method will create new rows in a table. Use `.values()` method to specify which values to insert.
-		 *
-		 * See docs: {@link https://orm.drizzle.team/docs/insert}
-		 *
-		 * @param table The table to insert into.
-		 *
-		 * @example
-		 *
-		 * ```ts
-		 * // Insert one row
-		 * await db.insert(cars).values({ brand: 'BMW' });
-		 *
-		 * // Insert multiple rows
-		 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
-		 *
-		 * // Insert only selected columns
-		 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
-		 *
-		 * // Insert with returning clause
-		 * const insertedCar: Car[] = await db.insert(cars)
-		 *   .values({ brand: 'BMW' })
-		 *   .returning();
-		 * ```
-		 */
-		function insert<
-			TTable extends SQLiteTable,
-			TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
-			TRequiredKeys extends string = RequiredInsertKeys<TTable>,
-		>(
-			into: TTable,
-			...columns: TColumnList extends [] ? []
-				: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
-				: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
-				: DrizzleTypeError<
-					`Column selection is missing following required columns: ${JoinUnion<
-						`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
-						', '
-					>}`
-				>[]
-		): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult, TColumnList extends [] ? 'all' : TColumnList>;
-		function insert<TTable extends SQLiteTable>(
-			into: TTable,
-			...columns: string[]
-		): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult> {
-			return new SQLiteInsertBuilder(
-				into,
-				self.session,
-				self.dialect,
-				queries,
-				columns.length ? columns : undefined,
-				SQLiteAsyncInsertBase,
-			);
-		}
-
-		/**
-		 * Creates a delete query.
-		 *
-		 * Calling this method without `.where()` clause will delete all rows in a table. The `.where()` clause specifies which rows should be deleted.
-		 *
-		 * See docs: {@link https://orm.drizzle.team/docs/delete}
-		 *
-		 * @param table The table to delete from.
-		 *
-		 * @example
-		 *
-		 * ```ts
-		 * // Delete all rows in the 'cars' table
-		 * await db.delete(cars);
-		 *
-		 * // Delete rows with filters and conditions
-		 * await db.delete(cars).where(eq(cars.color, 'green'));
-		 *
-		 * // Delete with returning clause
-		 * const deletedCar: Car[] = await db.delete(cars)
-		 *   .where(eq(cars.id, 1))
-		 *   .returning();
-		 * ```
-		 */
-		function delete_<TTable extends SQLiteTable>(from: TTable): SQLiteAsyncDeleteBase<TTable, TResultKind, TRunResult> {
-			return new SQLiteAsyncDeleteBase(from, self.session, self.dialect, queries);
-		}
-
-		return { select, selectDistinct, update, insert, delete: delete_ };
-	}
+	with(...queries: WithSubquery[]): SQLiteAsyncWithBuilders<TResultKind, TRunResult>;
 
 	/**
 	 * Creates a select query.
@@ -439,15 +125,10 @@ export class SQLiteAsyncDatabase<
 	 * ```
 	 */
 	select(): SQLiteAsyncSelectBuilder<undefined, TResultKind, TRunResult>;
+
 	select<TSelection extends SelectedFields>(
 		fields: TSelection,
 	): SQLiteAsyncSelectBuilder<TSelection, TResultKind, TRunResult>;
-	select(fields?: SelectedFields): SQLiteAsyncSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
-		return new SQLiteSelectBuilder(
-			{ fields: fields ?? undefined, session: this.session, dialect: this.dialect },
-			SQLiteAsyncSelectBase,
-		);
-	}
 
 	/**
 	 * Adds `distinct` expression to the select query.
@@ -475,19 +156,10 @@ export class SQLiteAsyncDatabase<
 	 * ```
 	 */
 	selectDistinct(): SQLiteAsyncSelectBuilder<undefined, TResultKind, TRunResult>;
+
 	selectDistinct<TSelection extends SelectedFields>(
 		fields: TSelection,
 	): SQLiteAsyncSelectBuilder<TSelection, TResultKind, TRunResult>;
-	selectDistinct(
-		fields?: SelectedFields,
-	): SQLiteAsyncSelectBuilder<SelectedFields | undefined, TResultKind, TRunResult> {
-		return new SQLiteSelectBuilder({
-			fields: fields ?? undefined,
-			session: this.session,
-			dialect: this.dialect,
-			distinct: true,
-		}, SQLiteAsyncSelectBase);
-	}
 
 	/**
 	 * Creates an update query.
@@ -516,11 +188,7 @@ export class SQLiteAsyncDatabase<
 	 *   .returning();
 	 * ```
 	 */
-	update<TTable extends SQLiteTable>(table: TTable): SQLiteAsyncUpdateBuilder<TTable, TResultKind, TRunResult> {
-		return new SQLiteUpdateBuilder(table, this.session, this.dialect, undefined, SQLiteAsyncUpdateBase);
-	}
-
-	$cache: { invalidate: Cache['onMutate'] };
+	update<TTable extends SQLiteTable>(table: TTable): SQLiteAsyncUpdateBuilder<TTable, TResultKind, TRunResult>;
 
 	/**
 	 * Creates an insert query.
@@ -565,19 +233,6 @@ export class SQLiteAsyncDatabase<
 				>}`
 			>[]
 	): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult, TColumnList extends [] ? 'all' : TColumnList>;
-	insert<TTable extends SQLiteTable>(
-		into: TTable,
-		...columns: string[]
-	): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult> {
-		return new SQLiteInsertBuilder(
-			into,
-			this.session,
-			this.dialect,
-			undefined,
-			columns.length ? columns : undefined,
-			SQLiteAsyncInsertBase,
-		);
-	}
 
 	/**
 	 * Creates a delete query.
@@ -603,70 +258,77 @@ export class SQLiteAsyncDatabase<
 	 *   .returning();
 	 * ```
 	 */
-	delete<TTable extends SQLiteTable>(from: TTable): SQLiteAsyncDeleteBase<TTable, TResultKind, TRunResult> {
-		return new SQLiteAsyncDeleteBase(from, this.session, this.dialect);
-	}
+	delete<TTable extends SQLiteTable>(from: TTable): SQLiteAsyncDeleteBase<TTable, TResultKind, TRunResult>;
 
-	run(query: SQLWrapper | string): DBResult<TResultKind, TRunResult> {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
-		const builtQuery = this.dialect.sqlToQuery(sequel);
-		const prepared = this.session.prepareQuery(builtQuery, 'raw', false, 'run');
-		if (this.resultKind === 'async') {
-			return new SQLiteAsyncRaw(prepared, sequel, builtQuery) as DBResult<TResultKind, TRunResult>;
-		}
-		return this.session.run(sequel) as DBResult<TResultKind, TRunResult>;
-	}
+	run(query: SQLWrapper | string): DBResult<TResultKind, TRunResult>;
 
 	all<TRow extends unknown[] = unknown[]>(
 		query: SQLWrapper | string,
 		mode: 'arrays',
 	): DBResult<TResultKind, TRow[]>;
+
 	all<TRow extends Record<string, any> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		mode?: 'objects' | undefined,
 	): DBResult<TResultKind, TRow[]>;
-	all(
-		query: SQLWrapper | string,
-		mode?: 'arrays' | 'objects' | undefined,
-	): unknown {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
-		const builtQuery = this.dialect.sqlToQuery(sequel);
-		const prepared = this.session.prepareQuery(builtQuery, mode ?? 'objects', false, 'all');
-		if (this.resultKind === 'async') {
-			return new SQLiteAsyncRaw(prepared, sequel, builtQuery);
-		}
-		return mode === 'arrays' ? this.session.arrays(sequel) : this.session.objects(sequel);
-	}
 
 	get<TRow extends unknown[] = unknown[]>(
 		query: SQLWrapper | string,
 		mode: 'arrays',
 	): DBResult<TResultKind, TRow | undefined>;
+
 	get<TRow extends Record<string, any> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		mode?: 'objects' | undefined,
 	): DBResult<TResultKind, TRow | undefined>;
-	get(
-		query: SQLWrapper | string,
-		mode?: 'arrays' | 'objects' | undefined,
-	): unknown {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
-		const builtQuery = this.dialect.sqlToQuery(sequel);
-		const prepared = this.session.prepareQuery(builtQuery, mode ?? 'objects', false, 'get');
-		if (this.resultKind === 'async') {
-			return new SQLiteAsyncRaw(prepared, sequel, builtQuery);
-		}
-		return mode === 'arrays' ? this.session.array(sequel) : this.session.object(sequel);
+
+	values<T extends unknown[] = unknown[]>(query: SQLWrapper | string): DBResult<TResultKind, T[]>;
+}
+
+export class SQLiteAsyncDatabase<
+	TResultKind extends 'sync' | 'async',
+	TRunResult,
+	TRelations extends AnyRelations = EmptyRelations,
+> extends SQLiteDatabase<TRunResult, TRelations> {
+	static override readonly [entityKind]: string = 'BaseSQLiteDatabase';
+
+	declare readonly _: {
+		readonly relations: TRelations;
+		readonly session: SQLiteAsyncSession<TResultKind, TRunResult, TRelations>;
+		readonly resultKind: TResultKind;
+	};
+
+	/** @internal */
+	declare readonly session: SQLiteAsyncSession<TResultKind, TRunResult, TRelations>;
+
+	constructor(
+		private resultKind: TResultKind,
+		/** @internal */
+		dialect: SQLiteDialect,
+		/** @internal */
+		session: SQLiteAsyncSession<TResultKind, TRunResult, TRelations>,
+		relations: TRelations,
+		forbidJsonb?: boolean,
+	) {
+		super(
+			resultKind === 'sync' ? sqliteSyncBuilders : sqliteAsyncBuilders,
+			resultKind,
+			dialect,
+			session,
+			relations,
+			forbidJsonb,
+		);
+		(this._ as { resultKind: TResultKind }).resultKind = resultKind;
 	}
 
-	values<T extends unknown[] = unknown[]>(query: SQLWrapper | string): DBResult<TResultKind, T[]> {
-		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
-		const builtQuery = this.dialect.sqlToQuery(sequel);
-		const prepared = this.session.prepareQuery(builtQuery, 'arrays', false, 'values');
-		if (this.resultKind === 'async') {
-			return new SQLiteAsyncRaw(prepared, sequel, builtQuery) as DBResult<TResultKind, T[]>;
-		}
-		return this.session.arrays(sequel) as DBResult<TResultKind, T[]>;
+	/** @internal Sync drivers run raw queries right away */
+	protected override wrapRaw(
+		prepared: SQLitePreparedQuery,
+		sequel: SQL,
+		builtQuery: Query,
+		method: SQLiteExecuteMethod,
+	) {
+		return this.resultKind === 'async' ? super.wrapRaw(prepared, sequel, builtQuery, method) : prepared[method]();
 	}
 
 	transaction<T>(

@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import { Name, param, sql } from 'drizzle-orm';
 import { refineCodecs } from 'drizzle-orm/codecs';
 import {
@@ -38,9 +39,7 @@ tests(test, [
 	'set json/jsonb fields with strings and retrieve with the -> operator',
 	// null-element handling is broken on used in tests version of the driver, orm side is fine
 	'all types ~codecs~ - null array elements',
-	'all types ~codecs~ - null array elements - upstash',
 	'all types ~codecs~ - custom type null array elements',
-	'all types ~codecs~ - custom type null array elements - upstash',
 ]);
 
 test('custom codecs for client with custom types (changelog example)', async ({ kit, push }) => {
@@ -122,6 +121,7 @@ test('custom codecs for client with custom types (changelog example)', async ({ 
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresJsDatabase;
 	const table = sql.identifier('raw_execute_types');
@@ -752,6 +752,8 @@ describe('postgresjs', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3171
+// https://github.com/drizzle-team/drizzle-orm/issues/5789
 describe('raw sql`` params', () => {
 	test('insert -> select roundtrip over json, jsonb and date columns', async ({ db }) => {
 		const table = pgTable('raw_sql_params', {
@@ -780,6 +782,7 @@ describe('raw sql`` params', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3171
 describe('json params', () => {
 	test.concurrent('Issue No1504 - postgres-js', async ({ push, db }) => {
 		type PropTypes = { [key: string]: any };
@@ -885,6 +888,36 @@ describe('json params', () => {
 					jsonbNumberField: testNumber,
 				},
 			]);
+		},
+	);
+
+	// A `json` column keeps the text it is given: the order of keys, and keys that repeat. `jsonb` sorts the keys.
+	// A value sent as a `jsonb` parameter is parsed as `jsonb` first and only then cast to `json`, so it reaches
+	// the `json` column with its keys already sorted
+	test.skipIf(postponed).concurrent(
+		'a json column keeps the order of keys - postgres-js',
+		async ({ db, push }) => {
+			const jsonOrderTable = pgTable('json_key_order_10', {
+				id: serial('id').primaryKey(),
+				json: json('json').notNull(),
+				jsonb: jsonb('jsonb').notNull(),
+			});
+
+			await push({ jsonOrderTable });
+
+			const value = { b: 1, a: 2, nested: { z: 1, y: 2 } };
+			await db.insert(jsonOrderTable).values({ json: value, jsonb: value });
+
+			const [stored] = await db
+				.select({ json: sql<string>`${jsonOrderTable.json}::text`, jsonb: sql<string>`${jsonOrderTable.jsonb}::text` })
+				.from(jsonOrderTable);
+			expect(stored).toStrictEqual({
+				json: '{"b":1,"a":2,"nested":{"z":1,"y":2}}',
+				jsonb: '{"a": 2, "b": 1, "nested": {"y": 2, "z": 1}}',
+			});
+
+			const [row] = await db.select({ json: jsonOrderTable.json }).from(jsonOrderTable);
+			expect(Object.keys(row!.json as object)).toStrictEqual(['b', 'a', 'nested']);
 		},
 	);
 });

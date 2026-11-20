@@ -1,7 +1,14 @@
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { AnyMySqlQueryResultHKT, MySqlQueryResultHKT } from '~/mysql-core/session.ts';
+import type {
+	AnyMySqlQueryResultHKT,
+	MySqlBasePreparedQuery,
+	MySqlQueryResultHKT,
+	MySqlQueryResultKind,
+	MySqlRunnableQueryMethods,
+	MySqlRuntimeHKT,
+} from '~/mysql-core/session.ts';
 import type { MySqlSession } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -108,6 +115,8 @@ export type MySqlUpdate<
 export type AnyMySqlUpdate = MySqlUpdateBase<any, any, any, any, any>;
 
 export interface MySqlUpdateHKTBase {
+	/** How the builder's runtime wraps it's results */
+	runtime: MySqlRuntimeHKT;
 	table: unknown;
 	queryResult: unknown;
 	dynamic: boolean;
@@ -144,7 +153,7 @@ export interface MySqlUpdateBase<
 	TQueryResult extends MySqlQueryResultHKT,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends SQLWrapper {
+> extends SQLWrapper, MySqlRunnableQueryMethods<THKT['runtime'], MySqlQueryResultKind<TQueryResult, never>, never> {
 	readonly _: {
 		readonly hkt: THKT;
 		readonly table: TTable;
@@ -268,5 +277,10 @@ export class MySqlUpdateBase<
 
 	$dynamic(): MySqlUpdateDynamic<this> {
 		return this as any;
+	}
+
+	/** @internal */
+	_prepare(): MySqlBasePreparedQuery {
+		return this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), 'raw', undefined);
 	}
 }

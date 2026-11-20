@@ -1,5 +1,6 @@
-// Helpers that the Effect clients share: transaction settings as SQL, and the SQLSTATE table that turns a
-// PgError into one of Effect's SqlError reasons.
+// Helpers that the Effect clients share: transaction settings as SQL, the SQLSTATE table that turns a PgError into
+// one of Effect's SqlError reasons, `toSqlError` and the statement compiler. No client's connection code is loaded
+// here, so the Aurora and HTTP clients don't load the wire protocol.
 import {
 	AuthenticationError,
 	AuthorizationError,
@@ -8,11 +9,15 @@ import {
 	DeadlockError,
 	LockTimeoutError,
 	SerializationError,
+	SqlError,
 	SqlSyntaxError,
 	StatementTimeoutError,
 	UniqueViolation,
 	UnknownError,
 } from 'effect/sql/SqlError';
+import type { Custom } from 'effect/sql/Statement';
+import * as Statement from 'effect/sql/Statement';
+import { isConnectionLost as isConnectionLostError, PgError } from '../errors.ts';
 
 export interface TransactionOptions {
 	readonly isolation?: 'serializable' | 'repeatable read' | 'read committed' | 'read uncommitted' | undefined;
@@ -61,3 +66,51 @@ export const classifySqlState = (
 	}
 	return new UnknownError(props);
 };
+
+export const toSqlError = (cause: unknown, operation: string, conn?: { readonly state: string }) => {
+	const isConnectionLost = (conn !== undefined && conn.state !== 'ready') || isConnectionLostError(cause);
+	const message = cause instanceof Error ? cause.message : String(cause);
+	if (cause instanceof PgError && !isConnectionLost) {
+		if (cause.code === '42601' && /multiple commands/.test(message)) {
+			return new SqlError({
+				reason: new SqlSyntaxError({
+					cause,
+					message:
+						'SQL with several statements is not supported: Drizzle Postgres sends each query as one statement. Run the statements one by one.',
+					operation,
+				}),
+			});
+		}
+		return new SqlError({ reason: classifySqlState(cause.code, cause.constraint, { cause, message, operation }) });
+	}
+	const props = { cause, message, operation };
+	if (isConnectionLost || conn === undefined) return new SqlError({ reason: new ConnectionError(props) });
+	return new SqlError({ reason: new UnknownError(props) });
+};
+
+/** The Postgres statement compiler: $n placeholders, double-quoted identifiers, and json fragments as jsonb. */
+export const makeCompiler = (transform?: (_: string) => string, transformJson = true) => {
+	const transformValue = transformJson && transform ? Statement.defaultTransforms(transform).value : undefined;
+	return Statement.makeCompiler<PostgresJson>({
+		dialect: 'pg',
+		placeholder: (i) => `$${i}`,
+		onIdentifier: transform
+			? (value, withoutTransform) => escape(withoutTransform ? value : transform(value))
+			: escape,
+		onRecordUpdate(placeholders, valueAlias, valueColumns, values, returning) {
+			return [
+				`(values ${placeholders}) AS ${valueAlias}${valueColumns}${returning ? ` RETURNING ${returning[0]}` : ''}`,
+				returning ? values.flat().concat(returning[1]) : values.flat(),
+			];
+		},
+		onCustom(type, placeholder, withoutTransform) {
+			const value = withoutTransform || transformValue === undefined ? type.paramA : transformValue(type.paramA);
+			return [`${placeholder(undefined)}::jsonb`, [JSON.stringify(value)]];
+		},
+	});
+};
+
+const escape = Statement.defaultEscape('"');
+
+export interface PostgresJson extends Custom<'PostgresJson', unknown> {}
+export const PostgresJson = Statement.custom<PostgresJson>('PostgresJson');

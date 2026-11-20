@@ -951,6 +951,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		test('select distinct ordered by cast columns', async ({ cockroach: { db } }) => {
 			const table = cockroachTable('distinct_cast_order', {
 				id: int4('id').notNull(),
@@ -991,6 +992,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		test('order by aliased cast columns', async ({ cockroach: { db } }) => {
 			const table = cockroachTable('alias_cast_order', {
 				id: int4('id').notNull(),
@@ -1243,6 +1245,8 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test('insert with explicit column list', async ({ cockroach: { db } }) => {
 			const table = cockroachTable('column_selection', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -1273,6 +1277,8 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			}
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test('insert with explicit column list - select', async ({ cockroach: { db } }) => {
 			const src = cockroachTable('column_selection_select_src', {
 				id: int4('id').primaryKey(),
@@ -1307,6 +1313,8 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			}
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test('insert with explicit column list - on conflict', async ({ cockroach: { db } }) => {
 			const table = cockroachTable('column_selection_conflict', {
 				id: int4('id').primaryKey(),
@@ -5960,6 +5968,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test('pagination: offset', async ({ db, push }) => {
 			const items = cockroachTable('pagination_2', { id: int4('id').primaryKey() });
 			await push({ items });
@@ -5976,6 +5985,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			expect(await query().offset(10)).toStrictEqual([]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test('pagination: limit with offset', async ({ db, push }) => {
 			const items = cockroachTable('pagination_3', { id: int4('id').primaryKey() });
 			await push({ items });
@@ -5995,6 +6005,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test('pagination: placeholders', async ({ db, push }) => {
 			const items = cockroachTable('pagination_4', { id: int4('id').primaryKey() });
 			await push({ items });
@@ -6024,6 +6035,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			expect(await stmt.execute({ limit: 2, offset: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test('pagination: set operations', async ({ db, push }) => {
 			const items = cockroachTable('pagination_5', { id: int4('id').primaryKey() });
 			await push({ items });
@@ -6054,6 +6066,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			expect(await stmt.execute({ limit: 2, offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test('pagination: subquery fenced with offset 0', async ({ db, push }) => {
 			const items = cockroachTable('pagination_6', { id: int4('id').primaryKey(), kind: text('kind').notNull() });
 			await push({ items });
@@ -6548,6 +6561,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			}]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/3608
 		test('insert into ... select with generated column', async ({ cockroach: { db } }) => {
 			const users1 = cockroachTable('users1_iswgc', {
 				id: int4('id').generatedAlwaysAsIdentity().primaryKey(),
@@ -7581,6 +7595,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5780
 		test('$onUpdateFn called only when needed', async ({ cockroach: { db } }) => {
 			let counter = 0;
 			const table = cockroachTable('on_update_call_test', {
@@ -7754,6 +7769,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			await assertAllTypesTemporalBounds(db);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		test('Column as decoder applies codecs', async ({ createDB, push }) => {
 			let customCast = false;
 			let customMap = false;
@@ -7903,6 +7919,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			});
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		test('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 			let customCast = false;
 			let customMap = false;
@@ -8214,6 +8231,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			});
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4464
 		test('db.execute modes', async ({ cockroach: { db } }) => {
 			const users = cockroachTable('users_execute_modes', {
 				id: int4('id').primaryKey(),
@@ -8250,6 +8268,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		test('Query error params', async ({ createDB }) => {
 			for (const paramsInErrors of [undefined, false, true]) {
 				const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -8265,6 +8284,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			}
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		test('Query error params - transaction', async ({ createDB }) => {
 			for (const paramsInErrors of [undefined, false, true]) {
 				const db = createDB({}, () => ({}), undefined, paramsInErrors);

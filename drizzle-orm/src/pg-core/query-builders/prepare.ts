@@ -1,9 +1,7 @@
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgBasePreparedQuery, PgSession } from '~/pg-core/session.ts';
-import type { PgTable } from '~/pg-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
 /**
@@ -12,10 +10,9 @@ import type { SelectedFieldsOrdered } from './select.types.ts';
  * otherwise; without `returning` the driver's raw result comes back
  */
 export function prepareMutation(
-	type: 'insert' | 'update' | 'delete',
 	session: PgSession,
 	dialect: PgDialect,
-	config: { table: PgTable; returning?: SelectedFieldsOrdered; shape?: any },
+	config: { returning?: SelectedFieldsOrdered; shape?: any },
 	getSQL: () => SQL,
 	nullableObjectPaths: Parameters<PgDialect['mapperGenerators']['rows']>[1],
 	name: string | boolean,
@@ -37,8 +34,6 @@ export function prepareMutation(
 			shape ? 'objects' : fields ? 'arrays' : 'raw',
 			name,
 			mapper as ((rows: unknown[]) => any) | undefined,
-			{ type, tables: () => usedTablesOf(config.table) },
-			undefined,
 			shape,
 		);
 	});

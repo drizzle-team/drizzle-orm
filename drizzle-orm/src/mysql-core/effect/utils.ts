@@ -3,4 +3,4 @@ import type { DrizzleMySqlConfig } from '../utils.ts';
 
 export type EffectDrizzleMySqlConfig<
 	TRelations extends AnyRelations = EmptyRelations,
-> = Omit<DrizzleMySqlConfig<TRelations>, 'cache' | 'logger'>;
+> = Omit<DrizzleMySqlConfig<TRelations>, 'logger'>;

@@ -2,8 +2,6 @@ import type { MysqlClient } from '@effect/sql-mysql2/MysqlClient';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
@@ -32,7 +30,6 @@ export interface EffectMysql2QueryResultHKT extends MySqlQueryResultHKT {
 
 export interface EffectMysql2SessionOptions {
 	logger: EffectLoggerShape;
-	cache: EffectCacheShape;
 	paramsInErrors?: boolean;
 }
 
@@ -55,8 +52,6 @@ export class EffectMysql2Session<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): MySqlEffectPreparedQuery<T, EffectMysql2QueryEffectHKT> {
 		const executor = (params?: unknown[]) => {
 			const q = this.client.unsafe(query.sql, params);
@@ -77,9 +72,6 @@ export class EffectMysql2Session<
 			mapper,
 			mode,
 			this.options.logger,
-			this.options.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

@@ -21,13 +21,13 @@ const skips = [
 	'transaction with options (set isolationLevel)',
 	'time zones are preserved - non-UTC session',
 	'all types ~codecs~ - non-UTC session',
-	'all types ~codecs~ - non-UTC session - upstash',
 	'transaction with options (accessMode read only)',
 	'transaction with options (deferrable)',
 	'transaction with an empty options object',
 ];
 tests(test, skips);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PgRemoteDatabase;
 	const table = sql.identifier('raw_execute_types');

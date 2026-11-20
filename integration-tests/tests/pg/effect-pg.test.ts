@@ -10,8 +10,6 @@ import {
 	Schema,
 	sql,
 } from 'drizzle-orm';
-import type { Cache } from 'drizzle-orm/cache/core';
-import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
 import { bigint, getTableConfig, integer, pgEnum, pgTable, serial, text } from 'drizzle-orm/pg-core';
@@ -23,7 +21,6 @@ import * as Redacted from 'effect/Redacted';
 import * as Result from 'effect/Result';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { Client as PgPeerClient } from 'pg';
-import { type UpstashTestCache, withUpstashCache } from '~/upstash-cache';
 import { randomString } from '~/utils';
 import {
 	AllTypes,
@@ -113,10 +110,8 @@ const createDB = <
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 	useJitMappers?: boolean,
-	cache?: Cache,
 ) =>
 	PgDrizzle.make({ relations: defineRelations(schema, relations), jit: useJitMappers }).pipe(
-		Effect.provide(cache ? EffectCache.layerFromDrizzle(cache) : Layer.empty),
 		Effect.provide(PgDrizzle.DefaultServices),
 	);
 const TestLive = Layer.merge(PgClientLive, DBLive.pipe(Layer.provide(PgClientLive)));
@@ -131,8 +126,6 @@ runCommonEffectPgTests({
 	skipTests: [
 		'all types',
 		'all types ~codecs~',
-		'all types - upstash',
-		'all types ~codecs~ - upstash',
 		// `@effect/sql-pg` decodes `timestamp`s to `Date`s, dropping microseconds of string modes, with no per-query
 		// alternative: these only check `timestamp` values, nothing left to redefine with `null`s
 		'Column as decoder applies codecs',
@@ -181,6 +174,8 @@ runCommonEffectPgTests({
 				}).pipe(Effect.provide(PgClient.layer({ url: connectionStr, types })));
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/661
+		// https://github.com/drizzle-team/drizzle-orm/issues/6382
 		it.effect('raw db.execute type matches returned data', () =>
 			Effect.gen(function*() {
 				const db = yield* PgDrizzle.make().pipe(Effect.provide(PgDrizzle.DefaultServices));
@@ -328,75 +323,6 @@ runCommonEffectPgTests({
 					self: [emptyArrays],
 				});
 			}));
-
-		const createUpstashDB = (cache: UpstashTestCache, name: string) => {
-			const { en, allTypesTable } = makeAllTypesNoMtx(`all_types_${name}_upstash_ef`, `en_${name}_upstash_ef`);
-
-			return createDB(
-				{ allTypesTable, ...boundsSchema },
-				(r) => ({
-					allTypesTable: {
-						self: r.many.allTypesTable({
-							from: r.allTypesTable.serial,
-							to: r.allTypesTable.serial,
-						}),
-					},
-					...boundsRelations(r),
-				}),
-				false,
-				cache,
-			).pipe(Effect.map((db) => ({ db, en, allTypesTable })));
-		};
-
-		it.effect('all types - no multidimensional arrays - upstash', () =>
-			withUpstashCache((cache, run) =>
-				Effect.gen(function*() {
-					const { db, en, allTypesTable } = yield* createUpstashDB(cache, 'nomtx');
-					yield* push(db, { en, allTypesTable });
-
-					yield* Effect.promise(() =>
-						cache.expectHits('all types', async () => {
-							await run(db.insert(allTypesTable).values(allTypesDataNoMtx));
-							expect(await run(db.select().from(allTypesTable))).toStrictEqual([allTypesDataNoMtx]);
-						})
-					);
-				})
-			));
-
-		it.effect('all types ~codecs~ - no multidimensional arrays - upstash', () =>
-			withUpstashCache((cache, run) =>
-				Effect.gen(function*() {
-					const { db, en, allTypesTable } = yield* createUpstashDB(cache, 'nomtx_cdc');
-					yield* push(db, { en, allTypesTable });
-
-					yield* Effect.promise(async () => {
-						await cache.expectHits('all types', async () => {
-							await run(db.insert(allTypesTable).values(allTypesDataNoMtx));
-							expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
-								...allTypesDataNoMtx,
-								self: [allTypesDataNoMtx],
-							});
-						});
-						// unions expect the full all-types data, which holds values of column types the driver can't decode
-						await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run, rqb: true }));
-						await cache.expectHits(
-							'temporal bounds',
-							() => assertAllTypesTemporalBounds(db as any, { run, rqb: true, data: temporalBoundsDataNoStrings }),
-						);
-
-						const emptyArrays = emptyArraysNoMtx;
-						await cache.expectHits('empty arrays', async () => {
-							await run(db.delete(allTypesTable));
-							await run(db.insert(allTypesTable).values(emptyArrays));
-							expect(await run(db.select().from(allTypesTable))).toStrictEqual([emptyArrays]);
-							expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
-								...emptyArrays,
-								self: [emptyArrays],
-							});
-						});
-					});
-				})
-			));
 
 		it.effect('transaction snapshot: isolates the transaction', () =>
 			Effect.gen(function*() {

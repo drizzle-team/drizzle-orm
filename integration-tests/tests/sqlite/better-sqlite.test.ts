@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { getTableConfig, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { rowId } from 'drizzle-orm/sqlite-core/expressions';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
 import { allTypesData, allTypesInput, dropAllTypes, makeAllTypes } from './all-types';
@@ -23,6 +24,17 @@ test('all types - client with safe integers', async ({ db, client, push }) => {
 	} finally {
 		(client as any).defaultSafeIntegers(false);
 	}
+});
+
+test('rowId.big keeps a row id that does not fit a number', async ({ db, push }) => {
+	const items = sqliteTable('row_id_big', { name: text('name').notNull() });
+	await db.run(sql`drop table if exists ${items}`);
+	await push({ items });
+	// 2^53 + 1: the first integer a `number` cannot hold
+	await db.run(sql`insert into ${items} (rowid, name) values (9007199254740993, 'far')`);
+
+	expect(await db.select({ big: rowId.big() }).from(items)).toStrictEqual([{ big: 9007199254740993n }]);
+	expect(await db.select({ id: rowId() }).from(items)).toStrictEqual([{ id: 9007199254740992 }]);
 });
 
 test('migrator', async ({ db }) => {
@@ -208,9 +220,5 @@ const skip = [
 	'transaction rollback',
 	'Query error params - transaction',
 	'nested transaction rollback',
-	// Driver doesn't support caching
-	'all types - upstash',
-	'all types ~codecs~ - upstash',
-	'all types ~json~ - upstash',
 ];
 tests(test, skip);

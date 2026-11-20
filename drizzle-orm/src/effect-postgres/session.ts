@@ -2,8 +2,6 @@ import type { PgClient } from '@effect/sql-pg/PgClient';
 import type { Result } from '@effect/sql-pg/PgConnection';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
-import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
@@ -11,6 +9,7 @@ import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { getTransactionConfigStatements } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
@@ -30,7 +29,6 @@ export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
 
 export interface EffectPgSessionOptions {
 	logger: EffectLoggerShape;
-	cache: EffectCacheShape;
 	paramsInErrors?: boolean;
 }
 
@@ -54,8 +52,6 @@ export class EffectPgSession<
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgEffectPreparedQuery<T, EffectPgQueryEffectHKT> {
 		const executor = (params?: unknown[]) => {
 			const q = this.client.unsafe(query.sql, params);
@@ -71,9 +67,6 @@ export class EffectPgSession<
 			mapper,
 			mode,
 			this.options.logger,
-			this.options.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}
@@ -94,7 +87,7 @@ export class EffectPgSession<
 			);
 
 			if (config) {
-				for (const statement of tx.getTransactionConfigStatements(config)) {
+				for (const statement of getTransactionConfigStatements(dialect, config)) {
 					yield* this.client.unsafe(statement);
 				}
 			}

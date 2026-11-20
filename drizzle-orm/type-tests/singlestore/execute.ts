@@ -11,6 +11,7 @@ import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { users } from './tables.ts';
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 // Row types declared as interfaces have no implicit index signature
 interface UserInterface {
 	id: number;

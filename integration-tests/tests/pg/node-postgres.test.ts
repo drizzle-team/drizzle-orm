@@ -8,6 +8,7 @@ import { Pool, type QueryResult } from 'pg';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
+import { preparedNameTests } from './common-prepared-names';
 import { assertDroppedConnectionRejectsTransaction } from './connection-drop';
 import { nodePostgresTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
@@ -18,7 +19,9 @@ import {
 } from './snapshot';
 
 tests(test, []);
+preparedNameTests(test);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as NodePgDatabase;
 	const table = sql.identifier('raw_execute_types');
@@ -663,6 +666,7 @@ describe('transaction snapshot', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6437
 test('transaction rejects when pooled connection is dropped', async ({ kit, peer }) => {
 	const url = new URL(process.env['PG_CONNECTION_STRING']!);
 	url.pathname = `/${kit.database}`;
@@ -676,6 +680,11 @@ test('transaction rejects when pooled connection is dropped', async ({ kit, peer
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6023
+// https://github.com/drizzle-team/drizzle-orm/issues/6114
+// https://github.com/drizzle-team/drizzle-orm/issues/6241
+// https://github.com/drizzle-team/drizzle-orm/issues/6341
+// https://github.com/drizzle-team/drizzle-orm/issues/6622
 test('failed begin on transaction does not return client to the pool', async ({ kit, peer }) => {
 	const url = new URL(process.env['PG_CONNECTION_STRING']!);
 	url.pathname = `/${kit.database}`;

@@ -578,6 +578,13 @@ describe('SCRAM channel binding (SCRAM-SHA-256-PLUS, tls-server-end-point)', () 
 					write(chunk, _e, cb) {
 						sec.write(chunk, cb);
 					},
+					// The driver destroys the socket it was given when it refuses at auth: without this the TLS
+					// session stays open, and the backend waits in authentication, blocking every DROP DATABASE
+					// (it can't absorb the ProcSignalBarrier) until authentication_timeout
+					destroy(err, cb) {
+						sec.destroy();
+						cb(err);
+					},
 				});
 				sec.on('data', (b) => d.push(b));
 				sec.on('close', () => d.push(null));
@@ -608,11 +615,11 @@ describe('SCRAM channel binding (SCRAM-SHA-256-PLUS, tls-server-end-point)', () 
 
 	test('replication() binds too: require over TLS on the walsender', async () => {
 		const { replication } = await import('../../src/index.ts');
-		const { TEST_CONFIG } = await import('../helpers/db.ts');
+		const { TEST_CONFIG, TEST_DATABASE } = await import('../helpers/db.ts');
 		const repl = await replication({ ...(TEST_CONFIG as object), ssl: true, channelBinding: 'require' });
 		try {
 			const sys = await repl.identify();
-			expect(sys.dbname).toBe('testdb');
+			expect(sys.dbname).toBe(TEST_DATABASE);
 		} finally {
 			repl.end();
 		}

@@ -61,16 +61,11 @@ function construct<
 
 	const session = new NeonHttpSession(client, dialect, relations ?? {} as EmptyRelations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 
 	const db = new NeonHttpDatabase(dialect, session, relations);
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }

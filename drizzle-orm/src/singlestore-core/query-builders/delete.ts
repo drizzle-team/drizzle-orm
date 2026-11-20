@@ -15,7 +15,6 @@ import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import type { ValueOrArray } from '~/utils.ts';
 import type { SingleStoreColumn } from '../columns/common.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
@@ -187,10 +186,6 @@ export class SingleStoreDeleteBase<
 			this.dialect.sqlToQuery(this.getSQL()),
 			fields ? 'arrays' : 'raw',
 			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
-			{
-				type: 'delete',
-				tables: () => usedTablesOf(this.config.table),
-			},
 		) as SingleStoreDeletePrepare<this>;
 	}
 

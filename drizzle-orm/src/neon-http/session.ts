@@ -6,13 +6,11 @@ import {
 	types,
 } from '@neondatabase/serverless';
 import type { BatchItem } from '~/batch.ts';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, type PgAsyncTransaction } from '~/pg-core/async/session.ts';
-import { pgRawTextOids } from '~/pg-core/codecs.ts';
+import { pgRawTextTypeParser } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -20,8 +18,6 @@ import type { Query } from '~/sql/sql.ts';
 import type { NeonAuthToken } from '~/utils.ts';
 
 export type NeonHttpClient = NeonQueryFunction<any, any>;
-
-const rawText = (value: string) => value;
 
 /**
  * Per-query `types` returning `pgRawTextOids` as text for codecs to decode, other types through the client's default
@@ -32,15 +28,14 @@ const rawText = (value: string) => value;
  */
 export const neonHttpRawTextTypes: {} = {
 	types: {
-		getTypeParser:
-			<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
-				pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format as any)),
+		getTypeParser: <CustomTypesConfig['getTypeParser']> pgRawTextTypeParser((typeId, format) =>
+			types.getTypeParser(typeId, format)
+		),
 	} satisfies CustomTypesConfig,
 };
 
 export interface NeonHttpSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	authToken?: NeonAuthToken;
 	paramsInErrors?: boolean;
 }
@@ -51,7 +46,6 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 	static override readonly [entityKind]: string = 'NeonHttpSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	/** @internal */
 	readonly client: NeonHttpClient;
@@ -67,7 +61,6 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 		// root query function `client` is only usable as a template function;
 		// `client` is a fallback for earlier versions
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -75,8 +68,6 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const executor = (params?: unknown[]) => {
 			// `client.query` is for @neondatabase/serverless v1.0.0 and up, where the
@@ -107,9 +98,6 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

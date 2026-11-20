@@ -2,22 +2,14 @@ import { type AuroraClient, type AuroraConfig, createPool } from '#postgres/auro
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { createShapeGenerator } from '../shape.ts';
 import { postgresAuroraCodecs } from './codecs.ts';
+import { PostgresAuroraDialect } from './dialect.ts';
 import type { PostgresAuroraClient, PostgresAuroraQueryResultHKT } from './session.ts';
 import { PostgresAuroraSession } from './session.ts';
-
-export class PostgresAuroraDialect extends PgDialect {
-	static override readonly [entityKind]: string = 'PostgresAuroraDialect';
-
-	override escapeParam(num: number): string {
-		return `:p${num + 1}`;
-	}
-}
+import { createShapeGenerator } from './shape.ts';
 
 export class PostgresAuroraDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
@@ -50,7 +42,6 @@ function construct<
 	const relations = config.relations ?? {};
 	const session = new PostgresAuroraSession(client, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 
@@ -60,10 +51,6 @@ function construct<
 		relations,
 	) as PostgresAuroraDatabase<TRelations>;
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }

@@ -33,7 +33,7 @@ import {
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 	wrapRecord,
 } from './grammar';
-import { canonicalParams, type UnsupportedProcedure } from './procedures/model';
+import { canonicalParams, proceduresEnabled, type UnsupportedProcedure } from './procedures/model';
 
 // TODO: tables/schema/entities -> filter: (entity: {type: ... , metadata: ... }) => boolean;
 // TODO: since we by default only introspect public
@@ -1208,7 +1208,7 @@ export const fromDatabase = async (
 	progressCallback('views', views.length, 'done');
 
 	const { procedures, unsupportedProcedures, definitions: procedureDefinitions } =
-		options.procedures !== false && filteredNamespacesStringForSQL
+		proceduresEnabled && options.procedures !== false && filteredNamespacesStringForSQL
 			? await introspectProcedures(db, filteredNamespacesStringForSQL)
 			: { procedures: [], unsupportedProcedures: [], definitions: {} };
 

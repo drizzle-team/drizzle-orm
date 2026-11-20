@@ -6,8 +6,9 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import type { CodegenCol } from '../../src/decode.ts';
 import { connect } from '../../src/index.ts';
+import { LOCAL_CONFIG } from '../helpers/db.ts';
 
-const CFG = { host: '127.0.0.1', port: 54329, user: 'postgres', password: 'postgres', database: 'testdb' };
+const CFG = LOCAL_CONFIG;
 let c: Awaited<ReturnType<typeof connect>>;
 beforeAll(async () => {
 	c = await connect(CFG);

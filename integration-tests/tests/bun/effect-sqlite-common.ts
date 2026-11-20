@@ -18,8 +18,6 @@ import {
 	SQL,
 	sql,
 } from 'drizzle-orm';
-import type { Cache } from 'drizzle-orm/cache/core';
-import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache-effect';
 import { EffectLogger, type EffectLoggerShape, QueryEffectHKTBase } from 'drizzle-orm/effect-core';
 import {
 	EmptyRelations,
@@ -53,13 +51,11 @@ import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
-import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import * as Scope from 'effect/Scope';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
 import { jsonRows, parseStoredJson } from '~/json-values';
-import { withUpstashCache } from '~/upstash-cache';
 import type { AllTypes } from '../sqlite/all-types';
 import {
 	allTypesData,
@@ -185,7 +181,6 @@ export interface RunCommonEffectSQLiteTestsOptions {
 		schema: TSchema,
 		relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 		useJitMappers?: boolean,
-		cache?: Cache,
 	) => Effect.Effect<
 		SQLiteEffectDatabase<QueryEffectHKTBase, any, ExtractTablesWithRelations<TConfig, TTables>>,
 		never,
@@ -298,69 +293,6 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 				expect(parseStoredJson(stored)).toStrictEqual(output);
 			}));
-
-		it.effect('all types - upstash', () =>
-			withUpstashCache((cache, run) =>
-				Effect.gen(function*() {
-					const allTypesTable = makeAllTypes('all_types_upstash');
-					const db = yield* createDB({ allTypesTable }, () => ({}), false, cache);
-					yield* db.run(sql`drop table if exists ${allTypesTable}`);
-					yield* push(db, { allTypesTable });
-
-					const query = db.select().from(allTypesTable);
-					yield* Effect.promise(async () => {
-						await cache.expectHits('all types', async () => {
-							await run(db.insert(allTypesTable).values(allTypesInput));
-
-							expect(await run(query)).toStrictEqual([allTypesData]);
-							expect(await run(query.all())).toStrictEqual([allTypesData]);
-							expect(await run(query.get())).toStrictEqual(allTypesData);
-							expect(await run(query.values())).toHaveLength(1);
-						});
-					});
-
-					// `.run()` is never read from or written to cache (checked by the cache suites), but mutations it executes still invalidate
-					yield* db.delete(allTypesTable).run();
-					yield* Effect.promise(async () => {
-						expect(await run(query)).toStrictEqual([]);
-					});
-					yield* db.insert(allTypesTable).values(allTypesInput).run();
-
-					yield* Effect.promise(async () => {
-						await cache.expectHits('unions', () => assertAllTypesUnions(db as any, allTypesTable, run));
-						await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run }));
-						await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db as any, { run }));
-					});
-				})
-			));
-
-		it.effect('all types ~json~ - upstash', () =>
-			withUpstashCache((cache, run) =>
-				Effect.gen(function*() {
-					const table = sqliteTable('all_types_json_upstash', {
-						id: integer('id').primaryKey(),
-						jsonText: text('jsonText', { mode: 'json' }),
-						jsonBlob: blob('jsonBlob', { mode: 'json' }),
-					});
-					const db = yield* createDB({ table }, () => ({}), false, cache);
-					yield* db.run(sql`drop table if exists ${table}`);
-					yield* push(db, { table });
-
-					const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
-
-					const query = db.select().from(table).orderBy(table.id);
-					yield* Effect.promise(() =>
-						cache.expectHits('json', async () => {
-							await run(db.insert(table).values(input));
-
-							expect(await run(query)).toStrictEqual(output);
-							expect(await run(query.all())).toStrictEqual(output);
-							expect(await run(query.get())).toStrictEqual(output[0]);
-							expect(await run(query.values())).toHaveLength(output.length);
-						})
-					);
-				})
-			));
 
 		it.effect('RQB v2 simple find first - no rows', () =>
 			Effect.gen(function*() {
@@ -2410,53 +2342,6 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				expect(loggedQueries.some((q) => q.query.toLowerCase().includes('select'))).toBe(true);
 			}));
 
-		it.effect('custom EffectCache override - user provided cache takes precedence over default', () =>
-			Effect.gen(function*() {
-				const cacheOperations = yield* Ref.make<Array<{ op: 'get' | 'put' | 'mutate'; key?: string }>>([]);
-
-				const customCacheService: EffectCacheShape = {
-					strategy: () => 'all' as const,
-					get: (key: string, _tables: string[], _isTag: boolean, _isAutoInvalidate?: boolean) =>
-						Effect.gen(function*() {
-							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'get' as const, key }]);
-							return undefined;
-						}),
-					put: (key: string, _response: any, _tables: string[], _isTag: boolean, _config?: any) =>
-						Effect.gen(function*() {
-							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'put' as const, key }]);
-						}),
-					onMutate: (_params: any) =>
-						Effect.gen(function*() {
-							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'mutate' as const }]);
-						}),
-					cache: {
-						strategy: () => 'all' as const,
-						get: async () => undefined,
-						put: async () => {},
-						onMutate: async () => {},
-					},
-				};
-				const customCacheLayer = Layer.succeed(EffectCache, customCacheService);
-
-				const db = yield* SQLiteDrizzle.make({ relations }).pipe(
-					Effect.provide(customCacheLayer),
-					Effect.provide(SQLiteDrizzle.DefaultServices),
-				);
-
-				const users = sqliteTable('users_custom_cache', {
-					id: integer('id').primaryKey(),
-					name: text('name').notNull(),
-				});
-
-				yield* push(db, { users });
-				yield* db.insert(users).values({ name: 'John' });
-				yield* db.select().from(users).$withCache();
-
-				const ops = yield* Ref.get(cacheOperations);
-				expect(ops.some((o) => o.op === 'mutate')).toBe(true);
-				expect(ops.some((o) => o.op === 'get')).toBe(true);
-			}));
-
 		it.effect('makeWithDefaults - convenience function that includes DefaultServices', () =>
 			Effect.gen(function*() {
 				const db = yield* SQLiteDrizzle.makeWithDefaults({ relations });
@@ -3859,6 +3744,8 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -3884,6 +3771,8 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list - select', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -3910,6 +3799,8 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list - on conflict', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -3965,6 +3856,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				}]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params', () =>
 			Effect.gen(function*() {
 				const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;
@@ -3991,6 +3883,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				}
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params - transaction', () =>
 			Effect.gen(function*() {
 				const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;

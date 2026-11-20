@@ -73,7 +73,7 @@ import {
 	typeFor,
 } from './grammar';
 import { compileProcedureFiles } from './procedures/compile-schema';
-import { type ProcedureDef, unsupportedProcedureKey } from './procedures/model';
+import { type ProcedureDef, proceduresEnabled, unsupportedProcedureKey } from './procedures/model';
 
 export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 	const mappedTo = !policy.to
@@ -833,11 +833,11 @@ export const fromExports = (exports: Record<string, unknown>) => {
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
 		if (isProcedureEntity(t)) {
-			procedures.push(t);
+			if (proceduresEnabled) procedures.push(t);
 			return;
 		}
 		if (entityKindOf(t) === 'PgUnsupportedProcedure') {
-			unsupportedProcedures.push(t as UnsupportedProcedureEntity);
+			if (proceduresEnabled) unsupportedProcedures.push(t as UnsupportedProcedureEntity);
 			return;
 		}
 		if (isPgEnum(t)) {

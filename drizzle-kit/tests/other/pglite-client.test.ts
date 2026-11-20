@@ -13,6 +13,9 @@ afterEach(async () => {
 	await Promise.all(clients.splice(0).map((client) => client.close()));
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2995
+// https://github.com/drizzle-team/drizzle-orm/issues/3222
+// https://github.com/drizzle-team/drizzle-orm/issues/4476
 test('pglite client: preparePostgresDB queries through the provided instance', async () => {
 	const client = newClient();
 	await client.waitReady;
@@ -31,6 +34,9 @@ test('pglite client: preparePostgresDB queries through the provided instance', a
 	expect(rows.rows.map((r) => r.name)).toStrictEqual(['drizzle', 'kit']);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2995
+// https://github.com/drizzle-team/drizzle-orm/issues/3222
+// https://github.com/drizzle-team/drizzle-orm/issues/4476
 test('pglite client: proxy round-trips params through the provided instance', async () => {
 	const client = newClient();
 	await client.waitReady;
@@ -49,6 +55,8 @@ test('pglite client: proxy round-trips params through the provided instance', as
 	expect(selected).toStrictEqual([{ id: 1, title: 'first' }]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3222
+// https://github.com/drizzle-team/drizzle-orm/issues/4476
 test('pglite url: preparePostgresDB creates its own in-memory instance', async () => {
 	const db = await preparePostgresDB({ driver: 'pglite', url: 'memory://' });
 

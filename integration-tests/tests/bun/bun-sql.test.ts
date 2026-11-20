@@ -101,7 +101,6 @@ import { PgQueryResultHKT } from 'drizzle-orm/pg-core/session';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import {
 	allTypesDataWith,
-	allTypesEmptyArraysData,
 	type AllTypesReplacements,
 	makeAllTypes,
 	temporalBoundsData,
@@ -109,12 +108,9 @@ import {
 } from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
-import { UpstashTestCache } from '~/upstash-cache';
 import { Expect } from '~/utils';
 import {
-	allTypesRelations,
 	assertAllTypesBounds,
-	assertAllTypesEmptyArrays,
 	assertAllTypesTemporalBounds,
 	assertAllTypesTemporalBoundsInSessions,
 	assertAllTypesUnions,
@@ -134,7 +130,6 @@ import {
 // unions, temporal bounds hold `timestamp` values cut to milliseconds
 const unsupportedReplacements = { timestampTzstr: null, arrtimestampTzstr: null } satisfies AllTypesReplacements;
 const allTypesData = allTypesDataWith(unsupportedReplacements);
-const emptyArraysData = allTypesDataWith(unsupportedReplacements, allTypesEmptyArraysData);
 const cutToMilliseconds = (value: string | null) => value?.replace(/(\.\d{3})\d+/, '$1') ?? null;
 const temporalBoundsDataMillis = temporalBoundsData.map((row) => ({
 	...row,
@@ -625,6 +620,7 @@ test('$default function', async () => {
 	}]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4464
 test('db.execute modes', async () => {
 	const users = pgTable('users_execute_modes_1', {
 		id: integer('id').primaryKey(),
@@ -883,6 +879,8 @@ test('insert with overridden default values', async () => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5001
+// https://github.com/drizzle-team/drizzle-orm/issues/5309
 test('insert with explicit column list', async () => {
 	const table = pgTable('column_selection', {
 		id: serial('id').primaryKey(),
@@ -911,6 +909,8 @@ test('insert with explicit column list', async () => {
 	await db.execute(sql`drop table ${table}`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5001
+// https://github.com/drizzle-team/drizzle-orm/issues/5309
 test('insert with explicit column list - select', async () => {
 	const src = pgTable('column_selection_select_src', {
 		id: integer('id').primaryKey(),
@@ -943,6 +943,8 @@ test('insert with explicit column list - select', async () => {
 	await db.execute(sql`drop table ${dst}`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5001
+// https://github.com/drizzle-team/drizzle-orm/issues/5309
 test('insert with explicit column list - on conflict', async () => {
 	const table = pgTable('column_selection_conflict', {
 		id: integer('id').primaryKey(),
@@ -3754,6 +3756,7 @@ test('test $onUpdateFn and $onUpdate works updating', async () => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5780
 test('$onUpdateFn called only when needed', async () => {
 	let counter = 0;
 	const table = pgTable('on_update_call_test', {
@@ -7400,6 +7403,8 @@ test('all types ~codecs~', async () => {
 	await db.$client.close();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6132
+// https://github.com/drizzle-team/drizzle-orm/issues/6591
 test('all types ~json~', async () => {
 	const table = pgTable('all_types_json', {
 		id: integer('id').primaryKey(),
@@ -7437,6 +7442,7 @@ test('Query error wrapping', async () => {
 	expect(err).toBeInstanceOf(DrizzleQueryError);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params', async () => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const paramsDb = drizzle({ client: db.$client, paramsInErrors });
@@ -7452,6 +7458,7 @@ test('Query error params', async () => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params - transaction', async () => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const paramsDb = drizzle({ client: db.$client, paramsInErrors });
@@ -7468,6 +7475,7 @@ test('Query error params - transaction', async () => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs', async () => {
 	let customCast = false;
 	let customMap = false;
@@ -7721,6 +7729,7 @@ test('Column as decoder applies codecs', async () => {
 	await db.$client.close();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs - Jit mappers', async () => {
 	let customCast = false;
 	let customMap = false;
@@ -8564,92 +8573,6 @@ test('all types ~codecs~ - non-UTC session', async () => {
 	await assertAllTypesTemporalBoundsInSessions(db, { data: temporalBoundsDataMillis, rqb: true });
 });
 
-const upstashDB = (cache: UpstashTestCache, name: string) => {
-	const tableName = `all_types_${name}_upstash`;
-	const enumName = `en_${name}_upstash`;
-	const { allTypesTable } = makeAllTypes(tableName, enumName);
-	const cachedDb = drizzle({
-		client: db.$client,
-		relations: defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
-			...allTypesRelations(r),
-			...boundsRelations(r),
-		})),
-		cache,
-	});
-
-	return { db: cachedDb, allTypesTable, create: () => createAllTypes(tableName, enumName) };
-};
-
-test('all types - upstash', async () => {
-	await using cache = new UpstashTestCache();
-	const { run } = cache;
-	const { db, allTypesTable, create } = upstashDB(cache, 'plain');
-	await create();
-
-	await cache.expectHits('all types', async () => {
-		await run(db.insert(allTypesTable).values(allTypesData));
-		expect(await run(db.select().from(allTypesTable))).toStrictEqual([allTypesData]);
-	});
-});
-
-test('all types ~codecs~ - upstash', async () => {
-	await using cache = new UpstashTestCache();
-	const { run } = cache;
-	const { db, allTypesTable, create } = upstashDB(cache, 'cdc');
-	await create();
-
-	await cache.expectHits('all types', async () => {
-		await run(db.insert(allTypesTable).values(allTypesData));
-		expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
-			...allTypesData,
-			self: [allTypesData],
-		});
-	});
-	await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run, rqb: true }));
-	await cache.expectHits(
-		'temporal bounds',
-		() => assertAllTypesTemporalBounds(db, { data: temporalBoundsDataMillis, run, rqb: true }),
-	);
-	await cache.expectHits(
-		'empty arrays',
-		() => assertAllTypesEmptyArrays(db, allTypesTable, { data: emptyArraysData, run, rqb: true }),
-	);
-});
-
-test('all types ~codecs~ - non-UTC session - upstash', async () => {
-	await using cache = new UpstashTestCache();
-	const { db } = upstashDB(cache, 'tz');
-
-	await cache.expectHits(
-		'sessions',
-		() => assertAllTypesTemporalBoundsInSessions(db, { data: temporalBoundsDataMillis, run: cache.run, rqb: true }),
-	);
-});
-
-test('all types ~json~ - upstash', async () => {
-	await using cache = new UpstashTestCache();
-	const { run } = cache;
-	const { db: cachedDb } = upstashDB(cache, 'json');
-	const table = pgTable('all_types_json_upstash', {
-		id: integer('id').primaryKey(),
-		json: json('json'),
-		jsonb: jsonb('jsonb'),
-		arrjson: json('arrjson').array(),
-		arrjsonb: jsonb('arrjsonb').array(),
-	});
-	await db.execute(sql`drop table if exists ${table}`);
-	await db.execute(
-		sql`create table ${table} (id integer primary key, json json, jsonb jsonb, arrjson json[], arrjsonb jsonb[])`,
-	);
-
-	const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
-
-	await cache.expectHits('json', async () => {
-		await run(cachedDb.insert(table).values(input));
-		expect(await run(cachedDb.select().from(table).orderBy(table.id))).toStrictEqual(output);
-	});
-});
-
 test('time zones are preserved - non-UTC session', async () => {
 	const tzTypes = pgTable('tz_types_session', {
 		id: integer('id').primaryKey(),
@@ -8840,6 +8763,7 @@ describe('transaction config', () => {
 		await db.execute(sql`drop table users_tx_cfg_deferrable_bun`);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/1772
 	test('transaction with an empty options object', async () => {
 		const users = pgTable('users_tx_cfg_empty_bun', {
 			id: serial('id').primaryKey(),
@@ -9082,6 +9006,7 @@ test('Issue No2279', async () => {
 });
 
 describe('raw execute', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/661
 	test('raw db.execute type matches returned data', async () => {
 		const table = sql.identifier('raw_execute_types');
 

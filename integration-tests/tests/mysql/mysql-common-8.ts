@@ -6,7 +6,6 @@ import {
 	asc,
 	DrizzleQueryError,
 	eq,
-	type ExtractTablesFromSchema,
 	getColumns,
 	getTableColumns,
 	gt,
@@ -20,7 +19,6 @@ import {
 	makeJitRqbMapper,
 	max,
 	Name,
-	type RelationsBuilder,
 	sql,
 } from 'drizzle-orm';
 import {
@@ -46,7 +44,6 @@ import {
 import { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
 import { expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
-import { UpstashTestCache } from '~/upstash-cache';
 import {
 	type AllTypes,
 	allTypesData,
@@ -56,7 +53,6 @@ import {
 	assertAllTypesUnions,
 	boundsRelations,
 	boundsSchema,
-	makeAllTypes,
 } from './all-types';
 import type { Test } from './instrumentation';
 import { createUsersOnUpdateTable, createUserTable } from './schema2';
@@ -236,6 +232,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		},
 	);
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test.concurrent('insert with explicit column list', async ({ db, push }) => {
 		const table = mysqlTable('column_selection', {
 			id: serial('id').primaryKey(),
@@ -259,6 +257,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test.concurrent('insert with explicit column list - select', async ({ db, push }) => {
 		const src = mysqlTable('column_selection_select_src', {
 			id: int('id').primaryKey(),
@@ -283,6 +283,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test.concurrent('insert with explicit column list - on duplicate key update', async ({ db, push }) => {
 		const table = mysqlTable('column_selection_conflict', {
 			id: int('id').primaryKey(),
@@ -1572,6 +1574,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			.rejects.toBeInstanceOf(DrizzleQueryError);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test.concurrent('Query error params', async ({ createDB }) => {
 		for (const paramsInErrors of [undefined, false, true]) {
 			const db = createDB({ paramsInErrors });
@@ -1587,6 +1590,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test.concurrent('Query error params - transaction', async ({ createDB }) => {
 		for (const paramsInErrors of [undefined, false, true]) {
 			const db = createDB({ paramsInErrors });
@@ -1800,77 +1804,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(parseStoredJson(stored)).toStrictEqual(output);
 	});
 
-	const upstashTable = makeAllTypes('all_types_cdcs_upstash');
-	const upstashSchema = { allTypesTable: upstashTable, ...boundsSchema };
-	const upstashConfig = (cache: UpstashTestCache) => ({
-		schema: upstashSchema,
-		cb: (r: RelationsBuilder<ExtractTablesFromSchema<typeof upstashSchema>>) => ({
-			allTypesTable: {
-				self: r.many.allTypesTable({
-					from: r.allTypesTable.serial,
-					to: r.allTypesTable.serial,
-				}),
-			},
-			...boundsRelations(r),
-		}),
-		cache,
-	});
-
-	test('all types - upstash', async ({ createDB, push }) => {
-		await using cache = new UpstashTestCache();
-		const { run } = cache;
-		const db = createDB(upstashConfig(cache));
-		const table = makeAllTypes('all_types_upstash');
-		await push({ table });
-
-		await cache.expectHits('all types', async () => {
-			await run(db.insert(table).values(allTypesData));
-			expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
-		});
-	});
-
-	test('all types ~codecs~ - upstash', async ({ createDB, push }) => {
-		await using cache = new UpstashTestCache();
-		const { run } = cache;
-		const db = createDB(upstashConfig(cache));
-		await push({ upstashTable });
-
-		// TiDB's engine does not support `LATERAL` derived tables, which the RQB relation query relies on
-		const rqb = !is(db as unknown, TiDBServerlessDatabase);
-
-		await cache.expectHits('all types', async () => {
-			await run(db.insert(upstashTable).values(allTypesData));
-			expect(await run(db.select().from(upstashTable))).toStrictEqual([allTypesData]);
-			if (rqb) {
-				expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
-					...allTypesData,
-					self: [allTypesData],
-				});
-			}
-		});
-		await cache.expectHits('unions', () => assertAllTypesUnions(db, upstashTable, run));
-		await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run, rqb }));
-		await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db, { run, rqb }));
-	});
-
-	test('all types ~json~ - upstash', async ({ createDB, push }) => {
-		await using cache = new UpstashTestCache();
-		const { run } = cache;
-		const db = createDB(upstashConfig(cache));
-		const table = mysqlTable('all_types_json_upstash', {
-			id: int('id').primaryKey(),
-			json: json('json'),
-		});
-		await push({ table });
-
-		const { input, output } = jsonRows(['json']);
-
-		await cache.expectHits('json', async () => {
-			await run(db.insert(table).values(input));
-			expect(await run(db.select().from(table).orderBy(table.id))).toStrictEqual(output);
-		});
-	});
-
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;
@@ -2065,6 +1999,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;
@@ -2310,6 +2245,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/1603
 	test.concurrent('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
 		const orgs = mysqlTable('issue1603_orgs_jit', (t) => ({
 			id: t.int('id').primaryKey(),

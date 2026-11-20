@@ -409,6 +409,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6599
 	test.concurrent('pagination: limit with offset', async ({ db, push }) => {
 		const items = mysqlTable('pagination_2', { id: int('id').primaryKey() });
 		await push({ items });
@@ -428,6 +429,23 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6599
+	// An offset alone has to reach the database with a limit, for the same reason
+	test.skipIf(postponed).concurrent(
+		'pagination: offset without limit',
+		async ({ db, push }) => {
+			const items = mysqlTable('pagination_5', { id: int('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(5)).toStrictEqual([]);
+		},
+	);
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/6599
 	test.concurrent('pagination: placeholders', async ({ db, push }) => {
 		const items = mysqlTable('pagination_3', { id: int('id').primaryKey() });
 		await push({ items });
@@ -445,6 +463,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(await stmt.execute({ limit: 2, offset: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6599
 	test.concurrent('pagination: set operations', async ({ db, push }) => {
 		const items = mysqlTable('pagination_4', { id: int('id').primaryKey() });
 		await push({ items });

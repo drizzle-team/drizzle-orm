@@ -1,6 +1,13 @@
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { AnyMySqlQueryResultHKT, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
+import type {
+	AnyMySqlQueryResultHKT,
+	MySqlBasePreparedQuery,
+	MySqlQueryResultHKT,
+	MySqlQueryResultKind,
+	MySqlRunnableQueryMethods,
+	MySqlRuntimeHKT,
+} from '~/mysql-core/session.ts';
 import type { MySqlSession } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -245,6 +252,8 @@ export type MySqlInsertReturning<T extends AnyMySqlInsert> = T extends any ? MyS
 export type AnyMySqlInsert = MySqlInsertBase<any, any, any, any, any, any>;
 
 export interface MySqlInsertHKTBase {
+	/** How the builder's runtime wraps it's results */
+	runtime: MySqlRuntimeHKT;
 	table: unknown;
 	queryResult: unknown;
 	returning: unknown;
@@ -286,7 +295,14 @@ export interface MySqlInsertBase<
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends SQLWrapper {
+> extends
+	SQLWrapper,
+	MySqlRunnableQueryMethods<
+		THKT['runtime'],
+		TReturning extends undefined ? MySqlQueryResultKind<TQueryResult, never> : TReturning[],
+		never
+	>
+{
 	readonly _: {
 		readonly dialect: 'mysql';
 		readonly hkt: THKT;
@@ -419,5 +435,15 @@ export class MySqlInsertBase<
 
 	$dynamic(): MySqlInsertDynamic<this> {
 		return this as any;
+	}
+
+	/** @internal */
+	_prepare(): MySqlBasePreparedQuery {
+		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config);
+		return this.session.prepareQuery(
+			this.dialect.sqlToQuery(sql),
+			'raw',
+			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
+		);
 	}
 }

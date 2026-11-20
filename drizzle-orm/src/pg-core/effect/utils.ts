@@ -3,4 +3,4 @@ import type { DrizzlePgConfig } from '../utils.ts';
 
 export type EffectDrizzlePgConfig<
 	TRelations extends AnyRelations = EmptyRelations,
-> = Omit<DrizzlePgConfig<TRelations>, 'cache' | 'logger'>;
+> = Omit<DrizzlePgConfig<TRelations>, 'logger'>;

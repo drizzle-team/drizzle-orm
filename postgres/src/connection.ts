@@ -1,5 +1,6 @@
 // A single PostgreSQL connection: transport (net/tls), auth, and the extended
 // query protocol. One query in flight at a time (queries queue). No LISTEN/NOTIFY.
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Duplex } from 'node:stream';
 import { md5Password, peerCertDer, type Scram, scramForChannel } from './auth.ts';
 import { addBrand } from './brand.ts';
@@ -17,8 +18,8 @@ import {
 	type RawParams,
 	setTransactionSnapshotSql,
 } from './encode.ts';
-import { parseErrorFields, PgError } from './errors.ts';
-import { isEvalAvailable, type RowMapper, RowMappers } from './mapper.ts';
+import { markConnectionLost, parseErrorFields, PgError } from './errors.ts';
+import { isEvalAvailable, type RowMapper, RowMappers, type ShapePlan } from './mapper.ts';
 import {
 	type ParamsEncoder,
 	parseCommandComplete,
@@ -37,7 +38,6 @@ import {
 	writeSync,
 } from './protocol.ts';
 import {
-	mergeUnknownCols as mergeUnknown,
 	type ParamType,
 	paramTypeOid,
 	type PgType,
@@ -77,6 +77,7 @@ const OPTION_KEYS = new Set([
 	'debug',
 	'timeout',
 	'signal',
+	'cancel',
 	'trace',
 ]);
 import { Cursor, type CursorOptions } from './cursor.ts';
@@ -146,6 +147,21 @@ const FLUSH_THRESHOLD = 64 * 1024; // flush the batch immediately once it reache
 
 // Per-name statement cache. paramOids come from ParameterDescription; the binary param plan is
 // compiled from them LAZILY on first reuse (null = compiled, nothing binary-able -> plain text path).
+/** A `bulkInsert({ defaults: true })` statement that has a server-side name */
+interface ValuesStatement {
+	name: string;
+	cost: number; // estimated server memory, bytes
+	uses: number; // executions queued or in flight: not evicted while above zero
+}
+
+// What the server-side statements of one connection named for `bulkInsert({ defaults: true })` may take in
+// total, as estimated by valuesStatementCost
+const VALUES_NAMES_BUDGET = 16 * 1024 * 1024;
+// A prepared VALUES statement measured about 12 KB of backend memory at 8 rows (230 characters of SQL) and about
+// 100 KB at 64 rows (1,900 characters), on PostgreSQL 17 after it had been executed a few times
+const valuesStatementCost = (sql: string): number => 4096 + 50 * sql.length;
+const VALUES_SEEN_CHARS = 1024 * 1024;
+
 interface PreparedEntry {
 	sql: string;
 	fields: Field[];
@@ -166,12 +182,15 @@ interface StatementMappers {
 
 // Identity of a Parse on the wire: same name may NOT be reused for different sql OR different declared
 // param types (the parseInflight burst-dedup compares this key).
-// Fill 'unknown' (oid 0) shape columns with the REAL type OIDs from the result, positionally.
-// The merge itself lives in spec.ts so http/neon-http run the SAME one (they used to skip it).
-const mergeUnknownCols = (cols: CodegenCol[], fields: Field[]): CodegenCol[] =>
-	mergeUnknown(cols, fields, (f) => f.dataTypeOid);
-
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+// Whether two result-format specs (one code for every column, or one per column) ask for the same formats
+const sameFormats = (a: number | readonly number[], b: number | readonly number[]): boolean => {
+	if (typeof a === 'number' || typeof b === 'number') return a === b;
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+	return true;
+};
 
 const parseKey = (
 	t: Task,
@@ -271,6 +290,30 @@ function mergeResults(rs: QueryResult<never>[]): QueryResult<never> {
 		command: rs[0]?.command ?? null,
 	};
 }
+
+/** One open transaction or savepoint. Postgres nests savepoints in the order they are created, and releasing or
+ *  rolling back to one also ends every savepoint made after it. So the nested transactions that are opened
+ *  directly in one level run one at a time, in call order: each waits on `tail` for the one before it. A nested
+ *  transaction opened inside another one's callback belongs to that one's level and doesn't wait for it. */
+export interface TransactionLevel {
+	readonly conn: object;
+	open: boolean;
+	tail: Promise<unknown> | undefined;
+}
+
+// The level whose callback the running code is in: begin() reads it to tell a nested transaction's own nested
+// transaction from its sibling, as both call begin() on the same connection. Created with the first transaction.
+let transactionLevels: AsyncLocalStorage<TransactionLevel> | undefined;
+
+/** The transaction or savepoint whose callback the calling code runs in. */
+export const transactionLevel = (): TransactionLevel | undefined => transactionLevels?.getStore();
+
+/** Runs `fn` as code of `level`: a nested transaction that `fn` opens belongs to it. For a caller whose async
+ *  context doesn't follow its control flow, as an Effect fiber's doesn't. */
+export const inTransactionLevel = <T>(level: TransactionLevel, fn: () => T): T =>
+	(transactionLevels ??= new AsyncLocalStorage()).run(level, fn);
+
+const ignore = () => {};
 
 /** The callback run inside begin()/transaction(), given the transaction-scoped connection. */
 export type TxFn<T, Config extends ConnectionTypeConfig = ConnectionTypeConfig> = (
@@ -499,6 +542,7 @@ interface Task {
 	_repreparedSqlChanged?: boolean; // the name was cached with DIFFERENT SQL -> old statement deallocated + re-Parsed
 	_paramOids?: number[]; // ParameterDescription ('t') OIDs from THIS response cycle (cached with the statement on 'T'/'n')
 	_shapeCols?: CodegenCol[]; // shape with 'unknown' columns: mapper build DEFERRED until real OIDs arrive ('T' or cached fields)
+	_plan?: ShapePlan; // { shape } query: its plan, reconciled with the real column types when they arrive (applyShape)
 	paramTypes?: readonly number[]; // caller-declared param OIDs: sent in Parse + binary plan from the FIRST execution
 	copySource?: CopySource; // COPY FROM STDIN payload source — marks the task as a copy (simple 'Q', runs solo)
 	stopCopy?: () => void; // ends pumpCopy's wait on a source that stalls after the task settled
@@ -523,6 +567,8 @@ interface Task {
 	binary?: boolean; // { binary: true }: force all columns binary; build the mapper binary from RowDescription OIDs
 	timeout?: number;
 	signal?: AbortSignal;
+	// false: an abort never sends a CancelRequest (QueryOptions.cancel). Set only on a query with signal or timeout
+	cancel?: false;
 	timer?: ReturnType<typeof setTimeout>;
 	graceTimer?: ReturnType<typeof setTimeout>;
 	settled?: boolean; // caller already resolved/rejected (by timeout/abort) — don't settle again
@@ -692,6 +738,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private _roundTrips = 0; // flushes sent while nothing earlier awaited a response (read by pool.batch metrics)
 	private unflushed = 0; // tasks serialized into outbuf since the last flush (round-trip accounting)
 	private spCounter = 0; // monotonic counter for auto-generated SAVEPOINT names (nested begin)
+	private txRoot: TransactionLevel | undefined; // the open transaction's own level (see TransactionLevel)
 	private rttSamples: number[] = []; // network round-trip samples (ms), oldest→newest, capped at RTT_WINDOW
 	private rttFloor = Infinity; // lowest round trip seen (ms): the 'auto' pipeline depth follows it
 	private lastPingAt = 0; // send time of the last handshake msg awaiting a reply (0 = none pending)
@@ -706,16 +753,20 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private paramPlanCache = new WeakMap<readonly number[], ParamsEncoder | null>();
 	// JIT Bind+Execute+Sync encoders, keyed by binary-plan identity (stable per statement/paramTypes). Rebuilt
 	// only when the statement name or result-format changes for that plan. Empty unless encode:'jit'/'auto'+eval.
-	private jitEncodeCache = new Map<ParamsEncoder, { jit: BindEncoder | null; name: string; rfSig: number | string }>();
+	private jitEncodeCache = new Map<ParamsEncoder, { jit: BindEncoder | null; name: string; rf: number | number[] }>();
 	private jitEncode = false; // eval available AND encode !== 'interpreted'
 	// bulkInsert: (table+columns+returning) -> generated unnest SQL + array OIDs (stable identity) + auto statement name
 	private insertMeta = new Map<string, { sql: string; oids: number[]; name: string }>();
-	// bulkInsert({ defaults:true }): VALUES-with-DEFAULT SQL -> auto statement name. Keyed by the full SQL
-	// (default-token positions + row count), so identical patterns reuse one prepared statement. EVERY
-	// distinct pattern is named — re-Parsing per chunk instead costs ~2.5x at scale (defaults-prepare.bench),
-	// so naming always wins. The common (uniform) case is 1-2 statements; only a pathological per-row-varying
-	// batch accrues one statement per distinct chunk SQL. (On a transaction pooler query() drops names anyway.)
-	private valuesMeta = new Map<string, string>();
+	// bulkInsert({ defaults:true }): the VALUES-with-DEFAULT statements that have a server-side name, by their SQL,
+	// least recently used first. See valuesStatement() for the rules.
+	private valuesNames = new Map<string, ValuesStatement>();
+	private valuesCost = 0; // estimated server memory of the statements in valuesNames
+	private valuesSeq = 0; // names are never reused: `_iv` + this counter
+	// texts sent once, unnamed, and not yet seen a second time; bounded by their total length
+	private valuesSeen = new Set<string>();
+	private valuesSeenChars = 0;
+	// names evicted from valuesNames, to Close on the server with the next statement that goes out
+	private pendingCloses: string[] = [];
 	private rowMappers: RowMappers; // per-shape mapper cache: this connection's own, or its pool's
 	// query-builder fast path: a chunks array (tagged template / builder) has stable identity, so cache
 	private scramState?: Scram;
@@ -847,11 +898,15 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		oids: readonly number[],
 		rf: number | number[],
 	): BindEncoder | null {
-		const rfSig = typeof rf === 'number' ? rf : rf.join(',');
 		const je = this.jitEncodeCache.get(plan);
-		if (je !== undefined && je.name === name && je.rfSig === rfSig) return je.jit;
+		// A repeat execution passes the same result-format array (cached on its statement or shape, never changed),
+		// so it matches by identity; comparing contents would build a string on every query.
+		if (je !== undefined && je.name === name && (je.rf === rf || sameFormats(je.rf, rf))) {
+			je.rf = rf;
+			return je.jit;
+		}
 		const jit = compileBindEncoder(name, oids, rf); // null when the row width exceeds the JIT cap -> caller falls back
-		this.jitEncodeCache.set(plan, { jit, name, rfSig });
+		this.jitEncodeCache.set(plan, { jit, name, rf });
 		return jit;
 	}
 
@@ -1123,9 +1178,9 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 						if (this.current._cacheName) this.cacheStatement(this.current);
 						return;
 					}
-					if (this.current._typed && this.current._shapeCols && !this.current.mapper) {
+					if (this.current._typed && this.current._plan) {
 						try {
-							this.assignMapper(this.current, mergeUnknownCols(this.current._shapeCols, this.current.fields));
+							this.applyShape(this.current, this.current.fields);
 						} catch (e) {
 							this.current.error = e as Error;
 						}
@@ -1305,6 +1360,16 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	}
 
 	// Build + assign the row mapper for a task, capturing the resolved column plan when { debug: true }.
+	// A shaped query's mapper for the column types the server really returns (shape-compat.ts): the shape's own when
+	// they are the declared ones, which after the first time is one lookup. Throws when a column can't give the value
+	// its shape declares.
+	private applyShape(t: Task, fields: readonly Field[]): void {
+		if (t.mode !== 'array' && t.mode !== 'object') return;
+		const plan = this.rowMappers.reconciled(t._plan!, fields, (cols) => this.resolveCols(cols));
+		t.mapper = this.rowMappers.reconciledMapper(plan, t.mode);
+		if (t.debug) t._debugCols = plan.cols;
+	}
+
 	private assignMapper(t: Task, cols: CodegenCol[]): void {
 		t.mapper = this.getMapper(cols, t.mode);
 		if (t.debug) t._debugCols = cols;
@@ -1506,7 +1571,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	// Direct socket write with drain backpressure — COPY payloads bypass the outbuf batching.
 	private writeRaw(bytes: Buffer): Promise<void> {
 		const s = this.socket;
-		if (!s) return Promise.reject(new Error('connection is closed'));
+		if (!s) return Promise.reject(markConnectionLost(new Error('connection is closed')));
 		if (s.write(bytes)) return Promise.resolve();
 		return new Promise<void>((resolve, reject) => {
 			const ok = (): void => {
@@ -1578,6 +1643,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		let parsedName: string | undefined // this task wrote a NAMED Parse (recorded in parseInflight only once the whole task serialized)
 		;
 		let parseSkipped = false; // named, and an identical Parse is already queued ahead in this pipeline
+		let closesWritten: string[] | undefined; // pendingCloses this task carries: put back if its bytes are discarded
 		try {
 			if (t.copySource || t.copyOut) writeQuery(w, t.sql);
 			// COPY: simple 'Q' (cleanest copy state machine); 'G' pumps the source, 'd' feeds copyTo
@@ -1586,6 +1652,16 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 					throw new TypeError(
 						'@drizzle/postgres: params must be an array — pass options as the THIRD argument: query(sql, [], opts)',
 					);
+				}
+				// statements dropped by valuesStatement(): closed on the server in front of this one. Nothing queued
+				// uses them, and their names are not given out again
+				if (this.pendingCloses.length !== 0) {
+					for (const closed of this.pendingCloses) {
+						writeClose(w, 'S', closed);
+						this.prepared.delete(closed);
+					}
+					closesWritten = this.pendingCloses;
+					this.pendingCloses = [];
 				}
 				const name = t.name ?? '';
 				let reuse = false;
@@ -1597,9 +1673,9 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 						entry = cached;
 						t.fields = cached.fields;
 						if (t._typed) {
-							// shape / queryTyped: the caller already chose per-column formats + mapper in query(); keep them.
-							// Exception: a shape with 'unknown' columns deferred its mapper — build it from the cached fields.
-							if (t._shapeCols && !t.mapper) this.assignMapper(t, mergeUnknownCols(t._shapeCols, cached.fields));
+							// shape / queryTyped: the caller already chose per-column formats in query(). A shape's mapper
+							// follows the statement's real column types, here from the cached fields.
+							if (t._plan) this.applyShape(t, cached.fields);
 						} else if (t.binary && (t.mode === 'array' || t.mode === 'object')) {
 							// { binary: true }: all binary (mapper slot on the statement entry)
 							const m = cached.binary ??= this.statementMappers(
@@ -1711,6 +1787,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			if (t.perf) t.perf.sent = w.mark() - mark; // bytes this query contributed to the batch
 		} catch (e) {
 			w.rewind(mark); // discard this task's partial bytes; earlier batched tasks stay intact
+			if (closesWritten) this.pendingCloses = closesWritten.concat(this.pendingCloses);
 			if (t.group) t.group.failed = true; // its batch must not commit without it
 			this.rejectTask(t, e as Error);
 			return;
@@ -1764,8 +1841,9 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		return pooledConnections.has(this);
 	}
 
-	private canCancel(opts: { timeout?: number; signal?: AbortSignal }): boolean {
-		return this.isPooled || (opts.timeout == null && opts.signal === undefined);
+	// A CancelRequest needs the pool's connection settings; an abort that sends none works on any connection
+	private canCancel(opts: { timeout?: number; signal?: AbortSignal; cancel?: boolean }): boolean {
+		return this.isPooled || (opts.timeout == null && opts.signal === undefined) || opts.cancel === false;
 	}
 
 	// Cancel a task: settle the caller immediately, and if it's in flight, send an
@@ -1779,10 +1857,11 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			// Already on the wire: settle the caller now; its result still streams back and finishTask discards
 			// it (it's settled). An out-of-band CancelRequest cancels whatever the backend is CURRENTLY running —
 			// accurate only for the head (idx 0); for a query queued behind the head in the pipeline we just let
-			// it run and drop the result (cancelling would hit the wrong query).
+			// it run and drop the result (cancelling would hit the wrong query). A task with `cancel: false` is
+			// never canceled on the server, as it may share the connection with other callers' queries.
 			this.fireEnd(task, reason);
 			this.rejectTask(task, reason);
-			if (idx === 0) {
+			if (idx === 0 && task.cancel !== false) {
 				// CopyFail ends a COPY FROM STDIN, and the server holds back a CancelRequest while it reads COPY data.
 				if (!task.copySource) this.sendCancelRequest(task);
 				task.graceTimer = setTimeout(() => {
@@ -1953,13 +2032,16 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			if (code === '0A000' || code === '26000') {
 				this.prepared.delete(t.name);
 				this.staleStatements.add(t.name);
-				// NOT for _typed (shape/queryTyped): the caller-declared mapper isn't rebuilt from the fresh
-				// RowDescription, so a schema change would silently decode with the stale plan — surface instead.
+				// NOT for queryTyped: the caller-declared mapper isn't rebuilt from the fresh RowDescription, so a
+				// schema change would silently decode with the stale plan — surface instead. A { shape } query is
+				// re-run: its mapper is settled against the fresh RowDescription (applyShape).
 				// NOT inside a (now-aborted) transaction: the retry would only hit 25P02; surface the real 0A000.
 				// NOT for 'wire': errors are DATA there (the E frame resolves in-band); a transparent re-run would
 				// also reorder the response behind later pipeline entries. staleStatements above still self-heals
 				// the statement for its next execution.
-				if (!t.settled && !t.stream && !t._typed && !t.wire && !this.inTransaction && (t._retries ?? 0) < 1) {
+				if (
+					!t.settled && !t.stream && (!t._typed || t._plan) && !t.wire && !this.inTransaction && (t._retries ?? 0) < 1
+				) {
 					t._retries = (t._retries ?? 0) + 1;
 					(t._retryErrors ??= []).push(code);
 					if (t.timer) clearTimeout(t.timer); // old timer cleared here; startTask re-arms a fresh one (else it leaks)
@@ -1973,7 +2055,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 					t._reused = undefined;
 					t._paramOids = undefined;
 					if (t.perf) t.perf.tFirst = undefined; // measure the retry's ttfb, not the failed attempt's error response
-					if (!t.binary) t.resultFormat = undefined; // plain query: re-run as text; { binary: true } keeps all-binary
+					// plain query: re-run as text; { binary: true } keeps all-binary, a shape keeps its own formats
+					if (!t.binary && !t._typed) t.resultFormat = undefined;
 					// Re-run at the BACK of the queue (not the front) — one uniform mechanic for gated AND pipelined
 					// transport: under pipelining a front re-run can't preempt queries already in flight anyway, and
 					// the failed attempt had no side effects (0A000/26000 fire pre-execution) so the later position is
@@ -2096,7 +2179,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			if (t.graceTimer) clearTimeout(t.graceTimer);
 			t.signalCleanup?.();
 			if (!t.settled) {
-				const reason = t.error ?? err;
+				const reason = markConnectionLost(t.error ?? err);
 				this.fireEnd(t, reason);
 				this.rejectTask(t, reason);
 			}
@@ -2106,10 +2189,11 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			this.prepared.clear();
 			this.staleStatements.clear();
 			this.parseInflight.clear(); // server-side prepared statements are gone after a drop/restart
+			this.pendingCloses.length = 0;
 			void this.startReconnect(err);
 		} else {
 			this.state = 'closed';
-			this.rejectQueue(err);
+			this.rejectQueue(markConnectionLost(err));
 		}
 	}
 
@@ -2120,7 +2204,9 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			if (this.ended || this.state === 'closed') return;
 			if (maxRetries != null && attempt >= maxRetries) {
 				this.state = 'closed';
-				this.rejectQueue(new Error(`reconnect failed after ${attempt} attempts: ${lastErr.message}`));
+				this.rejectQueue(
+					markConnectionLost(new Error(`reconnect failed after ${attempt} attempts: ${lastErr.message}`)),
+				);
 				return;
 			}
 			await sleep(Math.min(max, base * 2 ** attempt) * (0.5 + Math.random() * 0.5));
@@ -2267,7 +2353,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			});
 		}
 		const p = new Promise<QueryResult<never>>((resolve, reject) => {
-			if (this.state === 'closed') return reject(new Error('connection is closed'));
+			if (this.state === 'closed') return reject(markConnectionLost(new Error('connection is closed')));
 			if (typeof sql !== 'string') {
 				return reject(
 					new TypeError(
@@ -2303,6 +2389,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				reject,
 				timeout: opts.timeout,
 				signal: opts.signal,
+				cancel: opts.cancel === false && (opts.signal !== undefined || opts.timeout != null) ? false : undefined,
 				debug: opts.debug,
 				paramTypes: opts.params && resolveParamTypes(opts.params),
 				group: this.batchGroup,
@@ -2327,7 +2414,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 					shape,
 					() => this.resolveCols(typeof shape === 'function' ? (shape.$cols as CodegenCol[]) : shapeCols(shape)),
 				);
-				if (plan.deferred) task._shapeCols = plan.cols; // 'unknown' cols: defer the mapper until real OIDs arrive
+				task._plan = plan; // the mapper is settled against the real column types when they arrive ('T' or cached fields)
+				if (plan.deferred) task._shapeCols = plan.cols; // 'unknown' cols: no mapper until then
 				else if (mode === 'array' || mode === 'object') {
 					task.mapper = this.rowMappers.planMapper(plan, mode);
 					if (opts.debug) task._debugCols = plan.cols;
@@ -2364,7 +2452,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		} & CancelOptions<Config> = {},
 	): Promise<QueryResult<never>> {
 		const p = new Promise<QueryResult<never>>((resolve, reject) => {
-			if (this.state === 'closed') return reject(new Error('connection is closed'));
+			if (this.state === 'closed') return reject(markConnectionLost(new Error('connection is closed')));
 			const mode = opts.mode ?? 'object';
 			const plan = this.rowMappers.plan(columns, () => this.resolveCols(columns)); // cached by array identity
 			const cols = plan.cols;
@@ -2411,10 +2499,10 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	 *  literal `DEFAULT` keyword (the server applies the column default — a constant, `now()`,
 	 *  `nextval(…)`, anything), while an explicit `null` still inserts SQL NULL. (The unnest path
 	 *  can't express this: it sends every column, so an undefined there becomes NULL and OVERRIDES
-	 *  the default.) Trade-off: the statement text encodes the DEFAULT positions, so instead of one
-	 *  immutable statement you get one prepared statement per distinct (default-pattern, chunk-size)
-	 *  — the common case (the same columns omitted on every row) stays a single reusable statement.
-	 *  Params go out text-encoded with server type inference (no declared OIDs); every other option
+	 *  the default.) Trade-off: the statement text encodes the DEFAULT positions and the chunk size, so
+	 *  there is no single immutable statement to prepare: a text goes out unnamed the first time and is
+	 *  prepared under a name once it repeats, and the named ones of a connection are kept within a memory
+	 *  budget, the least recently used closed on the server (see valuesStatement). Params go out text-encoded with server type inference (no declared OIDs); every other option
 	 *  (chunking, atomic/WAL, returning, onProgress) behaves the same. */
 	bulkInsert(
 		table: string,
@@ -2454,13 +2542,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 					tuples[r - start] = '(' + cells.join(',') + ')';
 				}
 				const sql = prefix + tuples.join(',') + suffix;
-				// one prepared-statement name per distinct SQL — naming always beats re-Parsing (measured ~2.5x)
-				let name = this.valuesMeta.get(sql);
-				if (name === undefined) {
-					name = '_iv' + this.valuesMeta.size;
-					this.valuesMeta.set(sql, name);
-				}
-				return { sql, params, name, oids: undefined };
+				const statement = this.valuesStatement(sql);
+				return { sql, params, name: statement?.name, oids: undefined, statement };
 			};
 			return this.runBulk('bulkInsert', names, rows, opts, 'insertedRows', makeChunk);
 		}
@@ -2491,6 +2574,61 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				oids: m.oids,
 			}),
 		);
+	}
+
+	/**
+	 * The server-side name a `bulkInsert({ defaults: true })` statement is sent under, if it gets one.
+	 *
+	 * The text of such a statement holds which cells are DEFAULT and how many rows the chunk has, so the number of
+	 * distinct texts has no bound: rows that leave out different columns, or batches of different sizes, give a new
+	 * text almost every call. A name for every text is a prepared statement for every text, kept by the server until
+	 * the connection closes (measured: 387 MB of backend memory after 6,000 distinct 64-row statements). No names at
+	 * all means the server parses a repeating statement every time, which is up to 1.9x slower. So:
+	 * - a text is sent unnamed the first time it is seen, and named from the second time on: a text that never
+	 *   repeats leaves nothing behind
+	 * - the named statements of a connection stay within VALUES_NAMES_BUDGET of estimated server memory. When a
+	 *   new one does not fit, the least recently used ones are dropped here and closed on the server (the Close
+	 *   goes out in front of the next statement, in the same write)
+	 * - a statement with an execution queued or in flight is never dropped: that execution may reach the server
+	 *   after the Close would. If that leaves no room, the new text is sent unnamed
+	 */
+	private valuesStatement(sql: string): ValuesStatement | undefined {
+		if (!this.cfg.prepare) return undefined; // names are never sent on this connection
+
+		const known = this.valuesNames.get(sql);
+		if (known) {
+			// most recently used last
+			this.valuesNames.delete(sql);
+			this.valuesNames.set(sql, known);
+			return known;
+		}
+
+		if (!this.valuesSeen.delete(sql)) {
+			this.valuesSeen.add(sql);
+			this.valuesSeenChars += sql.length;
+			for (const oldest of this.valuesSeen) {
+				if (this.valuesSeenChars <= VALUES_SEEN_CHARS) break;
+				this.valuesSeen.delete(oldest);
+				this.valuesSeenChars -= oldest.length;
+			}
+			return undefined;
+		}
+		this.valuesSeenChars -= sql.length;
+
+		const cost = valuesStatementCost(sql);
+		for (const [text, statement] of this.valuesNames) {
+			if (this.valuesCost + cost <= VALUES_NAMES_BUDGET) break;
+			if (statement.uses > 0) continue;
+			this.valuesNames.delete(text);
+			this.valuesCost -= statement.cost;
+			this.pendingCloses.push(statement.name);
+		}
+		if (this.valuesCost + cost > VALUES_NAMES_BUDGET) return undefined;
+
+		const statement: ValuesStatement = { name: '_iv' + this.valuesSeq++, cost, uses: 0 };
+		this.valuesNames.set(sql, statement);
+		this.valuesCost += cost;
+		return statement;
 	}
 
 	/** Bulk-UPDATE rows matched by key column(s):
@@ -2582,7 +2720,13 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		makeChunk: (
 			start: number,
 			end: number,
-		) => { sql: string; params: unknown[]; name: string | undefined; oids: readonly number[] | undefined },
+		) => {
+			sql: string;
+			params: unknown[];
+			name: string | undefined;
+			oids: readonly number[] | undefined;
+			statement?: ValuesStatement;
+		},
 	): Promise<QueryResult<never>> {
 		if (!this.canCancel(opts)) return Promise.reject(cancelNeedsPoolError());
 		const t0 = performance.now();
@@ -2614,13 +2758,23 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			metrics: boolean | 'ms' | 'us' | undefined,
 		): Promise<QueryResult<never>> => {
 			const c = makeChunk(start, end);
-			return (this as Connection).query(c.sql, c.params, {
+			const p = (this as Connection).query(c.sql, c.params, {
 				name: c.name,
 				params: c.oids,
 				timeout: opts.timeout,
 				signal: opts.signal,
 				metrics,
 			}) as Promise<QueryResult<never>>;
+			const statement = c.statement;
+			if (statement) {
+				// held until this execution has settled: see valuesStatement()
+				statement.uses++;
+				const release = (): void => {
+					statement.uses--;
+				};
+				p.then(release, release);
+			}
+			return p;
 		};
 		const chunkMetrics = onProgress ? ('us' as const) : undefined;
 		const chunk = Math.max(1, opts.chunk ?? defaultChunk(names, rows)); // 64, bytes-capped for fat rows; explicit opts.chunk always wins
@@ -2695,7 +2849,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		opts: { metrics?: boolean | 'ms' | 'us' } & CancelOptions<Config> = {},
 	): Promise<QueryResult<never>> {
 		return new Promise<QueryResult<never>>((resolve, reject) => {
-			if (this.state === 'closed') return reject(new Error('connection is closed'));
+			if (this.state === 'closed') return reject(markConnectionLost(new Error('connection is closed')));
 			const task: Task = {
 				sql,
 				params: [],
@@ -2937,32 +3091,66 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		});
 	}
 
-	private async runTx<T>(options: TxOptions | undefined, fn: TxFn<T, Config>): Promise<T> {
-		if (this.inTransaction) {
-			// nested: a SAVEPOINT (options don't apply — the outermost BEGIN already set the tx's isolation/mode)
-			const sp = `postgres_sp_${++this.spCounter}`;
-			await this.query(`savepoint ${sp}`);
-			try {
-				const r = await fn(this);
-				await this.query(`release savepoint ${sp}`);
-				return r;
-			} catch (e) {
-				// roll back to the savepoint (clears any aborted state) and release it; the outer tx continues.
-				try {
-					await this.query(`rollback to savepoint ${sp}`);
-					await this.query(`release savepoint ${sp}`);
-				} catch { /* connection may be broken */ }
-				throw e;
-			}
+	// Runs a transaction's or savepoint's callback as a level of its own, which its nested transactions queue in.
+	private async runLevel<T>(fn: TxFn<T, Config>, root: boolean): Promise<T> {
+		const level: TransactionLevel = { conn: this, open: true, tail: undefined };
+		if (root) this.txRoot = level;
+		try {
+			return await inTransactionLevel(level, () => fn(this));
+		} finally {
+			level.open = false;
+			if (root) this.txRoot = undefined;
 		}
+	}
+
+	// nested: a SAVEPOINT (options don't apply — the outermost BEGIN already set the tx's isolation/mode)
+	private async runSavepoint<T>(fn: TxFn<T, Config>): Promise<T> {
+		const sp = `postgres_sp_${++this.spCounter}`;
+		await this.query(`savepoint ${sp}`);
+		try {
+			const r = await this.runLevel(fn, false);
+			await this.query(`release savepoint ${sp}`);
+			return r;
+		} catch (e) {
+			// roll back to the savepoint (clears any aborted state) and release it; the outer tx continues.
+			try {
+				await this.query(`rollback to savepoint ${sp}`);
+				await this.query(`release savepoint ${sp}`);
+			} catch { /* connection may be broken */ }
+			throw e;
+		}
+	}
+
+	private runTx<T>(options: TxOptions | undefined, fn: TxFn<T, Config>): Promise<T> {
+		if (!this.inTransaction) return this.runOuterTx(options, fn);
+		// The level this call was made in: the calling code's, or the transaction's own for a caller outside any
+		// callback of this connection (a transaction opened with a plain BEGIN, or a level that has ended).
+		const here = transactionLevel();
+		const level = here !== undefined && here.conn === this && here.open
+			? here
+			: (this.txRoot ??= { conn: this, open: true, tail: undefined });
+		// One at a time per level (see TransactionLevel). With none before it, the savepoint goes out with this call.
+		const result = level.tail === undefined
+			? this.runSavepoint(fn)
+			: level.tail.then(() => this.runSavepoint(fn));
+		const tail = result.then(ignore, ignore);
+		level.tail = tail;
+		void tail.then(() => {
+			if (level.tail === tail) level.tail = undefined;
+		});
+		return result;
+	}
+
+	private async runOuterTx<T>(options: TxOptions | undefined, fn: TxFn<T, Config>): Promise<T> {
 		await this.query(beginClause(options));
+		let result: T;
+		let commit: QueryResult<unknown[]>;
 		try {
 			if (typeof options === 'object' && options.snapshot != null) {
 				await this.query(setTransactionSnapshotSql(options.snapshot));
 			}
-			const r = await fn(this);
-			await this.query('commit');
-			return r;
+			result = await this.runLevel(fn, true);
+			commit = await this.query('commit');
 		} catch (e) {
 			// COMMIT that failed already ended the tx server-side, so this ROLLBACK is a harmless no-op then;
 			// otherwise it undoes the work. Either way rethrow the ORIGINAL error.
@@ -2971,6 +3159,14 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			} catch { /* connection may be broken; release()/reconnect handles it */ }
 			throw e;
 		}
+		// Postgres answers COMMIT of an aborted transaction with the ROLLBACK tag: a statement failed inside and the
+		// callback caught its error. Nothing was saved, so don't resolve as if it had been.
+		if (commit.command === 'ROLLBACK') {
+			throw new Error(
+				'COMMIT rolled back the transaction, because a statement in it failed earlier and its error was caught. Nothing in the transaction was saved.',
+			);
+		}
+		return result;
 	}
 
 	// `trace`: run the query promise through an async wrapper so a rejection is re-thrown as a fresh error born
@@ -3042,7 +3238,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				}
 			},
 		};
-		if (this.state === 'closed') err = new Error('connection is closed');
+		if (this.state === 'closed') err = markConnectionLost(new Error('connection is closed'));
 		else if (!this.armSignal(t)) {
 			this.queue.push(t);
 			this.processQueue();
@@ -3183,7 +3379,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			},
 		};
 		if (this.state === 'closed') {
-			err = new Error('connection is closed');
+			err = markConnectionLost(new Error('connection is closed'));
 			rejectResult(err);
 		} else if (!this.armSignal(t)) {
 			this.queue.push(t);

@@ -307,6 +307,7 @@ export function tests(test: Test) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		test.concurrent('select distinct ordered by cast columns', async ({ db, push }) => {
 			const table = pgTable('distinct_cast_order', {
 				id: integer('id').notNull(),
@@ -344,6 +345,7 @@ export function tests(test: Test) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		test.concurrent('order by aliased cast columns', async ({ db, push }) => {
 			const table = pgTable('alias_cast_order', {
 				id: integer('id').notNull(),
@@ -670,6 +672,8 @@ export function tests(test: Test) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent('insert with explicit column list', async ({ db, push }) => {
 			const table = pgTable('column_selection', {
 				id: integer('id').primaryKey(),
@@ -693,6 +697,8 @@ export function tests(test: Test) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent('insert with explicit column list - select', async ({ db, push }) => {
 			const src = pgTable('column_selection_select_src', {
 				id: integer('id').primaryKey(),
@@ -719,6 +725,8 @@ export function tests(test: Test) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent('insert with explicit column list - on conflict', async ({ db, push }) => {
 			const table = pgTable('column_selection_conflict', {
 				id: integer('id').primaryKey(),

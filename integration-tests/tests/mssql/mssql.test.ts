@@ -372,6 +372,7 @@ test('table configs: unique in column', async () => {
 	expect(columnField?.isUnique).toBeTruthy();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db }) => {
 	const table = sql.identifier('raw_execute_types');
 
@@ -483,6 +484,7 @@ test('select distinct', async ({ db }) => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6673
 // https://github.com/drizzle-team/drizzle-orm/issues/1603
 test('select distinct ordered by cast columns', async ({ db }) => {
 	const table = mssqlTable('distinct_cast_order', {
@@ -512,6 +514,7 @@ test('select distinct ordered by cast columns', async ({ db }) => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6673
 test('order by aliased cast columns', async ({ db }) => {
 	const table = mssqlTable('alias_cast_order', {
 		id: int('id').notNull(),
@@ -547,6 +550,7 @@ test('order by aliased cast columns', async ({ db }) => {
 	expect(byDistinctAlias).toEqual(expected);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1603
 test('Nested partial select left join: null first column', async ({ db }) => {
 	const orgs = mssqlTable('issue1603_orgs', {
 		id: int('id').primaryKey(),
@@ -653,6 +657,7 @@ test('all types ~codecs~ set operations', async ({ client }) => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs', async ({ createDB, push }) => {
 	let customCast = false;
 	let customMap = false;
@@ -784,6 +789,7 @@ test('Column as decoder applies codecs', async ({ createDB, push }) => {
 	expect(viewNested).toStrictEqual({ ...expectedViewRow, self: expectedViewRow });
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 	let customCast = false;
 	let customMap = false;
@@ -5488,6 +5494,7 @@ test('test $onUpdateFn and $onUpdate works updating', async ({ db }) => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5780
 test('$onUpdateFn called only when needed', async ({ db }) => {
 	let counter = 0;
 	const table = mssqlTable('on_update_call_test', {
@@ -6810,6 +6817,7 @@ test('full join', async ({ db }) => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4464
 test('db.execute modes', async ({ db }) => {
 	const users = mssqlTable('users_execute_modes', {
 		id: int('id').primaryKey(),
@@ -7429,6 +7437,7 @@ test('pagination: top', async ({ db }) => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6599
 test('pagination: offset', async ({ db }) => {
 	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
 	const query = () => db.select({ id: citiesTable.id }).from(citiesTable).orderBy(citiesTable.id);
@@ -7443,6 +7452,7 @@ test('pagination: offset', async ({ db }) => {
 	expect(await query().offset(10)).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6599
 test('pagination: offset with fetch', async ({ db }) => {
 	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
 	const query = () => db.select({ id: citiesTable.id }).from(citiesTable).orderBy(citiesTable.id);
@@ -7458,6 +7468,7 @@ test('pagination: offset with fetch', async ({ db }) => {
 	expect(await query().offset(3).fetch(10)).toStrictEqual([{ id: 4 }, { id: 5 }]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6599
 test('pagination: placeholders', async ({ db }) => {
 	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
 	const query = () => db.select({ id: citiesTable.id }).from(citiesTable).orderBy(citiesTable.id);
@@ -7484,6 +7495,7 @@ test('pagination: placeholders', async ({ db }) => {
 	expect(await stmt.execute({ offset: 5, fetch: 2 })).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6599
 test('pagination: set operations', async ({ db }) => {
 	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
 	const query = () =>
@@ -8105,6 +8117,7 @@ test('Query error wrapping', async ({ db }) => {
 		.rejects.toBeInstanceOf(DrizzleQueryError);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params', async ({ createDB }) => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -8120,6 +8133,7 @@ test('Query error params', async ({ createDB }) => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params - transaction', async ({ createDB }) => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const db = createDB({}, () => ({}), undefined, paramsInErrors);

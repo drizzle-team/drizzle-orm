@@ -1,15 +1,6 @@
-import {
-	exists,
-	type ExtractTablesFromSchema,
-	getColumns,
-	getTableColumns,
-	max,
-	type RelationsBuilder,
-	sql,
-} from 'drizzle-orm';
+import { exists, getColumns, getTableColumns, max, sql } from 'drizzle-orm';
 import { customType, integer, numeric, primaryKey, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import { expect, expectTypeOf } from 'vitest';
-import { UpstashTestCache } from '~/upstash-cache';
 import type { AllTypes } from './all-types';
 import {
 	allTypesDataWith,
@@ -38,8 +29,6 @@ import { fetchDecodedQueryRows, normalizeDataWithDbCodecs } from './utils';
 export const unsafeNumericSkips = [
 	'all types',
 	'all types ~codecs~',
-	'all types - upstash',
-	'all types ~codecs~ - upstash',
 	'Column as decoder applies codecs',
 	'Column as decoder applies codecs - Jit mappers',
 ];
@@ -49,13 +38,6 @@ export function unsafeNumericTests(test: Test) {
 	const allTypesTable = makeAllTypes('all_types');
 	const input = allTypesInputWith(safeIntegerReplacements);
 	const data = allTypesDataWith(safeIntegerReplacements);
-
-	const upstashTable = makeAllTypes('all_types_upstash');
-	const upstashSchema = { allTypesTable: upstashTable, ...boundsSchema };
-	const upstashRelations = (r: RelationsBuilder<ExtractTablesFromSchema<typeof upstashSchema>>) => ({
-		...allTypesRelations(r),
-		...boundsRelations(r),
-	});
 
 	test.concurrent('all types (safe integers)', async ({ db, push }) => {
 		await db.run(sql.raw(dropAllTypes('all_types')));
@@ -117,62 +99,7 @@ export function unsafeNumericTests(test: Test) {
 		await assertAllTypesTemporalBounds(db as any, { rqb: true });
 	});
 
-	test('all types - upstash (safe integers)', async ({ createDB, push }) => {
-		await using cache = new UpstashTestCache();
-		const { run } = cache;
-		const table = upstashTable;
-		const db = createDB(upstashSchema, upstashRelations, false, false, cache);
-		await db.run(sql.raw(dropAllTypes('all_types_upstash')));
-		await push({ table });
-
-		await cache.expectHits('all types', async () => {
-			await run(db.insert(table).values(input));
-
-			const query = db.select().from(table);
-			expect(await run(query)).toStrictEqual([data]);
-			expect(await run(() => query.all())).toStrictEqual([data]);
-			expect(await run(() => query.get())).toStrictEqual(data);
-
-			expect(await run(() => query.values())).toHaveLength(1);
-		});
-
-		// `.run()` is never read from or written to cache (checked by the cache suites), but mutations it executes still invalidate
-		await db.delete(table).run();
-		expect(await run(db.select().from(table))).toStrictEqual([]);
-		await db.insert(table).values(input).run();
-
-		await cache.expectHits('unions', () => assertAllTypesUnions(db as any, table, run, safeIntegerReplacements));
-		await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { data: safeIntegerBoundsData, run }));
-		await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db as any, { run }));
-	});
-
-	test('all types ~codecs~ - upstash (safe integers)', async ({ createDB, push }) => {
-		await using cache = new UpstashTestCache();
-		const { run } = cache;
-		const table = upstashTable;
-		const db = createDB(upstashSchema, upstashRelations, false, false, cache);
-		await db.run(sql.raw(dropAllTypes('all_types_upstash')));
-		await push({ table });
-
-		await cache.expectHits('all types', async () => {
-			await run(db.insert(table).values(input));
-			expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
-				...data,
-				self: [data],
-			});
-			expect(await run(db.query.allTypesTable.findMany({ with: { self: true } }))).toStrictEqual([{
-				...data,
-				self: [data],
-			}]);
-		});
-		await cache.expectHits('unions', () => assertAllTypesUnions(db as any, table, run, safeIntegerReplacements));
-		await cache.expectHits(
-			'bounds',
-			() => assertAllTypesBounds(db as any, { data: safeIntegerBoundsData, run, rqb: true }),
-		);
-		await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db as any, { run, rqb: true }));
-	});
-
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs (safe integers)', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;
@@ -301,6 +228,7 @@ export function unsafeNumericTests(test: Test) {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs - Jit mappers (safe integers)', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;

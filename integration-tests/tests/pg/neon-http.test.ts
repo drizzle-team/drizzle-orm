@@ -56,7 +56,6 @@ const skips = [
 	'transaction with options (set isolationLevel)',
 	'time zones are preserved - non-UTC session',
 	'all types ~codecs~ - non-UTC session',
-	'all types ~codecs~ - non-UTC session - upstash',
 	'transaction with options (accessMode read only)',
 	'transaction with options (deferrable)',
 	'transaction with an empty options object',
@@ -65,6 +64,7 @@ const skips = [
 // COMMON
 tests(test, skips);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 // Multi-statement queries are rejected by Neon HTTP API
 test('raw db.execute type matches returned data', async ({ neonhttp }) => {
 	const db = neonhttp;

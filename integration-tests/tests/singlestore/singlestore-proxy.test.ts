@@ -31,6 +31,7 @@ const exclude = [
 tests(proxyTest, [...exclude, ...floatReplacedSkips]);
 floatReplacedTests(proxyTest);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 proxyTest('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as SingleStoreRemoteDatabase;
 	const table = sql.identifier('raw_execute_types');

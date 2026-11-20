@@ -5,7 +5,7 @@
 import { describe, expect, test } from 'bun:test';
 import { encodeParam } from '../../../src/encode.ts';
 import { Parser, W } from '../../../src/protocol.ts';
-import { caught, PgError, REMOTE, testConnect, withConn } from '../../helpers/db.ts';
+import { caught, PgError, PGLITE, REMOTE, testConnect, withConn } from '../../helpers/db.ts';
 
 // Extract the sequence of frontend message-type bytes from a buffer the driver
 // wrote to the socket (each msg = 1 type byte + Int32 length covering len+payload).
@@ -382,7 +382,7 @@ describe('extended-path error recovery & lifecycle', () => {
 
 	// relies on pg_terminate_backend(backendKey.pid) hitting a real, terminable backend — skip on a remote
 	// target (REMOTE) like Neon, which virtualizes the reported backend pid so external termination no-ops.
-	test.skipIf(REMOTE)(
+	test.skipIf(REMOTE || PGLITE)(
 		'socket close mid-query (self-terminate) rejects in-flight; later query rejects "connection is closed"',
 		async () => {
 			const victim = await testConnect();

@@ -1,5 +1,6 @@
+import type { BatchMetrics } from '@drizzle-team/postgres';
 import { createPool as createNeonWsPool } from '@drizzle-team/postgres/neon-ws';
-import { defineRelations, sql } from 'drizzle-orm';
+import { defineRelations, eq, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import type { PostgresDatabase } from 'drizzle-orm/postgres';
 import { migrate } from 'drizzle-orm/postgres/migrator';
@@ -22,6 +23,7 @@ import {
 	makeAllTypes,
 } from './all-types';
 import { tests } from './common';
+import { preparedNameTests } from './common-prepared-names';
 import { localNeonWsOptions, postgresNeonWsTest as test } from './instrumentation';
 import { type BulkDrizzle, bulkTests } from './postgres-bulk';
 import { usersMigratorTable } from './schema';
@@ -34,13 +36,14 @@ import {
 const skips = [
 	'raw jsons',
 	'all types ~codecs~',
-	'all types ~codecs~ - upstash',
 ];
 
 tests(test, skips);
+preparedNameTests(test);
 
 bulkTests(test, { name: 'neon_ws', drizzle: drizzleNeonWs as BulkDrizzle });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresDatabase;
 	const table = sql.identifier('raw_execute_types');
@@ -76,6 +79,27 @@ test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	expect(any).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }], columns: ['id', 'name'] }));
 
 	await db.execute<never>(sql`drop table ${table}`);
+});
+
+test('batch metrics are attached to the response', async ({ db: fixtureDb, push }) => {
+	const db = fixtureDb as unknown as PostgresDatabase;
+	const users = pgTable('batch_metrics_users', { id: integer('id').primaryKey(), name: text('name').notNull() });
+	await push({ users });
+
+	const getUser = db.select({ name: users.name }).from(users).where(eq(users.id, sql.placeholder('id'))).prepare(
+		'neon_ws_metrics_get',
+	);
+	const measured = await db.batch([db.insert(users).values({ id: 1, name: 'John' }), getUser.bind({ id: 1 })], {
+		metrics: 'us',
+	});
+	expectTypeOf(measured.metrics).toEqualTypeOf<BatchMetrics>();
+	expect([...measured]).toMatchObject([{ rowCount: 1 }, [{ name: 'John' }]]);
+	// BEGIN, the two queries and COMMIT, pipelined in one round trip
+	expect(measured.metrics).toMatchObject({ unit: 'us', statements: 4, roundTrips: 1, unnamed: 1 });
+	expect(measured.metrics.queries.map((m) => m.statementName)).toEqual([undefined, 'neon_ws_metrics_get']);
+
+	const plain = await db.batch([getUser.bind({ id: 1 })]);
+	expect('metrics' in plain).toBe(false);
 });
 
 describe('migrator', () => {

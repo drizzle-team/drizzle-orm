@@ -16,6 +16,18 @@ import type { ProcedureIR } from './ir';
  *     type would silently create an overload instead of replacing;
  *   - `body` is the text between the dollar quotes, which Postgres stores verbatim (`prosrc`).
  */
+/**
+ * Off for this release: drizzle-kit ignores procedures. `procedure()` and `procedure.unsupported()` in a schema
+ * are skipped, and the procedures of a database are not read, so generate, push and pull never create, change,
+ * drop or write one.
+ *
+ * Known problems to solve before this is turned on, each with a test in tests/postgres/procedures/disabled.test.ts
+ * that fails once it is:
+ *   - push drops every procedure the schema does not declare, including the ones an extension owns;
+ *   - the query that reads procedures uses operators and functions without the `pg_catalog` qualification.
+ */
+export const proceduresEnabled: boolean = false;
+
 export interface ProcedureDef {
 	schema: string;
 	name: string;

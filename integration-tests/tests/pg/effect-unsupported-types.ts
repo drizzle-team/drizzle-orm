@@ -17,8 +17,6 @@ import {
 	timestamp,
 } from 'drizzle-orm/pg-core';
 import * as Effect from 'effect/Effect';
-import { SqlClient } from 'effect/sql/SqlClient';
-import { withUpstashCache } from '~/upstash-cache';
 import {
 	allTypesRelations,
 	type AllTypesReplacements,
@@ -71,7 +69,7 @@ export const nullTimestampSkips = [
 
 /** Copies of {@link nullTimestampSkips} with nullable `timestamp` columns holding `null` */
 export const nullTimestampTests = (
-	it: Vitest.MethodsNonLive<DB | SqlClient>,
+	it: Vitest.MethodsNonLive<DB>,
 	createDB: RunCommonEffectPgTestsOptions['createDB'],
 ) => {
 	it.effect('Mappers: insert returning all + select + update returning + delete returning (null timestamps)', () =>
@@ -2067,6 +2065,7 @@ export const nullTimestampTests = (
 			]);
 		}));
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6673
 	it.effect('select distinct ordered by cast columns (null timestamps)', () =>
 		Effect.gen(function*() {
 			const table = pgTable('distinct_cast_order', {
@@ -2101,9 +2100,7 @@ export const nullTimestampTests = (
 /** Shared all-types tests, redefined by {@link allTypesWithReplacementsTests} */
 export const allTypesWithReplacementsSkips = [
 	'all types',
-	'all types - upstash',
 	'all types ~codecs~',
-	'all types ~codecs~ - upstash',
 ];
 
 /**
@@ -2111,7 +2108,7 @@ export const allTypesWithReplacementsSkips = [
  * it can't return. Unions, bounds and temporal bounds of the original tests aren't repeated
  */
 export const allTypesWithReplacementsTests = (
-	it: Vitest.MethodsNonLive<DB | SqlClient>,
+	it: Vitest.MethodsNonLive<DB>,
 	createDB: RunCommonEffectPgTestsOptions['createDB'],
 	replacements: AllTypesReplacements,
 ) => {
@@ -2127,20 +2124,4 @@ export const allTypesWithReplacementsTests = (
 				assertAllTypesWithReplacements(db as any, allTypesTable as any, replacements, { run, rqb: true })
 			);
 		}));
-
-	it.effect('all types (with replacements) - upstash', () =>
-		withUpstashCache((cache, run) =>
-			Effect.gen(function*() {
-				const { en, allTypesTable } = makeAllTypes('all_types_replaced_upstash_ef', 'en_replaced_upstash_ef');
-				const db = yield* createDB({ allTypesTable }, allTypesRelations as any, false, cache);
-				yield* push(db, { en, allTypesTable });
-
-				yield* Effect.promise(() =>
-					cache.expectHits(
-						'all types',
-						() => assertAllTypesWithReplacements(db as any, allTypesTable as any, replacements, { run, rqb: true }),
-					)
-				);
-			})
-		));
 };

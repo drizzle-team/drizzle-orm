@@ -9,7 +9,6 @@ import {
 	countDistinct,
 	DrizzleQueryError,
 	eq,
-	type ExtractTablesFromSchema,
 	getColumns,
 	getTableColumns,
 	gt,
@@ -28,7 +27,6 @@ import {
 	min,
 	not,
 	or,
-	type RelationsBuilder,
 	sql,
 	sum,
 	sumDistinct,
@@ -68,7 +66,6 @@ import postgres from 'postgres';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import { expectRecentTime } from '~/recent-time';
-import { UpstashTestCache } from '~/upstash-cache';
 import {
 	type AllTypes,
 	allTypesData,
@@ -86,7 +83,7 @@ import {
 	boundsSchema,
 	makeAllTypes,
 } from './all-types';
-import type { PgTestFixtures, Test } from './instrumentation';
+import type { Test } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
 
 const msDelay = 15000;
@@ -1724,6 +1721,7 @@ export function tests(test: Test) {
 			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: offset', async ({ db, push }) => {
 			const items = pgTable('pagination_2', { id: integer('id').primaryKey() });
 			await push({ items });
@@ -1741,6 +1739,7 @@ export function tests(test: Test) {
 			expect(await query().offset(10)).toStrictEqual([]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
 			const items = pgTable('pagination_3', { id: integer('id').primaryKey() });
 			await push({ items });
@@ -1761,6 +1760,7 @@ export function tests(test: Test) {
 			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: placeholders', async ({ db, push }) => {
 			const items = pgTable('pagination_4', { id: integer('id').primaryKey() });
 			await push({ items });
@@ -1790,6 +1790,7 @@ export function tests(test: Test) {
 			expect(await stmt.execute({ limit: 2, offset: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: set operations', async ({ db, push }) => {
 			const items = pgTable('pagination_5', { id: integer('id').primaryKey() });
 			await push({ items });
@@ -1821,6 +1822,7 @@ export function tests(test: Test) {
 			expect(await stmt.execute({ limit: 2, offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: subquery fenced with offset 0', async ({ db, push }) => {
 			const items = pgTable('pagination_6', { id: integer('id').primaryKey(), kind: text('kind').notNull() });
 			await push({ items });
@@ -2380,6 +2382,7 @@ export function tests(test: Test) {
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/3608
 		test.concurrent('insert into ... select with generated column', async ({ db, push }) => {
 			const users1 = pgTable('users1_iswgc', {
 				id: integer().generatedAlwaysAsIdentity().primaryKey(),
@@ -4084,6 +4087,7 @@ export function tests(test: Test) {
 			await assertAllTypesTemporalBoundsInSessions(db, { rqb: true });
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6582
 		test.concurrent('all types ~json~', async ({ db, push }) => {
 			const table = pgTable('all_types_json', {
 				id: integer('id').primaryKey(),
@@ -4109,111 +4113,6 @@ export function tests(test: Test) {
 
 			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 			expect(parseStoredJson(stored)).toStrictEqual(output);
-		});
-
-		const upstashDB = (createDB: PgTestFixtures['createDB'], cache: UpstashTestCache, jit = false) => {
-			const { en, allTypesTable: table } = makeAllTypes('all_types_upstash', 'en_upstash');
-			const schema = { allTypesTable: table, ...boundsSchema };
-			const db = createDB(
-				schema,
-				(r: RelationsBuilder<ExtractTablesFromSchema<typeof schema>>) => ({
-					...allTypesRelations(r),
-					...boundsRelations(r),
-				}),
-				jit,
-				false,
-				cache,
-			);
-
-			return { db, en, table };
-		};
-
-		test('all types - upstash', async ({ createDB, push }) => {
-			await using cache = new UpstashTestCache();
-			const { run } = cache;
-			const { db, en, table } = upstashDB(createDB, cache);
-			await push({ en, table });
-
-			await cache.expectHits('all types', async () => {
-				await run(db.insert(table).values(allTypesData));
-				expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
-			});
-		});
-
-		test('all types ~codecs~ - upstash', async ({ createDB, push }) => {
-			await using cache = new UpstashTestCache();
-			const { run } = cache;
-			const { db, en, table } = upstashDB(createDB, cache);
-			await push({ en, table });
-
-			await cache.expectHits('all types', async () => {
-				await run(db.insert(table).values(allTypesData));
-				expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
-				expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
-					...allTypesData,
-					self: [allTypesData],
-				});
-			});
-			await cache.expectHits('unions', () => assertAllTypesUnions(db, table, run));
-			await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run, rqb: true }));
-			await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db, { run, rqb: true }));
-			await cache.expectHits('empty arrays', () => assertAllTypesEmptyArrays(db, table, { run, rqb: true }));
-		});
-
-		test('all types ~codecs~ - null array elements - upstash', async ({ createDB }) => {
-			await using cache = new UpstashTestCache();
-			const { db } = upstashDB(createDB, cache);
-
-			await cache.expectHits(
-				'null array elements',
-				() => assertAllTypesNullArrayElements(db, { run: cache.run, rqb: true }),
-			);
-		});
-
-		test('all types ~codecs~ - custom type null array elements - upstash', async ({ createDB }) => {
-			await using cache = new UpstashTestCache();
-			const { db } = upstashDB(createDB, cache);
-			const { db: jitDb } = upstashDB(createDB, cache, true);
-
-			await cache.expectHits(
-				'custom type null array elements',
-				() => assertCustomTypeNullArrayElements(db, { run: cache.run, rqb: true }),
-			);
-			await cache.expectHits(
-				'custom type null array elements: jit',
-				() => assertCustomTypeNullArrayElements(jitDb, { run: cache.run, rqb: true }),
-			);
-		});
-
-		test('all types ~codecs~ - non-UTC session - upstash', async ({ createDB }) => {
-			await using cache = new UpstashTestCache();
-			const { db } = upstashDB(createDB, cache);
-
-			await cache.expectHits(
-				'sessions',
-				() => assertAllTypesTemporalBoundsInSessions(db, { run: cache.run, rqb: true }),
-			);
-		});
-
-		test('all types ~json~ - upstash', async ({ createDB, push }) => {
-			await using cache = new UpstashTestCache();
-			const { run } = cache;
-			const { db } = upstashDB(createDB, cache);
-			const table = pgTable('all_types_json_upstash', {
-				id: integer('id').primaryKey(),
-				json: json('json'),
-				jsonb: jsonb('jsonb'),
-				arrjson: json('arrjson').array(),
-				arrjsonb: jsonb('arrjsonb').array(),
-			});
-			await push({ table });
-
-			const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
-
-			await cache.expectHits('json', async () => {
-				await run(db.insert(table).values(input));
-				expect(await run(db.select().from(table).orderBy(table.id))).toStrictEqual(output);
-			});
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
@@ -4679,6 +4578,7 @@ export function tests(test: Test) {
 			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/1603
 		test.concurrent('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
 			const orgs = pgTable('issue1603_orgs_jit', (t) => ({
 				id: t.integer('id').primaryKey(),
@@ -6381,6 +6281,7 @@ export function tests(test: Test) {
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		test.concurrent('Query error params', async ({ createDB }) => {
 			for (const paramsInErrors of [undefined, false, true]) {
 				const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -6396,6 +6297,7 @@ export function tests(test: Test) {
 			}
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		test.concurrent('Query error params - transaction', async ({ createDB }) => {
 			for (const paramsInErrors of [undefined, false, true]) {
 				const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -6611,6 +6513,7 @@ export function tests(test: Test) {
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
 			let customCast = false;
 			let customMap = false;
@@ -6846,6 +6749,7 @@ export function tests(test: Test) {
 			);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 			let customCast = false;
 			let customMap = false;
@@ -7081,6 +6985,7 @@ export function tests(test: Test) {
 			);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5780
 		test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
 			let counter = 0;
 			const table = pgTable('on_update_call_test', (t) => ({
@@ -7121,6 +7026,7 @@ export function tests(test: Test) {
 			expect(res).toStrictEqual([{ id: 2, name: 'Second', inc: 2 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4464
 		test.concurrent('db.execute modes', async ({ db, push }) => {
 			const users = pgTable('users_execute_modes_1', (t) => ({
 				id: t.integer().primaryKey(),
@@ -7318,6 +7224,7 @@ export function tests(test: Test) {
 			});
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/1772
 		test('transaction with an empty options object', async ({ db, push }) => {
 			const users = pgTable('users_tx_cfg_empty', {
 				id: serial('id').primaryKey(),

@@ -6,6 +6,7 @@ import { createPool as createAuroraClient } from '@drizzle-team/postgres/aurora'
 import { client as createHttpClient } from '@drizzle-team/postgres/http';
 import { createPool as createPostgresNeonHttpClient } from '@drizzle-team/postgres/neon-http';
 import { createPool as createPostgresNeonWsPool } from '@drizzle-team/postgres/neon-ws';
+import { createPool as createPostgresPglitePool } from '@drizzle-team/postgres/pglite';
 import { createProvider, requireEnv } from '@drizzle/test-utils';
 import { PGlite } from '@electric-sql/pglite';
 import {
@@ -14,15 +15,10 @@ import {
 	DrizzleConfig,
 	type ExtractTablesFromSchema,
 	type ExtractTablesWithRelations,
-	getCacheKey,
-	is,
 	type RelationsBuilder,
 	type RelationsBuilderConfig,
-	Table,
 } from 'drizzle-orm';
 import { drizzle as drizzleAwsDataApi } from 'drizzle-orm/aws-data-api/pg';
-import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
-import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import { drizzle as drizzleNeonHttp, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { drizzle as drizzleNeonWs } from 'drizzle-orm/neon-serverless';
 import { drizzle as drizzleNetlify, type ServerlessDrizzleClient } from 'drizzle-orm/netlify-db';
@@ -46,9 +42,9 @@ import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres';
 import { drizzle as drizzlePostgresjs } from 'drizzle-orm/postgres-js';
 import { drizzle as drizzleAurora } from 'drizzle-orm/postgres/aurora';
 import { drizzle as drizzleHttp } from 'drizzle-orm/postgres/http';
-import { drizzle as drizzlePostgresNeonHttp } from 'drizzle-orm/postgres/http/neon';
+import { drizzle as drizzlePostgresNeonHttp } from 'drizzle-orm/postgres/neon-http';
 import { drizzle as drizzlePostgresNeonWs } from 'drizzle-orm/postgres/neon-ws';
-import Keyv from 'keyv';
+import { drizzle as drizzlePostgresPglite } from 'drizzle-orm/postgres/pglite';
 import { Client as ClientNodePostgres } from 'pg';
 import postgres from 'postgres';
 import { test as base } from 'vitest';
@@ -117,14 +113,8 @@ if (process.env['NEON_LOCAL']) {
 			);
 		}
 	};
-	const upstashUrl = process.env['UPSTASH_REDIS_REST_URL'];
-	const upstashOrigin = upstashUrl ? new URL(upstashUrl).origin : undefined;
 	const realFetch = globalThis.fetch;
 	globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
-		const target = input instanceof Request ? input.url : String(input);
-		if (upstashOrigin && URL.canParse(target) && new URL(target).origin === upstashOrigin) {
-			return realFetch(input, init);
-		}
 		assertLocalNeon(input); // rejects the returned promise, as a failing fetch does
 		return realFetch(input, init);
 	}) as typeof fetch;
@@ -151,7 +141,7 @@ const localNeonDatabase = (driver: string, name: string, connectionString: strin
 	isLocalNeon(connectionString) ? `${driver}_${name}` : name;
 
 /** The databases a provider hands to concurrent tests: the hosted names on Neon, per-driver local ones otherwise. */
-const neonPoolDatabases = (hosted: string[], connectionString: string | undefined) =>
+export const neonPoolDatabases = (hosted: string[], connectionString: string | undefined) =>
 	isLocalNeon(connectionString) ? hosted.map((_, i) => `pool${i}`) : hosted;
 
 /** Prepares a provider's clients one after another, as the providers always did. */
@@ -193,70 +183,6 @@ const ensureLocalNeonDatabase = async (url: URL) => {
 	}
 	ensuredLocalNeonDatabases.add(database);
 };
-
-// TODO: @L-Mario564 we need this rule only for drizzle-orm package
-export class TestCache extends Cache {
-	private globalTtl: number = 1000;
-	private usedTablesPerKey: Record<string, string[]> = {};
-
-	constructor(private readonly strat: 'explicit' | 'all', private kv: Keyv = new Keyv()) {
-		super();
-	}
-
-	override strategy() {
-		return this.strat;
-	}
-
-	override async get(key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
-		const res = await this.kv.get(key) ?? undefined;
-		return res;
-	}
-
-	override async put(
-		key: string,
-		response: any,
-		tables: string[],
-		isTag: boolean,
-		config?: CacheConfig,
-	): Promise<void> {
-		await this.kv.set(key, response, config ? config.ex : this.globalTtl);
-		for (const table of tables) {
-			const keys = this.usedTablesPerKey[table];
-			if (keys === undefined) {
-				this.usedTablesPerKey[table] = [key];
-			} else {
-				keys.push(key);
-			}
-		}
-	}
-
-	override async onMutate(params: MutationOption): Promise<void> {
-		const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
-		const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
-
-		const keysToDelete = new Set<string>();
-
-		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-			const keys = this.usedTablesPerKey[tableName] ?? [];
-			for (const key of keys) keysToDelete.add(key);
-		}
-
-		if (keysToDelete.size > 0 || tagsArray.length > 0) {
-			for (const tag of tagsArray) {
-				await this.kv.delete(tag);
-			}
-
-			for (const key of keysToDelete) {
-				await this.kv.delete(key);
-				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-					this.usedTablesPerKey[tableName] = [];
-				}
-			}
-		}
-	}
-}
 
 class ServerSimulator {
 	constructor(private db: ClientNodePostgres) {}
@@ -330,7 +256,7 @@ export const _push = async (
 /**
  * Reset potentially broken by previous test runs schemas on hosted dbs
  */
-const resetSchemas = async (run: (sql: string) => Promise<any[]>) => {
+export const resetSchemas = async (run: (sql: string) => Promise<any[]>) => {
 	const schemas = await run(
 		`select nspname from pg_namespace where nspname not in ('information_schema', 'neon_auth') and nspname !~ '^pg_'`,
 	);
@@ -482,6 +408,23 @@ export const preparePglite = async () => {
 	const query = async (sql: string, params: any[] = []) => {
 		const res = await client.query(sql, params);
 		return res.rows;
+	};
+
+	const batch = async (statements: string[]) => {
+		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
+	};
+
+	return { client, query, batch, database: undefined };
+};
+
+/** The Drizzle Postgres pool on an in-process PGlite: UTC as a startup setting, so a reset session keeps it */
+export const preparePostgresPglite = async () => {
+	const client = createPostgresPglitePool(new PGlite(), { options: '-c TimeZone=UTC' });
+	await client.query('create schema "mySchema";');
+
+	const query = async (sql: string, params: any[] = []) => {
+		const res = await client.query(sql, params);
+		return res.rows as any[];
 	};
 
 	const batch = async (statements: string[]) => {
@@ -680,7 +623,7 @@ export interface SnapshotPeer {
 }
 
 const openPeer = async (vendor: Vendor, database: string | undefined): Promise<SnapshotPeer | undefined> => {
-	if (vendor === 'pglite' || database === undefined) return undefined;
+	if (vendor === 'pglite' || vendor === 'postgres-pglite' || database === undefined) return undefined;
 
 	const hosted = vendor === 'neon-serverless' || vendor === 'netlify-db' || vendor === 'postgres-neon-ws'
 		|| vendor === 'postgres-neon-http';
@@ -724,6 +667,7 @@ type Vendor =
 	| 'neon-http'
 	| 'neon-serverless'
 	| 'pglite'
+	| 'postgres-pglite'
 	| 'node-postgres'
 	| 'postgres'
 	| 'postgresjs'
@@ -755,6 +699,18 @@ export const provideForPglite = async () => {
 		await preparePglite(),
 		await preparePglite(),
 		await preparePglite(),
+	];
+
+	return createProvider(clients);
+};
+
+export const provideForPostgresPglite = async () => {
+	const clients = [
+		await preparePostgresPglite(),
+		await preparePostgresPglite(),
+		await preparePostgresPglite(),
+		await preparePostgresPglite(),
+		await preparePostgresPglite(),
 	];
 
 	return createProvider(clients);
@@ -814,6 +770,10 @@ export const provideForProxy = async () => {
 	return createProvider(await prepareSequentially(dbs, prepareProxy));
 };
 
+/**
+ * db10-db14 are also in the pool of `effect-drizzle-postgres-neon-http.test.ts` (on NEON_CONNECTION_STRING): it runs in
+ * the `test:neon` invocation after this provider's, so the two never run at the same time
+ */
 export const provideForNetlifyDb = async () => {
 	const url = requireEnv('NETLIFY_DB_URL');
 
@@ -873,6 +833,7 @@ type ProviderPostgresNeonHttp = Awaited<ReturnType<typeof provideForPostgresNeon
 type ProviderNeonHttp = Awaited<ReturnType<typeof providerForNeonHttp>>;
 type ProviderNeonWs = Awaited<ReturnType<typeof providerForNeonWs>>;
 type ProvideForPglite = Awaited<ReturnType<typeof provideForPglite>>;
+type ProvideForPostgresPglite = Awaited<ReturnType<typeof provideForPostgresPglite>>;
 type ProvideForNodePostgres = Awaited<ReturnType<typeof provideForNodePostgres>>;
 type ProvideForPostgres = Awaited<ReturnType<typeof provideForPostgres>>;
 type ProvideForPostgresjs = Awaited<ReturnType<typeof provideForPostgresjs>>;
@@ -888,6 +849,7 @@ type Provider =
 	| ProviderNeonHttp
 	| ProviderNeonWs
 	| ProvideForPglite
+	| ProvideForPostgresPglite
 	| ProvideForNodePostgres
 	| ProvideForPostgres
 	| ProvideForPostgresjs
@@ -913,10 +875,8 @@ export type PgTestFixtures = {
 			cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 			useJitMappers?: boolean,
 			paramsInErrors?: boolean,
-			cache?: Cache,
 		): PgAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 	};
-	caches: { all: PgAsyncDatabase<any, typeof relations>; explicit: PgAsyncDatabase<any, typeof relations> };
 };
 
 const testFor = (vendor: Vendor) => {
@@ -940,6 +900,8 @@ const testFor = (vendor: Vendor) => {
 					? await providerForNeonWs()
 					: vendor === 'pglite'
 					? await provideForPglite()
+					: vendor === 'postgres-pglite'
+					? await provideForPostgresPglite()
 					: vendor === 'node-postgres'
 					? await provideForNodePostgres()
 					: vendor === 'postgres'
@@ -1022,6 +984,8 @@ const testFor = (vendor: Vendor) => {
 					? drizzleNeonWs({ client: kit.client as any, relations })
 					: vendor === 'pglite'
 					? drizzlePglite({ client: kit.client as any, relations })
+					: vendor === 'postgres-pglite'
+					? drizzlePostgresPglite({ client: kit.client as any, relations })
 					: vendor === 'node-postgres'
 					? drizzleNodePostgres({ client: kit.client as any, relations })
 					: vendor === 'postgres'
@@ -1056,12 +1020,11 @@ const testFor = (vendor: Vendor) => {
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					useJitMappers?: boolean,
 					paramsInErrors?: boolean,
-					cache?: Cache,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'aurora') {
-						return drizzleAurora({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
+						return drizzleAurora({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
 					}
 					if (vendor === 'aws-data-api') {
 						return drizzleAwsDataApi({
@@ -1072,7 +1035,6 @@ const testFor = (vendor: Vendor) => {
 							relations,
 							jit: useJitMappers,
 							paramsInErrors,
-							cache,
 						});
 					}
 					if (vendor === 'postgres-neon-ws') {
@@ -1081,7 +1043,6 @@ const testFor = (vendor: Vendor) => {
 							relations,
 							jit: useJitMappers,
 							paramsInErrors,
-							cache,
 						});
 					}
 					if (vendor === 'postgres-neon-http') {
@@ -1090,20 +1051,27 @@ const testFor = (vendor: Vendor) => {
 							relations,
 							jit: useJitMappers,
 							paramsInErrors,
-							cache,
 						});
 					}
 					if (vendor === 'http') {
-						return drizzleHttp({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
+						return drizzleHttp({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
 					}
 					if (vendor === 'neon-http') {
-						return drizzleNeonHttp({ client: kit.client, relations, jit: useJitMappers, paramsInErrors, cache });
+						return drizzleNeonHttp({ client: kit.client, relations, jit: useJitMappers, paramsInErrors });
 					}
 					if (vendor === 'neon-serverless') {
-						return drizzleNeonWs({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
+						return drizzleNeonWs({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
 					}
 					if (vendor === 'pglite') {
-						return drizzlePglite({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
+						return drizzlePglite({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+					}
+					if (vendor === 'postgres-pglite') {
+						return drizzlePostgresPglite({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+						});
 					}
 					if (vendor === 'node-postgres') {
 						return drizzleNodePostgres({
@@ -1111,11 +1079,10 @@ const testFor = (vendor: Vendor) => {
 							relations,
 							jit: useJitMappers,
 							paramsInErrors,
-							cache,
 						});
 					}
 					if (vendor === 'postgres') {
-						return drizzlePostgres({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
+						return drizzlePostgres({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
 					}
 					if (vendor === 'postgresjs') {
 						return drizzlePostgresjs({
@@ -1123,11 +1090,10 @@ const testFor = (vendor: Vendor) => {
 							relations,
 							jit: useJitMappers,
 							paramsInErrors,
-							cache,
 						});
 					}
 					if (vendor === 'netlify-db') {
-						return drizzleNetlify({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
+						return drizzleNetlify({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
 					}
 
 					if (vendor === 'proxy') {
@@ -1151,101 +1117,12 @@ const testFor = (vendor: Vendor) => {
 							codecs: nodePgCodecs,
 							jit: useJitMappers,
 							paramsInErrors,
-							cache,
 						});
 					}
 					throw new Error();
 				};
 
 				await use(createDB);
-			},
-			{ scope: 'test' },
-		],
-		caches: [
-			async ({ kit }, use) => {
-				if (vendor === 'proxy') {
-					const serverSimulator = new ServerSimulator(kit.client);
-					const proxyHandler = async (sql: string, params: any[], method: any) => {
-						try {
-							const response = await serverSimulator.query(sql, params, method);
-
-							if (response.error !== undefined) {
-								throw response.error;
-							}
-
-							return { rows: response.data };
-						} catch (e: any) {
-							console.error('Error from pg proxy server:', e.message);
-							throw e;
-						}
-					};
-					const db1 = drizzleProxy(proxyHandler, { relations, cache: new TestCache('all'), codecs: nodePgCodecs });
-					const db2 = drizzleProxy(proxyHandler, { relations, cache: new TestCache('explicit'), codecs: nodePgCodecs });
-					await use({ all: db1, explicit: db2 });
-					return;
-				}
-
-				const config1 = { client: kit.client as any, relations, cache: new TestCache('all') };
-				const config2 = { client: kit.client as any, relations, cache: new TestCache('explicit') };
-				const dataApiConfig = {
-					database: kit.database!,
-					resourceArn: awsDataApiConfig.resourceArn,
-					secretArn: awsDataApiConfig.secretArn,
-				};
-
-				const db1 = vendor === 'aurora'
-					? drizzleAurora(config1) as any
-					: vendor === 'aws-data-api'
-					? drizzleAwsDataApi({ ...config1, ...dataApiConfig }) as any
-					: vendor === 'http'
-					? drizzleHttp(config1 as any) as any
-					: vendor === 'postgres-neon-ws'
-					? drizzlePostgresNeonWs(config1 as any) as any
-					: vendor === 'postgres-neon-http'
-					? drizzlePostgresNeonHttp(config1 as any) as any
-					: vendor === 'neon-http'
-					? drizzleNeonHttp(config1)
-					: vendor === 'neon-serverless'
-					? drizzleNeonWs(config1)
-					: vendor === 'pglite'
-					? drizzlePglite(config1)
-					: vendor === 'node-postgres'
-					? drizzleNodePostgres(config1)
-					: vendor === 'postgres'
-					? drizzlePostgres(config1)
-					: vendor === 'postgresjs'
-					? drizzlePostgresjs(config1)
-					: vendor === 'netlify-db'
-					? drizzleNetlify(config1)
-					: '' as never;
-
-				const db2 = vendor === 'aurora'
-					? drizzleAurora(config2) as any
-					: vendor === 'aws-data-api'
-					? drizzleAwsDataApi({ ...config2, ...dataApiConfig }) as any
-					: vendor === 'http'
-					? drizzleHttp(config2 as any) as any
-					: vendor === 'postgres-neon-ws'
-					? drizzlePostgresNeonWs(config2 as any) as any
-					: vendor === 'postgres-neon-http'
-					? drizzlePostgresNeonHttp(config2 as any) as any
-					: vendor === 'neon-http'
-					? drizzleNeonHttp(config2)
-					: vendor === 'neon-serverless'
-					? drizzleNeonWs(config2)
-					: vendor === 'pglite'
-					? drizzlePglite(config2)
-					: vendor === 'node-postgres'
-					? drizzleNodePostgres(config2)
-					: vendor === 'postgres'
-					? drizzlePostgres(config2)
-					: vendor === 'postgresjs'
-					? drizzlePostgresjs(config2)
-					: vendor === 'netlify-db'
-					? drizzleNetlify(config2)
-					: '' as never;
-
-				await use({ all: db1, explicit: db2 });
 			},
 			{ scope: 'test' },
 		],
@@ -1264,6 +1141,7 @@ export const neonHttpTest = testFor('neon-http').extend<{ neonhttp: NeonHttpData
 
 export const neonWsTest = testFor('neon-serverless');
 export const pgliteTest = testFor('pglite');
+export const postgresPgliteTest = testFor('postgres-pglite');
 export const nodePostgresTest = testFor('node-postgres');
 export const postgresTest = testFor('postgres');
 export const postgresHttpTest = testFor('http');

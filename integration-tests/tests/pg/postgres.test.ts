@@ -33,6 +33,7 @@ import {
 	makeAllTypes,
 } from './all-types';
 import { tests } from './common';
+import { preparedNameTests } from './common-prepared-names';
 import { postgresTest as test } from './instrumentation';
 import { type BulkDrizzle, bulkTests } from './postgres-bulk';
 import { usersMigratorTable, usersTable } from './schema';
@@ -43,6 +44,7 @@ import {
 } from './snapshot';
 
 tests(test, ['all types ~codecs~']);
+preparedNameTests(test);
 
 bulkTests(test, { name: 'pool', drizzle: drizzlePostgres as BulkDrizzle });
 bulkTests(test, {
@@ -56,6 +58,7 @@ bulkTests(test, {
 	},
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresDatabase;
 	const table = sql.identifier('raw_execute_types');

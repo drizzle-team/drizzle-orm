@@ -41,6 +41,25 @@ describe('conn.begin — commit / rollback / return value', () => {
 			expect(await count(c, 'tr')).toBe(0); // nothing persisted
 		});
 	});
+
+	// Postgres answers COMMIT of an aborted transaction with the ROLLBACK tag. A statement whose error the callback
+	// caught aborted it, so begin() must reject: resolving would report as committed work that was rolled back.
+	test('rejects when a statement failed inside and the callback caught its error', async () => {
+		await withConn(async (c) => {
+			await c.query('create temp table ta(v int primary key)');
+			const err = await caught(() =>
+				c.begin(async (tx) => {
+					await tx.query('insert into ta values (1)');
+					await tx.query('insert into ta values (1)').catch(() => undefined);
+					return 'done';
+				})
+			);
+			expect(err).toBeInstanceOf(Error);
+			expect((err as Error).message).toMatch(/COMMIT rolled back/);
+			expect(c.inTransaction).toBe(false);
+			expect(await count(c, 'ta')).toBe(0);
+		});
+	});
 });
 
 describe('nested begin → SAVEPOINT (partial rollback)', () => {
@@ -59,6 +78,77 @@ describe('nested begin → SAVEPOINT (partial rollback)', () => {
 			});
 			const rows = await c.query('select v from ts order by v', [], { mode: 'array' });
 			expect(rows.rows).toEqual([[1], [3]]);
+		});
+	});
+});
+
+// Nested transactions started at the same time on one transaction. Each is a SAVEPOINT, and Postgres nests savepoints
+// in the order they are created, not by caller: releasing or rolling back to the first one also ends every savepoint
+// made after it. So a nested transaction must not start while a sibling is still open.
+describe('concurrent nested begin', () => {
+	const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+	test('both commit their work', async () => {
+		await withConn(async (c) => {
+			await c.query('create temp table tcn(v int)');
+			await c.begin(async (tx) => {
+				await Promise.all([
+					tx.begin(async (a) => {
+						await a.query('insert into tcn values (1)');
+					}),
+					tx.begin(async (b) => {
+						await b.query('insert into tcn values (2)');
+					}),
+				]);
+			});
+			expect((await c.query('select v from tcn order by v', [], { mode: 'array' })).rows).toEqual([[1], [2]]);
+		});
+	});
+
+	test("a failing one rolls back only its own work, not a sibling's that already committed", async () => {
+		await withConn(async (c) => {
+			await c.query('create temp table tcf(v int)');
+			const outcome: { a?: string; b?: string } = {};
+			await c.begin(async (tx) => {
+				await Promise.all([
+					tx.begin(async (a) => {
+						await a.query('insert into tcf values (1)');
+						await sleep(50);
+						throw new Error('a fails');
+					}).then(() => (outcome.a = 'committed'), () => (outcome.a = 'rolled back')),
+					tx.begin(async (b) => {
+						await sleep(10);
+						await b.query('insert into tcf values (2)');
+					}).then(() => (outcome.b = 'committed'), () => (outcome.b = 'rolled back')),
+				]);
+			});
+			expect(outcome).toEqual({ a: 'rolled back', b: 'committed' });
+			expect((await c.query('select v from tcf order by v', [], { mode: 'array' })).rows).toEqual([[2]]);
+		});
+	});
+});
+
+describe('concurrent nested begin, each with a nested begin of its own', () => {
+	// Siblings wait for each other; a nested begin inside one of them must not wait for its own parent.
+	test('all four commit their work', async () => {
+		await withConn(async (c) => {
+			await c.query('create temp table tcd(v int)');
+			await c.begin(async (tx) => {
+				await Promise.all([
+					tx.begin(async (a) => {
+						await a.query('insert into tcd values (1)');
+						await a.begin((inner) => inner.query('insert into tcd values (2)'));
+					}),
+					tx.begin(async (b) => {
+						await b.query('insert into tcd values (3)');
+						await b.begin((inner) => inner.query('insert into tcd values (4)'));
+					}),
+				]);
+			});
+
+			const res1 = await c.query('select v from tcd order by v', [], { mode: 'array' });
+
+			expect(res1.rows).toEqual([[1], [2], [3], [4]]);
 		});
 	});
 });

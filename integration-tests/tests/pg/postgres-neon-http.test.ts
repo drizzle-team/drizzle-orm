@@ -1,8 +1,8 @@
 import { createPool as createNeonHttpClient } from '@drizzle-team/postgres/neon-http';
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { migrate } from 'drizzle-orm/postgres/http/migrator';
-import { drizzle as drizzleNeonHttp, type PostgresNeonHttpDatabase } from 'drizzle-orm/postgres/http/neon';
+import { drizzle as drizzleNeonHttp, type PostgresNeonHttpDatabase } from 'drizzle-orm/postgres/neon-http';
+import { migrate } from 'drizzle-orm/postgres/neon-http/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
@@ -37,17 +37,16 @@ const skips = [
 	'transaction with options (set isolationLevel)',
 	'time zones are preserved - non-UTC session',
 	'all types ~codecs~ - non-UTC session',
-	'all types ~codecs~ - non-UTC session - upstash',
 	'transaction with options (accessMode read only)',
 	'transaction with options (deferrable)',
 	'transaction with an empty options object',
 	// Default client has no codes, uses shapes instead
 	'all types ~codecs~',
-	'all types ~codecs~ - upstash',
 ];
 
 tests(test, skips);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresNeonHttpDatabase;
 	const table = sql.identifier('raw_execute_types');

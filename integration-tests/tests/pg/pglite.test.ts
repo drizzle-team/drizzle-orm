@@ -17,6 +17,7 @@ import { normalizeDataWithDbCodecs } from './utils';
 
 tests(test, []);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PgliteDatabase;
 	const table = sql.identifier('raw_execute_types');

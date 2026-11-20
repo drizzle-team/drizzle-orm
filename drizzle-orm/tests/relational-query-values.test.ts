@@ -3,8 +3,6 @@
 // one query and used for the next (a cache of built queries, a reused chunk) shows up as a difference.
 import * as Effect from 'effect/Effect';
 import { describe, expect, test } from 'vitest';
-import { EffectPostgresDatabase } from '~/effect-drizzle-postgres/driver.ts';
-import { EffectPostgresSession } from '~/effect-drizzle-postgres/session.ts';
 import { defineRelations, sql } from '~/index.ts';
 import { drizzle as pgDrizzle } from '~/node-postgres/index.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
@@ -26,6 +24,8 @@ import {
 	varchar,
 } from '~/pg-core/index.ts';
 import { postgresCodecs } from '~/postgres/codecs.ts';
+import { EffectPostgresDatabase } from '~/postgres/effect/driver.ts';
+import { EffectPostgresSession } from '~/postgres/effect/session.ts';
 import { drizzle } from '~/postgres/index.ts';
 import { createShapeGenerator } from '~/postgres/shape.ts';
 import { operators } from '~/relations.ts';
@@ -187,14 +187,10 @@ test('a column that maps some values to SQL is never served a bound value in its
 	}
 });
 
-test('`.prepare()` and `withCache`', () => {
+test('`.prepare()`', () => {
 	const db = mock();
 	const named = (db.query.users.findMany({ where: { id: 1 } }) as any).prepare('mine');
 	expect(named.name).toBe('mine');
-	for (const id of [1, 2]) {
-		const query = () => db.query.users.findMany({ where: { id }, withCache: true } as any);
-		expect(prepared(query()).getQuery()).toEqual(built(query()));
-	}
 });
 
 test('a query that is run is not given a statement name: only `.prepare()` names one', () => {
@@ -463,17 +459,6 @@ test('one place holding a value in one query and operators or a list in another,
 	}
 });
 
-test('a query reports the tables it uses, each time it is run', () => {
-	const tables = (db: ReturnType<typeof mock>, i: number) => {
-		const query = db.query.users.findMany({ where: { id: i }, with: { posts: { with: { comments: true } } } });
-		return (prepared(query) as any).queryMetadata.tables().sort();
-	};
-	const db = mock();
-	const first = tables(db, 1);
-	expect(first).toEqual(['comments', 'posts', 'users']);
-	expect(tables(db, 2)).toEqual(first);
-});
-
 // What a column's `toDriver` gives can depend on the value, so each kind of value takes a turn at being first
 const sqlForSome = customType<{ data: string }>({
 	dataType: () => 'text',
@@ -699,7 +684,6 @@ test('the Effect builder sends the same query, and does not name its statements'
 	};
 	const session = new EffectPostgresSession(client as any, dialect, kindsRelations, {
 		logger: { logQuery: () => Effect.void } as any,
-		cache: undefined as any,
 	});
 	const effectDb = new EffectPostgresDatabase(dialect, session, kindsRelations);
 	const asyncDb = kindsMock();

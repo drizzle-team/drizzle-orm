@@ -1094,6 +1094,7 @@ export const createTemporalBounds = (tableName: string = TEMPORAL_TABLE) =>
 
 export const dropTemporalBounds = (tableName: string = TEMPORAL_TABLE) => `drop table if exists "${tableName}"`;
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6552
 export const temporalBoundsData: TemporalBoundsRow[] = [
 	{
 		id: 1,

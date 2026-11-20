@@ -2,8 +2,9 @@
 // 'release' event). Requires the local cluster (`bun run test:setup`).
 import { afterEach, describe, expect, test } from 'bun:test';
 import { createPool } from '../../src/index.ts';
+import { LOCAL_CONFIG } from '../helpers/db.ts';
 
-const CFG = { host: '127.0.0.1', port: 54329, user: 'postgres', password: 'postgres', database: 'testdb' };
+const CFG = LOCAL_CONFIG;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 let pools: Array<ReturnType<typeof createPool>> = [];
 afterEach(async () => {

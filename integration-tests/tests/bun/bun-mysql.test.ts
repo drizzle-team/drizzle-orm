@@ -3,7 +3,7 @@
 import { composeHint, requireEnv } from '@drizzle/test-utils';
 import retry from 'async-retry';
 import { SQL } from 'bun';
-import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, spyOn, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, test } from 'bun:test';
 import {
 	and,
 	asc,
@@ -15,7 +15,6 @@ import {
 	DrizzleQueryError,
 	eq,
 	exists,
-	getCacheKey,
 	getColumns,
 	getTableColumns,
 	gt,
@@ -36,15 +35,11 @@ import {
 	sql,
 	sum,
 	sumDistinct,
-	Table,
 	TransactionRollbackError,
 } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/bun-sql/migrator';
 import { drizzle } from 'drizzle-orm/bun-sql/mysql';
 import type { BunMySqlDatabase, BunMySqlRawExecuteResult } from 'drizzle-orm/bun-sql/mysql';
-import type { MutationOption } from 'drizzle-orm/cache/core';
-import { Cache } from 'drizzle-orm/cache/core';
-import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import {
 	alias,
 	bigint,
@@ -90,11 +85,9 @@ import {
 	year,
 } from 'drizzle-orm/mysql-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import Keyv from 'keyv';
 import { v4 as uuid } from 'uuid';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import { normalizeDataWithDbCodecs } from '~/mysql/utils';
-import { UpstashTestCache } from '~/upstash-cache';
 import { type Equal, Expect } from '~/utils';
 import {
 	type AllTypes,
@@ -253,8 +246,6 @@ const citiesMySchemaTable = mySchema.table('cities', {
 const ENABLE_LOGGING = false;
 
 let db: BunMySqlDatabase<typeof relations> & { $client: SQL };
-let dbGlobalCached: BunMySqlDatabase & { $client: SQL };
-let cachedDb: BunMySqlDatabase & { $client: SQL };
 let client: SQL;
 
 const CONNECT_RETRY_INTERVAL = 250;
@@ -282,14 +273,10 @@ beforeAll(async () => {
 		},
 	});
 	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 }, CONNECT_TIMEOUT + 10_000);
 
 afterAll(async () => {
 	await client?.end();
-	await cachedDb?.$client.end();
-	await dbGlobalCached?.$client.end();
 });
 
 // bun can't import drizzle-kit's diff helper, so create the schema entities directly from their
@@ -792,6 +779,8 @@ describe('common', () => {
 		}]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list', async () => {
 		const table = mysqlTable('column_selection', {
 			id: serial('id').primaryKey(),
@@ -820,6 +809,8 @@ describe('common', () => {
 		await db.execute(sql`drop table ${table}`);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list - select', async () => {
 		const src = mysqlTable('column_selection_select_src', {
 			id: int('id').primaryKey(),
@@ -852,6 +843,8 @@ describe('common', () => {
 		await db.execute(sql`drop table ${dst}`);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list - on duplicate key update', async () => {
 		const table = mysqlTable('column_selection_conflict', {
 			id: int('id').primaryKey(),
@@ -1566,6 +1559,7 @@ describe('common', () => {
 		expect(result).toStrictEqual([{ id: 1, name: 'John' }]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/4464
 	test('db.execute modes', async () => {
 		const users = mysqlTable('users_execute_modes_1', {
 			id: int('id').primaryKey(),
@@ -3651,6 +3645,7 @@ describe('common', () => {
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5780
 	test('$onUpdateFn called only when needed', async () => {
 		let counter = 0;
 		const table = mysqlTable('on_update_call_test', {
@@ -6123,21 +6118,6 @@ test('all types ~json~', async () => {
 	expect(parseStoredJson(stored)).toStrictEqual(output);
 });
 
-const upstashDB = (cache: UpstashTestCache) =>
-	drizzle({
-		client,
-		relations: defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
-			allTypesTable: {
-				self: r.many.allTypesTable({
-					from: r.allTypesTable.serial,
-					to: r.allTypesTable.serial,
-				}),
-			},
-			...boundsRelations(r),
-		})),
-		cache,
-	});
-
 const createTable = async (table: MySqlTable) => {
 	await db.execute(sql`DROP TABLE IF EXISTS ${table} CASCADE;`);
 	await db.execute(
@@ -6149,59 +6129,6 @@ const createTable = async (table: MySqlTable) => {
 		})`,
 	);
 };
-
-test('all types - upstash', async () => {
-	await using cache = new UpstashTestCache();
-	const { run } = cache;
-	const cachedDb = upstashDB(cache);
-	const table = makeAllTypes('all_types_upstash');
-	await createTable(table);
-
-	await cache.expectHits('all types', async () => {
-		await run(cachedDb.insert(table).values(allTypesData));
-		expect(await run(cachedDb.select().from(table))).toStrictEqual([allTypesData]);
-	});
-});
-
-test('all types ~codecs~ - upstash', async () => {
-	await using cache = new UpstashTestCache();
-	const { run } = cache;
-	const cachedDb = upstashDB(cache);
-	await createTable(allTypesTable);
-
-	await cache.expectHits('all types', async () => {
-		await run(cachedDb.insert(allTypesTable).values(allTypesData));
-		expect(await run(cachedDb.select().from(allTypesTable))).toStrictEqual([allTypesData]);
-		expect(await run(cachedDb.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
-			...allTypesData,
-			self: [allTypesData],
-		});
-	});
-	await cache.expectHits('bounds', () => assertAllTypesBounds(cachedDb, { run, rqb: true }));
-	await cache.expectHits(
-		'temporal bounds',
-		() => assertAllTypesTemporalBounds(cachedDb, { data: temporalBoundsDataNoStrings, run, rqb: true }),
-	);
-});
-
-test('all types ~json~ - upstash', async () => {
-	await using cache = new UpstashTestCache();
-	const { run } = cache;
-	const cachedDb = upstashDB(cache);
-	const table = mysqlTable('all_types_json_upstash', {
-		id: int('id').primaryKey(),
-		json: json('json'),
-	});
-	await db.execute(sql`drop table if exists ${table}`);
-	await db.execute(sql`create table ${table} (id int primary key, json json)`);
-
-	const { input, output } = jsonRows(['json']);
-
-	await cache.expectHits('json', async () => {
-		await run(cachedDb.insert(table).values(input));
-		expect(await run(cachedDb.select().from(table).orderBy(table.id))).toStrictEqual(output);
-	});
-});
 
 test('Mappers: correct mappers enabled', async () => {
 	const jitDb = drizzle({ client, jit: true });
@@ -7473,6 +7400,7 @@ test('Jit mappers: relational', async () => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs', async () => {
 	let customCast = false;
 	let customMap = false;
@@ -7667,6 +7595,7 @@ test('Column as decoder applies codecs', async () => {
 	);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs - Jit mappers', async () => {
 	let customCast = false;
 	let customMap = false;
@@ -7860,418 +7789,6 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			},
 		},
 	);
-});
-
-export class TestGlobalCache extends Cache {
-	private globalTtl: number = 1000;
-	private usedTablesPerKey: Record<string, string[]> = {};
-
-	constructor(private kv: Keyv = new Keyv()) {
-		super();
-	}
-
-	override strategy(): 'explicit' | 'all' {
-		return 'all';
-	}
-	override async get(key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
-		const res = await this.kv.get(key) ?? undefined;
-		return res;
-	}
-	override async put(
-		key: string,
-		response: any,
-		tables: string[],
-		isTag: boolean,
-		config?: CacheConfig,
-	): Promise<void> {
-		await this.kv.set(key, response, config ? config.ex : this.globalTtl);
-		for (const table of tables) {
-			const keys = this.usedTablesPerKey[table];
-			if (keys === undefined) {
-				this.usedTablesPerKey[table] = [key];
-			} else {
-				keys.push(key);
-			}
-		}
-	}
-	override async onMutate(params: MutationOption): Promise<void> {
-		const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
-		const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
-
-		const keysToDelete = new Set<string>();
-
-		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-			const keys = this.usedTablesPerKey[tableName] ?? [];
-			for (const key of keys) keysToDelete.add(key);
-		}
-
-		if (keysToDelete.size > 0 || tagsArray.length > 0) {
-			for (const tag of tagsArray) {
-				await this.kv.delete(tag);
-			}
-
-			for (const key of keysToDelete) {
-				await this.kv.delete(key);
-				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-					this.usedTablesPerKey[tableName] = [];
-				}
-			}
-		}
-	}
-}
-
-export class TestCache extends TestGlobalCache {
-	override strategy(): 'explicit' | 'all' {
-		return 'explicit';
-	}
-}
-
-declare module 'vitest' {
-	interface TestContext {
-		cachedMySQL: {
-			db: MySqlAsyncDatabase<any, any>;
-			dbGlobalCached: MySqlAsyncDatabase<any, any>;
-		};
-	}
-}
-
-const usersTableCache = mysqlTable('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	jsonb: json('jsonb').$type<string[]>(),
-	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
-});
-
-const postsTableCache = mysqlTable('posts', {
-	id: serial().primaryKey(),
-	description: text().notNull(),
-	userId: int('city_id').references(() => usersTable.id),
-});
-
-describe('common_cache', () => {
-	beforeEach(async () => {
-		const db = cachedDb;
-		await db.execute(sql`drop table if exists users`);
-		await db.execute(sql`drop table if exists posts`);
-		await db.$cache?.invalidate({ tables: 'users' });
-		await dbGlobalCached.$cache?.invalidate({ tables: 'users' });
-		// public users
-		await db.execute(
-			sql`
-				create table users (
-					id serial primary key,
-					name text not null,
-					verified boolean not null default false,
-					jsonb json,
-					created_at timestamp not null default now()
-				)
-			`,
-		);
-		await db.execute(
-			sql`
-				create table posts (
-					id serial primary key,
-					description text not null,
-					user_id int
-				)
-			`,
-		);
-	});
-
-	test('test force invalidate', async () => {
-		const db = cachedDb;
-
-		const spyInvalidate = spyOn(db.$cache, 'invalidate');
-		await db.$cache?.invalidate({ tables: 'users' });
-		expect(spyInvalidate).toHaveBeenCalledTimes(1);
-	});
-
-	test('default global config - no cache should be hit', async () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache);
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('default global config + enable cache on select: get, put', async () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache();
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('default global config + enable cache on select + write: get, put, onMutate', async () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache({ config: { ex: 1 } });
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-		spyPut.mockClear();
-		spyGet.mockClear();
-		spyInvalidate.mockClear();
-
-		await db.insert(usersTableCache).values({ name: 'John' });
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(1);
-	});
-
-	test('default global config + enable cache on select + disable invalidate: get, put', async () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache({ tag: 'custom', autoInvalidate: false, config: { ex: 1 } });
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-		await db.insert(usersTableCache).values({ name: 'John' });
-
-		// invalidate force
-		await db.$cache?.invalidate({ tags: ['custom'] });
-	});
-
-	test('global: true + disable cache', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache(false);
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('global: true - cache should be hit', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache);
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('global: true - cache: false on select - no cache hit', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache(false);
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('global: true - disable invalidate - cache hit + no invalidate', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache({ autoInvalidate: false });
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-		spyPut.mockClear();
-		spyGet.mockClear();
-		spyInvalidate.mockClear();
-
-		await db.insert(usersTableCache).values({ name: 'John' });
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(1);
-	});
-
-	test('global: true - with custom tag', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache({ tag: 'custom', autoInvalidate: false });
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-		await db.insert(usersTableCache).values({ name: 'John' });
-
-		// invalidate force
-		await db.$cache?.invalidate({ tags: ['custom'] });
-	});
-
-	// check select used tables
-	test('check simple select used tables', () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		expect(db.select().from(usersTableCache).getUsedTables()).toStrictEqual(['users']);
-		// @ts-expect-error
-		expect(db.select().from(sql`${usersTableCache}`).getUsedTables()).toStrictEqual(['users']);
-	});
-	// check select+join used tables
-	test('select+join', () => {
-		const db = cachedDb;
-
-		expect(
-			db.select().from(usersTableCache).leftJoin(postsTableCache, eq(usersTableCache.id, postsTableCache.userId))
-				// @ts-expect-error
-				.getUsedTables(),
-		)
-			.toStrictEqual(['users', 'posts']);
-		expect(
-			db.select().from(sql`${usersTableCache}`).leftJoin(
-				postsTableCache,
-				eq(usersTableCache.id, postsTableCache.userId),
-				// @ts-expect-error
-			).getUsedTables(),
-		).toStrictEqual(['users', 'posts']);
-	});
-	// check select+2join used tables
-	test('select+2joins', () => {
-		const db = cachedDb;
-
-		expect(
-			db.select().from(usersTableCache).leftJoin(
-				postsTableCache,
-				eq(usersTableCache.id, postsTableCache.userId),
-			).leftJoin(
-				alias(postsTableCache, 'post2'),
-				eq(usersTableCache.id, postsTableCache.userId),
-			)
-				// @ts-expect-error
-				.getUsedTables(),
-		)
-			.toStrictEqual(['users', 'posts']);
-		expect(
-			db.select().from(sql`${usersTableCache}`).leftJoin(
-				postsTableCache,
-				eq(usersTableCache.id, postsTableCache.userId),
-			).leftJoin(
-				alias(postsTableCache, 'post2'),
-				eq(usersTableCache.id, postsTableCache.userId),
-				// @ts-expect-error
-			).getUsedTables(),
-		).toStrictEqual(['users', 'posts']);
-	});
-	// select subquery used tables
-	test('select+join', () => {
-		const db = cachedDb;
-
-		const sq = db.select().from(usersTableCache).where(eq(usersTableCache.id, 42)).as('sq');
-		db.select().from(sq);
-
-		// @ts-expect-error
-		expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
-	});
 });
 
 test("No nullification on non-joined table's all-null object", async () => {
@@ -8802,6 +8319,7 @@ test('Default value priority', async () => {
 });
 
 describe('raw execute', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/661
 	test('raw db.execute type matches returned data', async () => {
 		const table = sql.identifier('raw_execute_types');
 
@@ -8839,6 +8357,7 @@ describe('raw execute', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params', async () => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const paramsDb = drizzle({ client, paramsInErrors });
@@ -8854,6 +8373,7 @@ test('Query error params', async () => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params - transaction', async () => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const paramsDb = drizzle({ client, paramsInErrors });

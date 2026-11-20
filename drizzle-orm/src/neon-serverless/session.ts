@@ -7,33 +7,29 @@ import {
 	type QueryResultRow,
 	types,
 } from '@neondatabase/serverless';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
-import { pgRawTextOids } from '~/pg-core/codecs.ts';
+import { pgRawTextTypeParser } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { getTransactionConfigSQL, setTransactionSnapshotSQL } from '~/pg-core/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
-const rawText = (value: string) => value;
-
 export const neonServerlessRawTextTypes: CustomTypesConfig = {
-	getTypeParser:
-		<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
-			pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format as any)),
+	getTypeParser: <CustomTypesConfig['getTypeParser']> pgRawTextTypeParser((typeId, format) =>
+		types.getTypeParser(typeId, format)
+	),
 };
 
 export type NeonClient = Pool | PoolClient | Client;
 
 export interface NeonSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -41,7 +37,6 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 	static override readonly [entityKind]: string = 'NeonSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: NeonClient,
@@ -51,7 +46,6 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -59,8 +53,6 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const queryName = typeof name === 'string'
 			? name
@@ -83,9 +75,6 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}
@@ -97,7 +86,7 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 		const poolClient = this.client instanceof Pool
 			? await this.client.connect()
 			: undefined;
-		// pool detaches its own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
+		// pool detaches it's own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
 		let connectionError: Error | undefined;
 		let rollbackError: Error | undefined;
 		const onConnectionError = (e: Error) => {
@@ -122,7 +111,7 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 		);
 
 		try {
-			await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
+			await tx.execute(sql`begin ${getTransactionConfigSQL(config)}`);
 		} catch (e) {
 			// `begin` may still reach the server after failing on the client, session state is unknown so the client must not be reused
 			release(e as Error);
@@ -131,7 +120,7 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 
 		try {
 			if (typeof config.snapshot === 'string') {
-				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
+				await tx.execute(setTransactionSnapshotSQL(config.snapshot));
 			}
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);

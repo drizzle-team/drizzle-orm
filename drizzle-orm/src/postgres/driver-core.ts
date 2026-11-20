@@ -52,7 +52,12 @@ export class PostgresDatabase<
 	 *
 	 * ```ts
 	 * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
-	 * const [alice, bob] = await db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
+	 * const [alice, bob, inserted, allUsers] = await db.batch([
+	 *   getUser.bind({ id: 1 }),
+	 *   getUser.bind({ id: 2 }),
+	 *   db.insert(users).values({ name: 'John' }).returning(),
+	 *   db.select().from(users),
+	 * ]);
 	 * ```
 	 *
 	 * With `metrics` on, the response also carries the driver's telemetry for the batch as `response.metrics`.
@@ -78,6 +83,19 @@ export class PostgresDatabase<
 	 * Never throws because of a failing query
 	 *
 	 * Failing query does not stop or roll back the others
+	 *
+	 * Takes the same items as `batch`:
+	 *
+	 * ```ts
+	 * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
+	 * const [alice, bob, inserted, allUsers] = await db.pipeline([
+	 *   getUser.bind({ id: 1 }),
+	 *   getUser.bind({ id: 2 }),
+	 *   db.insert(users).values({ name: 'John' }).returning(),
+	 *   db.select().from(users),
+	 * ]);
+	 * // each is `{ status: 'fulfilled', value }` or `{ status: 'rejected', reason }`
+	 * ```
 	 */
 	async pipeline<U extends PostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
@@ -91,6 +109,19 @@ export class PostgresDatabase<
 	 * Never throws because of a failing query
 	 *
 	 * Failing query does not stop or roll back the others
+	 *
+	 * Takes the same items as `batch`:
+	 *
+	 * ```ts
+	 * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
+	 * const [alice, bob, inserted, allUsers] = await db.parallel([
+	 *   getUser.bind({ id: 1 }),
+	 *   getUser.bind({ id: 2 }),
+	 *   db.insert(users).values({ name: 'John' }).returning(),
+	 *   db.select().from(users),
+	 * ]);
+	 * // each is `{ status: 'fulfilled', value }` or `{ status: 'rejected', reason }`
+	 * ```
 	 */
 	async parallel<U extends PostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
@@ -99,10 +130,9 @@ export class PostgresDatabase<
 	}
 
 	/**
-	 * Inserts rows in bulk via driver-side `unnest`, filling `$defaultFn` / `$onUpdateFn` like `db.insert(...)`
+	 * Inserts rows in bulk as multi-row `values` statements, filling `$defaultFn` / `$onUpdateFn` like `db.insert(...)`
 	 *
-	 * Falls back to a multi-row `values` insert when cells are left to the database default in some rows only,
-	 * or when a column's type can't be sent as an `unnest` array (arrays, enums, custom types, etc.)
+	 * A cell a row leaves out gets the column's database default, and a column no row sets is left out of the statement
 	 *
 	 * Atomic by default: rows are split into chunks pipelined in one transaction - pass `atomic: false` to commit per chunk
 	 *
@@ -174,7 +204,6 @@ export function construct<
 	const relations = config.relations ?? {};
 	const session = new PostgresSession(client, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 
@@ -184,10 +213,6 @@ export function construct<
 		relations,
 	) as PostgresDatabase<TRelations>;
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }

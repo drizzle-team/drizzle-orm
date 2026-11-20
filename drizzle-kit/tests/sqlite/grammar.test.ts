@@ -29,6 +29,7 @@ test('view definition', () => {
 	parseViewSQL('CREATE VIEW current_cycle AS\nSELECT\n* from users;');
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3407
 describe('stripSqlComments', () => {
 	test('removes line comments', () => {
 		expect(stripSqlComments('id TEXT -- primary key\n, name TEXT')).toBe('id TEXT \n, name TEXT');
@@ -78,6 +79,7 @@ describe('stripSqlComments', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6237
 describe('parseSqliteIndex', () => {
 	test('plain columns', () => {
 		expect(parseSqliteIndex('CREATE INDEX `idx` ON `table` (`col1`, `col2`)')).toStrictEqual({
@@ -259,6 +261,7 @@ describe('parseSqliteDdl checks', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3407
 describe('parseSqliteDdl ignores commented-out checks', () => {
 	test('line-commented check is ignored', () => {
 		const sql = 'CREATE TABLE users (\n'
@@ -290,6 +293,7 @@ describe('parseSqliteDdl ignores commented-out checks', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3407
 describe('parseSqliteDdl ignores commented-out constraints', () => {
 	test('line-commented unique is ignored', () => {
 		const ddl = 'CREATE TABLE `users` (\n'

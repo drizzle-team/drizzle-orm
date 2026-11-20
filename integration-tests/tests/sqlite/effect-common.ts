@@ -1,4 +1,4 @@
-import { assert, expect, expectTypeOf, it, vi, Vitest } from '@effect/vitest';
+import { assert, expect, expectTypeOf, it, Vitest } from '@effect/vitest';
 import {
 	and,
 	asc,
@@ -14,8 +14,6 @@ import {
 	makeJitRqbMapper,
 	sql,
 } from 'drizzle-orm';
-import type { Cache } from 'drizzle-orm/cache/core';
-import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache-effect';
 import { EffectLogger, type EffectLoggerShape, QueryEffectHKTBase } from 'drizzle-orm/effect-core';
 import {
 	AnyRelations,
@@ -46,13 +44,11 @@ import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
-import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import { expectRecentTime } from '~/recent-time';
-import { withUpstashCache } from '~/upstash-cache';
 import type { AllTypes } from './all-types';
 import {
 	allTypesData,
@@ -62,7 +58,6 @@ import {
 	assertAllTypesUnions,
 	makeAllTypes,
 } from './all-types';
-import { TestCache } from './instrumentation';
 import relations from './relations';
 import { rqbPost, rqbUser } from './schema';
 
@@ -208,7 +203,6 @@ export interface RunCommonEffectSQLiteTestsOptions {
 		schema: TSchema,
 		relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 		useJitMappers?: boolean,
-		cache?: Cache,
 	) => Effect.Effect<
 		SQLiteEffectDatabase<QueryEffectHKTBase, any, ExtractTablesWithRelations<TConfig, TTables>>,
 		never,
@@ -299,69 +293,6 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 				expect(parseStoredJson(stored)).toStrictEqual(output);
 			}));
-
-		it.effect('all types - upstash', () =>
-			withUpstashCache((cache, run) =>
-				Effect.gen(function*() {
-					const allTypesTable = makeAllTypes('all_types_upstash');
-					const db = yield* createDB({ allTypesTable }, () => ({}), false, cache);
-					yield* db.run(sql`drop table if exists ${allTypesTable}`);
-					yield* push(db, { allTypesTable });
-
-					const query = db.select().from(allTypesTable);
-					yield* Effect.promise(async () => {
-						await cache.expectHits('all types', async () => {
-							await run(db.insert(allTypesTable).values(allTypesInput));
-
-							expect(await run(query)).toStrictEqual([allTypesData]);
-							expect(await run(query.all())).toStrictEqual([allTypesData]);
-							expect(await run(query.get())).toStrictEqual(allTypesData);
-							expect(await run(query.values())).toHaveLength(1);
-						});
-					});
-
-					// `.run()` is never read from or written to cache (checked by the cache suites), but mutations it executes still invalidate
-					yield* db.delete(allTypesTable).run();
-					yield* Effect.promise(async () => {
-						expect(await run(query)).toStrictEqual([]);
-					});
-					yield* db.insert(allTypesTable).values(allTypesInput).run();
-
-					yield* Effect.promise(async () => {
-						await cache.expectHits('unions', () => assertAllTypesUnions(db as any, allTypesTable, run));
-						await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run }));
-						await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db as any, { run }));
-					});
-				})
-			));
-
-		it.effect('all types ~json~ - upstash', () =>
-			withUpstashCache((cache, run) =>
-				Effect.gen(function*() {
-					const table = sqliteTable('all_types_json_upstash', {
-						id: integer('id').primaryKey(),
-						jsonText: text('jsonText', { mode: 'json' }),
-						jsonBlob: blob('jsonBlob', { mode: 'json' }),
-					});
-					const db = yield* createDB({ table }, () => ({}), false, cache);
-					yield* db.run(sql`drop table if exists ${table}`);
-					yield* push(db, { table });
-
-					const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
-
-					const query = db.select().from(table).orderBy(table.id);
-					yield* Effect.promise(() =>
-						cache.expectHits('json', async () => {
-							await run(db.insert(table).values(input));
-
-							expect(await run(query)).toStrictEqual(output);
-							expect(await run(query.all())).toStrictEqual(output);
-							expect(await run(query.get())).toStrictEqual(output[0]);
-							expect(await run(query.values())).toHaveLength(output.length);
-						})
-					);
-				})
-			));
 
 		it.effect('RQB v2 simple find first - no rows', () =>
 			Effect.gen(function*() {
@@ -1512,6 +1443,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		it.effect('select distinct ordered by cast columns', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -1541,6 +1473,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		it.effect('order by aliased cast columns', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -2476,230 +2409,6 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				expect(loggedQueries.length).toBeGreaterThanOrEqual(2);
 				expect(loggedQueries.some((q) => q.query.toLowerCase().includes('insert'))).toBe(true);
 				expect(loggedQueries.some((q) => q.query.toLowerCase().includes('select'))).toBe(true);
-			}));
-
-		it.effect('custom EffectCache override - user provided cache takes precedence over default', () =>
-			Effect.gen(function*() {
-				const cacheOperations = yield* Ref.make<Array<{ op: 'get' | 'put' | 'mutate'; key?: string }>>([]);
-
-				const customCacheService: EffectCacheShape = {
-					strategy: () => 'all' as const,
-					get: (key: string, _tables: string[], _isTag: boolean, _isAutoInvalidate?: boolean) =>
-						Effect.gen(function*() {
-							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'get' as const, key }]);
-							return undefined;
-						}),
-					put: (key: string, _response: any, _tables: string[], _isTag: boolean, _config?: any) =>
-						Effect.gen(function*() {
-							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'put' as const, key }]);
-						}),
-					onMutate: (_params: any) =>
-						Effect.gen(function*() {
-							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'mutate' as const }]);
-						}),
-				};
-				const customCacheLayer = Layer.succeed(EffectCache, customCacheService);
-
-				const db = yield* SQLiteDrizzle.make({ relations }).pipe(
-					Effect.provide(customCacheLayer),
-					Effect.provide(SQLiteDrizzle.DefaultServices),
-				);
-
-				const users = sqliteTable('users_custom_cache', {
-					id: integer('id').primaryKey(),
-					name: text('name').notNull(),
-				});
-
-				yield* push(db, { users });
-				yield* db.insert(users).values({ name: 'John' });
-				yield* db.select().from(users).$withCache();
-
-				const ops = yield* Ref.get(cacheOperations);
-				expect(ops.some((o) => o.op === 'mutate')).toBe(true);
-				expect(ops.some((o) => o.op === 'get')).toBe(true);
-			}));
-
-		it.effect('Cache: write + query all methods & verify data intergrity', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('explicit');
-
-				using spyPut = vi.spyOn(baseCache, 'put');
-				using spyGet = vi.spyOn(baseCache, 'get');
-				using spyInvalidate = vi.spyOn(baseCache, 'onMutate');
-
-				const customCacheLayer = EffectCache.layerFromDrizzle(baseCache);
-				const db = yield* SQLiteDrizzle.make({ relations }).pipe(
-					Effect.provide(customCacheLayer),
-					Effect.provide(SQLiteDrizzle.DefaultServices),
-				);
-
-				const users = sqliteTable('users_custom_cache_2', {
-					id: integer('id').primaryKey(),
-					name: text('name').notNull(),
-				});
-
-				yield* push(db, { users });
-				yield* db.insert(users).values({ name: 'John' });
-
-				expect(spyPut).toHaveBeenCalledTimes(0);
-				expect(spyGet).toHaveBeenCalledTimes(0);
-				expect(spyInvalidate).toHaveBeenCalledTimes(1);
-
-				spyPut.mockClear();
-				spyGet.mockClear();
-				spyInvalidate.mockClear();
-
-				const qRaw = db.select().from(users).prepare();
-				const qCache = db.select().from(users).$withCache({ config: { ex: 120 } }).prepare();
-
-				const [_all, _get, _run, _values] = [
-					yield* qRaw.all(),
-					yield* qRaw.get(),
-					yield* qRaw.run(),
-					yield* qRaw.values(),
-				];
-				const [all, get, run, values] = [
-					yield* qCache.all(),
-					yield* qCache.get(),
-					yield* qCache.run(),
-					yield* qCache.values(),
-				];
-
-				expect(all).toStrictEqual(_all);
-				expect(get).toStrictEqual(_get);
-				expect(run).toStrictEqual(_run);
-				expect(values).toStrictEqual(_values);
-
-				// `run` returns driver's run result, which is never cached
-				expect(spyPut).toHaveBeenCalledTimes(3);
-				expect(spyGet).toHaveBeenCalledTimes(3);
-				expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-				spyPut.mockClear();
-				spyGet.mockClear();
-				spyInvalidate.mockClear();
-			}));
-
-		it.effect('Cache: onMutate runs after the write is committed', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('explicit');
-
-				const db = yield* SQLiteDrizzle.make({ relations }).pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
-					Effect.provide(SQLiteDrizzle.DefaultServices),
-				);
-
-				const users = sqliteTable('users_cache_mutate_order', {
-					id: integer('id').primaryKey(),
-					name: text('name').notNull(),
-				});
-
-				yield* push(db, { users });
-
-				const context = yield* Effect.context<never>();
-				const run = (query: any) => Effect.runPromiseWith(context)(query);
-				const seen: string[][] = [];
-				using spyInvalidate = vi.spyOn(baseCache, 'onMutate').mockImplementation(async () => {
-					const rows = await run(db.select({ name: users.name }).from(users)) as { name: string }[];
-					seen.push(rows.map((r) => r.name));
-				});
-
-				yield* db.insert(users).values({ id: 1, name: 'John' });
-
-				expect(spyInvalidate).toHaveBeenCalledTimes(1);
-				expect(seen).toStrictEqual([['John']]);
-			}));
-
-		it.effect('Cache: relational query - withCache, used tables, invalidation', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('explicit');
-
-				const db = yield* SQLiteDrizzle.make({ relations }).pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
-					Effect.provide(SQLiteDrizzle.DefaultServices),
-				);
-
-				yield* push(db, { rqbUser, rqbPost });
-				const createdAt = new Date(120000);
-				yield* db.insert(rqbUser).values({ id: 1, name: 'John', createdAt });
-				yield* db.insert(rqbPost).values({ id: 1, userId: 1, content: 'First', createdAt });
-
-				using spyPut = vi.spyOn(baseCache, 'put');
-				using spyGet = vi.spyOn(baseCache, 'get');
-
-				const query = (withCache?: boolean) =>
-					db.query.rqbUser.findMany({
-						columns: { name: true },
-						with: { posts: { columns: { content: true }, orderBy: { id: 'asc' } } },
-						withCache,
-					});
-
-				yield* query();
-				expect(spyGet).toHaveBeenCalledTimes(0);
-
-				expect(yield* query(true)).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
-				expect(spyPut.mock.calls[0]![2]).toStrictEqual(['user_rqb_test', 'post_rqb_test']);
-
-				// Bypasses cache invalidation, cached result is served
-				yield* db.run(sql`insert into ${rqbPost} values (2, 1, 'Unseen', 0)`);
-				expect(yield* query(true)).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
-				expect(spyGet).toHaveBeenCalledTimes(2);
-				expect(spyPut).toHaveBeenCalledTimes(1);
-
-				yield* db.insert(rqbPost).values({ id: 3, userId: 1, content: 'Third', createdAt });
-				expect(yield* query(true)).toStrictEqual([{
-					name: 'John',
-					posts: [{ content: 'First' }, { content: 'Unseen' }, { content: 'Third' }],
-				}]);
-				expect(spyPut).toHaveBeenCalledTimes(2);
-			}));
-
-		it.effect('Cache: relational query - all strategy unless withCache: false', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('all');
-
-				const db = yield* SQLiteDrizzle.make({ relations }).pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
-					Effect.provide(SQLiteDrizzle.DefaultServices),
-				);
-
-				yield* push(db, { rqbUser });
-
-				using spyPut = vi.spyOn(baseCache, 'put');
-				using spyGet = vi.spyOn(baseCache, 'get');
-
-				yield* db.query.rqbUser.findMany({ withCache: false });
-				expect(spyGet).toHaveBeenCalledTimes(0);
-
-				yield* db.query.rqbUser.findFirst();
-				expect(spyGet).toHaveBeenCalledTimes(1);
-				expect(spyPut).toHaveBeenCalledTimes(1);
-				expect(spyPut.mock.calls[0]![2]).toStrictEqual(['user_rqb_test']);
-			}));
-
-		it.effect('Cache: no onMutate on failed write', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('explicit');
-
-				const db = yield* SQLiteDrizzle.make({ relations }).pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
-					Effect.provide(SQLiteDrizzle.DefaultServices),
-				);
-
-				const users = sqliteTable('users_cache_failed_write', {
-					id: integer('id').primaryKey(),
-					name: text('name').notNull(),
-				});
-
-				yield* push(db, { users });
-				yield* db.insert(users).values({ id: 1, name: 'John' });
-
-				using spyInvalidate = vi.spyOn(baseCache, 'onMutate');
-
-				const res = yield* db.insert(users).values({ id: 1, name: 'Jane' }).pipe(Effect.result);
-
-				assert(Result.isFailure(res));
-				expect(spyInvalidate).toHaveBeenCalledTimes(0);
 			}));
 
 		it.effect('makeWithDefaults - convenience function that includes DefaultServices', () =>
@@ -4455,6 +4164,8 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4480,6 +4191,8 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list - select', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4506,6 +4219,8 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list - on conflict', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4561,6 +4276,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				}]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params', () =>
 			Effect.gen(function*() {
 				const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;
@@ -4587,6 +4303,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				}
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params - transaction', () =>
 			Effect.gen(function*() {
 				const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;

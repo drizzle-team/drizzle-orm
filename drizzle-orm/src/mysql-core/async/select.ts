@@ -7,11 +7,13 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { applyMixins, type Assume, resolveNullableObjectPaths } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
+import { MySqlRunnableQuery } from '../query-builders/runnable.ts';
 import { MySqlSelectBase, type MySqlSelectBuilder } from '../query-builders/select.ts';
 import type { MySqlSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { MySqlPreparedQueryConfig } from '../session.ts';
-import type { MySqlAsyncPreparedQuery, MySqlAsyncSession } from './session.ts';
+import { MySqlAsyncIterableQuery } from './iterable.ts';
+import type { MySqlAsyncPreparedQuery, MySqlAsyncRuntimeHKT, MySqlAsyncSession } from './session.ts';
 
 export type MySqlAsyncSelectPrepare<T extends AnyMySqlAsyncSelect> = MySqlAsyncPreparedQuery<
 	MySqlPreparedQueryConfig & {
@@ -39,6 +41,7 @@ export type MySqlAsyncSelect<
 >;
 
 export interface MySqlAsyncSelectHKT extends MySqlSelectHKTBase {
+	runtime: MySqlAsyncRuntimeHKT;
 	_type: MySqlAsyncSelectBase<
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
@@ -74,7 +77,15 @@ export interface MySqlAsyncSelectBase<
 		TSelectedFields
 	>,
 	QueryPromise<TResult>
-{}
+{
+	/**
+	 * Runs the query and returns an async iterator over it's rows, with values for any `sql.placeholder()` it contains.
+	 * Streams rows when the driver supports it
+	 */
+	iterator(
+		placeholderValues?: Record<string, unknown>,
+	): AsyncGenerator<TResult extends readonly (infer TRow)[] ? TRow : never>;
+}
 
 export class MySqlAsyncSelectBase<
 	TTableName extends string | undefined,
@@ -100,38 +111,8 @@ export class MySqlAsyncSelectBase<
 	static override readonly [entityKind]: string = 'MySqlSelect';
 
 	declare readonly session: MySqlAsyncSession<any, any>;
-
-	prepare(): MySqlAsyncSelectPrepare<this> {
-		// Build query before accessing `fieldsFlat` - build mutates it
-		const sequel = this.getSQL();
-		const query = this.dialect.sqlToQuery(sequel);
-		const fieldsList = this.config.fieldsFlat!;
-		const mapper = this.config.mapper ??= this.dialect.mapperGenerators.rows(
-			fieldsList,
-			resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap),
-		);
-
-		const preparedQuery = this.session.prepareQuery<
-			MySqlPreparedQueryConfig & { execute: TResult[] }
-		>(query, 'arrays', mapper, { type: 'select', tables: () => this.getUsedTables(sequel) }, this.cacheConfig);
-
-		return preparedQuery as MySqlAsyncSelectPrepare<this>;
-	}
-
-	execute = ((placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	}) as ReturnType<this['prepare']>['execute'];
-
-	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
-		const self = this;
-		return async function*(placeholderValues) {
-			yield* self.prepare().iterator(placeholderValues);
-		};
-	};
-
-	iterator = this.createIterator();
 }
 
-applyMixins(MySqlAsyncSelectBase, [QueryPromise]);
+applyMixins(MySqlAsyncSelectBase, [QueryPromise, MySqlRunnableQuery, MySqlAsyncIterableQuery]);
 
 export type AnyMySqlAsyncSelect = MySqlAsyncSelectBase<any, any, any, any, any, any, any, any>;

@@ -87,7 +87,6 @@ function construct<
 
 	const session = new NetlifyDbSession(httpClient, pool, dialect, relations ?? {}, {
 		logger: logger,
-		cache: config.cache,
 		transactionCodecs: config.transactionCodecs ?? netlifyDbTransactionCodecs,
 		paramsInErrors: config.paramsInErrors,
 	});
@@ -98,10 +97,6 @@ function construct<
 		relations,
 	);
 	(<any> db).$client = { http: httpClient, pool } satisfies NetlifyDbClient;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }

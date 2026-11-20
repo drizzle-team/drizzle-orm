@@ -10,7 +10,6 @@ import {
 	desc,
 	DrizzleQueryError,
 	eq,
-	type ExtractTablesFromSchema,
 	getColumns,
 	getTableColumns,
 	gt,
@@ -29,7 +28,6 @@ import {
 	min,
 	not,
 	or,
-	type RelationsBuilder,
 	sql,
 	sum,
 	sumDistinct,
@@ -62,7 +60,6 @@ import type { DsqlAsyncSession } from 'drizzle-orm/pg-core/async/dsql';
 import { PostgresJsDsqlDatabase } from 'drizzle-orm/postgres-js/dsql';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
-import { UpstashTestCache } from '~/upstash-cache';
 import { normalizeDataWithDbCodecs } from '../pg/utils';
 import {
 	type AllTypes,
@@ -3552,65 +3549,6 @@ export function tests(test: Test) {
 			expect(parseStoredJson(stored)).toStrictEqual(output);
 		});
 
-		const { allTypesTable: upstashTable } = makeAllTypes('all_types_upstash');
-		const upstashSchema = { allTypesTable: upstashTable, ...boundsSchema };
-		const upstashRelations = (r: RelationsBuilder<ExtractTablesFromSchema<typeof upstashSchema>>) => ({
-			...allTypesRelations(r),
-			...boundsRelations(r),
-		});
-
-		test('all types - upstash', async ({ createDB, push }) => {
-			await using cache = new UpstashTestCache();
-			const { run } = cache;
-			const table = upstashTable;
-			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
-			await push({ table });
-
-			await cache.expectHits('all types', async () => {
-				await run(db.insert(table).values(allTypesData));
-				expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
-			});
-		});
-
-		test('all types ~codecs~ - upstash', async ({ createDB, push }) => {
-			await using cache = new UpstashTestCache();
-			const { run } = cache;
-			const table = upstashTable;
-			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
-			await push({ table });
-
-			await cache.expectHits('all types', async () => {
-				await run(db.insert(table).values(allTypesData));
-				expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
-				expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
-					...allTypesData,
-					self: [allTypesData],
-				});
-			});
-			await cache.expectHits('unions', () => assertAllTypesUnions(db, table, run));
-			await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run, rqb: true }));
-			await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db, { run, rqb: true }));
-		});
-
-		test('all types ~json~ - upstash', async ({ createDB, push }) => {
-			await using cache = new UpstashTestCache();
-			const { run } = cache;
-			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
-			const table = pgTable('all_types_json_upstash', {
-				id: integer('id').primaryKey(),
-				json: json('json'),
-				jsonb: jsonb('jsonb'),
-			});
-			await push({ table });
-
-			const { input, output } = jsonRows(['json', 'jsonb']);
-
-			await cache.expectHits('json', async () => {
-				await run(db.insert(table).values(input));
-				expect(await run(db.select().from(table).orderBy(table.id))).toStrictEqual(output);
-			});
-		});
-
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
 		test.concurrent(
 			'select string from jsonb/json column',
@@ -5681,6 +5619,7 @@ export function tests(test: Test) {
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		test.concurrent('Query error params', async ({ createDB }) => {
 			for (const paramsInErrors of [undefined, false, true]) {
 				const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -5696,6 +5635,7 @@ export function tests(test: Test) {
 			}
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		test.concurrent('Query error params - transaction', async ({ createDB }) => {
 			for (const paramsInErrors of [undefined, false, true]) {
 				const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -5913,6 +5853,7 @@ export function tests(test: Test) {
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
 			let customCast = false;
 			let customMap = false;
@@ -6104,6 +6045,7 @@ export function tests(test: Test) {
 			);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 			let customCast = false;
 			let customMap = false;
@@ -6295,6 +6237,7 @@ export function tests(test: Test) {
 			);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5780
 		test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
 			let counter = 0;
 			const table = pgTable('on_update_call_test', (t) => ({
@@ -6335,6 +6278,7 @@ export function tests(test: Test) {
 			expect(res).toStrictEqual([{ id: 2, name: 'Second', inc: 2 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4464
 		test.concurrent('db.execute modes', async ({ db, push }) => {
 			const users = pgTable('users_execute_modes_1', (t) => ({
 				id: t.integer().primaryKey(),
@@ -6534,6 +6478,7 @@ export function tests(test: Test) {
 			).rejects.toThrowError(/Aurora DSQL does not support nested transactions/);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/1772
 		test('transaction with an empty options object', async ({ db, push }) => {
 			const users = pgTable('users_tx_cfg_empty', {
 				id: integer('id').primaryKey(),

@@ -304,6 +304,7 @@ describe('Filters', () => {
 		));
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('EmptyFilter skips column field', () => {
 		expect(buildFilter(table, {
 			number: {
@@ -314,6 +315,7 @@ describe('Filters', () => {
 		})).toStrictEqual(and(and(eq(table.number, 2))));
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('EmptyFilter skips field operator', () => {
 		expect(buildFilter(table, {
 			number: {
@@ -323,10 +325,12 @@ describe('Filters', () => {
 		})).toStrictEqual(and(and(eq(table.number, 2))));
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('EmptyFilter as whole filter returns undefined', () => {
 		expect(relationsFilterToSQL(table, EmptyFilter)).toStrictEqual({ sql: undefined, hasRelationFilters: false });
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('undefined column field throws', () => {
 		expect(() =>
 			buildFilter(table, {
@@ -337,6 +341,7 @@ describe('Filters', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('undefined field operator throws', () => {
 		expect(() =>
 			buildFilter(table, {
@@ -349,12 +354,14 @@ describe('Filters', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('undefined whole filter throws', () => {
 		expect(() => relationsFilterToSQL(table, undefined)).toThrowError(
 			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('undefined in field OR array throws', () => {
 		expect(() =>
 			buildFilter(table, {
@@ -368,6 +375,7 @@ describe('Filters', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('undefined in field AND array throws', () => {
 		expect(() =>
 			buildFilter(table, {
@@ -381,6 +389,7 @@ describe('Filters', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('undefined nested in field NOT -> OR array throws', () => {
 		expect(() =>
 			buildFilter(table, {
@@ -394,6 +403,7 @@ describe('Filters', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('EmptyFilter in field OR array is skipped', () => {
 		expect(buildFilter(table, {
 			number: {
@@ -406,6 +416,7 @@ describe('Filters', () => {
 		}));
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('EmptyFilter in field OR array alongside shortcut values', () => {
 		expect(buildFilter(table, {
 			number: {
@@ -414,6 +425,7 @@ describe('Filters', () => {
 		})).toStrictEqual(and(and(or(eq(table.number, 1), eq(table.number, 2)))));
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('EmptyFilter in field OR array alongside placeholder', () => {
 		expect(buildFilter(table, {
 			number: {
@@ -422,6 +434,7 @@ describe('Filters', () => {
 		})).toStrictEqual(and(and(or(eq(table.number, sql.placeholder('n'))))));
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('EmptyFilter in field AND array is skipped', () => {
 		expect(buildFilter(table, {
 			number: {
@@ -430,6 +443,7 @@ describe('Filters', () => {
 		})).toStrictEqual(and(and(and(and(gt(table.number, 1)), eq(table.number, 3)))));
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('Field NOT over OR of only EmptyFilter is skipped', () => {
 		expect(buildFilter(table, {
 			number: {
@@ -439,6 +453,7 @@ describe('Filters', () => {
 		})).toStrictEqual(and(eq(table.string, 'str')));
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('Field value types are still checked next to EmptyFilter', () => {
 		expect(() =>
 			buildFilter(table, {
@@ -450,6 +465,7 @@ describe('Filters', () => {
 		).not.toThrow();
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('undefined in relation-level structural keys throws', () => {
 		for (const key of ['OR', 'AND', 'NOT', 'RAW'] as const) {
 			expect(() => buildFilter(table, { [key]: undefined }), `${key}: undefined`).toThrowError(
@@ -458,26 +474,31 @@ describe('Filters', () => {
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('OR set to EmptyFilter is skipped', () => {
 		expect(buildFilter(table, { OR: EmptyFilter })).toStrictEqual(undefined);
 		expect(buildFilter(table, { OR: EmptyFilter, number: 1 })).toStrictEqual(and(eq(table.number, 1)));
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('AND set to EmptyFilter is skipped', () => {
 		expect(buildFilter(table, { AND: EmptyFilter })).toStrictEqual(undefined);
 		expect(buildFilter(table, { AND: EmptyFilter, number: 1 })).toStrictEqual(and(eq(table.number, 1)));
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('NOT set to EmptyFilter is skipped', () => {
 		expect(buildFilter(table, { NOT: EmptyFilter })).toStrictEqual(undefined);
 		expect(buildFilter(table, { NOT: EmptyFilter, number: 1 })).toStrictEqual(and(eq(table.number, 1)));
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('RAW set to EmptyFilter is skipped', () => {
 		expect(buildFilter(table, { RAW: EmptyFilter })).toStrictEqual(undefined);
 		expect(buildFilter(table, { RAW: EmptyFilter, number: 1 })).toStrictEqual(and(eq(table.number, 1)));
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('RAW callback returning EmptyFilter is skipped', () => {
 		expect(buildFilter(table, { RAW: () => EmptyFilter })).toStrictEqual(undefined);
 		expect(buildFilter(table, { RAW: () => EmptyFilter, number: 1 })).toStrictEqual(and(eq(table.number, 1)));
@@ -534,6 +555,7 @@ describe('Filters', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5636
 	test('array of only EmptyFilter is skipped, not treated as empty', () => {
 		expect(buildFilter(table, { number: { OR: [EmptyFilter] } })).toStrictEqual(undefined);
 		expect(buildFilter(table, { OR: [EmptyFilter] })).toStrictEqual(undefined);
@@ -719,6 +741,7 @@ describe('Extras', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2343
 test('Relation & colum names collision', () => {
 	expect(() =>
 		defineRelations({ table }, (r) => ({
@@ -739,6 +762,7 @@ const posts = pgTable('posts', {
 	authorId: integer(),
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5636
 describe('Relation config where', () => {
 	test('omitted where does not throw', () => {
 		expect(() =>
@@ -816,6 +840,7 @@ describe('Reverse-derived relation filter binding (isFilterReversed)', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6076
 describe('Relation names shadowing Object.prototype properties', () => {
 	const results = pgTable('results', { id: integer(), constructorId: integer() });
 	const constructors = pgTable('constructors', { id: integer(), name: text() });
@@ -856,6 +881,7 @@ describe('Relation names shadowing Object.prototype properties', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6217
 describe('Relational filter EmptyFilter behavior', () => {
 	const relUsers = pgTable('user', { id: integer(), a: text(), b: text() });
 	const relData = pgTable('data', { id: integer(), userId: integer(), email: text(), username: text() });
@@ -1024,6 +1050,7 @@ describe('Relational filter EmptyFilter behavior', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5245
 describe('Relational filter `hasRelationFilters` flag', () => {
 	const flagUsers = pgTable('user', { id: integer(), a: text(), b: text() });
 	const flagData = pgTable('data', { id: integer(), userId: integer(), email: text(), username: text() });

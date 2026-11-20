@@ -1,7 +1,7 @@
 import { MysqlClient } from '@effect/sql-mysql2/MysqlClient';
+import type * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Redacted from 'effect/Redacted';
-import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
@@ -72,8 +72,8 @@ const assertLosslessPoolOptions = (client: MysqlClient) => {
 /**
  * Creates an EffectMysql2Database instance.
  *
- * Requires `MysqlClient`, `EffectLogger`, and `EffectCache` services to be provided.
- * Use `DefaultServices` to provide default (no-op) logger and cache implementations.
+ * Requires `MysqlClient`, and `EffectLogger` services to be provided.
+ * Use `DefaultServices` to provide the default (no-op) logger implementation.
  *
  * @example
  * ```ts
@@ -107,7 +107,6 @@ export const make = Effect.fn('MySqlDrizzle.make')(
 	>(config: EffectDrizzleMySqlConfig<TRelations> = {}) {
 		const client = yield* MysqlClient;
 		assertLosslessPoolOptions(client);
-		const cache = yield* EffectCache;
 		const logger = yield* EffectLogger;
 
 		const dialect = new MySqlDialect({
@@ -119,18 +118,13 @@ export const make = Effect.fn('MySqlDrizzle.make')(
 		const relations = config.relations ?? {} as TRelations;
 		const session = new EffectMysql2Session(client, dialect, relations, {
 			logger,
-			cache,
 			paramsInErrors: config.paramsInErrors,
 		});
 		const db = new EffectMysql2Database(dialect, session, relations) as EffectMysql2Database<TRelations>;
 		(<any> db).$client = client;
-		(<any> db).$cache = cache;
-		if ((<any> db).$cache) {
-			(<any> db).$cache['invalidate'] = cache.onMutate;
-		}
 
 		return db as EffectMysql2Database<TRelations> & {
-			$client: MysqlClient;
+			$client: Context.Service.Shape<typeof MysqlClient>;
 		};
 	},
 );

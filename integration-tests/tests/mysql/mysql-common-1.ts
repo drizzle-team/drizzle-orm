@@ -142,6 +142,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(result).toEqual([{ id: 1, name: 'Candy' }, { id: 1, name: 'Ilse' }, { id: 2, name: 'Agripina' }]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6673
 	test.concurrent('select distinct ordered by cast columns', async ({ db, push }) => {
 		const table = mysqlTable('distinct_cast_order', {
 			id: int('id').notNull(),
@@ -179,6 +180,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6673
 	test.concurrent('order by aliased cast columns', async ({ db, push }) => {
 		const table = mysqlTable('alias_cast_order', {
 			id: int('id').notNull(),

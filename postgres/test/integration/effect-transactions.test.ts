@@ -1,9 +1,9 @@
 // Transactions in the Effect entry point, checked through the rows that end up in the database.
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
-import { Cause, Effect, Exit, Fiber } from 'effect';
+import { Cause, Effect, Exit, Fiber, Result } from 'effect';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { DrizzlePostgresClient } from '../../src/effect/index.ts';
-import { testPool } from '../helpers/db.ts';
+import { PGLITE, testPool } from '../helpers/db.ts';
 import { runTest } from '../helpers/effect.ts';
 
 const T = `effect_tx_${process.pid}`;
@@ -70,6 +70,67 @@ describe('withTransaction', () => {
 			yield* Fiber.interrupt(fiber);
 		}));
 		expect(await ids()).toEqual([]);
+	});
+
+	// Nested transactions started at the same time are savepoints, which Postgres nests in the order they are created:
+	// releasing or rolling back to the first one also ends every savepoint made after it. Effect's own SqlClient runs
+	// them one at a time.
+	test('concurrent nested transactions both commit their work', async () => {
+		await runTest(Effect.gen(function*() {
+			const sql = yield* SqlClient;
+			yield* sql.withTransaction(
+				Effect.all([sql.withTransaction(insert(1)), sql.withTransaction(insert(2))], { concurrency: 'unbounded' }),
+			);
+		}));
+		expect(await ids()).toEqual([1, 2]);
+	});
+
+	test("a failing concurrent nested transaction rolls back only its own work, not a sibling's that already committed", async () => {
+		const outcome = await runTest(Effect.gen(function*() {
+			const sql = yield* SqlClient;
+			return yield* sql.withTransaction(Effect.all([
+				sql.withTransaction(
+					insert(1).pipe(Effect.andThen(Effect.sleep('50 millis')), Effect.andThen(Effect.fail('a fails'))),
+				).pipe(Effect.result),
+				sql.withTransaction(Effect.sleep('10 millis').pipe(Effect.andThen(insert(2)))).pipe(Effect.result),
+			], { concurrency: 'unbounded' }));
+		}));
+		expect(outcome.map(Result.isSuccess)).toEqual([false, true]);
+		expect(await ids()).toEqual([2]);
+	});
+
+	// Fiber.interrupt returns when the fiber has ended, finalizers included. A transaction ends with its rollback, so
+	// by then the rows it locked are free. The finalizer delays the end, so a rollback that runs after the fiber is gone
+	// still holds the lock.
+	// a second session checks the lock: PGlite has one
+	test.skipIf(PGLITE)('an interrupt returns once the transaction has rolled back', async () => {
+		const other = testPool();
+		const { client, release } = await other.connect();
+		try {
+			await client.query(`set lock_timeout = '50ms'`);
+			const result = await runTest(Effect.gen(function*() {
+				const sql = yield* SqlClient;
+				let finalized = false;
+				const fiber = yield* Effect.forkChild(sql.withTransaction(
+					insert(1).pipe(
+						Effect.andThen(Effect.never),
+						Effect.ensuring(Effect.andThen(Effect.sleep('200 millis'), Effect.sync(() => (finalized = true)))),
+					),
+				));
+				yield* Effect.sleep('100 millis');
+				yield* Fiber.interrupt(fiber);
+				// the same id from another connection: waits for the transaction's lock if it still holds it
+				const sameRow = yield* Effect.exit(Effect.tryPromise({
+					try: () => client.query(`insert into ${T} values (1)`),
+					catch: (e) => `failed with ${(e as { code?: string }).code ?? String(e)}`, // 55P03: the row is still locked
+				}));
+				return { finalized, sameRow: Exit.isSuccess(sameRow) ? 'inserted' : Cause.squash(sameRow.cause) };
+			}));
+			expect(result).toEqual({ finalized: true, sameRow: 'inserted' });
+		} finally {
+			release();
+			await other.end();
+		}
 	});
 
 	test('a transaction that is already aborted fails at COMMIT', async () => {

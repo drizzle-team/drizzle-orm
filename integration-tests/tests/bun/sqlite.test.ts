@@ -986,6 +986,7 @@ test('all types ~json~', async () => {
 	expect(parseStoredJson(stored)).toStrictEqual(output);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params', async () => {
 	await db.run(sql`drop table if exists params_in_errors`);
 	await db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);
@@ -1024,6 +1025,7 @@ test('Query error params', async () => {
 	await db.run(sql`drop table params_in_errors`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params - sync transaction', async () => {
 	await db.run(sql`drop table if exists params_in_errors`);
 	await db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);

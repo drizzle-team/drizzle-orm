@@ -6,8 +6,9 @@ import type { SQLiteDeleteHKTBase } from '~/sqlite-core/query-builders/delete.ts
 import { SQLiteDeleteBase } from '~/sqlite-core/query-builders/delete.ts';
 import type { PreparedQueryConfig } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
-import { usedTablesOf } from '~/used-tables.ts';
+import { applyMixins } from '~/utils.ts';
 import type { Assume, DrizzleTypeError } from '~/utils.ts';
+import { type SQLiteEffectRunnableMethods, SQLiteRunnableQuery } from '../query-builders/runnable.ts';
 import type { SQLiteEffectPreparedQuery, SQLiteEffectSession } from './session.ts';
 
 export interface SQLiteEffectDeleteHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
@@ -28,7 +29,7 @@ export type AnySQLiteEffectDelete = SQLiteEffectDeleteBase<any, any, any, any, a
 export type SQLiteEffectDelete<
 	TTable extends SQLiteTable = SQLiteTable,
 	TRunResult = unknown,
-	TReturning extends Record<string, unknown> | undefined = undefined,
+	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > = SQLiteEffectDeleteBase<TTable, TRunResult, TReturning, true, never, TEffectHKT>;
 
@@ -63,7 +64,15 @@ export interface SQLiteEffectDeleteBase<
 	// oxlint-disable-next-line no-unused-vars
 	TExcludedMethods extends string = never,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
-> extends QueryEffectKind<TEffectHKT, TReturning extends undefined ? TRunResult : TReturning[]> {}
+> extends
+	QueryEffectKind<TEffectHKT, TReturning extends undefined ? TRunResult : TReturning[]>,
+	SQLiteEffectRunnableMethods
+{
+	/** @internal */
+	_prepare(prepare?: boolean): SQLiteEffectDeletePrepare<this, TEffectHKT>;
+
+	prepare(): SQLiteEffectDeletePrepare<this, TEffectHKT>;
+}
 
 export class SQLiteEffectDeleteBase<
 	TTable extends SQLiteTable,
@@ -84,45 +93,7 @@ export class SQLiteEffectDeleteBase<
 	static override readonly [entityKind]: string = 'SQLiteEffectDelete';
 
 	declare protected session: SQLiteEffectSession<TRunResult, TEffectHKT, any>;
-
-	/** @internal */
-	_prepare(prepare = false): SQLiteEffectDeletePrepare<this, TEffectHKT> {
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
-			'arrays',
-			prepare,
-			this.config.returning ? 'all' : 'run',
-			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
-			{
-				type: 'delete',
-				tables: () => usedTablesOf(this.config.table),
-			},
-		) as SQLiteEffectDeletePrepare<this, TEffectHKT>;
-	}
-
-	prepare(): SQLiteEffectDeletePrepare<this, TEffectHKT> {
-		return this._prepare(true);
-	}
-
-	run: ReturnType<this['prepare']>['run'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().run(placeholderValues);
-	};
-
-	all: ReturnType<this['prepare']>['all'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().all(placeholderValues);
-	};
-
-	get: ReturnType<this['prepare']>['get'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().get(placeholderValues);
-	};
-
-	values: ReturnType<this['prepare']>['values'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().values(placeholderValues);
-	};
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues?: Record<string, unknown>) => {
-		return this._prepare().execute(placeholderValues);
-	};
 }
 
+applyMixins(SQLiteEffectDeleteBase, [SQLiteRunnableQuery]);
 applyEffectWrapper(SQLiteEffectDeleteBase);

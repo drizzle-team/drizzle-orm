@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test';
 import { geometry } from '../../../src/geometry.ts';
 import { Collect, defineType, Json } from '../../../src/index.ts';
-import { caught, TEST_TIMEOUT, withConn } from '../../helpers/db.ts';
+import { caught, PGLITE, TEST_TIMEOUT, withConn } from '../../helpers/db.ts';
 
 // a toy PG-ish type: 'complex' rendered as 'a+bi'
 const complex = defineType('complex', {
@@ -65,7 +65,8 @@ describe('defineType registry', () => {
 		});
 	}, TEST_TIMEOUT);
 
-	test('a declared type wins over a config.types override of its real OID', async () => {
+	// the type is created on one connection and read on a second one: a PGlite has one session
+	test.skipIf(PGLITE)('a declared type wins over a config.types override of its real OID', async () => {
 		const mood = defineType('mood', { ascii: true, targets: { upper: (s) => s.toUpperCase() } });
 		await withConn(async (c) => {
 			await c.query('drop type if exists postgres_test_mood');

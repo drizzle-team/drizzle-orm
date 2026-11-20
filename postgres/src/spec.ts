@@ -131,7 +131,7 @@ export function resolveParamTypes(ts: readonly (number | string)[]): readonly nu
 // text adds `:latin1`. So e.g. `timestamptz` offers date/ms/string — NOT :number/:latin1.
 type TemporalType = 'date' | 'timestamp' | 'timestamptz';
 type IntType = 'int8' | 'bigint'; // default BigInt; :number (lossy) / :string
-type NumericType = 'numeric' | 'decimal' | 'money'; // default exact string; :number (lossy)
+type NumericType = 'numeric' | 'decimal'; // default exact string; :number (lossy). Not money: its text is locale-formatted
 type BigNumericType = 'numeric' | 'decimal'; // :bigint = declared INTEGER-only numeric (uint256 pattern); fractional values THROW (BigInt(text) is loud). money excluded (locale text)
 type Float4Type = 'float4' | 'real'; // default/:pretty -> canonical shortest; :precise -> exact f32
 type TextType = 'text' | 'varchar' | 'bpchar' | 'char' | 'name';

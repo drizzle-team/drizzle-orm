@@ -56,6 +56,7 @@ const rqbDb = drizzle.mock({ relations: rqbRelations });
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('singlestore to camel case', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/6082
 	it('unicode column names', ({ expect }) => {
 		const unicode = camelCase.table('unicode', {
 			칼럼명: text(),
@@ -66,6 +67,7 @@ describe('singlestore to camel case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5734
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = camelCase.table('a', { id: int('id').primaryKey(), cId: int().notNull() });
 		const b = camelCase.table('b', { id: int('id').primaryKey(), cId: int().notNull(), label: text() });
@@ -82,6 +84,7 @@ describe('singlestore to camel case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/3096
 	it('qualifier preservation for subquery fields', ({ expect }) => {
 		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
 		const query = db
@@ -488,6 +491,8 @@ describe('singlestore to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection)', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name', 'age')
@@ -499,6 +504,8 @@ describe('singlestore to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, multiple rows)', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name')
@@ -510,6 +517,8 @@ describe('singlestore to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, omitted optional column)', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name', 'age')
@@ -521,6 +530,8 @@ describe('singlestore to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) emits columns in list order', ({ expect }) => {
 		const query = db
 			.insert(users, 'age', 'last_name', 'first_name')
@@ -532,6 +543,8 @@ describe('singlestore to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) on duplicate key update', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name', 'age')

@@ -1,9 +1,6 @@
 import type { CustomTypesConfig, FullQueryResults, NeonQueryPromise, Pool, PoolClient } from '@neondatabase/serverless';
 import { neonConfig, types } from '@neondatabase/serverless';
 import type { BatchItem } from '~/batch.ts';
-import type { Cache } from '~/cache/core/cache.ts';
-import { NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -14,20 +11,19 @@ import {
 	type NeonHttpSessionOptions,
 } from '~/neon-http/session.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
-import { type PgCodecs, pgRawTextOids } from '~/pg-core/codecs.ts';
+import { type PgCodecs, pgRawTextTypeParser } from '~/pg-core/codecs.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { getTransactionConfigSQL, setTransactionSnapshotSQL } from '~/pg-core/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 
-const rawText = (value: string) => value;
-
 export const netlifyDbRawTextTypes: CustomTypesConfig = {
-	getTypeParser:
-		<CustomTypesConfig['getTypeParser']> ((typeId, format) =>
-			pgRawTextOids.has(typeId as number) ? rawText : types.getTypeParser(typeId, format as any)),
+	getTypeParser: <CustomTypesConfig['getTypeParser']> pgRawTextTypeParser((typeId, format) =>
+		types.getTypeParser(typeId, format)
+	),
 };
 
 /**
@@ -61,7 +57,6 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 
 	private clientQuery: (sql: string, params: any[], opts: Record<string, any>) => NeonQueryPromise<any, any>;
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		readonly httpClient: NeonHttpClient,
@@ -76,7 +71,6 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 		// `httpClient` is a fallback for earlier versions
 		this.clientQuery = (httpClient as any).query ?? httpClient as any;
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -84,8 +78,6 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const executor = (params?: unknown[]) => {
 			if (mode === 'raw') {
@@ -112,9 +104,6 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}
@@ -166,7 +155,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 	): Promise<T> {
 		ensureWebSocket();
 		const poolClient = await this.pool.connect();
-		// pool detaches its own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
+		// pool detaches it's own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
 		let connectionError: Error | undefined;
 		let rollbackError: Error | undefined;
 		const onConnectionError = (e: Error) => {
@@ -197,7 +186,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 		);
 
 		try {
-			await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
+			await tx.execute(sql`begin ${getTransactionConfigSQL(config)}`);
 		} catch (e) {
 			// `begin` may still reach the server after failing on the client, session state is unknown so the client must not be reused
 			release(e as Error);
@@ -206,7 +195,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 
 		try {
 			if (typeof config.snapshot === 'string') {
-				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
+				await tx.execute(setTransactionSnapshotSQL(config.snapshot));
 			}
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
@@ -236,7 +225,6 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 	static override readonly [entityKind]: string = 'NetlifyDbWsSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: PoolClient,
@@ -246,7 +234,6 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -254,8 +241,6 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const queryName = typeof name === 'string'
 			? name
@@ -278,9 +263,6 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

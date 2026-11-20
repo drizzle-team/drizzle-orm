@@ -1,6 +1,13 @@
-import type { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
+import { D1Client } from '@effect/sql-d1/D1Client';
+import { LibsqlClient } from '@effect/sql-libsql/LibsqlClient';
+import { SqliteClient as BunSqliteClient } from '@effect/sql-sqlite-bun/SqliteClient';
+import { SqliteClient as DoSqliteClient } from '@effect/sql-sqlite-do/SqliteClient';
+import { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
+import { SqliteClient as WasmSqliteClient } from '@effect/sql-sqlite-wasm/SqliteClient';
 import type { ResultSet } from '@libsql/client';
+import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
+import type { SqlClient } from 'effect/sql/SqlClient';
 import type { SqlError } from 'effect/sql/SqlError';
 import type { StatementResultingChanges } from 'node:sqlite';
 import type { Equal } from 'type-tests/utils.ts';
@@ -8,13 +15,18 @@ import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
 import { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import type { EffectSQLiteD1Database } from '~/effect-d1/index.ts';
+import { makeWithDefaults as makeD1WithDefaults } from '~/effect-d1/index.ts';
 import type { EffectLibsqlDatabase } from '~/effect-libsql/index.ts';
+import { makeWithDefaults as makeLibsqlWithDefaults } from '~/effect-libsql/index.ts';
 import type { EffectSQLiteBunDatabase } from '~/effect-sqlite-bun/index.ts';
+import { makeWithDefaults as makeBunWithDefaults } from '~/effect-sqlite-bun/index.ts';
 import type { EffectSQLiteDoDatabase } from '~/effect-sqlite-do/index.ts';
+import { makeWithDefaults as makeDoWithDefaults } from '~/effect-sqlite-do/index.ts';
 import type { EffectSQLiteNodeDatabase } from '~/effect-sqlite-node/index.ts';
 import { make, makeWithDefaults } from '~/effect-sqlite-node/index.ts';
 import { migrate } from '~/effect-sqlite-node/migrator.ts';
 import type { EffectSQLiteWasmDatabase } from '~/effect-sqlite-wasm/index.ts';
+import { makeWithDefaults as makeWasmWithDefaults } from '~/effect-sqlite-wasm/index.ts';
 import type { EmptyRelations } from '~/relations.ts';
 import { eq } from '~/sql/expressions/index.ts';
 import { SQLiteEffectDatabase } from '~/sqlite-core/effect/db.ts';
@@ -29,7 +41,11 @@ type AsEffect<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.E
 	Expect<
 		Equal<
 			DbEffect,
-			Effect.Effect<EffectSQLiteNodeDatabase<EmptyRelations> & { $client: SqliteClient }, never, SqliteClient>
+			Effect.Effect<
+				EffectSQLiteNodeDatabase<EmptyRelations> & { $client: SqliteClient & SqlClient },
+				never,
+				SqliteClient
+			>
 		>
 	>;
 }
@@ -42,10 +58,9 @@ type AsEffect<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.E
 		Equal<
 			DbEffect,
 			Effect.Effect<
-				EffectSQLiteNodeDatabase<EmptyRelations> & { $client: SqliteClient },
+				EffectSQLiteNodeDatabase<EmptyRelations> & { $client: SqliteClient & SqlClient },
 				never,
 				| import('~/effect-core/logger.ts').EffectLogger
-				| import('~/cache/core/cache-effect.ts').EffectCache
 				| SqliteClient
 			>
 		>
@@ -144,6 +159,7 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6107
 {
 	const values = { homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' } as const;
 
@@ -383,6 +399,8 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	Expect<Equal<typeof d4, Expected>>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
+// https://github.com/drizzle-team/drizzle-orm/issues/6382
 {
 	interface UserInterface {
 		id: number;
@@ -400,6 +418,7 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	Expect<Equal<GetEffect, Effect.Effect<UserInterface | undefined, EffectDrizzleQueryError, never>>>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6382
 {
 	type Run<T> = Effect.Effect<T, EffectDrizzleQueryError, never>;
 
@@ -421,4 +440,33 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 
 	const wasm = ({} as EffectSQLiteWasmDatabase).run(`insert into t values (1)`);
 	Expect<Equal<AsEffect<typeof wasm>, Run<readonly Record<string, unknown>[]>>>;
+}
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6685
+// `$client` must keep the full service shape so it can be re-provided via the native Effect service API
+{
+	Effect.gen(function*() {
+		const db = yield* makeWithDefaults();
+		return Context.make(SqliteClient, db.$client);
+	});
+	Effect.gen(function*() {
+		const db = yield* makeBunWithDefaults();
+		return Context.make(BunSqliteClient, db.$client);
+	});
+	Effect.gen(function*() {
+		const db = yield* makeDoWithDefaults({});
+		return Context.make(DoSqliteClient, db.$client);
+	});
+	Effect.gen(function*() {
+		const db = yield* makeWasmWithDefaults();
+		return Context.make(WasmSqliteClient, db.$client);
+	});
+	Effect.gen(function*() {
+		const db = yield* makeD1WithDefaults({});
+		return Context.make(D1Client, db.$client);
+	});
+	Effect.gen(function*() {
+		const db = yield* makeLibsqlWithDefaults();
+		return Context.make(LibsqlClient, db.$client);
+	});
 }

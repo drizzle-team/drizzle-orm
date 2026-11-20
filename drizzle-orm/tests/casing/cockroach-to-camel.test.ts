@@ -60,6 +60,7 @@ const db = drizzle.mock({ relations });
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('cockroach to camel case', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/6082
 	it('unicode column names', ({ expect }) => {
 		const unicode = camelCase.table('unicode', {
 			칼럼명: text(),
@@ -70,6 +71,7 @@ describe('cockroach to camel case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5734
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = camelCase.table('a', { id: int4('id').primaryKey(), cId: int4().notNull() });
 		const b = camelCase.table('b', { id: int4('id').primaryKey(), cId: int4().notNull(), label: text() });
@@ -86,6 +88,7 @@ describe('cockroach to camel case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/3096
 	it('qualifier preservation for subquery fields', ({ expect }) => {
 		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
 		const query = db
@@ -309,6 +312,7 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + orderBy + limit', ({ expect }) => {
 		const query = db.query.users.findMany({
 			orderBy: { first_name: 'asc' },
@@ -323,6 +327,7 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + limit + offset', ({ expect }) => {
 		const query = db.query.users.findMany({ limit: 2, offset: 4, with: { developers: true } });
 
@@ -346,6 +351,7 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + where', ({ expect }) => {
 		const query = db.query.users.findMany({
 			where: { first_name: { like: 'A%' } },
@@ -359,6 +365,7 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + relation where', ({ expect }) => {
 		const query = db.query.users.findMany({
 			where: { developers: { uses_drizzle_orm: true } },
@@ -372,6 +379,7 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + relation where + limit', ({ expect }) => {
 		const query = db.query.users.findMany({
 			where: { developers: { uses_drizzle_orm: true } },
@@ -386,6 +394,7 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + where + orderBy', ({ expect }) => {
 		const query = db.query.users.findMany({
 			where: { first_name: { like: 'A%' } },
@@ -400,6 +409,7 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - schema table, deeply nested + orderBy + limit on every level', ({ expect }) => {
 		const query = db.query.developers.findMany({
 			orderBy: { user_id: 'desc' },
@@ -416,6 +426,7 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - subquery, nested + orderBy + limit', ({ expect }) => {
 		const query = db.query.staff.findMany({
 			orderBy: { role: 'asc' },
@@ -751,6 +762,8 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection)', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name', 'age')
@@ -763,6 +776,8 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, multiple rows)', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name')
@@ -774,6 +789,8 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, omitted optional column)', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name', 'age')
@@ -785,6 +802,8 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) with select', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name')
@@ -796,6 +815,8 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) emits columns in list order', ({ expect }) => {
 		const query = db
 			.insert(users, 'age', 'last_name', 'first_name')
@@ -807,6 +828,8 @@ describe('cockroach to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) on conflict do update', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name', 'age')
