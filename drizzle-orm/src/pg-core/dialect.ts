@@ -535,9 +535,9 @@ export class PgDialect {
 			groupBySql = sql` group by ${sql.join(groupBy, commonStringChunks[', '])}`;
 		}
 
-		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		const limitSql = limit === undefined
+			? undefined
+			: sql` limit ${limit}`;
 
 		const offsetSql = offset === undefined ? undefined : sql` offset ${offset}`;
 
@@ -615,9 +615,9 @@ export class PgDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, commonStringChunks[', '])}`;
 		}
 
-		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		const limitSql = limit === undefined
+			? undefined
+			: sql` limit ${limit}`;
 
 		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
 

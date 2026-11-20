@@ -382,14 +382,11 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	test.concurrent('limit -1', async ({ db, push }) => {
 		const users = createUserTable('users_631');
 		await push({ users });
-		await db.insert(users).values({ name: 'John' });
 
-		const result = await db
-			.select()
-			.from(users)
-			.limit(-1);
-
-		expect(result.length).toBeGreaterThan(0);
+		// A negative limit isn't dropped: it reaches the database, which rejects it
+		const query = db.select().from(users).limit(-1);
+		expect(query.toSQL().params).toStrictEqual([-1]);
+		await expect(query).rejects.toThrow();
 	});
 
 	// MySQL only accepts `offset` after `limit`, so every offset here comes with a limit

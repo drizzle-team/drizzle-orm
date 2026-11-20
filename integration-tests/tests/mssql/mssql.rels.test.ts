@@ -1574,6 +1574,29 @@ test('[Find Many] Get users with posts + prepared limit', async ({ db }) => {
 	});
 });
 
+test('[Find Many] Get users with posts + zero and negative limits', async ({ db }) => {
+	await db.insert(usersTable).values([{ id: 1, name: 'Dan' }, { id: 2, name: 'Andrew' }]);
+	await db.insert(postsTable).values([{ ownerId: 1, content: 'Post1' }, { ownerId: 2, content: 'Post2' }]);
+
+	// Pagination values aren't skipped: they reach the database exactly as given
+	// `top (0)` is allowed, `fetch next 0 rows only` isn't
+	expect(await db.query.usersTable.findMany({ orderBy: { id: 'asc' }, limit: 0 })).toStrictEqual([]);
+	const zeroFetch = db.query.usersTable.findMany({ orderBy: { id: 'asc' }, limit: 0, offset: 0 });
+	expect(zeroFetch.toSQL().params).toStrictEqual([0, 0]);
+	await expect(zeroFetch).rejects.toThrow();
+	expect(
+		await db.query.usersTable.findMany({
+			columns: { id: true },
+			orderBy: { id: 'asc' },
+			with: { posts: { columns: { id: true }, limit: 0 } },
+		}),
+	).toStrictEqual([{ id: 1, posts: [] }, { id: 2, posts: [] }]);
+
+	const negative = db.query.usersTable.findMany({ limit: -1 });
+	expect(negative.toSQL().params).toStrictEqual([-1]);
+	await expect(negative).rejects.toThrow();
+});
+
 test('[Find Many] Get users with posts + prepared limit + offset', async ({ db }) => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },

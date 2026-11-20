@@ -1677,6 +1677,25 @@ test('[Find Many] Get users with posts + prepared limit', async () => {
 	});
 });
 
+test('[Find Many] Get users with posts + zero and negative limits', async () => {
+	await db.insert(usersTable).values([{ id: 1, name: 'Dan' }, { id: 2, name: 'Andrew' }]);
+	await db.insert(postsTable).values([{ ownerId: 1, content: 'Post1' }, { ownerId: 2, content: 'Post2' }]);
+
+	// Pagination values aren't skipped: they reach the database exactly as given
+	expect(await db.query.usersTable.findMany({ orderBy: { id: 'asc' }, limit: 0, offset: 0 })).toStrictEqual([]);
+	// SingleStore can't transform `limit 0` of a lateral join's derived table
+	const zeroNested = db.query.usersTable.findMany({
+		columns: { id: true },
+		with: { posts: { columns: { id: true }, limit: 0 } },
+	});
+	expect(zeroNested.toSQL().params).toStrictEqual([0]);
+	await expect(zeroNested).rejects.toThrow();
+
+	const negative = db.query.usersTable.findMany({ limit: -1 });
+	expect(negative.toSQL().params).toStrictEqual([-1]);
+	await expect(negative).rejects.toThrow();
+});
+
 test('[Find Many] Get users with posts + prepared limit + offset', async () => {
 	await db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },

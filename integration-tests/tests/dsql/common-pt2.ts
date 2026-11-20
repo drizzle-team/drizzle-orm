@@ -1558,10 +1558,10 @@ export function tests(test: Test) {
 
 			await push({ users });
 
-			await db.insert(users).values({ id: 1, name: 'John' });
-			const result = await db.select().from(users).limit(-1);
-
-			expect(result.length).toBeGreaterThan(0);
+			// A negative limit isn't dropped: it reaches the database, which rejects it
+			const query = db.select().from(users).limit(-1);
+			expect(query.toSQL().params).toStrictEqual([-1]);
+			await expect(query).rejects.toThrow();
 		});
 
 		test.concurrent('Object keys as column names', async ({ db, push }) => {

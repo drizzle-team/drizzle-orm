@@ -395,10 +395,9 @@ export class SingleStoreDialect {
 	}
 
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
-		return typeof limit === 'object'
-				|| (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		return limit === undefined
+			? undefined
+			: sql` limit ${limit}`;
 	}
 
 	private buildOrderBy(
@@ -615,9 +614,9 @@ export class SingleStoreDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, commonStringChunks[', '])}`;
 		}
 
-		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		const limitSql = limit === undefined
+			? undefined
+			: sql` limit ${limit}`;
 
 		const offsetSql = offset === undefined ? undefined : sql` offset ${offset}`;
 

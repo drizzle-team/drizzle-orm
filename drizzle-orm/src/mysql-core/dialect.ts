@@ -379,11 +379,10 @@ export class MySqlDialect {
 	}
 
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
-		return typeof limit === 'object'
-				|| (typeof limit === 'number' && limit >= 0)
-			// Binary protocol bug bypass
-			? sql` limit ${sql.param(limit, this.paginationEncoder)}`
-			: undefined;
+		// Binary protocol bug bypass
+		return limit === undefined
+			? undefined
+			: sql` limit ${sql.param(limit, this.paginationEncoder)}`;
 	}
 
 	private buildOrderBy(
@@ -663,9 +662,9 @@ export class MySqlDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, commonStringChunks[', '])}`;
 		}
 
-		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		const limitSql = limit === undefined
+			? undefined
+			: sql` limit ${sql.param(limit, this.paginationEncoder)}`;
 
 		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
 

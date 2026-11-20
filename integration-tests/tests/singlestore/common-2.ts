@@ -2720,10 +2720,10 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('limit -1', async ({ db }) => {
-			await db.insert(usersTable).values({ name: 'John' });
-			const users = await db.select().from(usersTable).limit(-1);
-
-			expect(users.length).toBeGreaterThan(0);
+			// A negative limit isn't dropped: it reaches the database, which rejects it
+			const query = db.select().from(usersTable).limit(-1);
+			expect(query.toSQL().params).toStrictEqual([-1]);
+			await expect(query).rejects.toThrow();
 		});
 
 		// SingleStore only accepts `offset` after `limit`, so every offset here comes with a limit
