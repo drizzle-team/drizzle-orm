@@ -2,7 +2,7 @@
 
 `@drizzle-team/postgres/effect` implements Effect's `SqlClient` on top of the Drizzle Postgres pool. Effect
 core then gives you statement spans, transactions, savepoints and typed `SqlError`s. It needs
-`effect` 4.1.3 or later 4.x as a peer dependency.
+`effect` 4.1.3 or later as a peer dependency.
 
 The same `DrizzlePostgresClient` runs over Neon's WebSocket proxy and an in-process PGlite, the Aurora Data API
 has a `SqlClient` of its own, and the HTTP endpoints have a client for their one-request transactions. See

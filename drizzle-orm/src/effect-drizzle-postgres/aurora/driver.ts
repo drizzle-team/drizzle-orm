@@ -1,10 +1,12 @@
 import { DrizzleAuroraClient as Client } from '#postgres/effect/aurora';
 import * as Effect from 'effect/Effect';
+import type { SqlError } from 'effect/sql/SqlError';
 import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { EffectDrizzlePgConfig } from '~/pg-core/effect/utils.ts';
+import type { PgTransactionConfig } from '~/pg-core/session.ts';
 import { PostgresAuroraDialect } from '~/postgres/aurora/driver.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
@@ -13,6 +15,7 @@ import {
 	type EffectPostgresAuroraQueryEffectHKT,
 	type EffectPostgresAuroraQueryResultHKT,
 	EffectPostgresAuroraSession,
+	type EffectPostgresAuroraTransaction,
 } from './session.ts';
 import { createShapeGenerator } from './shape.ts';
 export { DefaultServices } from '~/effect-core/defaults.ts';
@@ -24,6 +27,13 @@ export class EffectPostgresAuroraDatabase<TRelations extends AnyRelations = Empt
 
 	/** @internal */
 	declare session: EffectPostgresAuroraSession<TRelations>;
+
+	override transaction<A, E, R>(
+		transaction: (tx: EffectPostgresAuroraTransaction<TRelations>) => Effect.Effect<A, E, R>,
+		config?: PgTransactionConfig,
+	): Effect.Effect<A, E | SqlError, R> {
+		return this.session.transaction(transaction, config);
+	}
 }
 
 /**

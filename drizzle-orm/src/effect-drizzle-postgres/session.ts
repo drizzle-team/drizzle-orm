@@ -1,5 +1,5 @@
 import type { BatchMetrics, QueryResult, ShapeSpec } from '#postgres';
-import type { DrizzlePostgresClient as Client } from '#postgres/effect/core';
+import { DrizzlePostgresClient as Client } from '#postgres/effect/core';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Option from 'effect/Option';
@@ -203,19 +203,30 @@ export class EffectPostgresSession<
 		});
 	}
 
-	private queryError(prepared: PostgresMultiPrepared, cause: unknown, item: EffectPostgresBatchItem) {
+	/** A query's error, with the driver's error as an `SqlError`, as a query run on it's own gives it */
+	private queryError(
+		prepared: PostgresMultiPrepared,
+		cause: unknown,
+		item: EffectPostgresBatchItem,
+		operation: 'batch' | 'pipeline',
+	) {
 		return effectQueryRuntime.queryError(
 			prepared.getQuery().sql,
 			this.options.paramsInErrors ? batchItemParams(prepared, item) : undefined,
-			cause,
+			Client.toSqlError(cause, operation),
 		) as EffectDrizzleQueryError;
 	}
 
-	/** Atomic: runs all queries in one transaction on a single pooled connection */
+	/**
+	 * Atomic: runs all queries in one transaction on a single pooled connection
+	 *
+	 * A query's error fails it as an `EffectDrizzleQueryError`. An error of no query, such as a failed connection, the
+	 * snapshot import or a deferred constraint at COMMIT, fails it as an `SqlError`
+	 */
 	batch(
 		queries: readonly EffectPostgresBatchItem[],
 		options?: PostgresBatchOptions,
-	): Effect.Effect<any[], EffectDrizzleQueryError> {
+	): Effect.Effect<any[], EffectDrizzleQueryError | SqlError> {
 		return Effect.flatMap(this.buildMulti('batch', queries), ({ pool, prepared, built }) =>
 			Effect.tryPromise({
 				try: () =>
@@ -227,9 +238,9 @@ export class EffectPostgresSession<
 				catch: (e) => {
 					const index = (e as { failedQueryIndex?: unknown } | null)?.failedQueryIndex;
 					const query = typeof index === 'number' ? prepared[index] : undefined;
-					// An error of no statement, such as a deferred constraint at COMMIT
-					if (!query) return effectQueryRuntime.queryError('commit', undefined, e) as EffectDrizzleQueryError;
-					return this.queryError(query, e, queries[index as number]!);
+					// An error of no query has none to attach to
+					if (!query) return Client.toSqlError(e, 'batch');
+					return this.queryError(query, e, queries[index as number]!, 'batch');
 				},
 			}));
 	}
@@ -237,25 +248,30 @@ export class EffectPostgresSession<
 	/**
 	 * Non-atomic: pipelines all queries on a single pooled connection, each in it's own autocommit
 	 *
-	 * Never fails on a query failure: one Result per query, in input order
+	 * Never fails on a query failure: one Result per query, in input order. Fails with an `SqlError` when there is no
+	 * connection to run them on
 	 */
-	pipeline(queries: readonly EffectPostgresBatchItem[]): Effect.Effect<Result.Result<any, EffectDrizzleQueryError>[]> {
+	pipeline(
+		queries: readonly EffectPostgresBatchItem[],
+	): Effect.Effect<Result.Result<any, EffectDrizzleQueryError>[], SqlError> {
 		return Effect.flatMap(
 			this.buildMulti('pipeline', queries),
 			({ pool, prepared, built }) =>
-				Effect.promise(() =>
-					pool.pipeline(built).then((results) =>
-						mapSettledResults(
-							prepared as any[],
-							results,
-							(i, cause) => this.queryError(prepared[i]!, cause, queries[i]!) as any,
-						).map((settled) =>
-							settled.status === 'fulfilled'
-								? Result.succeed(settled.value)
-								: Result.fail(settled.reason as unknown as EffectDrizzleQueryError)
-						)
-					)
-				),
+				Effect.tryPromise({
+					try: () =>
+						pool.pipeline(built).then((results) =>
+							mapSettledResults(
+								prepared as any[],
+								results,
+								(i, cause) => this.queryError(prepared[i]!, cause, queries[i]!, 'pipeline') as any,
+							).map((settled) =>
+								settled.status === 'fulfilled'
+									? Result.succeed(settled.value)
+									: Result.fail(settled.reason as unknown as EffectDrizzleQueryError)
+							)
+						),
+					catch: (e) => Client.toSqlError(e, 'pipeline'),
+				}),
 		);
 	}
 

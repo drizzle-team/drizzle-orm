@@ -9,7 +9,7 @@ import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { getTransactionConfigStatements } from '~/pg-core/session.ts';
+import { setTransactionSnapshotSQL } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
@@ -75,17 +75,24 @@ export class EffectPostgresAuroraSession<
 	): Effect.Effect<A, E | SqlError, R> {
 		const { dialect, relations } = this;
 
-		return this.client.withTransaction(Effect.gen({ self: this }, function*() {
-			const tx = new EffectPostgresAuroraTransaction<TRelations>(dialect, this, relations);
+		return this.client.withTransaction(
+			Effect.gen({ self: this }, function*() {
+				const tx = new EffectPostgresAuroraTransaction<TRelations>(dialect, this, relations);
 
-			if (config) {
-				for (const statement of getTransactionConfigStatements(dialect, config)) {
-					yield* this.client.unsafe(statement);
+				if (typeof config?.snapshot === 'string') {
+					yield* this.client.query(dialect.sqlToQuery(setTransactionSnapshotSQL(config.snapshot)).sql, [], {
+						mode: 'object',
+					});
 				}
-			}
 
-			return yield* transaction(tx);
-		}));
+				return yield* transaction(tx);
+			}),
+			{
+				deferrable: config?.deferrable,
+				isolation: config?.isolationLevel,
+				readOnly: config?.accessMode === 'read only',
+			},
+		);
 	}
 }
 
@@ -93,6 +100,9 @@ export class EffectPostgresAuroraTransaction<
 	TRelations extends AnyRelations,
 > extends PgEffectTransaction<EffectPostgresAuroraQueryEffectHKT, EffectPostgresAuroraQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'EffectPostgresAuroraTransaction';
+
+	/** @internal */
+	declare session: EffectPostgresAuroraSession<TRelations>;
 
 	override transaction<A, E, R>(
 		transaction: (

@@ -1,7 +1,7 @@
 import type { QueryResult, ShapeSpec } from '#postgres';
 import type { HttpBatchQuery, HttpClient } from '#postgres/http';
 import type { BatchItem, SettledQueryResult } from '~/batch.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import {
@@ -12,7 +12,13 @@ import {
 	type PgAsyncTransaction,
 } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import {
+	PgBasePreparedQuery,
+	type PgQueryResultHKT,
+	type PgRawRow,
+	type PgTransactionConfig,
+	type PreparedQueryConfig,
+} from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
@@ -168,16 +174,25 @@ export class PostgresHttpSession<
 	}
 }
 
+/** A prepared query of either runtime of the `drizzle-orm/postgres` HTTP drivers, with what the client needs from it */
+export interface PostgresHttpMultiPrepared extends PgBasePreparedQuery {
+	readonly shape?: ShapeSpec;
+}
+
 /**
- * The statements of `batch`, `pipeline` or `parallel`, prepared and in the form the HTTP clients send
+ * The statements of `batch`, `pipeline` or `parallel`, prepared and in the form the HTTP clients send: the async and
+ * the Effect drivers build them here, the same way. A prepared query is used as is, a builder is prepared
  *
  * @internal
  */
-export function buildHttpMulti(queries: Readonly<BatchItem<'pg'>[]>) {
-	const prepared: PostgresHttpPreparedQuery<any>[] = new Array(queries.length);
+export function buildHttpMulti<TPrepared extends PostgresHttpMultiPrepared = PostgresHttpPreparedQuery<any>>(
+	queries: Readonly<(BatchItem<'pg'> | NoInfer<TPrepared>)[]>,
+): { prepared: TPrepared[]; built: HttpBatchQuery[] } {
+	const prepared: TPrepared[] = new Array(queries.length);
 	const built: HttpBatchQuery[] = new Array(queries.length);
 	for (let i = 0; i < queries.length; ++i) {
-		const preparedQuery = queries[i]!._prepare() as PostgresHttpPreparedQuery<any>;
+		const item = queries[i]!;
+		const preparedQuery = (is(item, PgBasePreparedQuery) ? item : (item as BatchItem<'pg'>)._prepare()) as TPrepared;
 		const builtQuery = preparedQuery.getQuery();
 		prepared[i] = preparedQuery;
 		built[i] = {

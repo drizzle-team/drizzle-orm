@@ -12,6 +12,7 @@ import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, type PgEffectTransaction } from '~/pg-core/effect/session.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { buildHttpMulti } from '~/postgres/http/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
@@ -115,14 +116,15 @@ export class EffectPostgresHttpSession<
 		queries: readonly BatchItem<'pg'>[],
 		options?: EffectPostgresHttpBatchOptions,
 	): Effect.Effect<unknown[], EffectDrizzleQueryError | SqlError> {
-		return Effect.suspend(() => this.runBatch(prepareMulti(queries), options));
+		return Effect.suspend(() => this.runBatch(queries, options));
 	}
 
 	private runBatch(
-		prepared: readonly EffectPostgresHttpPreparedQuery<any>[],
+		queries: readonly (BatchItem<'pg'> | EffectPostgresHttpPreparedQuery<any>)[],
 		options?: EffectPostgresHttpBatchOptions,
 	): Effect.Effect<unknown[], EffectDrizzleQueryError | SqlError> {
-		return this.client.batch(httpStatements(prepared), options).pipe(
+		const { prepared, built } = buildHttpMulti<EffectPostgresHttpPreparedQuery<any>>(queries);
+		return this.client.batch(built, options).pipe(
 			Effect.catch((e) => {
 				const index = failedQueryIndex(e);
 				const query = index === undefined ? undefined : prepared[index];
@@ -142,10 +144,10 @@ export class EffectPostgresHttpSession<
 		queries: readonly BatchItem<'pg'>[],
 	): Effect.Effect<Result.Result<unknown, EffectDrizzleQueryError>[], SqlError> {
 		return Effect.suspend(() => {
-			const prepared = prepareMulti(queries);
+			const { prepared, built } = buildHttpMulti<EffectPostgresHttpPreparedQuery<any>>(queries);
 
 			return Effect.flatMap(
-				this.client.pipeline(httpStatements(prepared)),
+				this.client.pipeline(built),
 				(outcomes) =>
 					Effect.forEach(outcomes, (outcome, i) =>
 						Result.isSuccess(outcome)
@@ -162,9 +164,11 @@ export class EffectPostgresHttpSession<
 	 */
 	parallel(queries: readonly BatchItem<'pg'>[]): Effect.Effect<Result.Result<unknown, EffectDrizzleQueryError>[]> {
 		return Effect.suspend(() =>
-			Effect.forEach(prepareMulti(queries), (prepared) => Effect.result(this.runStatement(prepared)), {
-				concurrency: 'unbounded',
-			})
+			Effect.forEach(
+				buildHttpMulti<EffectPostgresHttpPreparedQuery<any>>(queries).prepared,
+				(prepared) => Effect.result(this.runStatement(prepared)),
+				{ concurrency: 'unbounded' },
+			)
 		);
 	}
 
@@ -220,17 +224,4 @@ export class EffectPostgresHttpSession<
 			)
 		);
 	}
-}
-
-/** The prepared queries of `batch`, `pipeline` or `parallel` */
-function prepareMulti(queries: readonly BatchItem<'pg'>[]): EffectPostgresHttpPreparedQuery<any>[] {
-	return queries.map((query) => query._prepare() as EffectPostgresHttpPreparedQuery<any>);
-}
-
-/** Prepared queries in the form the HTTP client sends */
-function httpStatements(prepared: readonly EffectPostgresHttpPreparedQuery<any>[]): Client.HttpStatement[] {
-	return prepared.map((preparedQuery) => {
-		const { sql, params } = preparedQuery.getQuery();
-		return { sql, params, mode: preparedQuery.mode === 'arrays' ? 'array' : 'object', shape: preparedQuery.shape };
-	});
 }

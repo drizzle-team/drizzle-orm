@@ -17,7 +17,6 @@ import {
 	timestamp,
 } from 'drizzle-orm/pg-core';
 import * as Effect from 'effect/Effect';
-import { SqlClient } from 'effect/sql/SqlClient';
 import {
 	allTypesRelations,
 	type AllTypesReplacements,
@@ -70,7 +69,7 @@ export const nullTimestampSkips = [
 
 /** Copies of {@link nullTimestampSkips} with nullable `timestamp` columns holding `null` */
 export const nullTimestampTests = (
-	it: Vitest.MethodsNonLive<DB | SqlClient>,
+	it: Vitest.MethodsNonLive<DB>,
 	createDB: RunCommonEffectPgTestsOptions['createDB'],
 ) => {
 	it.effect('Mappers: insert returning all + select + update returning + delete returning (null timestamps)', () =>
@@ -2108,7 +2107,7 @@ export const allTypesWithReplacementsSkips = [
  * it can't return. Unions, bounds and temporal bounds of the original tests aren't repeated
  */
 export const allTypesWithReplacementsTests = (
-	it: Vitest.MethodsNonLive<DB | SqlClient>,
+	it: Vitest.MethodsNonLive<DB>,
 	createDB: RunCommonEffectPgTestsOptions['createDB'],
 	replacements: AllTypesReplacements,
 ) => {
