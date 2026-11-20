@@ -1,4 +1,4 @@
-import { createPool } from '@drizzle-team/minipg';
+import { connect, createPool } from '@drizzle-team/postgres';
 import { defineRelations, type RelationsBuilder, sql } from 'drizzle-orm';
 import {
 	boolean,
@@ -13,7 +13,6 @@ import {
 	timestamp,
 } from 'drizzle-orm/pg-core';
 import { drizzle as drizzlePostgres, PostgresDatabase } from 'drizzle-orm/postgres';
-import { minipgCodecs } from 'drizzle-orm/postgres/codecs';
 import { migrate } from 'drizzle-orm/postgres/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
@@ -24,11 +23,19 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
+	assertAllTypesNullArrayElements,
+	assertAllTypesTemporalBounds,
+	assertAllTypesTemporalBoundsInSessions,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
 } from './all-types';
 import { tests } from './common';
+import { preparedNameTests } from './common-prepared-names';
 import { postgresTest as test } from './instrumentation';
+import { type BulkDrizzle, bulkTests } from './postgres-bulk';
 import { usersMigratorTable, usersTable } from './schema';
 import {
 	assertMalformedSnapshotRejected,
@@ -37,7 +44,21 @@ import {
 } from './snapshot';
 
 tests(test, ['all types ~codecs~']);
+preparedNameTests(test);
 
+bulkTests(test, { name: 'pool', drizzle: drizzlePostgres as BulkDrizzle });
+bulkTests(test, {
+	name: 'conn',
+	drizzle: drizzlePostgres as BulkDrizzle,
+	client: async (kit) => {
+		const url = new URL(process.env['PG_CONNECTION_STRING']!);
+		url.pathname = `/${kit.database}`;
+		const client = await connect(url.toString());
+		return { client, close: () => client.end() };
+	},
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresDatabase;
 	const table = sql.identifier('raw_execute_types');
@@ -303,7 +324,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists ${users2}`);
 
 		// create migration directory
-		const migrationDir = './migrations/minipg';
+		const migrationDir = './migrations/postgres';
 		if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 		mkdirSync(migrationDir, { recursive: true });
 
@@ -383,7 +404,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -418,7 +439,7 @@ describe('driver-specific', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -455,7 +476,7 @@ describe('driver-specific', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
 		expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
@@ -499,7 +520,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -543,7 +564,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
@@ -593,7 +614,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -644,7 +665,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
 
@@ -654,7 +675,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_1', {
+		const usersTable = pgTable('users_execute_raw_postgres_1', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -675,7 +696,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute + returning', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_2', {
+		const usersTable = pgTable('users_execute_raw_postgres_2', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -696,7 +717,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute w/ query builder', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_3', {
+		const usersTable = pgTable('users_execute_raw_postgres_3', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -717,7 +738,10 @@ describe('driver-specific', () => {
 
 	// Can't test shapes via generic codecs test
 	test('all types ~shapes~', async ({ createDB, push }) => {
-		const db = createDB({ allTypesTable }, allTypesRelations);
+		const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+			...allTypesRelations(r),
+			...boundsRelations(r),
+		}));
 		await push({ en: allTypesEnum, allTypesTable });
 		await db.insert(allTypesTable).values(allTypesData);
 
@@ -728,28 +752,11 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
-		await assertAllTypesBounds(db);
-	});
+		await assertAllTypesBounds(db, { rqb: true });
+		await assertAllTypesNullArrayElements(db, { rqb: true });
+		await assertAllTypesTemporalBounds(db, { rqb: true });
 
-	// Validates functionality of base codecs provided to be overriden
-	// this disables driver shape generator and falls back to mappers
-	test('all types ~codecs~ override', async ({ createDB, push }) => {
-		const { en, allTypesTable } = makeAllTypes('all_types_48_cdcs_ovr', 'en_49_ovr');
-		const base = createDB({ allTypesTable }, allTypesRelations);
-		await push({ en, allTypesTable });
-
-		const relations = defineRelations({ allTypesTable }, allTypesRelations);
-		const db = drizzlePostgres({ client: (base as any).$client, relations, codecs: minipgCodecs });
-		await db.insert(allTypesTable).values(allTypesData);
-
-		const [flat] = await db.select().from(allTypesTable);
-		expect(flat).toStrictEqual(allTypesData);
-
-		const nested = await db.query.allTypesTable.findFirst({ with: { self: true } });
-		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
-
-		await assertAllTypesUnions(db, allTypesTable);
-		await assertAllTypesBounds(db);
+		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 	});
 
 	test('timetz keeps offset', async ({ createDB, push }) => {
@@ -762,7 +769,6 @@ describe('driver-specific', () => {
 
 		await push({ times });
 		const shaped = createDB({ times });
-		const coded = drizzlePostgres({ client: (shaped as any).$client, codecs: minipgCodecs });
 
 		const value = {
 			id: 1,
@@ -772,15 +778,13 @@ describe('driver-specific', () => {
 		};
 		await shaped.insert(times).values(value);
 
-		for (const db of [shaped, coded]) {
-			expect(await db.select().from(times)).toStrictEqual([value]);
-		}
+		expect(await shaped.select().from(times)).toStrictEqual([value]);
 	});
 });
 
 describe('transaction snapshot', () => {
 	test('isolates the transaction', async ({ db, peer }) => {
-		await assertSnapshotIsolatesTransaction(db, peer!, expect, 'minipg');
+		await assertSnapshotIsolatesTransaction(db, peer!, expect, 'drizzle-postgres');
 	});
 
 	test('rejects a malformed id', async ({ db }) => {
@@ -788,6 +792,6 @@ describe('transaction snapshot', () => {
 	});
 
 	test('does not let the id inject SQL', async ({ db }) => {
-		await assertSnapshotIdNotInjectable(db, expect, 'minipg');
+		await assertSnapshotIdNotInjectable(db, expect, 'drizzle-postgres');
 	});
 });

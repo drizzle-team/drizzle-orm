@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { latestVersion } from 'src/dialects/postgres/versions';
 import type { Footprint } from '../../commutativity/engine';
 import type { Delta } from '../../dialects/dialect';
 import { footprintsOf } from '../../dialects/postgres/commutativity';
@@ -51,7 +52,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	// Builds the snapshot of the new migration. `deltas` turn `ddlPrev` into `state`, and `footprints` follow
 	// the order of the SQL.
 	const snapshotOf = (state: PostgresDDL, deltas: Delta[], footprints: Footprint[]): PostgresSnapshot => {
-		const header = { version: '9', dialect: 'postgres', id: randomUUID() } as const;
+		const header = { version: latestVersion, dialect: 'postgres', id: randomUUID() } as const;
 		if (prevIds.length === 0) {
 			return { type: 'base', ...header, prevIds: [originUUID], footprints, ddl: state.entities.list() };
 		}

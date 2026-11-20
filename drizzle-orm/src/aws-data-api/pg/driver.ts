@@ -13,7 +13,6 @@ import { AwsDataApiSession } from './session.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
-	cache?: Cache;
 	database: string;
 	resourceArn: string;
 	secretArn: string;
@@ -62,18 +61,23 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	const session = new AwsDataApiSession(client, dialect, relations, {
 		...config,
 		logger,
-		cache: config.cache,
 	}, undefined);
 	const db = new AwsDataApiPgDatabase(dialect, session, relations, true);
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }
 
+/**
+ * Driver quirks:
+ * - `time` values are cut to milliseconds
+ * - `timestamp` values with fractional seconds lose `BC`
+ * - `null` elements of arrays are dropped (`[1, null, 3]` is returned as `[1, 3]`)
+ *
+ * Unsupported column types (throw on non-null values):
+ * - `timetz`, `timestamptz` in `string` mode (converted to UTC, offset dropped)
+ * - `bytea[]` (returned empty)
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AwsDataApiClient = RDSDataClient,

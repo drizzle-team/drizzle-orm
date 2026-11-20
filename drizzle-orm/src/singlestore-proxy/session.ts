@@ -1,7 +1,4 @@
 import type { FieldPacket, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import type { Cache } from '~/cache/core/index.ts';
-import { NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -29,7 +26,6 @@ export type SingleStoreRemoteRawExecuteResult =
 
 export interface SingleStoreRemoteSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -41,7 +37,6 @@ export class SingleStoreRemoteSession<TRelations extends AnyRelations> extends S
 	static override readonly [entityKind]: string = 'SingleStoreRemoteSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: RemoteCallback,
@@ -51,15 +46,12 @@ export class SingleStoreRemoteSession<TRelations extends AnyRelations> extends S
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: AnySingleStoreMapper,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<SingleStoreRemotePreparedQueryHKT, T> {
 		const { client } = this;
 
@@ -82,9 +74,6 @@ export class SingleStoreRemoteSession<TRelations extends AnyRelations> extends S
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		) as PreparedQueryKind<SingleStoreRemotePreparedQueryHKT, T>;
 	}

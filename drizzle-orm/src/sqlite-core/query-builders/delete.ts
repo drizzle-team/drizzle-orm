@@ -3,6 +3,7 @@ import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLitePreparedQuery } from '~/sqlite-core/session.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -18,7 +19,6 @@ export interface SQLiteDeleteConfig {
 	table: SQLiteTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	useSelectionCastCodecs?: boolean;
 }
 
 export interface SQLiteDeleteHKTBase {
@@ -79,7 +79,7 @@ export type SQLiteDeleteWithout<
 export type SQLiteDelete<
 	TTable extends SQLiteTable = SQLiteTable,
 	TRunResult = unknown,
-	TReturning extends Record<string, unknown> | undefined = undefined,
+	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = SQLiteDeleteBase<SQLiteDeleteQueryBuilderHKT, TTable, TRunResult, TReturning, true, never>;
 
 export type SQLiteDeleteReturningAll<
@@ -271,17 +271,30 @@ export class SQLiteDeleteBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildDeleteQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	$dynamic(): SQLiteDeleteDynamic<this> {
 		return this as any;
+	}
+
+	/**
+	 * Prepares the query on the session, for every runtime. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(prepare = false): SQLitePreparedQuery {
+		return this.session.prepareQuery(
+			this.dialect.sqlToQuery(this.getSQL()),
+			'arrays',
+			prepare,
+			this.config.returning ? 'all' : 'run',
+			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
+		);
 	}
 }

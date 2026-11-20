@@ -1,11 +1,8 @@
-import { afterAll, expect, it } from 'vitest';
-import 'zx/globals';
-import * as fs from 'fs';
+import { execFile } from 'child_process';
 import { globSync } from 'glob';
+import os from 'os';
 import path from 'path';
-$.verbose = true;
-
-const IMPORTS_FOLDER = 'tests/imports/files';
+import { expect, it } from 'vitest';
 
 // The published `exports` map collapsed to a `"./*"` wildcard, so the importable public subpaths
 // are no longer enumerable from it — re-derive them from the same source globs the build keys off.
@@ -17,22 +14,39 @@ const exportSubpaths = [
 	),
 ];
 
-fs.mkdirSync(IMPORTS_FOLDER, { recursive: true });
+type ImportCheck = { name: string; args: string[] };
 
-afterAll(() => {
-	fs.rmSync(IMPORTS_FOLDER, { recursive: true });
-});
-
-function chunk<T>(arr: T[], size: number): T[][] {
-	const chunks: T[][] = [];
-	for (let i = 0; i < arr.length; i += size) {
-		chunks.push(arr.slice(i, i + size));
-	}
-	return chunks;
+// Resolves with an error message, or with undefined when the process exits with code 0.
+// The limit catches an import that hangs, for example one that keeps the event loop open. 30 s, not less: on a busy
+// CI machine, entry points that compile WebAssembly (effect-sqlite-wasm) took over 5 s to load.
+const TIMEOUT_MS = 30_000;
+function runNode(args: string[]): Promise<string | undefined> {
+	return new Promise((resolve) => {
+		execFile('node', args, { timeout: TIMEOUT_MS }, (error, _stdout, stderr) => {
+			if (!error) return resolve(undefined);
+			resolve(error.killed ? `timed out after ${TIMEOUT_MS} ms (killed)` : `${error.message}\n${stderr}`);
+		});
+	});
 }
 
-const promisesCJS: (() => ProcessPromise)[] = [];
-for (const [i, key] of exportSubpaths.entries()) {
+// Runs one process per CPU at a time. More processes than CPUs slow each other down until
+// healthy imports hit the 5s limit.
+async function findFailedImports(checks: ImportCheck[]): Promise<string[]> {
+	const failures: string[] = [];
+	let next = 0;
+	const worker = async () => {
+		while (next < checks.length) {
+			const { name, args } = checks[next++]!;
+			const error = await runNode(args);
+			if (error) failures.push(`${name}: ${error}`);
+		}
+	};
+	await Promise.all(new Array(os.availableParallelism()).fill(undefined).map(worker));
+	return failures;
+}
+
+const checksCJS: ImportCheck[] = [];
+for (const key of exportSubpaths) {
 	const o1 = path.join('drizzle-orm', key);
 	if (
 		o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/pglite')
@@ -44,32 +58,15 @@ for (const [i, key] of exportSubpaths.entries()) {
 	) {
 		continue;
 	}
-	fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.cjs`, 'requ');
-	fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.cjs`, 'ire("' + o1 + '");\n', {});
-
-	// fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'imp');
-	// fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
-
-	promisesCJS.push(
-		() => $`node ${IMPORTS_FOLDER}/imports_${i}.cjs`.nothrow().timeout('5s', 'SIGTERM'),
-		// () => $`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow().timeout('5s', 'SIGTERM'),
-	);
+	checksCJS.push({ name: o1, args: ['--input-type=commonjs', '-e', `require(${JSON.stringify(o1)})`] });
 }
 
-const chunksCJS = chunk(promisesCJS, 10);
+it('every entry point loads with require()', async () => {
+	expect(await findFailedImports(checksCJS)).toEqual([]);
+});
 
-for (const c of chunksCJS) {
-	it.concurrent('dynamic imports check for CommonJS chunk', async () => {
-		const results = await Promise.all(c.map((c) => c()));
-
-		for (const result of results) {
-			expect(result.exitCode, result.message).toBe(0);
-		}
-	});
-}
-
-const promises: (() => ProcessPromise)[] = [];
-for (const [i, key] of exportSubpaths.entries()) {
+const checksESM: ImportCheck[] = [];
+for (const key of exportSubpaths) {
 	const o1 = path.join('drizzle-orm', key);
 	if (
 		o1.startsWith('drizzle-orm/bun-sqlite') || o1.startsWith('drizzle-orm/expo-sqlite')
@@ -80,26 +77,16 @@ for (const [i, key] of exportSubpaths.entries()) {
 	) {
 		continue;
 	}
-	fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'imp');
-	fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
-	promises.push(
-		() => $`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow().timeout('5s', 'SIGTERM'),
-		() =>
-			$`node --import import-in-the-middle/hook.mjs ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow().timeout(
-				'5s',
-				'SIGTERM',
-			),
+	const source = `import ${JSON.stringify(o1)}`;
+	checksESM.push(
+		{ name: o1, args: ['--input-type=module', '-e', source] },
+		{
+			name: `${o1} with import-in-the-middle`,
+			args: ['--import', 'import-in-the-middle/hook.mjs', '--input-type=module', '-e', source],
+		},
 	);
 }
 
-const chunksESM = chunk(promises, 10);
-
-for (const c of chunksESM) {
-	it('dynamic imports check for ESM chunk', async () => {
-		const results = await Promise.all(c.map((c) => c()));
-
-		for (const result of results) {
-			expect(result.exitCode, result.message).toBe(0);
-		}
-	});
-}
+it('every entry point loads with import', async () => {
+	expect(await findFailedImports(checksESM)).toEqual([]);
+});

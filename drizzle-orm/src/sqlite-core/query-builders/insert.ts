@@ -5,6 +5,7 @@ import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { IndexColumn } from '~/sqlite-core/indexes.ts';
+import type { SQLitePreparedQuery } from '~/sqlite-core/session.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -23,7 +24,6 @@ export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	returning?: SelectedFieldsOrdered;
 	select?: boolean;
 	columnList?: string[];
-	useSelectionCastCodecs?: boolean;
 }
 
 export type SQLiteInsertValue<
@@ -432,7 +432,7 @@ export class SQLiteInsertBase<
 	/**
 	 * Adds an `on conflict do nothing` clause to the query.
 	 *
-	 * Calling this method simply avoids inserting a row as its alternative action.
+	 * Calling this method simply avoids inserting a row as it's alternative action.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-conflict-do-nothing}
 	 *
@@ -461,7 +461,7 @@ export class SQLiteInsertBase<
 		} else {
 			const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
 			const whereSql = config.where ? sql` where ${config.where}` : sql``;
-			this.config.onConflict.push(sql` on conflict ${targetSql} do nothing${whereSql}`);
+			this.config.onConflict.push(sql` on conflict ${targetSql}${whereSql} do nothing`);
 		}
 		return this as any;
 	}
@@ -469,7 +469,7 @@ export class SQLiteInsertBase<
 	/**
 	 * Adds an `on conflict do update` clause to the query.
 	 *
-	 * Calling this method will update the existing row that conflicts with the row proposed for insertion as its alternative action.
+	 * Calling this method will update the existing row that conflicts with the row proposed for insertion as it's alternative action.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#upserts-and-conflicts}
 	 *
@@ -521,17 +521,30 @@ export class SQLiteInsertBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildInsertQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	$dynamic(): SQLiteInsertDynamic<this> {
 		return this as any;
+	}
+
+	/**
+	 * Prepares the query on the session, for every runtime. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(prepare = false): SQLitePreparedQuery {
+		return this.session.prepareQuery(
+			this.dialect.sqlToQuery(this.getSQL()),
+			'arrays',
+			prepare,
+			this.config.returning ? 'all' : 'run',
+			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
+		);
 	}
 }

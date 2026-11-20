@@ -1,13 +1,13 @@
 import type { Client, CustomTypesConfig, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery } from '~/pg-core/async/session.ts';
 import { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import { pgRawTextTypeParser } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgTransactionConfig } from '~/pg-core/session.ts';
+import { getTransactionConfigSQL, setTransactionSnapshotSQL } from '~/pg-core/session.ts';
 import type { PreparedQueryConfig } from '~/pg-core/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -15,32 +15,17 @@ import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
 const { Pool, types } = pg;
-export type NodePgClient = pg.Pool | PoolClient | Client;
 
-const noop = (val: any) => val;
-
-const typeConfig: CustomTypesConfig = {
-	getTypeParser: <CustomTypesConfig['getTypeParser']> ((typeId, format) => {
-		switch (typeId as number) {
-			case types.builtins.TIMESTAMPTZ:
-			case types.builtins.TIMESTAMP:
-			case types.builtins.DATE:
-			case types.builtins.INTERVAL:
-			case 1231: // numeric[]
-			case 1115: // timestamp[]
-			case 1185: // timestamp with timezone[]
-			case 1187: // interval[]
-			case 1182: // date[]
-				return noop;
-			default:
-				return types.getTypeParser(typeId, format);
-		}
-	}),
+export const nodePgRawTextTypes: CustomTypesConfig = {
+	getTypeParser: <CustomTypesConfig['getTypeParser']> pgRawTextTypeParser((typeId, format) =>
+		types.getTypeParser(typeId, format)
+	),
 };
+
+export type NodePgClient = pg.Pool | PoolClient | Client;
 
 export interface NodePgSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -50,7 +35,6 @@ export class NodePgSession<
 	static override readonly [entityKind]: string = 'NodePgSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: NodePgClient,
@@ -60,16 +44,13 @@ export class NodePgSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	) {
 		const queryName = typeof name === 'string'
 			? name
@@ -82,7 +63,7 @@ export class NodePgSession<
 				name: queryName,
 				rowMode: mode === 'arrays' ? 'array' : undefined as any,
 				text: query.sql,
-				types: typeConfig,
+				types: mapper && mode !== 'call' ? nodePgRawTextTypes : undefined,
 			}, params).then((r) => mode === 'raw' ? r : r.rows);
 		};
 
@@ -92,9 +73,6 @@ export class NodePgSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}
@@ -105,18 +83,18 @@ export class NodePgSession<
 	): Promise<T> {
 		const isPool = this.client instanceof Pool || Object.getPrototypeOf(this.client).constructor.name.includes('Pool');
 		const poolClient = isPool ? await (<pg.Pool> this.client).connect() : undefined;
-		// pg-pool detaches its own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
+		// pg-pool detaches it's own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
 		let connectionError: Error | undefined;
 		let rollbackError: Error | undefined;
 		const onConnectionError = (e: Error) => {
 			connectionError ??= e;
 		};
 		poolClient?.on('error', onConnectionError);
-		const release = () => {
+		const release = (failure?: Error) => {
 			if (!poolClient) return;
 			// broken client is destroyed by the pool, listener stays to absorb any trailing errors
 			if (!connectionError) poolClient.off('error', onConnectionError);
-			poolClient.release(connectionError ?? rollbackError);
+			poolClient.release(connectionError ?? rollbackError ?? failure);
 		};
 		const session = poolClient
 			? new NodePgSession(
@@ -135,15 +113,16 @@ export class NodePgSession<
 		);
 
 		try {
-			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+			await tx.execute(sql`begin${config ? sql` ${getTransactionConfigSQL(config)}` : undefined}`);
 		} catch (e) {
-			release();
+			// `begin` may still reach the server after failing on the client, session state is unknown so the client must not be reused
+			release(e as Error);
 			throw e;
 		}
 
 		try {
 			if (typeof config?.snapshot === 'string') {
-				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
+				await tx.execute(setTransactionSnapshotSQL(config.snapshot));
 			}
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);

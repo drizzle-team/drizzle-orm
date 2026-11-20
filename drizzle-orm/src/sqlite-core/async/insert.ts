@@ -5,9 +5,10 @@ import type { SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteInsertBuilder, SQLiteInsertHKTBase } from '~/sqlite-core/query-builders/insert.ts';
 import { SQLiteInsertBase } from '~/sqlite-core/query-builders/insert.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
+import { type SQLiteRunnableMethods, SQLiteRunnableQuery } from '../query-builders/runnable.ts';
+import { SQLiteAsyncRunnableQuery } from './runnable.ts';
 import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig, SQLiteAsyncSession } from './session.ts';
 
 export interface SQLiteAsyncInsertHKT extends SQLiteInsertHKTBase {
@@ -80,7 +81,8 @@ export interface SQLiteAsyncInsertBase<
 		TDynamic,
 		TExcludedMethods
 	>,
-	QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>
+	QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>,
+	SQLiteRunnableMethods
 {
 	readonly _:
 		& SQLiteInsertBase<
@@ -93,6 +95,11 @@ export interface SQLiteAsyncInsertBase<
 			TExcludedMethods
 		>['_']
 		& { readonly resultType: TResultType };
+
+	/** @internal */
+	_prepare(prepare?: boolean): SQLiteAsyncInsertPrepare<this>;
+
+	prepare(): SQLiteAsyncInsertPrepare<this>;
 }
 
 export class SQLiteAsyncInsertBase<
@@ -119,45 +126,6 @@ export class SQLiteAsyncInsertBase<
 	static override readonly [entityKind]: string = 'SQLiteAsyncInsert';
 
 	declare protected session: SQLiteAsyncSession<TResultType, TRunResult, any>;
-
-	/** @internal */
-	_prepare(prepare = false): SQLiteAsyncInsertPrepare<this> {
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL(true)),
-			'arrays',
-			prepare,
-			this.config.returning ? 'all' : 'run',
-			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
-			{
-				type: 'insert',
-				tables: () => usedTablesOf(this.config.table),
-			},
-		) as SQLiteAsyncInsertPrepare<this>;
-	}
-
-	prepare(): SQLiteAsyncInsertPrepare<this> {
-		return this._prepare(true);
-	}
-
-	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
-		return this._prepare().run(placeholderValues);
-	};
-
-	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {
-		return this._prepare().all(placeholderValues);
-	};
-
-	get: ReturnType<this['prepare']>['get'] = (placeholderValues) => {
-		return this._prepare().get(placeholderValues);
-	};
-
-	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
-		return this._prepare().values(placeholderValues);
-	};
-
-	async execute(): Promise<SQLiteAsyncInsertExecute<this>> {
-		return this._prepare().execute() as SQLiteAsyncInsertExecute<this>;
-	}
 }
 
-applyMixins(SQLiteAsyncInsertBase, [QueryPromise]);
+applyMixins(SQLiteAsyncInsertBase, [QueryPromise, SQLiteRunnableQuery, SQLiteAsyncRunnableQuery]);

@@ -1,5 +1,4 @@
 import type { SQLiteDatabase, SQLiteRunResult } from 'expo-sqlite';
-import type { QueryMetadata } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -48,7 +47,6 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
 	): SQLiteAsyncPreparedQuery<T & { run: ExpoSQLiteRunResult }> {
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
@@ -93,9 +91,6 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			undefined,
-			queryMetadata,
-			undefined,
 			this.options.paramsInErrors,
 		);
 	}

@@ -1,4 +1,3 @@
-import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
@@ -27,7 +26,6 @@ import type { ColumnsSelection, Query } from '~/sql/sql.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import {
 	applyMixins,
 	getTableColumns,
@@ -172,7 +170,6 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 	/** @internal */
 	readonly session: SingleStoreSession | undefined;
 	protected dialect: SingleStoreDialect;
-	protected cacheConfig?: WithCacheConfig = undefined;
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
@@ -202,15 +199,6 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
-	}
-
-	/**
-	 * @internal
-	 * Collects every table query's SQL references - `from`, joins, CTEs, set operators, raw SQL & subqueries of fields, filters, etc.
-	 * @param sql - query's already built SQL, to avoid rebuilding it
-	 */
-	getUsedTables(sql: SQL = this.getSQL()) {
-		return usedTablesOf(sql);
 	}
 
 	private createJoin<
@@ -907,11 +895,9 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
+	getSQL(): SQL {
 		this.config.fieldsFlat ??= this._resolveSelection();
-		return this.dialect.buildSelectQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+		return this.dialect.buildSelectQuery(this.config);
 	}
 
 	/** @internal */
@@ -951,8 +937,8 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		return setSelection;
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	as<TAlias extends string>(
@@ -1034,7 +1020,7 @@ export class SingleStoreSelectBase<
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 		// Build query before accessing `fieldsFlat` - build mutates it
-		const sequel = this.getSQL(true);
+		const sequel = this.getSQL();
 		const query = this.dialect.sqlToQuery(sequel);
 		const fieldsList = this.config.fieldsFlat!;
 		const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
@@ -1046,18 +1032,7 @@ export class SingleStoreSelectBase<
 			query,
 			'arrays',
 			this.config.mapper ??= this.dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths),
-			{ type: 'select', tables: () => this.getUsedTables(sequel) },
-			this.cacheConfig,
 		) as SingleStoreSelectPrepare<this>;
-	}
-
-	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
-		this.cacheConfig = config === undefined
-			? { config: {}, enabled: true, autoInvalidate: true }
-			: config === false
-			? { enabled: false }
-			: { enabled: true, autoInvalidate: true, ...config };
-		return this;
 	}
 
 	execute = ((placeholderValues) => {

@@ -1,5 +1,4 @@
 import { neonConfig, Pool, type PoolConfig } from '@neondatabase/serverless';
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -14,7 +13,6 @@ import { NeonSession } from './session.ts';
 
 export interface NeonDriverOptions {
 	logger?: Logger;
-	cache?: Cache;
 	useJitMappers?: boolean;
 }
 
@@ -47,19 +45,18 @@ function construct<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new NeonSession(client, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new NeonDatabase(dialect, session, relations) as NeonDatabase<TRelations>;
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }
 
+/**
+ * Requirements:
+ * - Sessions must use the ISO `DateStyle` (the default): temporal values of other `DateStyle`s throw
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NeonClient = Pool,

@@ -15,7 +15,7 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
-import { type AllTypes, allTypesData, allTypesTable } from './all-types';
+import { type AllTypes, allTypesData, makeAllTypes } from './all-types';
 import type { Test } from './instrumentation';
 import { createCitiesTable, createUsers2Table } from './schema2';
 
@@ -50,7 +50,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expectTypeOf(res).toEqualTypeOf<
 			{
-				population: number;
+				population: number | null;
 				name: string;
 			}[]
 		>();
@@ -89,7 +89,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expectTypeOf(res).toEqualTypeOf<
 			{
-				cityName: string;
+				cityName: string | null;
 				name: string;
 			}[]
 		>();
@@ -136,6 +136,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5780
 	test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
 		let counter = 0;
 		const table = mysqlTable('on_update_call_test', {
@@ -174,6 +175,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/4464
 	test.concurrent('db.execute modes', async ({ db, push }) => {
 		const users = mysqlTable('users_execute_modes_1', (t) => ({
 			id: t.int().primaryKey(),
@@ -219,11 +221,12 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	test.concurrent('all types', async ({ db, push }) => {
-		await push({ allTypesTable });
+		const table = makeAllTypes('all_types');
+		await push({ table });
 
-		await db.insert(allTypesTable).values(allTypesData);
+		await db.insert(table).values(allTypesData);
 
-		const rawRes = await db.select().from(allTypesTable);
+		const rawRes = await db.select().from(table);
 
 		expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
 		expect(rawRes).toStrictEqual([allTypesData]);
@@ -312,6 +315,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/3608
 	test.concurrent('insert into ... select with generated column', async ({ db, push }) => {
 		const users1 = mysqlTable('users1_iswgc', {
 			id: serial('id').primaryKey(),

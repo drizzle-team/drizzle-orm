@@ -1,0 +1,28 @@
+name: Runner slot
+description: >-
+  On a self-hosted runner, gives this runner instance its own database ports and compose projects
+  (CI_PORT_OFFSET, read by compose/ports.sh), so jobs that run side by side on one machine never share a
+  database. The slot is the number the instance's name ends with (orb-7 -> 7); compose/ports.sh gives it ports
+  20000 + 100 x slot + n. Slots run 1-99 and never 0: offset 0 is the default ports and compose project names a developer's own
+  `compose/dockers.sh up` uses on the same machine, which a job's `down -v` would otherwise wipe. Names without a
+  number fail rather than silently share. Does nothing on GitHub-hosted runners, which give every job its own VM.
+
+runs:
+  using: composite
+  steps:
+    - if: runner.environment == 'self-hosted'
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ ! "$RUNNER_NAME" =~ ([0-9]+)$ ]]; then
+          echo "::error::Self-hosted runner '$RUNNER_NAME' has no number at the end of its name; name the instances <name>-1 .. <name>-99 so their databases get separate ports"
+          exit 1
+        fi
+        slot=$((10#${BASH_REMATCH[1]}))
+        # Up to 99 keeps the slot's ports (compose/ports.sh) within 20100-29999.
+        if (( slot < 1 || slot > 99 )); then
+          echo "::error::Self-hosted runner '$RUNNER_NAME': slot $slot is outside 1-99"
+          exit 1
+        fi
+        echo "CI_PORT_OFFSET=$((slot * 100))" >> "$GITHUB_ENV"
+        echo "Runner $RUNNER_NAME: slot $slot, database ports from $((20000 + slot * 100))"

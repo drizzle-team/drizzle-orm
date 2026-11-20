@@ -1,5 +1,5 @@
 import type { HTTPQueryOptions, HTTPTransactionOptions, NeonQueryFunction } from '@neondatabase/serverless';
-import { neon, types } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -61,30 +61,19 @@ function construct<
 
 	const session = new NeonHttpSession(client, dialect, relations ?? {} as EmptyRelations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 
-	types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-	types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-	types.setTypeParser(types.builtins.DATE, (val) => val);
-	types.setTypeParser(types.builtins.INTERVAL, (val) => val);
-	types.setTypeParser(1231, (val) => val);
-	types.setTypeParser(1115, (val) => val);
-	types.setTypeParser(1185, (val) => val);
-	types.setTypeParser(1187, (val) => val);
-	types.setTypeParser(1182, (val) => val);
-
 	const db = new NeonHttpDatabase(dialect, session, relations);
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }
 
+/**
+ * Requirements:
+ * - Sessions must use the ISO `DateStyle` (the default): temporal values of other `DateStyle`s throw
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends NeonQueryFunction<any, any> = NeonQueryFunction<false, false>,

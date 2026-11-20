@@ -1,0 +1,24 @@
+input.ts:7:5 error TSPG014: parameter 'day' needs a default: it follows a parameter that has one
+      day: 'text',
+      ^^^^^^^^^^^
+  hint: move parameters with defaults to the end of the params object
+
+input.ts:8:36 error TSPG020: the default must be an int literal or null
+      limit: { type: 'int', default: 'twenty' },
+                                     ^^^^^^^^
+  hint: defaults are emitted into the procedure signature — expressions are not supported
+
+input.ts:9:37 error TSPG020: the default must be an int literal or null
+      offset: { type: 'int', default: 10 * 2 },
+                                      ^^^^^^
+  hint: defaults are emitted into the procedure signature — expressions are not supported
+
+input.ts:10:11 error TSPG014: a parameter spec needs both `type` and `default`
+      sort: { type: 'text' },
+            ^^^^^^^^^^^^^^^^
+  hint: parameters without a default are written as plain strings: { amount: 'numeric' }
+
+input.ts:11:38 error TSPG014: a parameter spec is { type: '<sql type>', default: <literal> }
+      page: { type: 'int', default: 1, max: 50 },
+                                       ^^^^^^^
+  hint: e.g. { limit: { type: 'int', default: 20 } }

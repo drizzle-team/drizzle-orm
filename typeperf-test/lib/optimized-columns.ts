@@ -1,4 +1,3 @@
-/* eslint-disable drizzle-internal/require-entity-kind */
 import {
 	type ColumnBuilderBase,
 	// type ColumnBuilderRuntimeConfig,

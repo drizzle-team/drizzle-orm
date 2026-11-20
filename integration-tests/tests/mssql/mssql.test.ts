@@ -5,6 +5,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	defineRelations,
 	desc,
 	DrizzleError,
 	DrizzleQueryError,
@@ -16,6 +17,7 @@ import {
 	inArray,
 	isNull,
 	like,
+	lt,
 	makeDefaultQueryMapper,
 	makeDefaultRqbMapper,
 	makeJitQueryMapper,
@@ -35,6 +37,7 @@ import {
 	bit,
 	customType,
 	date,
+	decimal,
 	except,
 	foreignKey,
 	getTableConfig,
@@ -54,10 +57,11 @@ import {
 	unique,
 	varchar,
 } from 'drizzle-orm/mssql-core';
+import { concat, substring } from 'drizzle-orm/mssql-core/expressions';
 import { drizzle, type NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { migrate } from 'drizzle-orm/node-mssql/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import type { IResult } from 'mssql';
+import type { ConnectionPool, IResult } from 'mssql';
 import { expect, expectTypeOf } from 'vitest';
 import { type Equal, Expect } from '~/utils';
 import {
@@ -65,10 +69,15 @@ import {
 	allTypesData,
 	allTypesTable as allTypesCodecsTable,
 	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesTemporalBoundsInSessionDateFormats,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	createAllTypes,
 	makeAllTypes,
 } from './all-types';
+import { fixtureReset } from './fixture-reset';
 import { test } from './instrumentation';
 import {
 	aggregateTable,
@@ -94,7 +103,8 @@ import {
 
 // const ENABLE_LOGGING = true;
 
-test.beforeEach(async ({ client }) => {
+// Built once and reset between tests (fixtureReset); built again only when a test changed it.
+const createFixture = async (client: ConnectionPool) => {
 	await client.query(`drop table if exists [userstest]`);
 	await client.query(`drop table if exists [nvarchar_with_json]`);
 	await client.query(`drop table if exists [users2]`);
@@ -162,6 +172,16 @@ test.beforeEach(async ({ client }) => {
 			[col1] bit,
 			[col2] varchar(6)
 		)`);
+};
+
+let resetFixture: () => Promise<void>;
+
+test.beforeEach(async ({ client }) => {
+	resetFixture ??= fixtureReset(
+		async (query) => (await client.query(query)).recordset ?? [],
+		() => createFixture(client),
+	);
+	await resetFixture();
 });
 
 async function setupSetOperationTest(db: NodeMsSqlDatabase<any>) {
@@ -352,6 +372,7 @@ test('table configs: unique in column', async () => {
 	expect(columnField?.isUnique).toBeTruthy();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db }) => {
 	const table = sql.identifier('raw_execute_types');
 
@@ -463,6 +484,72 @@ test('select distinct', async ({ db }) => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6673
+// https://github.com/drizzle-team/drizzle-orm/issues/1603
+test('select distinct ordered by cast columns', async ({ db }) => {
+	const table = mssqlTable('distinct_cast_order', {
+		id: int('id').notNull(),
+		amount: decimal('amount', { mode: 'number', precision: 10, scale: 2 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (id int not null, amount decimal(10, 2) not null)`);
+
+	await db.insert(table).values([
+		{ id: 1, amount: 9 },
+		{ id: 2, amount: 100 },
+		{ id: 2, amount: 100 },
+		{ id: 3, amount: 10 },
+	]);
+
+	const byAmount = await db
+		.selectDistinct({ id: table.id, amount: table.amount })
+		.from(table)
+		.orderBy(desc(table.amount));
+
+	expect(byAmount).toEqual([
+		{ id: 2, amount: 100 },
+		{ id: 3, amount: 10 },
+		{ id: 1, amount: 9 },
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6673
+test('order by aliased cast columns', async ({ db }) => {
+	const table = mssqlTable('alias_cast_order', {
+		id: int('id').notNull(),
+		amount: decimal('amount', { mode: 'number', precision: 10, scale: 2 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (id int not null, amount decimal(10, 2) not null)`);
+
+	await db.insert(table).values([
+		{ id: 1, amount: 9 },
+		{ id: 2, amount: 100 },
+		{ id: 3, amount: 10 },
+	]);
+
+	const amountAlias = table.amount.as('amount_alias');
+	const amountSql = sql<number>`${table.amount}`.mapWith(table.amount).as('amount_sql');
+
+	const byColumnAlias = await db.select({ id: table.id, amount: amountAlias }).from(table).orderBy(desc(amountAlias));
+	const bySqlAlias = await db.select({ id: table.id, amount: amountSql }).from(table).orderBy(desc(amountSql));
+	const byDistinctAlias = await db
+		.selectDistinct({ id: table.id, amount: amountAlias })
+		.from(table)
+		.orderBy(desc(amountAlias));
+
+	const expected = [
+		{ id: 2, amount: 100 },
+		{ id: 3, amount: 10 },
+		{ id: 1, amount: 9 },
+	];
+	expect(byColumnAlias).toEqual(expected);
+	expect(bySqlAlias).toEqual(expected);
+	expect(byDistinctAlias).toEqual(expected);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/1603
 test('Nested partial select left join: null first column', async ({ db }) => {
 	const orgs = mssqlTable('issue1603_orgs', {
@@ -528,7 +615,7 @@ test('all types', async ({ db, push }) => {
 });
 
 test('all types ~codecs~', async ({ client }) => {
-	const db = drizzle({ client: client as any, relations: {} as any });
+	const db = drizzle({ client: client as any, relations: defineRelations(boundsSchema, boundsRelations) });
 
 	await db.execute(sql`drop table if exists [all_types_codecs]`);
 	await db.execute(sql.raw(createAllTypes('all_types_codecs')));
@@ -541,10 +628,18 @@ test('all types ~codecs~', async ({ client }) => {
 		expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
 		expect(rawRes).toStrictEqual([allTypesData]);
 
-		await assertAllTypesBounds(db);
+		await assertAllTypesBounds(db, { rqb: true });
+		await assertAllTypesTemporalBounds(db, { rqb: true });
 	} finally {
 		await db.execute(sql`drop table if exists [all_types_codecs]`);
 	}
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6496
+test('all types ~codecs~ - non-default DATEFORMAT session', async ({ client }) => {
+	const db = drizzle({ client: client as any, relations: defineRelations(boundsSchema, boundsRelations) });
+
+	await assertAllTypesTemporalBoundsInSessionDateFormats(db, { rqb: true });
 });
 
 test('all types ~codecs~ set operations', async ({ client }) => {
@@ -562,6 +657,7 @@ test('all types ~codecs~ set operations', async ({ client }) => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs', async ({ createDB, push }) => {
 	let customCast = false;
 	let customMap = false;
@@ -693,6 +789,7 @@ test('Column as decoder applies codecs', async ({ createDB, push }) => {
 	expect(viewNested).toStrictEqual({ ...expectedViewRow, self: expectedViewRow });
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 	let customCast = false;
 	let customMap = false;
@@ -5397,6 +5494,7 @@ test('test $onUpdateFn and $onUpdate works updating', async ({ db }) => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5780
 test('$onUpdateFn called only when needed', async ({ db }) => {
 	let counter = 0;
 	const table = mssqlTable('on_update_call_test', {
@@ -6329,6 +6427,8 @@ test('all possible columns', async ({ db }) => {
 
 	const currentDate = new Date('2025-04-18T00:00:00.000Z');
 	// insert
+	// `mssql` decodes `decimal`, `numeric` to numbers: string modes throw an unsupported column type error, they're
+	// inserted as `null`s, which never reach a decoder
 	await db.insert(allPossibleColumns).values({
 		bigintBigint: BigInt(100),
 		bigintString: '100',
@@ -6372,10 +6472,10 @@ test('all possible columns', async ({ db }) => {
 		datetimeOffsetModeStringDefault: undefined,
 		datetimeOffsetModeStringWithPrecisionDefault: undefined,
 
-		decimal: '1.33',
-		decimalWithPrecision: '4.11',
-		decimalWithConfig: '41.34234526',
-		decimalDefaultString: undefined,
+		decimal: null,
+		decimalWithPrecision: null,
+		decimalWithConfig: null,
+		decimalDefaultString: null,
 		decimalDefaultNumber: undefined,
 
 		float: 5234.132,
@@ -6385,10 +6485,10 @@ test('all possible columns', async ({ db }) => {
 		int: 140,
 		intDefault: undefined,
 
-		numeric: '33.2',
-		numericWithPrecision: '33.4',
-		numericWithConfig: '41.34512',
-		numericDefault: undefined,
+		numeric: null,
+		numericWithPrecision: null,
+		numericWithConfig: null,
+		numericDefault: null,
 		numericDefaultNumber: undefined,
 
 		real: 421.4,
@@ -6513,20 +6613,20 @@ test('all possible columns', async ({ db }) => {
 			datetimeOffsetDefault: currentDate,
 			datetimeOffsetModeStringDefault: currentDate.toISOString(),
 			datetimeOffsetModeStringWithPrecisionDefault: currentDate.toISOString(),
-			decimal: '1',
-			decimalWithPrecision: '4',
-			decimalWithConfig: '41.34234526',
+			decimal: null,
+			decimalWithPrecision: null,
+			decimalWithConfig: null,
 			decimalDefaultNumber: 1,
-			decimalDefaultString: '1',
+			decimalDefaultString: null,
 			float: 5234.132,
 			floatWithPrecision: 1.2300000190734863,
 			floatDefault: 32.412,
 			int: 140,
 			intDefault: 43,
-			numeric: '33',
-			numericWithPrecision: '33',
-			numericWithConfig: '41.34512000',
-			numericDefault: '1',
+			numeric: null,
+			numericWithPrecision: null,
+			numericWithConfig: null,
+			numericDefault: null,
 			numericDefaultNumber: 1,
 			real: 421.4,
 			realDefault: 5231.412,
@@ -6717,6 +6817,7 @@ test('full join', async ({ db }) => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4464
 test('db.execute modes', async ({ db }) => {
 	const users = mssqlTable('users_execute_modes', {
 		id: int('id').primaryKey(),
@@ -7312,6 +7413,109 @@ test('select offset', async ({ db }) => {
 
 	expect(res.length).toBe(1);
 	expect(res).toStrictEqual([{ id: 1, name: 'city1' }]);
+});
+
+// MSSQL only accepts `offset` after `order by`, and `fetch` only after `offset` with at least one row
+test('pagination: top', async ({ db }) => {
+	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
+
+	expect(db.select({ id: citiesTable.id }).top(0).from(citiesTable).toSQL()).toStrictEqual({
+		sql: 'select top(@par0) [id] from [cities]',
+		params: [0],
+	});
+	expect(await db.select({ id: citiesTable.id }).top(0).from(citiesTable)).toStrictEqual([]);
+	expect(await db.select({ id: citiesTable.id }).top(2).from(citiesTable).orderBy(citiesTable.id)).toStrictEqual([
+		{ id: 1 },
+		{ id: 2 },
+	]);
+	expect(await db.select({ id: citiesTable.id }).top(10).from(citiesTable).orderBy(citiesTable.id)).toStrictEqual([
+		{ id: 1 },
+		{ id: 2 },
+		{ id: 3 },
+		{ id: 4 },
+		{ id: 5 },
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6599
+test('pagination: offset', async ({ db }) => {
+	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
+	const query = () => db.select({ id: citiesTable.id }).from(citiesTable).orderBy(citiesTable.id);
+
+	expect(query().offset(0).toSQL()).toStrictEqual({
+		sql: 'select [id] from [cities] order by [cities].[id] offset @par0 rows',
+		params: [0],
+	});
+	expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+	expect(await query().offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+	expect(await query().offset(5)).toStrictEqual([]);
+	expect(await query().offset(10)).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6599
+test('pagination: offset with fetch', async ({ db }) => {
+	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
+	const query = () => db.select({ id: citiesTable.id }).from(citiesTable).orderBy(citiesTable.id);
+
+	expect(query().offset(0).fetch(2).toSQL()).toStrictEqual({
+		sql: 'select [id] from [cities] order by [cities].[id] offset @par0 rows fetch next @par1 rows only',
+		params: [0, 2],
+	});
+	expect(await query().offset(0).fetch(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+	expect(await query().offset(2).fetch(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+	expect(await query().offset(4).fetch(2)).toStrictEqual([{ id: 5 }]);
+	expect(await query().offset(5).fetch(2)).toStrictEqual([]);
+	expect(await query().offset(3).fetch(10)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6599
+test('pagination: placeholders', async ({ db }) => {
+	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
+	const query = () => db.select({ id: citiesTable.id }).from(citiesTable).orderBy(citiesTable.id);
+
+	const topStmt = db.select({ id: citiesTable.id }).top(sql.placeholder('top')).from(citiesTable).orderBy(
+		citiesTable.id,
+	).prepare();
+	expect(await topStmt.execute({ top: 0 })).toStrictEqual([]);
+	expect(await topStmt.execute({ top: 2 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+	const offsetStmt = query().offset(sql.placeholder('offset')).prepare();
+	expect(await offsetStmt.execute({ offset: 0 })).toStrictEqual([
+		{ id: 1 },
+		{ id: 2 },
+		{ id: 3 },
+		{ id: 4 },
+		{ id: 5 },
+	]);
+	expect(await offsetStmt.execute({ offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
+
+	const stmt = query().offset(sql.placeholder('offset')).fetch(sql.placeholder('fetch')).prepare();
+	expect(await stmt.execute({ offset: 0, fetch: 2 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+	expect(await stmt.execute({ offset: 2, fetch: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
+	expect(await stmt.execute({ offset: 5, fetch: 2 })).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6599
+test('pagination: set operations', async ({ db }) => {
+	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
+	const query = () =>
+		db.select({ id: citiesTable.id }).from(citiesTable).where(lt(citiesTable.id, 4)).union(
+			db.select({ id: citiesTable.id }).from(citiesTable).where(gte(citiesTable.id, 3)),
+		).orderBy(citiesTable.id);
+
+	expect(query().offset(0).toSQL()).toStrictEqual({
+		sql:
+			'(select [id] from [cities] where [cities].[id] < @par0) union (select [id] from [cities] where [cities].[id] >= @par1) order by [id] offset @par2 rows',
+		params: [4, 3, 0],
+	});
+	expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+	expect(await query().offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+	expect(await query().offset(0).fetch(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+	expect(await query().offset(2).fetch(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+
+	const stmt = query().offset(sql.placeholder('offset')).fetch(sql.placeholder('fetch')).prepare();
+	expect(await stmt.execute({ offset: 0, fetch: 2 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+	expect(await stmt.execute({ offset: 3, fetch: 2 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
 });
 
 test('select offset prepared query', async ({ db }) => {
@@ -7913,6 +8117,7 @@ test('Query error wrapping', async ({ db }) => {
 		.rejects.toBeInstanceOf(DrizzleQueryError);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params', async ({ createDB }) => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -7928,6 +8133,7 @@ test('Query error params', async ({ createDB }) => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params - transaction', async ({ createDB }) => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -8055,5 +8261,81 @@ test('Default value priority', async ({ db }) => {
 		defMix2: 2,
 		defMix3: 2,
 		defMix4: 1,
+	}]);
+});
+
+test('concat, substring expressions', async ({ db, push }) => {
+	const users = mssqlTable('expr_concat_substring', {
+		id: int('id').primaryKey(),
+		first: varchar('first', { length: 30 }).notNull(),
+		last: varchar('last', { length: 30 }).notNull(),
+	});
+
+	await push({ users });
+
+	await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, { id: 2, first: 'Jane', last: 'Roe' }]);
+
+	const res = await db.select({
+		withString: concat(users.first, '!'),
+		withColumn: concat(users.first, users.last),
+		withSql: concat(users.first, sql`'.'`),
+		withBigint: concat(users.first, 9223372036854775807n),
+		variadic: concat(users.first, ' ', users.last, ' #', users.id),
+		from: substring(users.first, 3, 100),
+		for: substring(users.first, 1, 2),
+		fromFor: substring(users.first, 2, 3),
+		fromForSql: substring(users.first, sql`${users.id} + 1`, users.id),
+	}).from(users).orderBy(users.id);
+
+	expect(res).toStrictEqual([
+		{
+			withString: 'Johnathan!',
+			withColumn: 'JohnathanDoe',
+			withSql: 'Johnathan.',
+			withBigint: 'Johnathan9223372036854775807',
+			variadic: 'Johnathan Doe #1',
+			from: 'hnathan',
+			for: 'Jo',
+			fromFor: 'ohn',
+			fromForSql: 'o',
+		},
+		{
+			withString: 'Jane!',
+			withColumn: 'JaneRoe',
+			withSql: 'Jane.',
+			withBigint: 'Jane9223372036854775807',
+			variadic: 'Jane Roe #2',
+			from: 'ne',
+			for: 'Ja',
+			fromFor: 'ane',
+			fromForSql: 'ne',
+		},
+	]);
+
+	const filtered = await db.select({ id: users.id }).from(users).where(
+		and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, 1, 4), 'John')),
+	);
+
+	expect(filtered).toStrictEqual([{ id: 1 }]);
+
+	const prepared = db.select({
+		withString: concat(users.first, sql.placeholder('suffix')),
+		variadic: concat(sql.placeholder('prefix'), users.first, sql.placeholder('number'), sql.placeholder('bigint')),
+		fromFor: substring(users.first, sql.placeholder('from'), sql.placeholder('for')),
+	}).from(users).where(eq(users.id, 1)).prepare();
+
+	expect(
+		await prepared.execute({
+			suffix: '!',
+			prefix: '#',
+			number: 1,
+			bigint: 9223372036854775807n,
+			from: 2,
+			for: 3,
+		}),
+	).toStrictEqual([{
+		withString: 'Johnathan!',
+		variadic: '#Johnathan19223372036854775807',
+		fromFor: 'ohn',
 	}]);
 });

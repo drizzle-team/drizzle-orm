@@ -1,0 +1,24 @@
+input.ts:5:10 error TSPG014: 'ctx' is the procedure context — read one of its members instead
+    notice(ctx)
+           ^^^
+  hint: use ctx.sql`...` / ctx.args.<param>, or destructure: const { args, sql } = ctx
+
+input.ts:6:10 error TSPG012: the procedure context has no member 'balance'
+    notice(ctx.balance)
+           ^^^^^^^^^^^
+  hint: ctx members: args, sql, lockRowsOrdered, notice, warning, commit, rollback, try, isNull, coalesce
+
+input.ts:7:10 error TSPG012: 'ctx.args' has no parameter 'balance'
+    notice(ctx.args.balance)
+           ^^^^^^^^^^^^^^^^
+  hint: declared parameters: account
+
+input.ts:8:3 error TSPG017: parameters are read-only
+    ctx.args.account = 0
+    ^^^^^^^^^^^^^^^^
+  hint: copy into a local: let x = ...
+
+input.ts:9:13 error TSPG014: 'sql' is a DSL primitive — call it, it is not a value
+    const s = sql
+              ^^^
+  hint: use it as a template tag: sql`...`

@@ -1,0 +1,4 @@
+input.ts:5:31 error TSPG016: the ids array must contain at least one identifier — IN () is not valid SQL
+    lockRowsOrdered('accounts', [])
+                                ^^
+  hint: e.g. lockRowsOrdered('accounts', [from, to])

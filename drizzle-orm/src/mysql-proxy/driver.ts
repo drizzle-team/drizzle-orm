@@ -40,9 +40,11 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 		logger,
 		paramsInErrors: config.paramsInErrors,
 	});
-	return new MySqlRemoteDatabase(
+	const db = new MySqlRemoteDatabase(
 		dialect,
 		session,
 		relations,
 	) as MySqlRemoteDatabase<TRelations>;
+
+	return db;
 }

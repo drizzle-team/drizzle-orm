@@ -1,3 +1,4 @@
+import { composeHint, requireEnv } from '@drizzle/test-utils';
 import { is } from 'drizzle-orm';
 import {
 	AnyCockroachColumn,
@@ -546,8 +547,8 @@ export type TestDatabase = DB & {
 };
 
 export type TestDatabaseKit = {
-	acquire: () => Promise<{ db: TestDatabase; release: () => void }>;
-	acquireTx: () => Promise<{ db: TestDatabase; release: () => void }>;
+	acquire: () => Promise<{ db: TestDatabase; release: () => void; retire: () => Promise<void> }>;
+	acquireTx: () => Promise<{ db: TestDatabase; release: () => void; retire: () => Promise<void> }>;
 	close: () => Promise<void>;
 };
 
@@ -613,12 +614,7 @@ const prepareClient = async (url: string, n: string, tx: boolean) => {
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
-	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
-	if (!envUrl) {
-		throw new Error(
-			'COCKROACH_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up cockroach` and export the connection string before running tests.',
-		);
-	}
+	const envUrl = requireEnv('COCKROACH_CONNECTION_STRING', composeHint('cockroach'));
 
 	let url: string;
 	// Support multiple connection strings separated by ';'
@@ -659,6 +655,12 @@ export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 				release: () => {
 					clientsTxs.push(c);
 				},
+				// For a test that failed, which may still be running (vitest does not stop a test that timed out):
+				// its connection is closed and a new one, to a new database, takes its place.
+				retire: async () => {
+					c.client.release(true);
+					clientsTxs.push(await prepareClient(url, 'dbcr', true));
+				},
 			};
 		}
 	};
@@ -674,6 +676,12 @@ export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 				db: c,
 				release: () => {
 					clients.push(c);
+				},
+				// For a test that failed, which may still be running (vitest does not stop a test that timed out):
+				// its connection is closed and a new one, to a new database, takes its place.
+				retire: async () => {
+					c.client.release(true);
+					clients.push(await prepareClient(url, 'dbr', false));
 				},
 			};
 		}
@@ -704,9 +712,11 @@ export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: T
 	],
 	// concurrent no transactions
 	db: [
-		async ({ kit }, use) => {
-			const { db, release } = await kit.acquire();
+		async ({ kit, task }, use) => {
+			const { db, release, retire } = await kit.acquire();
 			await use(db);
+			// A failed test leaves the connection to the next one in an unknown state, or still in use.
+			if (task.result?.state === 'fail' || task.result?.errors?.length) return retire();
 			await db.clear();
 			release();
 		},
@@ -715,9 +725,11 @@ export const test = base.extend<{ kit: TestDatabaseKit; db: TestDatabase; dbc: T
 
 	// concurrent with transactions
 	dbc: [
-		async ({ kit }, use) => {
-			const { db, release } = await kit.acquireTx();
+		async ({ kit, task }, use) => {
+			const { db, release, retire } = await kit.acquireTx();
 			await use(db);
+			// A failed test leaves the connection to the next one in an unknown state, or still in use.
+			if (task.result?.state === 'fail' || task.result?.errors?.length) return retire();
 			await db.clear();
 			release();
 		},

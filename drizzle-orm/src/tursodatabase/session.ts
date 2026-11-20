@@ -1,6 +1,4 @@
 import type { DatabasePromise, StatementPromise, Transaction } from '@tursodatabase/database-common';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -19,7 +17,6 @@ import type { TursoDatabaseRunResult } from './driver-core.ts';
 
 export interface TursoDatabaseSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -31,7 +28,6 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 	static override readonly [entityKind]: string = 'TursoDatabaseSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		readonly client: DatabasePromise | Transaction,
@@ -41,7 +37,6 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 	) {
 		super(dialect, 'async');
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -50,37 +45,41 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 		prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<T & { run: TursoDatabaseRunResult }> {
 		let stmt: StatementPromise;
+
+		const prepareStatement = async () => {
+			const statement = await this.client.prepare(query.sql);
+			if (mapper) statement.safeIntegers(true);
+			return statement;
+		};
 		const executors: SQLiteQueryExecutors<'async'> = prepare
 			? {
 				all: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
+					stmt ??= await prepareStatement();
 					return stmt.raw(mode === 'arrays').all(...params);
 				},
 				get: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
+					stmt ??= await prepareStatement();
 					return stmt.raw(mode === 'arrays').get(...params);
 				},
 				run: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
+					stmt ??= await prepareStatement();
 					return stmt.run(...params);
 				},
 			}
 			: {
 				all: async (params) => {
-					if (stmt || mode === 'arrays') {
-						stmt ??= await this.client.prepare(query.sql);
+					if (stmt || mode === 'arrays' || mapper) {
+						stmt ??= await prepareStatement();
 						return stmt.raw(mode === 'arrays').all(...params);
 					}
 
 					return this.client.all(query.sql, ...params);
 				},
 				get: async (params) => {
-					if (stmt || mode === 'arrays') {
-						stmt ??= await this.client.prepare(query.sql);
+					if (stmt || mode === 'arrays' || mapper) {
+						stmt ??= await prepareStatement();
 						return stmt.raw(mode === 'arrays').get(...params);
 					}
 
@@ -97,9 +96,6 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

@@ -1,6 +1,6 @@
 import type { NeonQueryFunction } from '@neondatabase/serverless';
 import { defineRelations, eq, getColumns, sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/neon-http';
+import { drizzle, neonHttpRawTextTypes } from 'drizzle-orm/neon-http';
 import type { NeonHttpQueryResult } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
 import {
@@ -55,6 +55,7 @@ const skips = [
 	'RQB v2 transaction find many - placeholders',
 	'transaction with options (set isolationLevel)',
 	'time zones are preserved - non-UTC session',
+	'all types ~codecs~ - non-UTC session',
 	'transaction with options (accessMode read only)',
 	'transaction with options (deferrable)',
 	'transaction with an empty options object',
@@ -63,6 +64,7 @@ const skips = [
 // COMMON
 tests(test, skips);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 // Multi-statement queries are rejected by Neon HTTP API
 test('raw db.execute type matches returned data', async ({ neonhttp }) => {
 	const db = neonhttp;
@@ -377,7 +379,7 @@ describe('migrator', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 	});
@@ -399,7 +401,7 @@ describe('migrator', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 	});
@@ -423,7 +425,7 @@ describe('migrator', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
 		expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
@@ -454,7 +456,7 @@ describe('migrator', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -485,7 +487,7 @@ describe('migrator', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
@@ -522,7 +524,7 @@ describe('migrator', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -567,7 +569,7 @@ describe('migrator', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456+00' }]);
 
@@ -640,10 +642,16 @@ describe('$withAuth tests', (it) => {
 		relations: defineRelations({ usersTable }),
 	});
 
+	// decoded queries (with a mapper) pass per-query `types` returning some types as raw text
 	it('$count', async () => {
 		await db.$withAuth('$count').$count(usersTable).catch(() => null);
 
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: '$count' });
+		expect(client.mock.lastCall?.[2]).toStrictEqual({
+			arrayMode: true,
+			fullResults: true,
+			authToken: '$count',
+			...neonHttpRawTextTypes,
+		});
 	});
 
 	it('delete', async () => {
@@ -655,7 +663,12 @@ describe('$withAuth tests', (it) => {
 	it('select', async () => {
 		await db.$withAuth('select').select().from(usersTable).catch(() => null);
 
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'select' });
+		expect(client.mock.lastCall?.[2]).toStrictEqual({
+			arrayMode: true,
+			fullResults: true,
+			authToken: 'select',
+			...neonHttpRawTextTypes,
+		});
 	});
 
 	it('selectDistinct', async () => {
@@ -665,6 +678,7 @@ describe('$withAuth tests', (it) => {
 			arrayMode: true,
 			fullResults: true,
 			authToken: 'selectDistinct',
+			...neonHttpRawTextTypes,
 		});
 	});
 
@@ -675,6 +689,7 @@ describe('$withAuth tests', (it) => {
 			arrayMode: true,
 			fullResults: true,
 			authToken: 'selectDistinctOn',
+			...neonHttpRawTextTypes,
 		});
 	});
 
@@ -698,13 +713,23 @@ describe('$withAuth tests', (it) => {
 		await db.$withAuth('with').with(db.$with('WITH').as((qb) => qb.select().from(usersTable))).select().from(usersTable)
 			.catch(() => null);
 
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'with' });
+		expect(client.mock.lastCall?.[2]).toStrictEqual({
+			arrayMode: true,
+			fullResults: true,
+			authToken: 'with',
+			...neonHttpRawTextTypes,
+		});
 	});
 
 	it('rqbV2', async () => {
 		await db.$withAuth('rqbV2').query.usersTable.findFirst().catch(() => null);
 
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'rqbV2' });
+		expect(client.mock.lastCall?.[2]).toStrictEqual({
+			arrayMode: true,
+			fullResults: true,
+			authToken: 'rqbV2',
+			...neonHttpRawTextTypes,
+		});
 	});
 
 	it('exec', async () => {
@@ -718,7 +743,12 @@ describe('$withAuth tests', (it) => {
 
 		await prep.execute().catch(() => null);
 
-		expect(client.mock.lastCall?.[2]).toStrictEqual({ arrayMode: true, fullResults: true, authToken: 'prepared' });
+		expect(client.mock.lastCall?.[2]).toStrictEqual({
+			arrayMode: true,
+			fullResults: true,
+			authToken: 'prepared',
+			...neonHttpRawTextTypes,
+		});
 	});
 
 	it('refreshMaterializedView', async () => {

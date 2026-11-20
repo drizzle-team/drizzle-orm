@@ -74,7 +74,6 @@ export interface SQLiteSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
-	useSelectionCastCodecs?: boolean;
 }
 
 export type SQLiteSelectJoin<
@@ -93,7 +92,7 @@ export type SQLiteSelectJoin<
 				T['_']['selection'],
 				TJoinedName,
 				TJoinedTable extends SQLiteTable ? TJoinedTable['_']['columns']
-					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+					: TJoinedTable extends Subquery | View ? TJoinedTable['_']['selectedFields']
 					: never,
 				T['_']['selectMode']
 			>,

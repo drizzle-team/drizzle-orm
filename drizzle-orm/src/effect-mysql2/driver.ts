@@ -1,9 +1,11 @@
 import { MysqlClient } from '@effect/sql-mysql2/MysqlClient';
+import type * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
-import { EffectCache } from '~/cache/core/cache-effect.ts';
+import * as Redacted from 'effect/Redacted';
 import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import { MySqlEffectDatabase } from '~/mysql-core/effect/db.ts';
 import type { EffectDrizzleMySqlConfig } from '~/mysql-core/effect/utils.ts';
@@ -19,11 +21,59 @@ export class EffectMysql2Database<TRelations extends AnyRelations = EmptyRelatio
 	static override readonly [entityKind]: string = 'EffectMysql2Database';
 }
 
+/** mysql2 options of the client's pool: `@effect/sql-mysql2` passes `poolConfig` through, or the url's query string */
+const poolOptionsOf = (client: MysqlClient): { dateStrings?: unknown; decimalNumbers?: unknown } => {
+	const { url, poolConfig } = client.config;
+	if (url === undefined) return poolConfig ?? {};
+
+	// mysql2 parses url query parameters as JSON, falling back to the raw text
+	const options: Record<string, unknown> = {};
+	for (const [key, value] of new URL(Redacted.value(url)).searchParams) {
+		try {
+			options[key] = JSON.parse(value);
+		} catch {
+			options[key] = value;
+		}
+	}
+	return options;
+};
+
+const temporalTypes = ['DATE', 'DATETIME', 'TIMESTAMP'];
+
+/**
+ * `@effect/sql-mysql2` accepts no per-query type casts, so pool options that lose data are rejected: temporal values
+ * are decoded to `Date`s in the connection's time zone without `dateStrings` (shifting wall-clock times that don't exist
+ * in it, misreading years below 100), `decimal` values to numbers with `decimalNumbers`
+ */
+const assertLosslessPoolOptions = (client: MysqlClient) => {
+	const { dateStrings, decimalNumbers } = poolOptionsOf(client);
+	const types = dateStrings === true
+		? temporalTypes
+		: Array.isArray(dateStrings)
+		? dateStrings
+		: typeof dateStrings === 'string'
+		? [dateStrings]
+		: [];
+	if (!temporalTypes.every((type) => types.includes(type))) {
+		throw new DrizzleError({
+			message: "`@effect/sql-mysql2`'s client must be created with `dateStrings: true` (in `poolConfig`, or as "
+				+ "`?dateStrings=true` in `url`): without it, temporal values are decoded to `Date`s in the connection's time "
+				+ "zone, shifting wall-clock times that don't exist in it and misreading years below 100",
+		});
+	}
+	if (decimalNumbers === true) {
+		throw new DrizzleError({
+			message: "`@effect/sql-mysql2`'s client must not be created with `decimalNumbers: true`: it decodes `decimal` "
+				+ 'values to numbers, losing precision',
+		});
+	}
+};
+
 /**
  * Creates an EffectMysql2Database instance.
  *
- * Requires `MysqlClient`, `EffectLogger`, and `EffectCache` services to be provided.
- * Use `DefaultServices` to provide default (no-op) logger and cache implementations.
+ * Requires `MysqlClient`, and `EffectLogger` services to be provided.
+ * Use `DefaultServices` to provide the default (no-op) logger implementation.
  *
  * @example
  * ```ts
@@ -44,13 +94,19 @@ export class EffectMysql2Database<TRelations extends AnyRelations = EmptyRelatio
  *   Effect.provide(MySqlDrizzle.DefaultServices),
  * );
  * ```
+ *
+ * Requirements:
+ * - The client's pool must be created with `dateStrings: true` and without `decimalNumbers: true`, throws otherwise
+ *
+ * Driver quirks:
+ * - `time` and `string`-mode `datetime`, `timestamp` lose trailing zeros of fractional seconds
  */
 export const make = Effect.fn('MySqlDrizzle.make')(
 	function*<
 		TRelations extends AnyRelations = EmptyRelations,
 	>(config: EffectDrizzleMySqlConfig<TRelations> = {}) {
 		const client = yield* MysqlClient;
-		const cache = yield* EffectCache;
+		assertLosslessPoolOptions(client);
 		const logger = yield* EffectLogger;
 
 		const dialect = new MySqlDialect({
@@ -62,18 +118,13 @@ export const make = Effect.fn('MySqlDrizzle.make')(
 		const relations = config.relations ?? {} as TRelations;
 		const session = new EffectMysql2Session(client, dialect, relations, {
 			logger,
-			cache,
 			paramsInErrors: config.paramsInErrors,
 		});
 		const db = new EffectMysql2Database(dialect, session, relations) as EffectMysql2Database<TRelations>;
 		(<any> db).$client = client;
-		(<any> db).$cache = cache;
-		if ((<any> db).$cache) {
-			(<any> db).$cache['invalidate'] = cache.onMutate;
-		}
 
 		return db as EffectMysql2Database<TRelations> & {
-			$client: MysqlClient;
+			$client: Context.Service.Shape<typeof MysqlClient>;
 		};
 	},
 );

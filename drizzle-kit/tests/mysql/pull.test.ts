@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { postponed } from '@drizzle/test-utils';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	AnyMySqlColumn,
@@ -39,6 +40,7 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
+import { Year } from 'src/dialects/mysql/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
@@ -1018,6 +1020,45 @@ test('fks with same names but in diff databases', async () => {
 	}]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6447
+test('checks with same names but in diff databases', async () => {
+	await db.query('DROP DATABASE if exists `check_test`;');
+	await db.query('DROP DATABASE if exists `check_test_2`;');
+	await db.query('CREATE DATABASE `check_test`;');
+	await db.query('CREATE DATABASE `check_test_2`;');
+
+	// unnamed checks get <table>_chk_<n> names, so both are menu_chk_1
+	await db.query(`USE check_test;`);
+	await db.query(`
+		CREATE TABLE menu (
+			id INT PRIMARY KEY,
+			price INT,
+			CHECK (price > 0)
+		);
+	`);
+
+	await db.query(`USE check_test_2;`);
+	await db.query(`
+		CREATE TABLE menu (
+			id INT PRIMARY KEY,
+			price INT,
+			CHECK (price > 100)
+		);
+	`);
+
+	const { checks } = await fromDatabaseForDrizzle(db, 'check_test', () => true, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+
+	expect(checks).toStrictEqual([{
+		entityType: 'checks',
+		table: 'menu',
+		name: 'menu_chk_1',
+		value: '(`price` > 0)',
+	}]);
+});
+
 test('introspect cyclic foreign key', async () => {
 	const inviteCode = mysqlTable('InviteCode', {
 		id: int().primaryKey(),
@@ -1065,18 +1106,20 @@ test('double-quote-issue', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5546
 test('issue #5546', async () => {
+	// base_table first: pull orders tables by CREATE_TIME (whole seconds), then by name, so the expected order holds
+	// whether or not a second passes between the two CREATE TABLEs.
+	await db.query(`CREATE TABLE base_table (
+  id INT, 
+  name VARCHAR(50)
+);
+`);
+
 	await db.query(`CREATE TABLE my_table (
   id INT AUTO_INCREMENT PRIMARY KEY,
   col INT
 );`);
 	await db.query(`CREATE UNIQUE INDEX idx_functional 
 ON my_table ((CASE WHEN col = 1 THEN 1 ELSE NULL END));`);
-
-	await db.query(`CREATE TABLE base_table (
-  id INT, 
-  name VARCHAR(50)
-);
-`);
 
 	await db.query(`
 CREATE USER 'ghost_user'@'%' IDENTIFIED BY 'temp123';`);
@@ -1374,4 +1417,50 @@ test('introspect default expression of a fractional seconds column with a backsl
 	// and `diffIntrospect` keeps the pulled file when the diff has statements.
 	await expect(diffIntrospect(db, {}, 'fractional-seconds-defaults-with-template-unsafe-text')).resolves.toBeDefined();
 	fs.rmSync('tests/mysql/tmp/fractional-seconds-defaults-with-template-unsafe-text.ts', { force: true });
+});
+
+test.skipIf(postponed)('introspect year column with a number default', async () => {
+	await db.query("create table `t` (`y` year default 2025, `y_text` year default '2026');");
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, ddlFromPulledTsSchema } = await diffIntrospect(
+		db,
+		{},
+		'year-number-default',
+	);
+	fs.rmSync('tests/mysql/tmp/year-number-default.ts', { force: true });
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	// the pulled file declares the same defaults that the database has
+	const defaults = (ddl: typeof ddlAfterPull) => ddl.columns.list({ table: 't' }).map((it) => [it.name, it.default]);
+	expect(defaults(ddlFromPulledTsSchema)).toStrictEqual(defaults(ddlAfterPull));
+
+	// in the pulled file a four digit year is a value and not an expression
+	expect(Year.toTs('year', '2025')).toStrictEqual({ options: {}, default: '2025' });
+	expect(Year.toTs('year', '(year(curdate()))').default).toBe('sql`(year(curdate()))`');
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+// in this test there is no way to us for now to be sure about varchar 100%
+// (concat(((0 <> 'a') or (0 <> '')))) returns as concat(((0 <> 'a') or (0 <> '')))
+// there is no (), or ''
+// 'value' -> value
+// TODO return to this
+test('Issue 6493', async () => {
+	await db.query(`CREATE TABLE t (
+  \`year\` year DEFAULT (year(curdate())),
+  -- \`time\` time DEFAULT (curtime()),
+  \`datetime\` datetime DEFAULT (utc_timestamp()),
+  \`timestamp\` timestamp DEFAULT (utc_timestamp())
+  -- \`varchar\` varchar(36) DEFAULT (uuid())
+);`);
+
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'issue-6493-expressions',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });

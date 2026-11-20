@@ -58,7 +58,6 @@ export interface MsSqlSelectConfig {
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
 	mapper?: (raw: any) => any;
-	useSelectionCastCodecs?: boolean;
 	where?: SQL;
 	having?: SQL;
 	table: MsSqlTable | Subquery | MsSqlViewBase | SQL;
@@ -107,7 +106,7 @@ export type MsSqlJoin<
 				T['_']['selection'],
 				TJoinedName,
 				TJoinedTable extends MsSqlTable ? TJoinedTable['_']['columns']
-					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+					: TJoinedTable extends Subquery | View ? TJoinedTable['_']['selectedFields']
 					: never,
 				T['_']['selectMode']
 			>,

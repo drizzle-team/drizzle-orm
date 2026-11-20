@@ -1,5 +1,6 @@
-import type { QueryResult } from '@neondatabase/serverless';
+import { Pool, type QueryResult } from '@neondatabase/serverless';
 import { eq, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/neon-serverless';
 import type { NeonDatabase, NeonRawExecuteResult } from 'drizzle-orm/neon-serverless';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
 import { getTableConfig, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
@@ -8,6 +9,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
+import { preparedNameTests } from './common-prepared-names';
 import { assertDroppedConnectionRejectsTransaction } from './connection-drop';
 import { neonWsTest as test } from './instrumentation';
 import { usersMigratorTable, usersMySchemaTable, usersTable } from './schema';
@@ -22,7 +24,9 @@ import {
 	thus extra execute statements below
  */
 tests(test, []);
+preparedNameTests(test);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as NeonDatabase;
 	const table = sql.identifier('raw_execute_types');
@@ -183,7 +187,7 @@ describe('neon-serverless', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -214,7 +218,7 @@ describe('neon-serverless', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -247,7 +251,7 @@ describe('neon-serverless', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
 		expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
@@ -287,7 +291,7 @@ describe('neon-serverless', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -327,7 +331,7 @@ describe('neon-serverless', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
@@ -373,7 +377,7 @@ describe('neon-serverless', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -420,7 +424,7 @@ describe('neon-serverless', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456+00' }]);
 
@@ -714,6 +718,50 @@ describe('transaction snapshot', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6437
 test('transaction rejects when pooled connection is dropped', async ({ db, peer }) => {
 	await assertDroppedConnectionRejectsTransaction(db, peer!, expect);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6023
+// https://github.com/drizzle-team/drizzle-orm/issues/6114
+// https://github.com/drizzle-team/drizzle-orm/issues/6241
+// https://github.com/drizzle-team/drizzle-orm/issues/6341
+// https://github.com/drizzle-team/drizzle-orm/issues/6622
+test('failed begin on transaction does not return client to the pool', async ({ kit, peer }) => {
+	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
+	url.pathname = `/${kit.database}`;
+	const pool = new Pool({ connectionString: url.toString(), max: 1, query_timeout: 1000 });
+	const db = drizzle({ client: pool });
+
+	try {
+		await peer!.query('drop table if exists begin_timeout_probe');
+		await peer!.query('create table begin_timeout_probe (id text primary key)');
+
+		// `begin` response arrives past its own `query_timeout`, but within the next query's
+		const client = await pool.connect();
+		client.release();
+		const stream = (client as any).connection.stream;
+		const { emit } = stream;
+		const held: any[][] = [];
+		stream.emit = (event: string, ...args: any[]) => {
+			if (event !== 'data') return emit.call(stream, event, ...args);
+			held.push(args);
+			return true;
+		};
+		setTimeout(() => {
+			stream.emit = emit;
+			// discarded client has no query to receive the response, replaying it would throw
+			if ((client as any)._ending) return;
+			for (const args of held) stream.emit('data', ...args);
+		}, 1500);
+
+		await expect(db.transaction(async () => {})).rejects.toThrow('Failed query: begin');
+
+		await pool.query(`insert into begin_timeout_probe (id) values ('1')`);
+		expect(await peer!.query('select id from begin_timeout_probe')).toEqual([{ id: '1' }]);
+	} finally {
+		await pool.end();
+		await peer!.query('drop table if exists begin_timeout_probe');
+	}
 });

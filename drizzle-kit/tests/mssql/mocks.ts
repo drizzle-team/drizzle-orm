@@ -1,3 +1,4 @@
+import { parseMssqlUrl, requireEnv } from '@drizzle/test-utils';
 import { is } from 'drizzle-orm';
 import { int, MsSqlColumnBuilder, MsSqlSchema, MsSqlTable, mssqlTable, MsSqlView } from 'drizzle-orm/mssql-core';
 import { configMigrations } from 'src/cli/validations/common';
@@ -445,29 +446,14 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	return res;
 };
 
-export function parseMssqlUrl(urlString: string) {
-	const url = new URL(urlString);
-	return {
-		user: url.username,
-		password: url.password,
-		server: url.hostname,
-		port: parseInt(url.port, 10),
-		database: url.pathname.replace(/^\//, ''),
-		options: {
-			encrypt: url.searchParams.get('encrypt') === 'true',
-			trustServerCertificate: url.searchParams.get('trustServerCertificate') === 'true',
-		},
-	};
-}
-
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
-	const url = process.env.MSSQL_CONNECTION_STRING;
-	if (!url) {
-		throw new Error(
-			'MSSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mssql` and export the connection string (e.g. `mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true`) before running tests.',
-		);
-	}
+	const url = requireEnv(
+		'MSSQL_CONNECTION_STRING',
+		'Bring DBs up with `bash compose/dockers.sh up mssql` and export the connection string (e.g. `mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true`) before running tests.',
+	);
 	const params = parseMssqlUrl(url);
+	// On a self-hosted machine every job's tests share one server: DRIZZLE_TEST_DB_PREFIX names this job's database.
+	const database = `${process.env['DRIZZLE_TEST_DB_PREFIX'] ?? ''}drizzle`;
 
 	try {
 		const client = await mssql.connect({
@@ -477,9 +463,12 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 		});
 
 		await client.query(`use [master];`);
-		await client.query(`drop database if exists [drizzle];`);
-		await client.query(`create database [drizzle];`);
-		await client.query(`use [drizzle];`);
+		await client.query(`drop database if exists [${database}];`);
+		await client.query(`create database [${database}];`);
+		// Plans reused across the introspection queries, whose literal id lists differ on every call: SQL Server
+		// otherwise compiles each anew, 14 ms for the columns query against 2 ms to run it.
+		await client.query(`alter database [${database}] set parameterization forced;`);
+		await client.query(`use [${database}];`);
 
 		let transaction: mssql.Transaction | null = null;
 		let req: mssql.Request | null = null;
@@ -501,6 +490,11 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			if (transaction) {
 				await transaction.rollback().catch((e) => {});
 			}
+			await client
+				.query(
+					`use [master]; alter database [${database}] set single_user with rollback immediate; drop database [${database}];`,
+				)
+				.catch(console.error);
 			await client?.close().catch(console.error);
 		};
 
@@ -518,9 +512,10 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			}
 
 			await client.query(`use [master];`);
-			await client.query(`drop database if exists [drizzle];`);
-			await client.query(`create database [drizzle];`);
-			await client.query(`use [drizzle];`);
+			await client.query(`drop database if exists [${database}];`);
+			await client.query(`create database [${database}];`);
+			await client.query(`alter database [${database}] set parameterization forced;`);
+			await client.query(`use [${database}];`);
 		};
 		return { db, close, clear, client };
 	} catch (e) {

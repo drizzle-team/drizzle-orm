@@ -1,4 +1,4 @@
-import { PGlite } from '@electric-sql/pglite';
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { sql } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { integer, pgTable, primaryKey, serial, text } from 'drizzle-orm/pg-core';
@@ -29,7 +29,7 @@ test('one() declared on the foreign key side points at the referenced table with
 		{ table: 'posts', columns: ['ownerId'], refTable: 'users', refColumns: ['id'] },
 	]);
 
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = drizzle({ client });
 
 	await db.execute(sql`create table users (id integer primary key, name text)`);
@@ -152,7 +152,7 @@ test('a shared primary key one-to-one points at the side the database generates'
 	});
 	expect(relations[0]!.isCyclic).toBe(false);
 
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = drizzle({ client, relations: relations7 });
 
 	await db.execute(sql`create table users (id serial primary key, name text)`);

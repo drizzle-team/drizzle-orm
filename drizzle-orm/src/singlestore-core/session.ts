@@ -1,12 +1,10 @@
-import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { assertUnreachable, type Assume, type Equal } from '~/utils.ts';
+import type { Assume, Equal } from '~/utils.ts';
 import { SingleStoreDatabase } from './db.ts';
 import type { SingleStoreDialect } from './dialect.ts';
 
@@ -77,8 +75,6 @@ export class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig>
 		body?: string;
 	} | undefined;
 
-	private fastPath: boolean;
-
 	constructor(
 		protected executor: (params?: unknown[]) => Promise<any>,
 		protected _iterator: ((params?: unknown[]) => AsyncGenerator<any>) | undefined,
@@ -86,107 +82,30 @@ export class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig>
 		mapper: AnySingleStoreMapper | undefined,
 		readonly mode: 'arrays' | 'objects' | 'raw',
 		protected logger: Logger,
-		// cache instance
-		private cache: Cache | undefined,
-		// per query related metadata
-		private queryMetadata: QueryMetadata | undefined,
-		// config that was passed through $withCache
-		private cacheConfig?: WithCacheConfig | undefined,
 		protected paramsInErrors?: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
-		// it means that no $withCache options were passed and it should be just enabled
-		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
-			this.cacheConfig = { enabled: true, autoInvalidate: true };
-		}
-		if (!this.cacheConfig?.enabled) {
-			this.cacheConfig = undefined;
-		}
-
-		this.fastPath = cacheConfig === undefined
-			&& (cache === undefined || is(cache, NoopCache));
-	}
-
-	/** @internal */
-	protected async queryWithCache<T>(
-		queryString: string,
-		params: any[],
-		query: () => Promise<T>,
-	): Promise<T> {
-		const cacheStrat = this.cache !== undefined && !is(this.cache, NoopCache)
-			? await strategyFor(queryString, params, this.queryMetadata, this.cacheConfig)
-			: { type: 'skip' as const };
-
-		if (cacheStrat.type === 'skip') {
-			return query().catch((e) => {
-				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-			});
-		}
-
-		const cache = this.cache!;
-
-		if (cacheStrat.type === 'invalidate') {
-			return query().then(async (res) => {
-				await cache.onMutate({ tables: cacheStrat.tables });
-				return res;
-			}).catch((e) => {
-				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-			});
-		}
-
-		if (cacheStrat.type === 'try') {
-			const { tables, key, isTag, autoInvalidate, config } = cacheStrat;
-			const fromCache = await cache.get(
-				key,
-				tables,
-				isTag,
-				autoInvalidate,
-			);
-
-			if (fromCache === undefined) {
-				const result = await query().catch((e) => {
-					throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-				});
-				// put actual key
-				await cache.put(
-					key,
-					result,
-					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
-					autoInvalidate ? tables : [],
-					isTag,
-					config,
-				);
-				// put flag if we should invalidate or not
-				return result;
-			}
-
-			return fromCache as unknown as T;
-		}
-
-		assertUnreachable(cacheStrat);
 	}
 
 	override async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
-		const { query, logger, executor, mapper, fastPath } = this;
+		const { query, logger, executor, mapper } = this;
 		const { sql } = query;
 		const params = query.params.length === 0
 			? query.params
 			: fillPlaceholders(query.params, placeholderValues);
 		logger.logQuery(sql, params);
 
-		const res = fastPath
-			? executor(params).catch((e) => {
-				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
-			})
-			: this.queryWithCache(sql, params, () => executor(params));
+		const res = executor(params).catch((e) => {
+			throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
+		});
 		if (!mapper) return res;
 
 		return res.then((rows) => mapper(rows));
 	}
 
 	override async *iterator(placeholderValues: Record<string, unknown> = {}): AsyncGenerator<T['iterator']> {
-		const { query, logger, executor, _iterator, mapper, fastPath } = this;
+		const { query, logger, executor, _iterator, mapper } = this;
 		const { sql } = query;
 		const params = query.params.length === 0
 			? query.params
@@ -215,11 +134,9 @@ export class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig>
 		}
 
 		// Fallback for compatibility between drivers
-		const rows = await (fastPath
-			? executor(params).catch((e) => {
-				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
-			})
-			: this.queryWithCache(sql, params, () => executor(params)));
+		const rows = await executor(params).catch((e) => {
+			throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
+		});
 
 		if (mapper) {
 			for (const row of rows) {
@@ -261,8 +178,6 @@ export abstract class SingleStoreSession<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (rows: any) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
 	execute<T>(query: SQL): Promise<T> {

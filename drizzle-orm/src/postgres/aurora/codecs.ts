@@ -1,31 +1,23 @@
-import { refineCodecs } from '~/codecs.ts';
-import {
-	arrayCompatNormalize,
-	byteaFromPgHex,
-	castToText,
-	castToTextArr,
-	type PgCodecs,
-	type PostgresType,
-} from '~/pg-core/codecs.ts';
-import { minipgCodecs, minipgShapeCodecs } from '../codecs.ts';
+import { refineCodecs, unsupportedCodec } from '~/codecs.ts';
+import type { PgCodecs, PostgresType } from '~/pg-core/codecs.ts';
+import { postgresCodecs } from '../codecs.ts';
 
-/** Variant of {@link minipgCodecs} for AWS Data API, which has no array type for binary values,
- * so `bytea[]` comes back empty unless selected as text; converts values with time zones to UTC dropping the offset
- */
-export const minipgAuroraCodecs: PgCodecs = refineCodecs<PostgresType>(minipgCodecs, {
-	bytea: {
-		castArray: castToTextArr,
-		normalizeArray: arrayCompatNormalize(byteaFromPgHex),
-	},
-	timetz: { cast: castToText, castArray: castToTextArr, normalizeArray: undefined },
-});
+const driver = 'postgres/aurora';
+const timeTzReason =
+	'Data API converts `timetz` values to UTC dropping their offset and accepts no per-query result formats';
+const timestamptzTextReason =
+	'Data API converts `timestamptz` values to UTC, dropping the offset the server formats in '
+	+ "the session's time zone, and accepts no per-query result formats";
+const byteaArrayReason = 'Data API has no array type for binary values and returns `bytea[]` empty';
 
-/** Variant of {@link minipgShapeCodecs} for AWS Data API, see {@link minipgAuroraCodecs}
- *
- * Useless for overrides or on their own
- */
-export const minipgAuroraShapeCodecs: PgCodecs = refineCodecs<PostgresType>(minipgShapeCodecs, {
-	bytea: { castArray: castToTextArr },
-	'timestamptz:string': { cast: castToText, castArray: castToTextArr },
-	timetz: { cast: castToText, castArray: castToTextArr },
+const unsupported = (type: string, reason: string) => {
+	const normalize = unsupportedCodec(type, driver, reason);
+	return { normalize, normalizeArray: normalize };
+};
+
+/** Variant of {@link postgresCodecs} for AWS Data API, which formats values itself with no per-query alternative */
+export const postgresAuroraCodecs: PgCodecs = refineCodecs<PostgresType>(postgresCodecs, {
+	bytea: { normalizeArray: unsupportedCodec('bytea[]', driver, byteaArrayReason) },
+	timetz: unsupported('time with time zone', timeTzReason),
+	'timestamptz:string': unsupported('timestamp with time zone', timestamptzTextReason),
 });

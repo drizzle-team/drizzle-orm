@@ -103,7 +103,6 @@ export const ddlDiff = async (
 
 	const createTableStatements = createdTables.map((it) => {
 		const full = fullTableFromDDL(it, ddl2);
-		if (createdTables.length > 1) full.fks = []; // fks have to be created after all tables created
 		return prepareStatement('create_table', { table: full });
 	});
 
@@ -203,9 +202,9 @@ export const ddlDiff = async (
 		.filter((it) => !it.isUnique || !createdTables.some((x) => x.name === it.table))
 		.map((it) => prepareStatement('create_index', { index: it }));
 
-	const createFKsStatements = fksDiff.filter((it) => it.$diffType === 'create')
-		.filter((x) => createdTables.length >= 2 || !createdTables.some((it) => it.name === x.table))
-		.map((it) => prepareStatement('create_fk', { fk: it }));
+	const createFKsStatements = fksDiff.filter((it) => it.$diffType === 'create').map((it) =>
+		prepareStatement('create_fk', { fk: it })
+	);
 
 	const createPKStatements = pksDiff.filter((it) => it.$diffType === 'create')
 		.filter((it) => !createdTables.some((x) => x.name === it.table))

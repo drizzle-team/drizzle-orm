@@ -7,6 +7,7 @@ import { type Delta, parseEntityKey } from '../dialect';
 import { array, validator } from '../simpleValidator';
 import type { PostgresDDL, PostgresEntity } from './ddl';
 import { createDDL } from './ddl';
+import { latestVersion } from './versions';
 
 const indexV2 = object({
 	name: string(),
@@ -573,7 +574,7 @@ const footprints = array(isFootprint);
 
 const baseValidator = validator({
 	type: ['base'],
-	version: ['9'],
+	version: [latestVersion],
 	dialect: ['postgres'],
 	id: 'string',
 	prevIds: array((it) => typeof it === 'string'),
@@ -589,7 +590,7 @@ const baseValidator = validator({
 
 const diffValidator = validator({
 	type: ['diff'],
-	version: ['9'],
+	version: [latestVersion],
 	dialect: ['postgres'],
 	id: 'string',
 	prevIds: array((it) => typeof it === 'string'),
@@ -601,10 +602,22 @@ export type PostgresBaseSnapshot = typeof baseValidator.shape;
 export type PostgresDiffSnapshot = typeof diffValidator.shape;
 export type PostgresSnapshot = PostgresBaseSnapshot | PostgresDiffSnapshot;
 
+// Format 9 has the shape of the latest format, and the rows of indexes also have `concurrently`. drizzle-orm
+// has no `.concurrently()` on indexes anymore, so format 10 dropped the field.
+export type PostgresSnapshotV9 =
+	| (Omit<PostgresBaseSnapshot, 'version'> & { version: '9' })
+	| (Omit<PostgresDiffSnapshot, 'version'> & { version: '9' });
+
+export type PostgresBaseSnapshotV9 = Omit<PostgresBaseSnapshot, 'version'> & { version: '9' };
+
+// A snapshot of format 9 or later, which is a base or a diff snapshot. A new format adds its older format here.
+export type AnyDeltaPostgresSnapshot = PostgresSnapshotV9 | PostgresSnapshot;
+export type AnyPostgresDiffSnapshot = Extract<AnyDeltaPostgresSnapshot, { type: 'diff' }>;
+
 // The full state that the programmatic API returns and takes. It has the id and the parents of a snapshot,
 // and a migrations folder never holds it.
 export type PostgresSchemaState = {
-	version: '9';
+	version: typeof latestVersion;
 	dialect: 'postgres';
 	id: string;
 	prevIds: string[];
@@ -637,7 +650,7 @@ export const toJsonBaseSnapshot = (
 ): PostgresBaseSnapshot => {
 	return {
 		type: 'base',
-		version: '9',
+		version: latestVersion,
 		dialect: 'postgres',
 		id: randomUUID(),
 		prevIds,

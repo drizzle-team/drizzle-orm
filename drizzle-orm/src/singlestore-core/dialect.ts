@@ -4,7 +4,6 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type {
 	AnyOne,
 	BuildRelationalQueryConfig,
@@ -15,7 +14,7 @@ import type {
 } from '~/relations.ts';
 import {
 	buildRqbColumns,
-	collectSubqueryAndUsedTables,
+	collectSubquery,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
@@ -25,6 +24,7 @@ import {
 	relationsOrderToSQL,
 	relationToSQL,
 } from '~/relations.ts';
+import { asyncMigrationRunner, runAsyncProgram } from '~/runtime/async.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
 import type { Name, Placeholder, Query, SQLChunk } from '~/sql/sql.ts';
 import { SQL, sql } from '~/sql/sql.ts';
@@ -32,7 +32,7 @@ import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts
 import { ValueRows } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
-import { upgradeIfNeeded } from '~/up-migrations/singlestore.ts';
+import { migrate as migrateProgram } from '~/up-migrations/singlestore-program.ts';
 import {
 	make$ReturningResponseMapper,
 	makeDefaultQueryMapper,
@@ -112,84 +112,18 @@ export class SingleStoreDialect {
 			};
 	}
 
-	async migrate(
+	migrate(
 		migrations: MigrationMeta[],
 		session: SingleStoreSession,
 		config: Omit<MigrationConfig, 'migrationsSchema'>,
 	): Promise<void | MigratorInitFailResponse> {
-		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
-
-		// Detect DB version and upgrade table schema if needed
-		const { newDb } = await upgradeIfNeeded(
-			migrationsTable,
-			session,
-			migrations,
-		);
-
-		if (newDb) {
-			const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash TEXT NOT NULL,
-				created_at BIGINT,
-				name TEXT,
-				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-			)
-		`;
-			await session.execute(migrationTableCreate);
-		}
-
-		const dbMigrations = await session.objects<{
-			id: number;
-			hash: string;
-			created_at: string;
-			name: string | null;
-		}>(
-			sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)}`,
-		);
-
-		if (typeof config === 'object' && config.init) {
-			if (dbMigrations.length) {
-				return { exitCode: 'databaseMigrations' as const };
-			}
-
-			if (migrations.length > 1) {
-				return { exitCode: 'localMigrations' as const };
-			}
-
-			const [migration] = migrations;
-
-			if (!migration) return;
-
-			await session.execute(
-				sql`insert into ${
-					sql.identifier(
-						migrationsTable,
-					)
-				} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-			);
-
-			return;
-		}
-
-		const migrationsToRun = getMigrationsToRun({
-			localMigrations: migrations,
-			dbMigrations,
+		const runner = asyncMigrationRunner({
+			execute: (query) => session.execute(query),
+			objects: (query) => session.objects(query),
+			transaction: (transaction) => session.transaction(transaction),
 		});
-		await session.transaction(async (tx) => {
-			for (const migration of migrationsToRun) {
-				for (const stmt of migration.sql) {
-					await tx.execute(sql.raw(stmt));
-				}
-				await tx.execute(
-					sql`insert into ${
-						sql.identifier(
-							migrationsTable,
-						)
-					} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-				);
-			}
-		});
+
+		return runAsyncProgram(() => migrateProgram(migrations, runner, config));
 	}
 
 	escapeName(name: string): string {
@@ -229,14 +163,11 @@ export class SingleStoreDialect {
 		withList,
 		limit,
 		orderBy,
-		useSelectionCastCodecs,
 	}: SingleStoreDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
-			}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -288,16 +219,13 @@ export class SingleStoreDialect {
 		withList,
 		limit,
 		orderBy,
-		useSelectionCastCodecs,
 	}: SingleStoreUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
 
 		const returningSql = returning
-			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
-			}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true, table })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -322,9 +250,8 @@ export class SingleStoreDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false, ignoreCastCodecs = false, table }: {
+		{ isSingleTable = false, table }: {
 			isSingleTable?: boolean;
-			ignoreCastCodecs?: boolean;
 			table?: SingleStoreTable | SQL | Subquery;
 		} = {},
 	): SQL {
@@ -340,8 +267,7 @@ export class SingleStoreDialect {
 			: undefined;
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field, codecOverride, column, fieldType } = fields[i]!;
-			const override = codecOverride as SingleStoreType | undefined;
+			const { field, fieldType } = fields[i]!;
 
 			switch (fieldType) {
 				case 'Column': {
@@ -354,8 +280,7 @@ export class SingleStoreDialect {
 						name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 					}
 
-					const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
-					chunks.push(field.isAlias ? sql`${casted} as ${field}` : casted);
+					chunks.push(field.isAlias ? sql`${name} as ${field}` : name);
 
 					break;
 				}
@@ -364,8 +289,7 @@ export class SingleStoreDialect {
 						const query = !isSingleTable && field.origin !== undefined
 							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
 							: sql.identifier(field.fieldAlias);
-						if (column && !ignoreCastCodecs) chunks.push(this.codecs.apply(column, 'cast', query, override));
-						else chunks.push(query);
+						chunks.push(query);
 					} else {
 						if (isSingleTable && tableName !== undefined) {
 							const { queryChunks } = field.sql;
@@ -392,19 +316,19 @@ export class SingleStoreDialect {
 
 							if (abort) {
 								chunks.push(
-									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+									field.sql,
 								);
 							} else {
 								const newSql = new SQL(newChunks);
 
 								if (field.sql.shouldInlineParams) newSql.inlineParams();
 								chunks.push(
-									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql,
+									newSql,
 								);
 							}
 						} else {
 							chunks.push(
-								column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+								field.sql,
 							);
 						}
 
@@ -438,13 +362,13 @@ export class SingleStoreDialect {
 						}
 
 						if (abort) {
-							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+							chunks.push(field);
 						} else {
 							const newSql = new SQL(newChunks);
 							if (field.shouldInlineParams) newSql.inlineParams();
-							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
+							chunks.push(newSql);
 						}
-					} else chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+					} else chunks.push(field);
 
 					break;
 				}
@@ -452,12 +376,10 @@ export class SingleStoreDialect {
 					if (!field._.isWith) {
 						const inner = sql`(${field._.sql})`;
 						chunks.push(
-							sql`${column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', inner, override) : inner} ${
-								sql.identifier(field._.alias)
-							}`,
+							sql`${inner} ${sql.identifier(field._.alias)}`,
 						);
 					} else {
-						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
+						chunks.push(field);
 					}
 
 					break;
@@ -473,10 +395,9 @@ export class SingleStoreDialect {
 	}
 
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
-		return typeof limit === 'object'
-				|| (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		return limit === undefined
+			? undefined
+			: sql` limit ${limit}`;
 	}
 
 	private buildOrderBy(
@@ -501,7 +422,6 @@ export class SingleStoreDialect {
 		lockingClause,
 		distinct,
 		setOperators,
-		useSelectionCastCodecs,
 	}: SingleStoreSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -549,7 +469,6 @@ export class SingleStoreDialect {
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
 			table,
-			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 		});
 
 		const tableSql = (() => {
@@ -618,7 +537,7 @@ export class SingleStoreDialect {
 
 		const limitSql = this.buildLimit(limit);
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		const offsetSql = offset === undefined ? undefined : sql` offset ${offset}`;
 
 		let lockingClausesSql;
 		if (lockingClause) {
@@ -635,7 +554,7 @@ export class SingleStoreDialect {
 			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, fieldsList, useSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, setOperators);
 		}
 
 		return finalQuery;
@@ -643,53 +562,39 @@ export class SingleStoreDialect {
 
 	buildSetOperations(
 		leftSelect: SQL,
-		outputSelection: SelectedFieldsOrdered,
-		useSelectionCastCodecs: boolean | undefined,
 		setOperators: SingleStoreSelectConfig['setOperators'],
 	): SQL {
 		for (let i = 0; i < setOperators.length; ++i) {
-			const setOperator = setOperators[i]!;
-			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator });
+			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator: setOperators[i]! });
 		}
 
-		return !useSelectionCastCodecs ? leftSelect : sql`select ${
-			this.buildSelection(
-				outputSelection.map((field) => {
-					if (field.fieldType === 'SQL.Aliased') {
-						const ref = field.field.clone();
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					if (field.fieldType === 'Column' && field.field.isAlias) {
-						const ref = new SQL.Aliased(sql`${sql.identifier(field.field.name)}`, field.field.name);
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					if (field.fieldType === 'Subquery') {
-						const ref = new SQL.Aliased(sql`${field.field.getSQL()}`, field.field._.alias);
-						ref.isSelectionField = true;
-						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
-					}
-					return field;
-				}),
-				{
-					isSingleTable: true,
-					ignoreCastCodecs: !useSelectionCastCodecs,
-				},
-			)
-		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
+		return leftSelect;
 	}
 
 	buildSetOperationQuery({
 		leftSelect,
-		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
+		setOperator,
 	}: {
 		leftSelect: SQL;
 		setOperator: SingleStoreSelectConfig['setOperators'][number];
 	}): SQL {
+		const { type, isAll, rightSelect } = setOperator;
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
+		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
+		const setOperationSql = sql`${leftChunk}${operatorChunk}${rightChunk}`;
+
+		const tailSql = this.buildSetOperationTail(setOperator);
+		if (tailSql === undefined) return setOperationSql;
+
+		// SingleStore doesn't accept `order by` / `limit` / `offset` right after a parenthesized set operation
+		return sql`select * from (${setOperationSql}) ${sql.identifier('drizzle_union')}${tailSql}`;
+	}
+
+	buildSetOperationTail(
+		{ orderBy, limit, offset }: SingleStoreSelectConfig['setOperators'][number],
+	): SQL | undefined {
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
 			const orderByValues: (SQL<unknown> | Name)[] = [];
@@ -709,15 +614,15 @@ export class SingleStoreDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, commonStringChunks[', '])}`;
 		}
 
-		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		const limitSql = limit === undefined
+			? undefined
+			: sql` limit ${limit}`;
 
-		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
+		const offsetSql = offset === undefined ? undefined : sql` offset ${offset}`;
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		if (orderBySql === undefined && limitSql === undefined && offsetSql === undefined) return undefined;
 
-		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({
@@ -840,16 +745,15 @@ export class SingleStoreDialect {
 		through,
 		nested,
 		withSubqueries,
-		usedTables,
 	}: SingleStoreBuildRelationalQueryConfig, collectTo: SQLChunk[]): Omit<BuildRelationalQueryResultWithOrder, 'sql'> {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
-		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map(), usedTables };
+		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map() };
 		if (!currentDepth) {
-			collectSubqueryAndUsedTables(collector, table);
+			collectSubquery(collector, table);
 			table = aliasedTable(table, `d${currentDepth}`);
 		}
 		const tableRef = table[Qualifier];
@@ -936,8 +840,8 @@ export class SingleStoreDialect {
 			const join = withParam![k]!;
 			const relation = tableConfig.relations[k]!;
 			const isSingle = relation.relationType === 'one';
-			collectSubqueryAndUsedTables(collector, relation.targetTable);
-			collectSubqueryAndUsedTables(collector, relation.throughTable);
+			collectSubquery(collector, relation.targetTable);
+			collectSubquery(collector, relation.throughTable);
 
 			const targetTable = aliasedTable(
 				relation.targetTable,

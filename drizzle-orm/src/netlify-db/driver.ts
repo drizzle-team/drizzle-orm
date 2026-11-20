@@ -1,4 +1,4 @@
-import { type HTTPQueryOptions, neon, Pool, types } from '@neondatabase/serverless';
+import { type HTTPQueryOptions, neon, Pool } from '@neondatabase/serverless';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -87,20 +87,9 @@ function construct<
 
 	const session = new NetlifyDbSession(httpClient, pool, dialect, relations ?? {}, {
 		logger: logger,
-		cache: config.cache,
 		transactionCodecs: config.transactionCodecs ?? netlifyDbTransactionCodecs,
 		paramsInErrors: config.paramsInErrors,
 	});
-
-	types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-	types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-	types.setTypeParser(types.builtins.DATE, (val) => val);
-	types.setTypeParser(types.builtins.INTERVAL, (val) => val);
-	types.setTypeParser(1231, (val) => val);
-	types.setTypeParser(1115, (val) => val);
-	types.setTypeParser(1185, (val) => val);
-	types.setTypeParser(1187, (val) => val);
-	types.setTypeParser(1182, (val) => val);
 
 	const db = new NetlifyDbDatabase(
 		dialect,
@@ -108,14 +97,14 @@ function construct<
 		relations,
 	);
 	(<any> db).$client = { http: httpClient, pool } satisfies NetlifyDbClient;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }
 
+/**
+ * Requirements:
+ * - Sessions must use the ISO `DateStyle` (the default): temporal values of other `DateStyle`s throw
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 >():

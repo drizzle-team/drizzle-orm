@@ -1587,6 +1587,26 @@ test('[Find Many] Get users with posts + prepared limit', () => {
 	});
 });
 
+test('[Find Many] Get users with posts + zero and negative limits', () => {
+	db.insert(usersTable).values([{ id: 1, name: 'Dan' }, { id: 2, name: 'Andrew' }]).run();
+	db.insert(postsTable).values([{ ownerId: 1, content: 'Post1' }, { ownerId: 2, content: 'Post2' }]).run();
+
+	// Pagination values aren't skipped: they reach the database exactly as given
+	expect(db.query.usersTable.findMany({ orderBy: { id: 'asc' }, limit: 0, offset: 0 }).sync()).toStrictEqual([]);
+	expect(
+		db.query.usersTable.findMany({
+			columns: { id: true },
+			orderBy: { id: 'asc' },
+			with: { posts: { columns: { id: true }, limit: 0 } },
+		}).sync(),
+	).toStrictEqual([{ id: 1, posts: [] }, { id: 2, posts: [] }]);
+
+	// SQLite treats a negative limit as no limit
+	const negative = db.query.usersTable.findMany({ columns: { id: true }, orderBy: { id: 'asc' }, limit: -1 });
+	expect(negative.toSQL().params).toStrictEqual([-1]);
+	expect(negative.sync()).toStrictEqual([{ id: 1 }, { id: 2 }]);
+});
+
 test('[Find Many] Get users with posts + prepared limit + offset', () => {
 	db.insert(usersTable).values([
 		{ id: 1, name: 'Dan' },

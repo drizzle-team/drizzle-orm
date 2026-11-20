@@ -1,5 +1,3 @@
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -13,7 +11,6 @@ import type { RemoteCallback } from './driver.ts';
 
 export interface PgRemoteSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -23,7 +20,6 @@ export class PgRemoteSession<
 	static override readonly [entityKind]: string = 'PgRemoteSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: RemoteCallback,
@@ -33,16 +29,13 @@ export class PgRemoteSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	) {
 		const executor = async (params?: unknown[]) => {
 			if (mode === 'arrays') return this.client(query.sql, params as any[], 'all').then((r) => r.rows);
@@ -56,9 +49,6 @@ export class PgRemoteSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

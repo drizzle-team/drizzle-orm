@@ -1,6 +1,13 @@
-import type { CastArrayCodec, CastCodec, Codecs, NormalizeArrayCodec, NormalizeCodec } from '~/codecs.ts';
-import { refineCodecs } from '~/codecs.ts';
+import {
+	type CastArrayCodec,
+	type CastCodec,
+	type Codecs,
+	type NormalizeArrayCodec,
+	type NormalizeCodec,
+	refineCodecs,
+} from '~/codecs.ts';
 import { sql } from '~/sql/sql.ts';
+import { textToDate, textToDateWithTz } from '~/temporal-text.ts';
 import type { PartialWithUndefined } from '~/utils.ts';
 import { makeCockroachArray, parseCockroachArray } from './array.ts';
 import { parseEWKB } from './columns/utils.ts';
@@ -105,8 +112,7 @@ export const arrayCompatNormalize = (normalize: NormalizeCodec) => {
 
 export const parseArrayAndNormalize = (normalize: NormalizeCodec, delim?: string): NormalizeArrayCodec => {
 	const codec = arrayCompatNormalize(normalize);
-	return (value, arrayDimensions) =>
-		codec(typeof value === 'string' ? parseCockroachArray(value, delim) : value, arrayDimensions);
+	return (value, arrayDimensions) => codec(parseCockroachArray(value, delim), arrayDimensions);
 };
 
 export const parseGeometryArrayAndNormalize = (normalize: NormalizeCodec): NormalizeArrayCodec =>
@@ -127,8 +133,12 @@ export const parseGeometryXY = (v: string): { x: number; y: number } => {
 	return { x: parsed.point[0], y: parsed.point[1] };
 };
 
-export const textToDate = (v: string): Date => new Date(v);
-export const textToDateWithTz = (v: string): Date => new Date(v + '+0000');
+export { textToDate, textToDateWithTz };
+
+/** `date`, `timestamptz` array literal to `Date[]` */
+export const textToDateArray = parseArrayAndNormalize(textToDate);
+/** `timestamp` array literal to `Date[]`, values read as UTC */
+export const textToDateWithTzArray = parseArrayAndNormalize(textToDateWithTz);
 
 export const genericCockroachCodecs = {
 	int2: {

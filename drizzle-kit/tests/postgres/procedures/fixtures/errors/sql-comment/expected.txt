@@ -1,0 +1,4 @@
+input.ts:6:3 error TSPG018: SQL comments are not supported in sql`...`
+    sql`UPDATE owners SET touched = true WHERE id = ${a} -- touch`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  hint: a comment would swallow the statement terminator the compiler appends

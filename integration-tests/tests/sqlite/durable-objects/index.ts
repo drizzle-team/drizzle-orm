@@ -240,7 +240,6 @@ async function setupAggregateFunctionsTest(db: SQLiteAsyncDatabase<any, any, typ
 	]);
 }
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 export class MyDurableObject extends DurableObject {
 	storage: DurableObjectStorage;
 	db: DrizzleSqliteDODatabase<typeof relations>;
@@ -3577,6 +3576,45 @@ export class MyDurableObject extends DurableObject {
 		}
 	}
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6550
+	async finishedStatements(): Promise<void> {
+		const table = sqliteTable('finished_statements', { id: integer().primaryKey(), name: text() });
+
+		this.db.run(sql`drop table if exists ${table}`);
+		this.db.run(sql`create table ${table} (id integer primary key, name text)`);
+		this.db.run(sql`insert into ${table} (name) values ('a'), ('b'), ('c')`);
+
+		const queries = [
+			() => this.db.select().from(table).get(),
+			() => this.db.select().from(table).prepare().get(),
+			() => this.db.get(sql`select * from ${table}`),
+			() => this.db.run(sql`select * from ${table}`),
+			() => this.db.select().from(table).run(),
+			() => this.db.update(table).set({ name: 'd' }).returning().get(),
+			() => this.db.update(table).set({ name: 'e' }).returning().run(),
+		];
+
+		for (const query of queries) {
+			this.db.run(sql`create index finished_statements_name on ${table} (name)`);
+			query();
+			this.db.run(sql`drop index finished_statements_name`);
+		}
+
+		const first = this.db.select().from(table).get();
+		expect(first).deep.equal({ id: 1, name: 'e' });
+
+		const result = this.db.update(table).set({ name: 'f' }).returning().run();
+		expect(result.columnNames).deep.equal(['id', 'name']);
+		expect(result.rowsWritten).greaterThan(0);
+
+		this.db.update(table).set({ name: 'committed' }).returning().get();
+	}
+
+	async finishedStatementsCommitted(): Promise<void> {
+		const rows = this.db.all<{ name: string }>(sql`select name from finished_statements`);
+		expect(rows.map((row) => row.name)).deep.equal(['committed', 'committed', 'committed']);
+	}
+
 	async queryErrorParams(): Promise<void> {
 		this.db.run(sql`drop table if exists params_in_errors`);
 		this.db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);
@@ -3652,7 +3690,7 @@ export class MyDurableObject extends DurableObject {
 			const queryRaw = await db.all<Record<string, unknown>>(
 				db.select(
 					Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
-				).from(allTypesTable).getSQL(true),
+				).from(allTypesTable).getSQL(),
 			);
 			expect(normalizeDataWithDbCodecs({ db, columns, data: queryRaw, mode: 'query' })[0]).deep.equal(allTypesData);
 
@@ -4369,6 +4407,8 @@ export default {
 
 			await stub.allTypes();
 			await stub.allTypesCodecs();
+			await stub.finishedStatements();
+			await stub.finishedStatementsCommitted();
 			await stub.queryErrorParams();
 
 			await stub.testRqbV2SimpleFindFirstMultipleRows();

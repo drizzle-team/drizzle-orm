@@ -97,6 +97,8 @@ test('studio #5', async (t) => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3222
+// https://github.com/drizzle-team/drizzle-orm/issues/4476
 test('studio #6 - pglite with dbCredentials.url', async (t) => {
 	const res = await brotest(studio, '--config=pglite-url.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
@@ -112,6 +114,9 @@ test('studio #6 - pglite with dbCredentials.url', async (t) => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2995
+// https://github.com/drizzle-team/drizzle-orm/issues/3222
+// https://github.com/drizzle-team/drizzle-orm/issues/4476
 test('studio #7 - pglite with a client instance instead of dbCredentials', async (t) => {
 	const res = await brotest(studio, '--config=pglite-client.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
@@ -266,6 +271,8 @@ test('validate config #6', async (t) => {
 	spy.mockRestore();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3222
+// https://github.com/drizzle-team/drizzle-orm/issues/4476
 test('validate config #7 - pglite without a client and without dbCredentials', async (t) => {
 	const spy = vi.spyOn(console, 'log');
 
@@ -295,6 +302,8 @@ test('validate config #7 - pglite without a client and without dbCredentials', a
 	spy.mockRestore();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3222
+// https://github.com/drizzle-team/drizzle-orm/issues/4476
 test('validate config #8 - a client is only accepted for the pglite driver', async (t) => {
 	const spy = vi.spyOn(console, 'log');
 

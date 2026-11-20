@@ -1,4 +1,4 @@
-import { plural, singular } from 'pluralize';
+import pluralize from 'pluralize';
 import { paramNameFor } from '../../dialects/postgres/typescript';
 import { withCasing } from '../../dialects/pull-utils';
 import type { Casing } from '../validations/common';
@@ -103,7 +103,7 @@ export const relationsToTypeScript = (
 				}
 
 				tableRelations[toTable1].push({
-					name: prepareNameFor(plural(toTable2), tableColumns),
+					name: prepareNameFor(pluralize.plural(toTable2), tableColumns),
 					type: 'through',
 					tableFrom: toTable1,
 					columnsFrom: columnsTo1,
@@ -119,7 +119,7 @@ export const relationsToTypeScript = (
 				}
 
 				tableRelations[toTable2].push({
-					name: prepareNameFor(plural(toTable1), tableColumns),
+					name: prepareNameFor(pluralize.plural(toTable1), tableColumns),
 					// this type is used for .many() side of relation, when another side has .through() with from and to fields
 					type: 'many-through',
 					tableFrom: toTable2,
@@ -150,7 +150,7 @@ export const relationsToTypeScript = (
 			}
 
 			tableRelations[keyFrom].push({
-				name: prepareNameFor(singular(tableTo), tableColumns),
+				name: prepareNameFor(pluralize.singular(tableTo), tableColumns),
 				type: 'one',
 				tableFrom,
 				columnsFrom,
@@ -176,7 +176,7 @@ export const relationsToTypeScript = (
 				// maybe it can be done by introducing some sort of flag or just not providing columnsFrom and columnsTo
 				// but I decided just to have a different type field here
 				tableRelations[keyTo].push({
-					name: prepareNameFor(plural(tableFrom), tableColumns),
+					name: prepareNameFor(pluralize.plural(tableFrom), tableColumns),
 					type: 'one-one',
 					tableFrom: tableTo,
 					columnsFrom: columnsTo,
@@ -185,7 +185,7 @@ export const relationsToTypeScript = (
 				});
 			} else {
 				tableRelations[keyTo].push({
-					name: prepareNameFor(plural(tableFrom), tableColumns),
+					name: prepareNameFor(pluralize.plural(tableFrom), tableColumns),
 					type: 'many',
 					tableFrom: tableTo,
 					columnsFrom: columnsTo,

@@ -1,8 +1,9 @@
 /// <reference types="bun-types" />
 
+import { composeHint, requireEnv } from '@drizzle/test-utils';
 import retry from 'async-retry';
 import { SQL } from 'bun';
-import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, spyOn, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, test } from 'bun:test';
 import {
 	and,
 	asc,
@@ -14,7 +15,6 @@ import {
 	DrizzleQueryError,
 	eq,
 	exists,
-	getCacheKey,
 	getColumns,
 	getTableColumns,
 	gt,
@@ -35,29 +35,22 @@ import {
 	sql,
 	sum,
 	sumDistinct,
-	Table,
 	TransactionRollbackError,
 } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/bun-sql/migrator';
 import { drizzle } from 'drizzle-orm/bun-sql/mysql';
 import type { BunMySqlDatabase, BunMySqlRawExecuteResult } from 'drizzle-orm/bun-sql/mysql';
-import type { MutationOption } from 'drizzle-orm/cache/core';
-import { Cache } from 'drizzle-orm/cache/core';
-import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import {
 	alias,
 	bigint,
-	binary,
 	boolean,
 	char,
 	customType,
 	date,
 	datetime,
 	decimal,
-	double,
 	except,
 	exceptAll,
-	float,
 	foreignKey,
 	getTableConfig,
 	getViewConfig,
@@ -72,12 +65,12 @@ import {
 	MySqlDialect,
 	mysqlEnum,
 	mysqlSchema,
+	type MySqlTable,
 	mysqlTable,
 	mysqlTableCreator,
 	MySqlView,
 	mysqlView,
 	primaryKey,
-	real,
 	serial,
 	smallint,
 	text,
@@ -88,16 +81,36 @@ import {
 	unionAll,
 	unique,
 	uniqueIndex,
-	varbinary,
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import Keyv from 'keyv';
 import { v4 as uuid } from 'uuid';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import { normalizeDataWithDbCodecs } from '~/mysql/utils';
 import { type Equal, Expect } from '~/utils';
-import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from '../mysql/all-types';
+import {
+	type AllTypes,
+	allTypesDataWith,
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	boundsRelations,
+	boundsSchema,
+	makeAllTypes,
+	temporalBoundsData,
+} from '../mysql/all-types';
+
+// Driver quirks of `bun`'s `SQL`: MySQL's text protocol (queries without params) rounds `float` to 6 significant digits,
+// string-mode `datetime`, `timestamp` lose microseconds (decoded to `Date`s). All-types tests hold a `float` value that
+// rounds to itself, leave out unions, which pair `float` with other columns, and temporal bounds hold `null`s in place of
+// string-mode values with microseconds
+const allTypesTable = makeAllTypes('all_types_codecs');
+const allTypesData = allTypesDataWith({ float: 1.0486 });
+const temporalBoundsDataNoStrings = temporalBoundsData.map((row) => ({
+	...row,
+	datetimeStr: null,
+	timestampStr: null,
+}));
 
 export const rqbUser = mysqlTable('user_rqb_test', {
 	id: serial().primaryKey().notNull(),
@@ -129,64 +142,6 @@ export const relations = defineRelations({ rqbUser, rqbPost }, (r) => ({
 		}),
 	},
 }));
-
-const allTypesTable = mysqlTable('all_types', {
-	serial: serial('serial'),
-	bigint53: bigint('bigint53', {
-		mode: 'number',
-	}),
-	bigint64: bigint('bigint64', {
-		mode: 'bigint',
-	}),
-	binary: binary('binary'),
-	boolean: boolean('boolean'),
-	char: char('char'),
-	date: date('date', {
-		mode: 'date',
-	}),
-	dateStr: date('date_str', {
-		mode: 'string',
-	}),
-	datetime: datetime('datetime', {
-		mode: 'date',
-	}),
-	datetimeStr: datetime('datetime_str', {
-		mode: 'string',
-	}),
-	decimal: decimal('decimal'),
-	decimalNum: decimal('decimal_num', {
-		scale: 30,
-		mode: 'number',
-	}),
-	decimalBig: decimal('decimal_big', {
-		scale: 30,
-		mode: 'bigint',
-	}),
-	double: double('double'),
-	float: float('float'),
-	int: int('int'),
-	json: json('json'),
-	medInt: mediumint('med_int'),
-	smallInt: smallint('small_int'),
-	real: real('real'),
-	text: text('text'),
-	time: time('time', { fsp: 3 }),
-	timestamp: timestamp('timestamp', {
-		mode: 'date',
-	}),
-	timestampStr: timestamp('timestamp_str', {
-		mode: 'string',
-	}),
-	tinyInt: tinyint('tiny_int'),
-	varbin: varbinary('varbin', {
-		length: 16,
-	}),
-	varchar: varchar('varchar', {
-		length: 255,
-	}),
-	year: year('year'),
-	enum: mysqlEnum('enum', ['enV1', 'enV2']),
-});
 
 const usersTable = mysqlTable('userstest', {
 	id: serial('id').primaryKey(),
@@ -291,8 +246,6 @@ const citiesMySchemaTable = mySchema.table('cities', {
 const ENABLE_LOGGING = false;
 
 let db: BunMySqlDatabase<typeof relations> & { $client: SQL };
-let dbGlobalCached: BunMySqlDatabase & { $client: SQL };
-let cachedDb: BunMySqlDatabase & { $client: SQL };
 let client: SQL;
 
 const CONNECT_RETRY_INTERVAL = 250;
@@ -300,19 +253,13 @@ const CONNECT_RETRIES = 240;
 const CONNECT_TIMEOUT = CONNECT_RETRIES * CONNECT_RETRY_INTERVAL;
 
 beforeAll(async () => {
-	const connectionString = process.env['MYSQL_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'MYSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mysql` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('MYSQL_CONNECTION_STRING', composeHint('mysql'));
 	client = await retry(async () => {
 		client = await new SQL({
 			url: connectionString,
 			adapter: 'mysql',
 			// mysql8 defaults to caching_sha2_password; bun >=1.4 refuses the RSA key exchange without this
 			allowPublicKeyRetrieval: true,
-			bigint: true,
 		}).connect();
 		return client;
 	}, {
@@ -326,14 +273,10 @@ beforeAll(async () => {
 		},
 	});
 	db = drizzle({ client, logger: ENABLE_LOGGING, relations });
-	cachedDb = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestCache() });
-	dbGlobalCached = drizzle({ client, logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 }, CONNECT_TIMEOUT + 10_000);
 
 afterAll(async () => {
 	await client?.end();
-	await cachedDb?.$client.end();
-	await dbGlobalCached?.$client.end();
 });
 
 // bun can't import drizzle-kit's diff helper, so create the schema entities directly from their
@@ -836,6 +779,8 @@ describe('common', () => {
 		}]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list', async () => {
 		const table = mysqlTable('column_selection', {
 			id: serial('id').primaryKey(),
@@ -864,6 +809,8 @@ describe('common', () => {
 		await db.execute(sql`drop table ${table}`);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list - select', async () => {
 		const src = mysqlTable('column_selection_select_src', {
 			id: int('id').primaryKey(),
@@ -896,6 +843,8 @@ describe('common', () => {
 		await db.execute(sql`drop table ${dst}`);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list - on duplicate key update', async () => {
 		const table = mysqlTable('column_selection_conflict', {
 			id: int('id').primaryKey(),
@@ -1071,8 +1020,7 @@ describe('common', () => {
 			.toSQL();
 
 		expect(query).toStrictEqual({
-			sql:
-				`select cast(\`id\` as char), \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
+			sql: `select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
 			params: [],
 		});
 	});
@@ -1611,6 +1559,7 @@ describe('common', () => {
 		expect(result).toStrictEqual([{ id: 1, name: 'John' }]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/4464
 	test('db.execute modes', async () => {
 		const users = mysqlTable('users_execute_modes_1', {
 			id: int('id').primaryKey(),
@@ -1706,7 +1655,7 @@ describe('common', () => {
 			time: '12:12:12',
 			datetime: new Date('2022-11-11'),
 			year: 2022,
-			datetimeAsString: '2022-11-11 12:12:12.000',
+			datetimeAsString: '2022-11-11 12:12:12',
 			timestamp: new Date('2022-11-11 12:12:12.123'),
 			timestampAsString: '2022-11-11 12:12:12.123',
 		}]);
@@ -1774,6 +1723,14 @@ describe('common', () => {
 			year: 2022,
 		}];
 
+		// `bun` decodes string-mode `datetime`, `timestamp` from `Date`s (driver quirk): zero fractional seconds are dropped.
+		// Nested relations are decoded from JSON text and keep them
+		const decoded = rows.map((row) => ({
+			...row,
+			datetimeStr: row.datetimeStr.replace(/\.000$/, ''),
+			timestampStr: row.timestampStr.replace(/\.000$/, ''),
+		}));
+
 		const originalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 		try {
 			for (const tz of ['America/Los_Angeles', 'Pacific/Kiritimati']) {
@@ -1800,19 +1757,19 @@ describe('common', () => {
 
 				expect({ tz, res: await db.select().from(datesTable).orderBy(datesTable.id) }).toStrictEqual({
 					tz,
-					res: rows,
+					res: decoded,
 				});
 				expect({
 					tz,
 					res: await db.select().from(datesTable).where(eq(datesTable.date, endOfDay)).orderBy(datesTable.id),
-				}).toStrictEqual({ tz, res: rows });
+				}).toStrictEqual({ tz, res: decoded });
 				expect({ tz, res: await db.select().from(datesTable).where(eq(datesTable.datetime, endOfDay)) })
-					.toStrictEqual({ tz, res: [rows[1]!] });
+					.toStrictEqual({ tz, res: [decoded[1]!] });
 				expect({ tz, res: await db.select().from(datesTable).where(eq(datesTable.timestamp, startOfDay)) })
-					.toStrictEqual({ tz, res: [rows[0]!] });
+					.toStrictEqual({ tz, res: [decoded[0]!] });
 
 				expect({ tz, res: await db.query.datesTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } }) })
-					.toStrictEqual({ tz, res: rows.map((row) => ({ ...row, self: [row] })) });
+					.toStrictEqual({ tz, res: decoded.map((row, i) => ({ ...row, self: [rows[i]!] })) });
 			}
 		} finally {
 			process.env['TZ'] = originalTz;
@@ -3053,7 +3010,7 @@ describe('common', () => {
 		expect(res).toStrictEqual([{
 			datetimeUTC: dateUtc,
 			datetime: new Date('2022-11-11'),
-			datetimeAsString: '2022-11-11 12:12:12.000',
+			datetimeAsString: '2022-11-11 12:12:12',
 		}]);
 
 		await db.execute(sql`drop table if exists \`datestable\``);
@@ -3665,6 +3622,8 @@ describe('common', () => {
 		const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
 		const initial = await db.select({ updatedAt }).from(usersOnUpdate);
 
+		// The timestamps have millisecond precision: insert and update in the same millisecond look unchanged.
+		await new Promise((resolve) => setTimeout(resolve, 10));
 		await db.update(usersOnUpdate).set({ name: 'Angel', uppercaseName: null }).where(eq(usersOnUpdate.id, 1));
 
 		const justDates = await db.select({ updatedAt }).from(usersOnUpdate);
@@ -3686,6 +3645,7 @@ describe('common', () => {
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5780
 	test('$onUpdateFn called only when needed', async () => {
 		let counter = 0;
 		const table = mysqlTable('on_update_call_test', {
@@ -3926,7 +3886,7 @@ describe('common', () => {
 
 		expect(query).toStrictEqual({
 			sql:
-				`select cast(\`id\` as char), \`name\` from \`mySchema\`.\`userstest\` group by \`mySchema\`.\`userstest\`.\`id\`, \`mySchema\`.\`userstest\`.\`name\``,
+				`select \`id\`, \`name\` from \`mySchema\`.\`userstest\` group by \`mySchema\`.\`userstest\`.\`id\`, \`mySchema\`.\`userstest\`.\`name\``,
 			params: [],
 		});
 	});
@@ -4357,13 +4317,10 @@ describe('common', () => {
 	});
 
 	test('limit -1', async () => {
-		await db.insert(usersTable).values({ name: 'John' });
-		const users = await db
-			.select()
-			.from(usersTable)
-			.limit(-1);
-
-		expect(users.length).toBeGreaterThan(0);
+		// A negative limit isn't dropped: it reaches the database, which rejects it
+		const query = db.select().from(usersTable).limit(-1);
+		expect(query.toSQL().params).toStrictEqual([-1]);
+		await expect(query.execute()).rejects.toThrow();
 	});
 
 	test('define constraints as array', async () => {
@@ -5164,145 +5121,15 @@ describe('common', () => {
 	});
 
 	test('all types', async () => {
-		await db.execute(sql`
-			CREATE TABLE \`all_types\` (
-					\`serial\` serial AUTO_INCREMENT,
-					\`bigint53\` bigint,
-					\`bigint64\` bigint,
-					\`binary\` binary,
-					\`boolean\` boolean,
-					\`char\` char,
-					\`date\` date,
-					\`date_str\` date,
-					\`datetime\` datetime,
-					\`datetime_str\` datetime,
-					\`decimal\` decimal,
-					\`decimal_num\` decimal(30),
-					\`decimal_big\` decimal(30),
-					\`double\` double,
-					\`float\` float,
-					\`int\` int,
-					\`json\` json,
-					\`med_int\` mediumint,
-					\`small_int\` smallint,
-					\`real\` real,
-					\`text\` text,
-					\`time\` time(3),
-					\`timestamp\` timestamp,
-					\`timestamp_str\` timestamp,
-					\`tiny_int\` tinyint,
-					\`varbin\` varbinary(16),
-					\`varchar\` varchar(255),
-					\`year\` year,
-					\`enum\` enum('enV1','enV2')
-				);
-		`);
+		const table = makeAllTypes('all_types');
+		await createTable(table);
 
-		await db.insert(allTypesTable).values({
-			serial: 1,
-			bigint53: 9007199254740991,
-			bigint64: 5044565289845416380n,
-			binary: '1',
-			boolean: true,
-			char: 'c',
-			date: new Date(1741743161623),
-			dateStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
-			datetime: new Date(1741743161623),
-			datetimeStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
-			decimal: '47521',
-			decimalNum: 9007199254740991,
-			decimalBig: 5044565289845416380n,
-			double: 15.35325689124218,
-			enum: 'enV1',
-			float: 1.048596,
-			real: 1.048596,
-			text: 'C4-',
-			int: 621,
-			json: {
-				str: 'strval',
-				arr: ['str', 10],
-			},
-			medInt: 560,
-			smallInt: 14,
-			time: '04:13:22.120',
-			timestamp: new Date(1741743161623),
-			timestampStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
-			tinyInt: 7,
-			varbin: '1010110101001101',
-			varchar: 'VCHAR',
-			year: 2025,
-		});
+		await db.insert(table).values(allTypesData);
 
-		const rawRes = await db.select().from(allTypesTable);
+		const rawRes = await db.select().from(table);
 
-		type ExpectedType = {
-			serial: number;
-			bigint53: number | null;
-			bigint64: bigint | null;
-			binary: string | null;
-			boolean: boolean | null;
-			char: string | null;
-			date: Date | null;
-			dateStr: string | null;
-			datetime: Date | null;
-			datetimeStr: string | null;
-			decimal: string | null;
-			decimalNum: number | null;
-			decimalBig: bigint | null;
-			double: number | null;
-			float: number | null;
-			int: number | null;
-			json: unknown;
-			medInt: number | null;
-			smallInt: number | null;
-			real: number | null;
-			text: string | null;
-			time: string | null;
-			timestamp: Date | null;
-			timestampStr: string | null;
-			tinyInt: number | null;
-			varbin: string | null;
-			varchar: string | null;
-			year: number | null;
-			enum: 'enV1' | 'enV2' | null;
-		}[];
-
-		const expectedRes: ExpectedType = [
-			{
-				serial: 1,
-				bigint53: 9007199254740991,
-				bigint64: 5044565289845416380n,
-				binary: '1',
-				boolean: true,
-				char: 'c',
-				date: new Date('2025-03-12T00:00:00.000Z'),
-				dateStr: '2025-03-12',
-				datetime: new Date('2025-03-12T01:32:42.000Z'),
-				datetimeStr: '2025-03-12 01:32:41.000',
-				decimal: '47521',
-				decimalNum: 9007199254740991,
-				decimalBig: 5044565289845416380n,
-				double: 15.35325689124218,
-				float: 1.048596,
-				int: 621,
-				json: { arr: ['str', 10], str: 'strval' },
-				medInt: 560,
-				smallInt: 14,
-				real: 1.048596,
-				text: 'C4-',
-				time: '04:13:22.120',
-				timestamp: new Date('2025-03-12T01:32:42.000Z'),
-				timestampStr: '2025-03-12 01:32:41',
-				tinyInt: 7,
-				varbin: '1010110101001101',
-				varchar: 'VCHAR',
-				year: 2025,
-				enum: 'enV1',
-			},
-		];
-
-		expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
-		expect(rawRes).toStrictEqual(expectedRes);
+		expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+		expect(rawRes).toStrictEqual([allTypesData]);
 	});
 });
 
@@ -6192,21 +6019,22 @@ test('sql operator as cte', async () => {
 test('all types ~codecs~', async () => {
 	const db = drizzle({
 		client,
-		relations: defineRelations({ allTypesTable: allTypesCodecsTable }, (r) => ({
+		relations: defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
 			allTypesTable: {
 				self: r.many.allTypesTable({
 					from: r.allTypesTable.serial,
 					to: r.allTypesTable.serial,
 				}),
 			},
+			...boundsRelations(r),
 		})),
 	});
 
-	await db.execute(sql`DROP TABLE IF EXISTS ${allTypesCodecsTable} CASCADE;`);
+	await db.execute(sql`DROP TABLE IF EXISTS ${allTypesTable} CASCADE;`);
 	await db.execute(
-		sql`CREATE TABLE ${allTypesCodecsTable} (${
+		sql`CREATE TABLE ${allTypesTable} (${
 			sql.join(
-				Object.values(getTableColumns(allTypesCodecsTable)).map((c) =>
+				Object.values(getTableColumns(allTypesTable)).map((c) =>
 					sql`${sql.identifier(c.name)} ${sql.raw(c.getSQLType())}`
 				),
 				sql`, `,
@@ -6214,118 +6042,24 @@ test('all types ~codecs~', async () => {
 		})`,
 	);
 
-	type ExpectedType = {
-		serial: number;
-		bigint53: number;
-		bigint64: bigint;
-		bigintstr: string;
-		binary: string;
-		boolean: boolean;
-		char: string;
-		date: Date;
-		datestr: string;
-		datetime: Date;
-		datetimestr: string;
-		decimal: string;
-		decimalnum: number;
-		decimalbig: bigint;
-		double: number;
-		float: number;
-		int: number;
-		json1: unknown;
-		json2: unknown;
-		json3: unknown;
-		json4: unknown;
-		medint: number;
-		smallint: number;
-		real: number;
-		text: string;
-		tinytext: string;
-		mediumtext: string;
-		longtext: string;
-		time: string;
-		timestamp: Date;
-		timestampstr: string;
-		tinyint: number;
-		varbin: string;
-		varchar: string;
-		year: number;
-		enum: 'enV1' | 'enV2';
-		blob: Buffer;
-		tinyblob: Buffer;
-		mediumblob: Buffer;
-		longblob: Buffer;
-		stringblob: string;
-		stringtinyblob: string;
-		stringmediumblob: string;
-		stringlongblob: string;
-	};
-
-	const testData: ExpectedType = {
-		serial: 1,
-		bigint53: 9007199254740991,
-		bigint64: 5044565289845416380n,
-		bigintstr: '5044565289845416380',
-		binary: '1',
-		boolean: true,
-		char: 'c',
-		date: new Date('2025-03-12'),
-		datestr: '2025-03-12',
-		datetime: new Date(1741743161623),
-		datetimestr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
-		decimal: '47521',
-		decimalnum: 9007199254740991,
-		decimalbig: 5044565289845416380n,
-		double: 15.35325689124218,
-		enum: 'enV1',
-		float: 1.048596,
-		real: 1.048596,
-		text: 'C4-',
-		tinytext: 'tiny text',
-		mediumtext: 'medium text',
-		longtext: 'long text',
-		int: 621,
-		json1: { str: 'strval', arr: ['str', 10] },
-		json2: [{ key: 'value', num: 7 }, 'v', '11', 5],
-		json3: 5,
-		json4: '5',
-		medint: 560,
-		smallint: 14,
-		time: '04:13:22.120',
-		timestamp: new Date(1741743161623),
-		timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
-		tinyint: 7,
-		varbin: '1010110101001101',
-		varchar: 'VCHAR',
-		year: 2025,
-		blob: Buffer.from('string'),
-		longblob: Buffer.from('string'),
-		mediumblob: Buffer.from('string'),
-		tinyblob: Buffer.from('string'),
-		stringblob: 'string',
-		stringlongblob: 'string',
-		stringmediumblob: 'string',
-		stringtinyblob: 'string',
-	};
-
-	await db.insert(allTypesCodecsTable).values(testData);
+	await db.insert(allTypesTable).values(allTypesData);
 
 	const session = (<any> db).session as MySqlAsyncSession;
 
-	const queryRes = await session.objects<ExpectedType>(
+	const queryRes = await session.objects<AllTypes>(
 		db.select(
-			Object.fromEntries(Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)])),
-		).from(allTypesCodecsTable).getSQL(true),
+			Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
+		).from(allTypesTable).getSQL(),
 	).then((e) =>
 		normalizeDataWithDbCodecs({
 			db,
-			columns: getColumns(allTypesCodecsTable),
+			columns: getColumns(allTypesTable),
 			data: e,
 			mode: 'query',
 		})[0]
 	);
 
-	expect(queryRes).toStrictEqual(testData);
+	expect(queryRes).toStrictEqual(allTypesData);
 
 	const { relationRes, rootRes } = await session.objects(
 		db.query.allTypesTable.findFirst({
@@ -6339,26 +6073,59 @@ test('all types ~codecs~', async () => {
 		return {
 			relationRes: normalizeDataWithDbCodecs({
 				db,
-				columns: getColumns(allTypesCodecsTable),
+				columns: getColumns(allTypesTable),
 				data: relationRaw,
 				mode: 'json',
 			})[0]!,
 			rootRes: normalizeDataWithDbCodecs({
 				db,
-				columns: getColumns(allTypesCodecsTable),
+				columns: getColumns(allTypesTable),
 				data: [rootRaw],
 				mode: 'query',
 			})[0]!,
 		};
 	});
 
-	expect(relationRes).toStrictEqual(testData);
-	expect(rootRes).toStrictEqual(testData);
+	expect(relationRes).toStrictEqual(allTypesData);
+	expect(rootRes).toStrictEqual(allTypesData);
 
-	await assertAllTypesUnions(db, allTypesCodecsTable);
-
-	await assertAllTypesBounds(db);
+	await assertAllTypesBounds(db, { rqb: true });
+	await assertAllTypesTemporalBounds(db, { data: temporalBoundsDataNoStrings, rqb: true });
 });
+
+test('all types ~json~', async () => {
+	const table = mysqlTable('all_types_json', {
+		id: int('id').primaryKey(),
+		json: json('json'),
+	});
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (id int primary key, json json)`);
+
+	const { input, output } = jsonRows(['json']);
+
+	await db.insert(table).values(input);
+
+	// json text as the database stores it, read without decoding
+	const stored = await db.select({
+		id: table.id,
+		json: sql<string>`cast(${table.json} as char)`,
+	}).from(table).orderBy(table.id);
+
+	expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+	expect(parseStoredJson(stored)).toStrictEqual(output);
+});
+
+const createTable = async (table: MySqlTable) => {
+	await db.execute(sql`DROP TABLE IF EXISTS ${table} CASCADE;`);
+	await db.execute(
+		sql`CREATE TABLE ${table} (${
+			sql.join(
+				Object.values(getTableColumns(table)).map((c) => sql`${sql.identifier(c.name)} ${sql.raw(c.getSQLType())}`),
+				sql`, `,
+			)
+		})`,
+	);
+};
 
 test('Mappers: correct mappers enabled', async () => {
 	const jitDb = drizzle({ client, jit: true });
@@ -7630,6 +7397,7 @@ test('Jit mappers: relational', async () => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs', async () => {
 	let customCast = false;
 	let customMap = false;
@@ -7824,6 +7592,7 @@ test('Column as decoder applies codecs', async () => {
 	);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs - Jit mappers', async () => {
 	let customCast = false;
 	let customMap = false;
@@ -8017,420 +7786,6 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 			},
 		},
 	);
-});
-
-// eslint-disable-next-line drizzle-internal/require-entity-kind
-export class TestGlobalCache extends Cache {
-	private globalTtl: number = 1000;
-	private usedTablesPerKey: Record<string, string[]> = {};
-
-	constructor(private kv: Keyv = new Keyv()) {
-		super();
-	}
-
-	override strategy(): 'explicit' | 'all' {
-		return 'all';
-	}
-	override async get(key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
-		const res = await this.kv.get(key) ?? undefined;
-		return res;
-	}
-	override async put(
-		key: string,
-		response: any,
-		tables: string[],
-		isTag: boolean,
-		config?: CacheConfig,
-	): Promise<void> {
-		await this.kv.set(key, response, config ? config.ex : this.globalTtl);
-		for (const table of tables) {
-			const keys = this.usedTablesPerKey[table];
-			if (keys === undefined) {
-				this.usedTablesPerKey[table] = [key];
-			} else {
-				keys.push(key);
-			}
-		}
-	}
-	override async onMutate(params: MutationOption): Promise<void> {
-		const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
-		const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
-
-		const keysToDelete = new Set<string>();
-
-		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-			const keys = this.usedTablesPerKey[tableName] ?? [];
-			for (const key of keys) keysToDelete.add(key);
-		}
-
-		if (keysToDelete.size > 0 || tagsArray.length > 0) {
-			for (const tag of tagsArray) {
-				await this.kv.delete(tag);
-			}
-
-			for (const key of keysToDelete) {
-				await this.kv.delete(key);
-				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-					this.usedTablesPerKey[tableName] = [];
-				}
-			}
-		}
-	}
-}
-
-// eslint-disable-next-line drizzle-internal/require-entity-kind
-export class TestCache extends TestGlobalCache {
-	override strategy(): 'explicit' | 'all' {
-		return 'explicit';
-	}
-}
-
-declare module 'vitest' {
-	interface TestContext {
-		cachedMySQL: {
-			db: MySqlAsyncDatabase<any, any>;
-			dbGlobalCached: MySqlAsyncDatabase<any, any>;
-		};
-	}
-}
-
-const usersTableCache = mysqlTable('users', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
-	jsonb: json('jsonb').$type<string[]>(),
-	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
-});
-
-const postsTableCache = mysqlTable('posts', {
-	id: serial().primaryKey(),
-	description: text().notNull(),
-	userId: int('city_id').references(() => usersTable.id),
-});
-
-describe('common_cache', () => {
-	beforeEach(async () => {
-		const db = cachedDb;
-		await db.execute(sql`drop table if exists users`);
-		await db.execute(sql`drop table if exists posts`);
-		await db.$cache?.invalidate({ tables: 'users' });
-		await dbGlobalCached.$cache?.invalidate({ tables: 'users' });
-		// public users
-		await db.execute(
-			sql`
-				create table users (
-					id serial primary key,
-					name text not null,
-					verified boolean not null default false,
-					jsonb json,
-					created_at timestamp not null default now()
-				)
-			`,
-		);
-		await db.execute(
-			sql`
-				create table posts (
-					id serial primary key,
-					description text not null,
-					user_id int
-				)
-			`,
-		);
-	});
-
-	test('test force invalidate', async () => {
-		const db = cachedDb;
-
-		const spyInvalidate = spyOn(db.$cache, 'invalidate');
-		await db.$cache?.invalidate({ tables: 'users' });
-		expect(spyInvalidate).toHaveBeenCalledTimes(1);
-	});
-
-	test('default global config - no cache should be hit', async () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache);
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('default global config + enable cache on select: get, put', async () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache();
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('default global config + enable cache on select + write: get, put, onMutate', async () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache({ config: { ex: 1 } });
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-		spyPut.mockClear();
-		spyGet.mockClear();
-		spyInvalidate.mockClear();
-
-		await db.insert(usersTableCache).values({ name: 'John' });
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(1);
-	});
-
-	test('default global config + enable cache on select + disable invalidate: get, put', async () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache({ tag: 'custom', autoInvalidate: false, config: { ex: 1 } });
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-		await db.insert(usersTableCache).values({ name: 'John' });
-
-		// invalidate force
-		await db.$cache?.invalidate({ tags: ['custom'] });
-	});
-
-	test('global: true + disable cache', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache(false);
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('global: true - cache should be hit', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache);
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('global: true - cache: false on select - no cache hit', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache(false);
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-	});
-
-	test('global: true - disable invalidate - cache hit + no invalidate', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache({ autoInvalidate: false });
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-		spyPut.mockClear();
-		spyGet.mockClear();
-		spyInvalidate.mockClear();
-
-		await db.insert(usersTableCache).values({ name: 'John' });
-
-		expect(spyPut).toHaveBeenCalledTimes(0);
-		expect(spyGet).toHaveBeenCalledTimes(0);
-		expect(spyInvalidate).toHaveBeenCalledTimes(1);
-	});
-
-	test('global: true - with custom tag', async () => {
-		const db = dbGlobalCached;
-
-		// @ts-expect-error
-		const spyPut = spyOn(db.$cache, 'put');
-		// @ts-expect-error
-		const spyGet = spyOn(db.$cache, 'get');
-		// @ts-expect-error
-		const spyInvalidate = spyOn(db.$cache, 'onMutate');
-
-		spyPut.mockReset();
-		spyGet.mockReset();
-		spyInvalidate.mockReset();
-
-		await db.select().from(usersTableCache).$withCache({ tag: 'custom', autoInvalidate: false });
-
-		expect(spyPut).toHaveBeenCalledTimes(1);
-		expect(spyGet).toHaveBeenCalledTimes(1);
-		expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-		await db.insert(usersTableCache).values({ name: 'John' });
-
-		// invalidate force
-		await db.$cache?.invalidate({ tags: ['custom'] });
-	});
-
-	// check select used tables
-	test('check simple select used tables', () => {
-		const db = cachedDb;
-
-		// @ts-expect-error
-		expect(db.select().from(usersTableCache).getUsedTables()).toStrictEqual(['users']);
-		// @ts-expect-error
-		expect(db.select().from(sql`${usersTableCache}`).getUsedTables()).toStrictEqual(['users']);
-	});
-	// check select+join used tables
-	test('select+join', () => {
-		const db = cachedDb;
-
-		expect(
-			db.select().from(usersTableCache).leftJoin(postsTableCache, eq(usersTableCache.id, postsTableCache.userId))
-				// @ts-expect-error
-				.getUsedTables(),
-		)
-			.toStrictEqual(['users', 'posts']);
-		expect(
-			db.select().from(sql`${usersTableCache}`).leftJoin(
-				postsTableCache,
-				eq(usersTableCache.id, postsTableCache.userId),
-				// @ts-expect-error
-			).getUsedTables(),
-		).toStrictEqual(['users', 'posts']);
-	});
-	// check select+2join used tables
-	test('select+2joins', () => {
-		const db = cachedDb;
-
-		expect(
-			db.select().from(usersTableCache).leftJoin(
-				postsTableCache,
-				eq(usersTableCache.id, postsTableCache.userId),
-			).leftJoin(
-				alias(postsTableCache, 'post2'),
-				eq(usersTableCache.id, postsTableCache.userId),
-			)
-				// @ts-expect-error
-				.getUsedTables(),
-		)
-			.toStrictEqual(['users', 'posts']);
-		expect(
-			db.select().from(sql`${usersTableCache}`).leftJoin(
-				postsTableCache,
-				eq(usersTableCache.id, postsTableCache.userId),
-			).leftJoin(
-				alias(postsTableCache, 'post2'),
-				eq(usersTableCache.id, postsTableCache.userId),
-				// @ts-expect-error
-			).getUsedTables(),
-		).toStrictEqual(['users', 'posts']);
-	});
-	// select subquery used tables
-	test('select+join', () => {
-		const db = cachedDb;
-
-		const sq = db.select().from(usersTableCache).where(eq(usersTableCache.id, 42)).as('sq');
-		db.select().from(sq);
-
-		// @ts-expect-error
-		expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
-	});
 });
 
 test("No nullification on non-joined table's all-null object", async () => {
@@ -8961,6 +8316,7 @@ test('Default value priority', async () => {
 });
 
 describe('raw execute', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/661
 	test('raw db.execute type matches returned data', async () => {
 		const table = sql.identifier('raw_execute_types');
 
@@ -8998,6 +8354,7 @@ describe('raw execute', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params', async () => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const paramsDb = drizzle({ client, paramsInErrors });
@@ -9013,6 +8370,7 @@ test('Query error params', async () => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params - transaction', async () => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const paramsDb = drizzle({ client, paramsInErrors });

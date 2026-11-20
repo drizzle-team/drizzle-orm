@@ -1,0 +1,9 @@
+input.ts:5:19 error TSPG018: only row-returning queries can be iterated with .many()
+    const debited = sql`UPDATE accounts SET balance = balance - ${args.amount} WHERE id = ${args.from}`.many()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  hint: PL/pgSQL cannot open UPDATE/INSERT/DELETE (even with RETURNING) as a cursor — use SELECT/WITH/VALUES, or .one()/.maybeOne() for DML RETURNING
+
+input.ts:6:21 error TSPG001: for..of is only supported over sql`...`.many<T>() (inline or bound to a const)
+    for (const row of debited) {
+                      ^^^^^^^
+  hint: it compiles to FOR rec IN <query> LOOP — a cursor, not an array

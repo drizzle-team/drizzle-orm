@@ -1,23 +1,25 @@
 import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
-import { relationalQueryCacheConfig, relationalQueryCacheMetadata } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { applyMixins } from '~/utils.ts';
 import { PgRelationalQuery, type PgRelationalQueryHKTBase } from '../query-builders/query.ts';
-import type { PreparedQueryConfig } from '../session.ts';
-import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
+import type { PgEffectRuntimeHKT, PgEffectSession } from './session.ts';
 
 export type AnyPgEffectRelationalQuery = PgEffectRelationalQuery<any, any>;
 
 export interface PgEffectRelationalQueryHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
 	extends PgRelationalQueryHKTBase
 {
+	runtime: PgEffectRuntimeHKT<TEffectHKT>;
 	_type: PgEffectRelationalQuery<this['result'], TEffectHKT>;
 }
 
 export interface PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
 	extends Effect.Effect<TResult, TEffectHKT['error'], TEffectHKT['context']>
-{}
+{
+}
 export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
 	extends PgRelationalQuery<PgEffectRelationalQueryHKT<TEffectHKT>, TResult>
 	implements RunnableQuery<TResult, 'pg'>
@@ -25,40 +27,7 @@ export class PgEffectRelationalQuery<TResult, TEffectHKT extends QueryEffectHKTB
 	static override readonly [entityKind]: string = 'PgEffectRelationalQueryV2';
 
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
-
-	/** @internal */
-	_prepare(
-		name?: string,
-		generateName = false,
-	): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
-		const { query, builtQuery, usedTables } = this._toSQL();
-
-		const mapper = this.dialect.mapperGenerators.relationalRows({
-			isFirst: this.mode === 'first',
-			parseJson: this.parseJson,
-			parseJsonIfString: false,
-			rootJsonMappers: false,
-			selection: query.selection,
-			arrayModeRoot: true,
-		});
-
-		return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
-			builtQuery,
-			'arrays',
-			name ?? generateName,
-			mapper,
-			relationalQueryCacheMetadata(this.config, query.sql, usedTables, this),
-			relationalQueryCacheConfig(this.config),
-		);
-	}
-
-	prepare(name?: string): PgEffectPreparedQuery<PreparedQueryConfig & { execute: TResult }, TEffectHKT> {
-		return this._prepare(name, true);
-	}
-
-	execute(placeholderValues?: Record<string, unknown>) {
-		return this._prepare().execute(placeholderValues);
-	}
 }
 
+applyMixins(PgEffectRelationalQuery, [PgRunnableQuery]);
 applyEffectWrapper(PgEffectRelationalQuery);

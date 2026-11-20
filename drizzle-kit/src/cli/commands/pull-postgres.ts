@@ -23,6 +23,7 @@ import { createDDL, interimToDDL, postgresToRelationsPull } from '../../dialects
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { assertHistory, readEntries } from '../../dialects/postgres/folder';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
+import { splitPulledProcedures } from '../../dialects/postgres/procedures/model';
 import { toJsonBaseSnapshot } from '../../dialects/postgres/snapshot';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
 import type { EntityFilter } from '../../dialects/pull-utils';
@@ -35,6 +36,7 @@ import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { Casing } from '../validations/common';
+import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
 import type { IntrospectStage, IntrospectStatus } from '../views';
 import { humanLog, IntrospectProgress } from '../views';
@@ -85,6 +87,19 @@ export const handle = async (
 		res = await fromDatabaseForDrizzle(db, entityFilter, () => {}, migrations);
 	}
 
+	// A procedure becomes `procedure(...)` source only when it compiles back to the exact database definition.
+	// The rest are pulled as `procedure.unsupported(...)`: declared, so the schema says they exist, but never
+	// compiled, altered or dropped — and kept out of the snapshot, which only holds procedures drizzle manages.
+	const { supported, unsupported: unsupportedProcedures } = splitPulledProcedures(
+		res.procedures,
+		res.unsupportedProcedures,
+		res.procedureDefinitions,
+	);
+	res.procedures = supported;
+	for (const it of unsupportedProcedures) {
+		humanLog(withStyle.warning(`Procedure "${it.schema}"."${it.name}" is pulled as unsupported: ${it.reason}`));
+	}
+
 	const { ddl: ddl2, errors } = interimToDDL(res);
 
 	if (errors.length > 0) {
@@ -93,7 +108,7 @@ export const handle = async (
 		});
 	}
 
-	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing);
+	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing, unsupportedProcedures);
 	const relationsTs = relationsToTypeScript(postgresToRelationsPull(ddl2), casing);
 
 	const schemaFile = join(out, 'schema.ts');

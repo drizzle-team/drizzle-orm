@@ -1,8 +1,7 @@
-import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgColumn } from '~/pg-core/columns/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgSession } from '~/pg-core/session.ts';
+import type { PgBasePreparedQuery, PgRunnableQueryMethods, PgSession } from '~/pg-core/session.ts';
 import type { SubqueryWithSelection } from '~/pg-core/subquery.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { PgViewBase } from '~/pg-core/view-base.ts';
@@ -22,13 +21,14 @@ import { SQL, sql } from '~/sql/sql.ts';
 import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { usedTablesOf } from '~/used-tables.ts';
+import { tracer } from '~/tracing.ts';
 import {
 	type Assume,
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
 	orderSelectedFields,
+	resolveNullableObjectPaths,
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -202,6 +202,30 @@ export type PgSelectQueryBuilder<
 	TSelectedFields
 >;
 
+export interface PgSelectBase<
+	THKT extends PgSelectHKTBase,
+	// oxlint-disable-next-line no-unused-vars
+	TTableName extends string | undefined,
+	// oxlint-disable-next-line no-unused-vars
+	TSelection extends ColumnsSelection | undefined,
+	// oxlint-disable-next-line no-unused-vars
+	TSelectMode extends SelectMode,
+	// oxlint-disable-next-line no-unused-vars
+	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
+		: {},
+	// oxlint-disable-next-line no-unused-vars
+	TDynamic extends boolean = false,
+	// oxlint-disable-next-line no-unused-vars
+	TExcludedMethods extends string = never,
+	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
+	// oxlint-disable-next-line no-unused-vars
+	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<
+		Assume<TSelection, ColumnsSelection>,
+		TNullabilityMap
+	>,
+> extends PgRunnableQueryMethods<THKT['runtime'], TResult> {
+}
+
 export class PgSelectBase<
 	THKT extends PgSelectHKTBase,
 	TTableName extends string | undefined,
@@ -239,7 +263,6 @@ export class PgSelectBase<
 	protected isPartialSelect: boolean;
 	protected session: PgSession | undefined;
 	protected dialect: PgDialect;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		config: {
@@ -271,15 +294,6 @@ export class PgSelectBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(config.table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
-	}
-
-	/**
-	 * @internal
-	 * Collects every table query's SQL references - `from`, joins, CTEs, set operators, raw SQL & subqueries of fields, filters, etc.
-	 * @param sql - query's already built SQL, to avoid rebuilding it
-	 */
-	getUsedTables(sql: SQL = this.getSQL()) {
-		return usedTablesOf(sql);
 	}
 
 	private createJoin<
@@ -579,7 +593,7 @@ export class PgSelectBase<
 	 * @example
 	 *
 	 * ```ts
-	 * // Pair each city with every row its correlated subquery produces; cities with none are dropped
+	 * // Pair each city with every row it's correlated subquery produces; cities with none are dropped
 	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
 	 *
 	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()
@@ -1132,15 +1146,13 @@ export class PgSelectBase<
 		return config.setFieldsFlat ?? fieldsFlat;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
+	getSQL(): SQL {
 		this._resolveSelection();
-		return this.dialect.buildSelectQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 	as<TAlias extends string>(
 		alias: TAlias,
@@ -1163,13 +1175,38 @@ export class PgSelectBase<
 		return this;
 	}
 
-	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
-		this.cacheConfig = config === undefined
-			? { config: {}, enabled: true, autoInvalidate: true }
-			: config === false
-			? { enabled: false }
-			: { enabled: true, autoInvalidate: true, ...config };
-		return this;
+	/**
+	 * Prepares the query on the session, for both runtimes: the session decides what the prepared query's `execute`
+	 * returns. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
+		const { session, dialect, config, joinsNotNullableMap } = this;
+
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const fieldsList = this._resolveSelection();
+			const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, joinsNotNullableMap);
+
+			const shape = config.shape ??= dialect.shapeGenerator?.(
+				{ type: 'plain', fields: fieldsList },
+				nullableObjectPaths,
+			);
+
+			const sequel = this.getSQL();
+			const query = config.tagged ? dialect._sqlToQuery(sequel) : dialect.sqlToQuery(sequel);
+			const mapper = shape
+				? undefined
+				: (config.mapper ??= dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths));
+
+			return session!.prepareQuery(
+				query,
+				shape ? 'objects' : 'arrays',
+				name ?? generateName,
+				mapper as ((rows: unknown[]) => any) | undefined,
+				shape,
+			);
+		});
 	}
 }
 

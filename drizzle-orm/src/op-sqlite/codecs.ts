@@ -1,13 +1,21 @@
 import {
+	bigintFromBlob,
 	booleanFromInteger,
 	bufferFromBinaryIfAvailable,
-	castToText,
 	dateFromStoredMilliseconds,
 	dateFromStoredSeconds,
+	jsonFromBlob,
+	numericBigintFromValue,
+	numericTextFromValue,
 	refineSqliteCodecs,
 } from '~/sqlite-core/codecs.ts';
 
+const driver = 'op-sqlite';
+
 export const opSQLiteCodecs = refineSqliteCodecs({
+	integer: {
+		normalize: Number,
+	},
 	'integer:boolean': {
 		normalize: booleanFromInteger,
 	},
@@ -24,22 +32,18 @@ export const opSQLiteCodecs = refineSqliteCodecs({
 		normalize: bufferFromBinaryIfAvailable,
 	},
 	'blob:json': {
-		cast: castToText,
-		normalize: JSON.parse,
+		normalize: jsonFromBlob,
 	},
 	'blob:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: bigintFromBlob,
 	},
 	numeric: {
-		cast: castToText,
-		normalize: String,
+		normalize: numericTextFromValue(driver),
 	},
 	'numeric:number': {
 		normalize: Number,
 	},
 	'numeric:bigint': {
-		cast: castToText,
-		normalize: BigInt,
+		normalize: numericBigintFromValue(driver),
 	},
 });

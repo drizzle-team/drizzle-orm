@@ -1,4 +1,3 @@
-/* eslint-disable drizzle-internal/require-entity-kind */
 import { LRUCache } from 'lru-cache';
 import ts from 'typescript';
 import type { Package } from '../createPackage.ts';

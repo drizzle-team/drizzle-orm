@@ -56,6 +56,7 @@ const rqbDb = drizzle.mock({ relations: rqbRelations });
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('singlestore to camel case', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/6082
 	it('unicode column names', ({ expect }) => {
 		const unicode = camelCase.table('unicode', {
 			칼럼명: text(),
@@ -66,6 +67,7 @@ describe('singlestore to camel case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5734
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = camelCase.table('a', { id: int('id').primaryKey(), cId: int().notNull() });
 		const b = camelCase.table('b', { id: int('id').primaryKey(), cId: int().notNull(), label: text() });
@@ -82,6 +84,7 @@ describe('singlestore to camel case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/3096
 	it('qualifier preservation for subquery fields', ({ expect }) => {
 		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
 		const query = db
@@ -91,7 +94,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`sq`.`id` as char), `sq`.`name` from `users` left join (select `id`, `firstName` || ' ' || `lastName` as `name` from `users`) `sq` on `users`.`id` = `sq`.`id`",
+				"select `sq`.`id`, `sq`.`name` from `users` left join (select `id`, `firstName` || ' ' || `lastName` as `name` from `users`) `sq` on `users`.`id` = `sq`.`id`",
 			params: [],
 		});
 	});
@@ -106,7 +109,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true where `d0`.`user_role` like ? order by `d0`.`firstName` asc",
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true where `d0`.`user_role` like ? order by `d0`.`firstName` asc",
 			params: ['A%'],
 		});
 	});
@@ -116,7 +119,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`userId` as char) as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm`, `member`.`r` as `member` from `test`.`developers` as `d0` left join lateral(select json_build_object('id', `id`, 'first_name', `first_name`, 'role', `role`) as `r` from (select cast(`d1`.`id` as char) as `id`, `d1`.`firstName` as `first_name`, `d1`.`user_role` as `role` from `staff_members` as `d1` where `d0`.`userId` = `d1`.`user_role` limit ?) as `t`) as `member` on true",
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`userId` as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm`, `member`.`r` as `member` from `test`.`developers` as `d0` left join lateral(select json_build_object('id', `id`, 'first_name', `first_name`, 'role', `role`) as `r` from (select cast(`d1`.`id` as char) as `id`, `d1`.`firstName` as `first_name`, `d1`.`user_role` as `role` from `staff_members` as `d1` where `d0`.`userId` = `d1`.`user_role` limit ?) as `t`) as `member` on true",
 			params: [1],
 		});
 	});
@@ -126,7 +129,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age` from `users` as `d0`',
+				'select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age` from `users` as `d0`',
 			params: [],
 		});
 	});
@@ -136,7 +139,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age` from `users` as `d0` limit ?',
+				'select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age` from `users` as `d0` limit ?',
 			params: [1],
 		});
 	});
@@ -146,7 +149,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId` limit ?) as `t`) as `developers` on true",
+				"select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId` limit ?) as `t`) as `developers` on true",
 			params: [1],
 		});
 	});
@@ -156,7 +159,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId` limit ?) as `t`) as `developers` on true limit ?",
+				"select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId` limit ?) as `t`) as `developers` on true limit ?",
 			params: [1, 1],
 		});
 	});
@@ -166,7 +169,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId` limit ?) as `t`) as `developers` on true",
+				"select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId` limit ?) as `t`) as `developers` on true",
 			params: [1],
 		});
 	});
@@ -176,7 +179,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId` limit ?) as `t`) as `developers` on true limit ?",
+				"select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId` limit ?) as `t`) as `developers` on true limit ?",
 			params: [1, 1],
 		});
 	});
@@ -186,7 +189,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role` from `staff_members` as `d0` limit ?',
+				'with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role` from `staff_members` as `d0` limit ?',
 			params: [1],
 		});
 	});
@@ -196,7 +199,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true",
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true",
 			params: [],
 		});
 	});
@@ -218,7 +221,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true limit ?",
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true limit ?",
 			params: [1],
 		});
 	});
@@ -228,7 +231,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role` from `staff_members` as `d0`',
+				'with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role` from `staff_members` as `d0`',
 			params: [],
 		});
 	});
@@ -238,7 +241,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true limit ?",
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true limit ?",
 			params: [1],
 		});
 	});
@@ -248,7 +251,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true",
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true",
 			params: [],
 		});
 	});
@@ -258,7 +261,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true limit ?",
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d0` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`, 'projects', `projects`)) as `r` from (select cast(`d1`.`userId` as char) as `user_id`, `d1`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d1` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d2`.`id` as `id`, `d2`.`developerId` as `developer_id`, `d2`.`projectName` as `project_name` from `projects` as `d2` where `d1`.`userId` = `d2`.`developerId`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`userId`) as `t`) as `developers` on true limit ?",
 			params: [1],
 		});
 	});
@@ -268,7 +271,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`userId` as char) as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm`, `member`.`r` as `member` from `test`.`developers` as `d0` left join lateral(select json_build_object('id', `id`, 'first_name', `first_name`, 'role', `role`, 'developers', `developers`) as `r` from (select cast(`d1`.`id` as char) as `id`, `d1`.`firstName` as `first_name`, `d1`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d1` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`)) as `r` from (select cast(`d2`.`userId` as char) as `user_id`, `d2`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d2` where `d1`.`id` = `d2`.`userId`) as `t`) as `developers` on true where `d0`.`userId` = `d1`.`user_role` limit ?) as `t`) as `member` on true",
+				"with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`userId` as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm`, `member`.`r` as `member` from `test`.`developers` as `d0` left join lateral(select json_build_object('id', `id`, 'first_name', `first_name`, 'role', `role`, 'developers', `developers`) as `r` from (select cast(`d1`.`id` as char) as `id`, `d1`.`firstName` as `first_name`, `d1`.`user_role` as `role`, coalesce(`developers`.`r`, json_build_array()) as `developers` from `staff_members` as `d1` left join lateral(select json_agg(json_build_object('user_id', `user_id`, 'uses_drizzle_orm', `uses_drizzle_orm`)) as `r` from (select cast(`d2`.`userId` as char) as `user_id`, `d2`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d2` where `d1`.`id` = `d2`.`userId`) as `t`) as `developers` on true where `d0`.`userId` = `d1`.`user_role` limit ?) as `t`) as `member` on true",
 			params: [1],
 		});
 	});
@@ -280,7 +283,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age` from `users` as `d0` order by (select `o0`.`usesDrizzleOrm` from `test`.`developers` as `o0` where `d0`.`id` = `o0`.`userId` limit 1) desc, `d0`.`firstName` asc',
+				'select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`lastName` as `last_name`, `d0`.`AGE` as `age` from `users` as `d0` order by (select `o0`.`usesDrizzleOrm` from `test`.`developers` as `o0` where `d0`.`id` = `o0`.`userId` limit 1) desc, `d0`.`firstName` asc',
 			params: [],
 		});
 	});
@@ -295,7 +298,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`userId` as char) as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d0` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d1`.`id` as `id`, `d1`.`developerId` as `developer_id`, `d1`.`projectName` as `project_name` from `projects` as `d1` where `d0`.`userId` = `d1`.`developerId`) as `t`) as `projects` on true order by (select min(`o0`.`projectName`) from `projects` as `o0` where `d0`.`userId` = `o0`.`developerId`) asc, (select count(`o0`.`id`) from `projects` as `o0` where `d0`.`userId` = `o0`.`developerId`) desc, `d0`.`userId` asc limit ? offset ?",
+				"select `d0`.`userId` as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d0` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`)) as `r` from (select `d1`.`id` as `id`, `d1`.`developerId` as `developer_id`, `d1`.`projectName` as `project_name` from `projects` as `d1` where `d0`.`userId` = `d1`.`developerId`) as `t`) as `projects` on true order by (select min(`o0`.`projectName`) from `projects` as `o0` where `d0`.`userId` = `o0`.`developerId`) asc, (select count(`o0`.`id`) from `projects` as `o0` where `d0`.`userId` = `o0`.`developerId`) desc, `d0`.`userId` asc limit ? offset ?",
 			params: [3, 1],
 		});
 	});
@@ -307,7 +310,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select cast(`d0`.`userId` as char) as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d0` order by (select `o0`.`projectName` from `projects` as `o0` where `d0`.`userId` = `o0`.`developerId` limit 1) desc, (select `o2`.`firstName` from `projects` as `o0` cross join `test`.`developers` as `o1` cross join `users` as `o2` where ((`d0`.`userId` = `o0`.`developerId`) and (`o0`.`developerId` = `o1`.`userId`) and (`o1`.`userId` = `o2`.`id`)) limit 1) asc',
+				'select `d0`.`userId` as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d0` order by (select `o0`.`projectName` from `projects` as `o0` where `d0`.`userId` = `o0`.`developerId` limit 1) desc, (select `o2`.`firstName` from `projects` as `o0` cross join `test`.`developers` as `o1` cross join `users` as `o2` where ((`d0`.`userId` = `o0`.`developerId`) and (`o0`.`developerId` = `o1`.`userId`) and (`o1`.`userId` = `o2`.`id`)) limit 1) asc',
 			params: [],
 		});
 	});
@@ -319,7 +322,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`userId` as char) as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d0` order by (select count(*) from `projects` as `o0` where `d0`.`userId` = `o0`.`developerId`) desc, (select count(*) from `staff_members` as `o0` cross join `test`.`developers` as `o1` where ((`d0`.`userId` = `o0`.`user_role`) and (`o0`.`id` = `o1`.`userId`))) asc, `d0`.`userId` asc',
+				'with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`userId` as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d0` order by (select count(*) from `projects` as `o0` where `d0`.`userId` = `o0`.`developerId`) desc, (select count(*) from `staff_members` as `o0` cross join `test`.`developers` as `o1` where ((`d0`.`userId` = `o0`.`user_role`) and (`o0`.`id` = `o1`.`userId`))) asc, `d0`.`userId` asc',
 			params: [],
 		});
 	});
@@ -343,7 +346,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`userId` as char) as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d0` order by (select `o0`.`user_role` from `staff_members` as `o0` where `d0`.`userId` = `o0`.`user_role` limit 1) asc, (select `o0`.`firstName` from `staff_members` as `o0` where `d0`.`userId` = `o0`.`user_role` limit 1) desc',
+				'with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`userId` as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm` from `test`.`developers` as `d0` order by (select `o0`.`user_role` from `staff_members` as `o0` where `d0`.`userId` = `o0`.`user_role` limit 1) asc, (select `o0`.`firstName` from `staff_members` as `o0` where `d0`.`userId` = `o0`.`user_role` limit 1) desc',
 			params: [],
 		});
 	});
@@ -355,7 +358,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role` from `staff_members` as `d0` order by (select max(`o0`.`usesDrizzleOrm`) from `test`.`developers` as `o0` where `d0`.`id` = `o0`.`userId`) desc, (select min(`o1`.`firstName`) from `test`.`developers` as `o0` cross join `users` as `o1` where ((`d0`.`id` = `o0`.`userId`) and (`o0`.`userId` = `o1`.`id`))) asc, `d0`.`user_role` desc',
+				'with `staff_members` as (select `id`, `firstName`, upper(`lastName`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`firstName` as `first_name`, `d0`.`user_role` as `role` from `staff_members` as `d0` order by (select max(`o0`.`usesDrizzleOrm`) from `test`.`developers` as `o0` where `d0`.`id` = `o0`.`userId`) desc, (select min(`o1`.`firstName`) from `test`.`developers` as `o0` cross join `users` as `o1` where ((`d0`.`id` = `o0`.`userId`) and (`o0`.`userId` = `o1`.`id`))) asc, `d0`.`user_role` desc',
 			params: [],
 		});
 	});
@@ -371,7 +374,7 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`userId` as char) as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d0` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`) ORDER BY `$drizzle_order_row_number`) as `r` from (select `d1`.`id` as `id`, `d1`.`developerId` as `developer_id`, `d1`.`projectName` as `project_name`, row_number() over (order by (select `o1`.`firstName` from `test`.`developers` as `o0` cross join `users` as `o1` where ((`d1`.`developerId` = `o0`.`userId`) and (`o0`.`userId` = `o1`.`id`)) limit 1) desc, (select count(`o1`.`id`) from `test`.`developers` as `o0` cross join `projects` as `o1` where ((`d1`.`developerId` = `o0`.`userId`) and (`o0`.`userId` = `o1`.`developerId`))) asc, `d1`.`id` asc) as `$drizzle_order_row_number` from `projects` as `d1` where `d0`.`userId` = `d1`.`developerId` order by (select `o1`.`firstName` from `test`.`developers` as `o0` cross join `users` as `o1` where ((`d1`.`developerId` = `o0`.`userId`) and (`o0`.`userId` = `o1`.`id`)) limit 1) desc, (select count(`o1`.`id`) from `test`.`developers` as `o0` cross join `projects` as `o1` where ((`d1`.`developerId` = `o0`.`userId`) and (`o0`.`userId` = `o1`.`developerId`))) asc, `d1`.`id` asc) as `t`) as `projects` on true",
+				"select `d0`.`userId` as `user_id`, `d0`.`usesDrizzleOrm` as `uses_drizzle_orm`, coalesce(`projects`.`r`, json_build_array()) as `projects` from `test`.`developers` as `d0` left join lateral(select json_agg(json_build_object('id', `id`, 'developer_id', `developer_id`, 'project_name', `project_name`) ORDER BY `$drizzle_order_row_number`) as `r` from (select `d1`.`id` as `id`, `d1`.`developerId` as `developer_id`, `d1`.`projectName` as `project_name`, row_number() over (order by (select `o1`.`firstName` from `test`.`developers` as `o0` cross join `users` as `o1` where ((`d1`.`developerId` = `o0`.`userId`) and (`o0`.`userId` = `o1`.`id`)) limit 1) desc, (select count(`o1`.`id`) from `test`.`developers` as `o0` cross join `projects` as `o1` where ((`d1`.`developerId` = `o0`.`userId`) and (`o0`.`userId` = `o1`.`developerId`))) asc, `d1`.`id` asc) as `$drizzle_order_row_number` from `projects` as `d1` where `d0`.`userId` = `d1`.`developerId` order by (select `o1`.`firstName` from `test`.`developers` as `o0` cross join `users` as `o1` where ((`d1`.`developerId` = `o0`.`userId`) and (`o0`.`userId` = `o1`.`id`)) limit 1) desc, (select count(`o1`.`id`) from `test`.`developers` as `o0` cross join `projects` as `o1` where ((`d1`.`developerId` = `o0`.`userId`) and (`o0`.`userId` = `o1`.`developerId`))) asc, `d1`.`id` asc) as `t`) as `projects` on true",
 			params: [],
 		});
 	});
@@ -430,8 +433,7 @@ describe('singlestore to camel case', () => {
 			.union(db.select({ firstName: users.first_name }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql:
-				'select `firstName` from ((select `firstName` from `users`) union (select `firstName` from `users`)) `drizzle_union`',
+			sql: '(select `firstName` from `users`) union (select `firstName` from `users`)',
 			params: [],
 		});
 	});
@@ -443,8 +445,7 @@ describe('singlestore to camel case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql:
-				'select `firstName` from ((select `firstName` from `users`) union (select `firstName` from `users`)) `drizzle_union`',
+			sql: '(select `firstName` from `users`) union (select `firstName` from `users`)',
 			params: [],
 		});
 	});
@@ -458,7 +459,7 @@ describe('singlestore to camel case', () => {
 			.orderBy(order);
 
 		expect(query.toSQL().sql).toBe(
-			'select `firstName` from ((select `firstName` from `users`) union (select `firstName` from `users`) order by `firstName` desc) `drizzle_union`',
+			'select * from ((select `firstName` from `users`) union (select `firstName` from `users`)) `drizzle_union` order by `firstName` desc',
 		);
 		// Same SQL objects keep their qualifiers in other queries
 		expect(db.select({ first_name: users.first_name }).from(users).orderBy(order).toSQL().sql).toBe(
@@ -490,6 +491,8 @@ describe('singlestore to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection)', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name', 'age')
@@ -501,6 +504,8 @@ describe('singlestore to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, multiple rows)', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name')
@@ -512,6 +517,8 @@ describe('singlestore to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, omitted optional column)', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name', 'age')
@@ -523,6 +530,8 @@ describe('singlestore to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) emits columns in list order', ({ expect }) => {
 		const query = db
 			.insert(users, 'age', 'last_name', 'first_name')
@@ -534,6 +543,8 @@ describe('singlestore to camel case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) on duplicate key update', ({ expect }) => {
 		const query = db
 			.insert(users, 'first_name', 'last_name', 'age')
@@ -576,7 +587,7 @@ describe('singlestore to camel case', () => {
 			.orderBy(asc(users.id.as('userId')));
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select `AGE` as `ageOfUser`, cast(`id` as char) as `userId` from `users` order by `userId` asc',
+			sql: 'select `AGE` as `ageOfUser`, `id` as `userId` from `users` order by `userId` asc',
 			params: [],
 		});
 	});
@@ -590,85 +601,8 @@ describe('singlestore to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users`.`AGE` as `ageOfUser`, cast(`users`.`id` as char) as `userId` from `users` left join `test`.`developers` on `userId` = `test`.`developers`.`userId` order by `users`.`firstName` asc",
+				"select `users`.`firstName` || ' ' || `users`.`lastName` as `name`, `users`.`AGE` as `ageOfUser`, `users`.`id` as `userId` from `users` left join `test`.`developers` on `userId` = `test`.`developers`.`userId` order by `users`.`firstName` asc",
 			params: [],
-		});
-	});
-
-	describe('selection casts', () => {
-		const castCodecs = { ...singleStoreCodecs, int: { ...singleStoreCodecs.int, cast: castToText } };
-		const castDb = drizzle.mock({ codecs: castCodecs });
-		const casts = camelCase.table('casts', { cast_value: int() });
-		const castTargets = camelCase.table('cast_targets', { target_id: text() });
-		const castSubquery = () => castDb.select({ cast_value: casts.cast_value }).from(casts).as('sq');
-
-		it(`Cast respects alias config`, ({ expect }) => {
-			expect(castDb.select({ c: casts.cast_value }).from(casts).toSQL().sql).toEqual(
-				'select cast(`castValue` as char) from `casts`',
-			);
-			expect(castDb.select({ c: casts.cast_value.as('alias') }).from(casts).toSQL().sql).toEqual(
-				'select cast(`castValue` as char) as `alias` from `casts`',
-			);
-		});
-
-		it(`Cast applied to selected subquery depending on it's selection`, ({ expect }) => {
-			expect(castDb.select({ x: castSubquery() }).from(castTargets).toSQL().sql).toEqual(
-				'select cast((select `castValue` from `casts`) as char) `sq` from `cast_targets`',
-			);
-		});
-
-		it('Nested queries ignore casts', ({ expect }) => {
-			const outer = castDb.select({ x: castSubquery() }).from(castTargets).as('outer');
-
-			expect(castDb.select().from(outer).toSQL().sql).toEqual(
-				'select cast((select `castValue` from `casts`) as char) `sq` from (select (select `castValue` from `casts`) `sq` from `cast_targets`) `outer`',
-			);
-		});
-
-		it('Queries in operators ignore casts', ({ expect }) => {
-			const inner = () => castDb.select({ cast_value: casts.cast_value }).from(casts);
-
-			expect(castDb.select({ x: casts.cast_value }).from(casts).where(eq(casts.cast_value, inner())).toSQL().sql)
-				.toEqual(
-					'select cast(`castValue` as char) from `casts` where `casts`.`castValue` = (select `castValue` from `casts`)',
-				);
-			expect(castDb.select({ x: casts.cast_value }).from(casts).where(inArray(casts.cast_value, inner())).toSQL().sql)
-				.toEqual(
-					'select cast(`castValue` as char) from `casts` where `casts`.`castValue` in (select `castValue` from `casts`)',
-				);
-			expect(castDb.select({ x: casts.cast_value }).from(casts).where(exists(inner())).toSQL().sql)
-				.toEqual('select cast(`castValue` as char) from `casts` where exists (select `castValue` from `casts`)');
-		});
-
-		it(`Column as decoder applies cast`, ({ expect }) => {
-			expect(
-				castDb.select({
-					x: sql`${casts.cast_value}`.mapWith(casts.cast_value),
-					y: sql`${casts.cast_value}`.mapWith(casts.cast_value).as('y'),
-				}).from(casts).toSQL().sql,
-			)
-				.toEqual('select cast(`castValue` as char), cast(`castValue` as char) as `y` from `casts`');
-		});
-
-		it(`Cast doesn't bleed params into selection`, ({ expect }) => {
-			// Regression test for pre-existing issue
-			const query = castDb.select({ x: castSubquery() }).from(castTargets).toSQL();
-
-			expect(query.params).toEqual([]);
-			expect(query.sql).not.toMatch(/\$\d|\?|@par/);
-		});
-
-		it(`No double spaces in union's 'order by' `, ({ expect }) => {
-			const branch = () => castDb.select({ x: casts.cast_value }).from(casts);
-			const query = branch()
-				.unionAll(branch())
-				.orderBy(sql`1`)
-				.limit(3);
-
-			expect(query.toSQL().sql).toEqual(
-				'select cast(`castValue` as char) from ((select `castValue` from `casts`) union all (select `castValue` from `casts`) order by 1 limit ?) `drizzle_union`',
-			);
-			expect(query.toSQL().sql).not.toContain('order by 1  ');
 		});
 	});
 

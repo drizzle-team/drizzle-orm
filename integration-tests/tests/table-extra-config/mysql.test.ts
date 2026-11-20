@@ -33,6 +33,7 @@ const foreignClass = mysqlTable('users', { id: int('id') }, () => [new Unrelated
 // @ts-expect-error
 const foreignDialect = mysqlTable('users', { id: int('id') }, () => [pgIndex]);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6140
 describe('mysql extra config', () => {
 	test('Expected form', () => {
 		const config = getTableConfig(users);

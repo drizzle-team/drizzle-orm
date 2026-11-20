@@ -1,5 +1,4 @@
 import type { Database, RunResult, Statement } from 'better-sqlite3';
-import type { QueryMetadata } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
@@ -49,11 +48,12 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
 	): SQLiteAsyncPreparedQuery<T & { run: BetterSQLite3RunResult }> {
 		let stmt: Statement;
 		try {
 			stmt = this.client.prepare(query.sql);
+
+			if (mapper) stmt.safeIntegers(true);
 		} catch (e) {
 			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
@@ -79,9 +79,6 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			undefined,
-			queryMetadata,
-			undefined,
 			this.options.paramsInErrors,
 		);
 	}

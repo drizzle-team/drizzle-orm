@@ -1,0 +1,4 @@
+input.ts:6:15 error TSPG022: provide the row type explicitly
+    const row = sql`SELECT id FROM t WHERE id = ${id}`.one()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  hint: e.g. .one<{ id: bigint_, balance: numeric }>()

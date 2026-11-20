@@ -1,0 +1,55 @@
+# Turso's open-source server (sqld): the Hrana HTTP and WebSocket protocols Turso Cloud serves, for the
+# @tursodatabase/serverless and @libsql/client remote suites. Each CI job starts its own, so its databases are empty.
+# Five, one per concurrent test: the suites run test.concurrent with a database each from the pool of URLs, and
+# tests sharing one database waited seconds for each other's writes (SQLite takes one writer at a time).
+services:
+  turso0:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    network_mode: bridge
+    mem_limit: 2560m
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/sqld:size=2g
+    ports:
+      - "${DRIZZLE_PORT_TURSO:-8090}:8080"
+  turso1:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    network_mode: bridge
+    mem_limit: 2560m
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/sqld:size=2g
+    ports:
+      - "${DRIZZLE_PORT_TURSO1:-8091}:8080"
+  turso2:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    network_mode: bridge
+    mem_limit: 2560m
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/sqld:size=2g
+    ports:
+      - "${DRIZZLE_PORT_TURSO2:-8092}:8080"
+  turso3:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    network_mode: bridge
+    mem_limit: 2560m
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/sqld:size=2g
+    ports:
+      - "${DRIZZLE_PORT_TURSO3:-8093}:8080"
+  turso4:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    network_mode: bridge
+    mem_limit: 2560m
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/sqld:size=2g
+    ports:
+      - "${DRIZZLE_PORT_TURSO4:-8094}:8080"

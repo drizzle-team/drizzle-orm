@@ -8,7 +8,7 @@ import { View } from '~/view.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { IsAlias, Table } from '../table.ts';
-import { CacheKey, Qualifier, TableName, TableSchema } from '../table.utils.ts';
+import { Qualifier, TableName, TableSchema } from '../table.utils.ts';
 import { commonStringChunks, StringChunk } from './common-chunks.ts';
 
 /**
@@ -1098,47 +1098,6 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 }
 
 export type ColumnsSelection = Record<string, unknown>;
-
-/**
- * @internal
- *
- * Adds cache key of every table referenced anywhere within `chunks` to `out`
- */
-export function collectChunksUsedTables(chunks: readonly SQLChunk[], out: Set<string>): void {
-	for (let i = 0; i < chunks.length; ++i) {
-		const chunk = chunks[i];
-		const kind = chunkKindOf(chunk);
-		switch (kind) {
-			case chunkKinds.table: {
-				out.add((chunk as Table)[CacheKey]);
-				break;
-			}
-			case chunkKinds.sql: {
-				collectChunksUsedTables((chunk as SQL).queryChunks, out);
-				break;
-			}
-			case chunkKinds.param: {
-				const value = (chunk as { value: unknown }).value;
-				if (chunkKindOf(value) === chunkKinds.sql) collectChunksUsedTables((value as SQL).queryChunks, out);
-				break;
-			}
-			case chunkKinds.subquery: {
-				collectChunksUsedTables((chunk as Subquery)._.sql.queryChunks, out);
-				break;
-			}
-			case chunkKinds.valueRows: {
-				collectChunksUsedTables((chunk as { cells: SQLChunk[] }).cells, out);
-				break;
-			}
-			case chunkKinds.other:
-			case chunkKinds.aliased: {
-				if (Array.isArray(chunk)) collectChunksUsedTables(chunk, out);
-				else if (isSQLWrapper(chunk)) collectChunksUsedTables(chunk.getSQL().queryChunks, out);
-				break;
-			}
-		}
-	}
-}
 
 // Defined separately from the Column class to resolve circular dependency
 Column.prototype.getSQL = function() {

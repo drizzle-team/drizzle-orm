@@ -9,14 +9,13 @@ import {
 	RelationsBuilderConfig,
 	Schema,
 } from 'drizzle-orm';
-import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
 import * as SQLiteDrizzle from 'drizzle-orm/effect-d1';
 import { alias, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
-import { expect, vi } from 'vitest';
+import { expect } from 'vitest';
 import { DB, push, runCommonEffectSQLiteTests } from './effect-common';
-import { TestCache } from './instrumentation';
+import { unsafeNumericSkips, unsafeNumericTests } from './effect-unsupported-types';
 import relations from './relations';
 
 const D1ClientLive = D1Client.layer({
@@ -40,6 +39,7 @@ const createDB = <
 >(
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
+	_useJitMappers?: boolean,
 ) =>
 	SQLiteDrizzle.make({ relations: defineRelations(schema, relations) }).pipe(
 		Effect.provide(SQLiteDrizzle.DefaultServices),
@@ -51,9 +51,11 @@ runCommonEffectSQLiteTests({
 	testLayer: TestLive,
 	SQLiteDrizzle: SQLiteDrizzle,
 	createDB,
+	// D1 returns integers as numbers: unsafe integers in `numeric` columns have already lost precision and throw an
+	// unsupported column type error, tests holding them are redefined with safe values
 	skipTests: [
+		...unsafeNumericSkips,
 		// .run() includes time data
-		'Cache: write + query all methods & verify data intergrity',
 		// Transactions are not supported in D1
 		'Query error params - transaction',
 		'RQB v2 transaction find first - no rows',
@@ -94,73 +96,7 @@ runCommonEffectSQLiteTests({
 		// Recommended way to apply migrations is via `drizzle-kit generate` + `wrangler d1 migrations apply dbname`
 	],
 	addTests: (it) => {
-		it.effect('Cache: write + query all methods & verify data intergrity - D1', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('explicit');
-
-				using spyPut = vi.spyOn(baseCache, 'put');
-				using spyGet = vi.spyOn(baseCache, 'get');
-				using spyInvalidate = vi.spyOn(baseCache, 'onMutate');
-
-				const customCacheLayer = EffectCache.layerFromDrizzle(baseCache);
-				const db = yield* SQLiteDrizzle.make({ relations }).pipe(
-					Effect.provide(customCacheLayer),
-					Effect.provide(SQLiteDrizzle.DefaultServices),
-				);
-
-				const users = sqliteTable('users_custom_cache_2', {
-					id: integer('id').primaryKey(),
-					name: text('name').notNull(),
-				});
-
-				yield* push(db, { users });
-				yield* db.insert(users).values({ name: 'John' });
-
-				expect(spyPut).toHaveBeenCalledTimes(0);
-				expect(spyGet).toHaveBeenCalledTimes(0);
-				expect(spyInvalidate).toHaveBeenCalledTimes(1);
-
-				spyPut.mockClear();
-				spyGet.mockClear();
-				spyInvalidate.mockClear();
-
-				const qRaw = db.select().from(users).prepare();
-				const qCache = db.select().from(users).$withCache({ config: { ex: 120 } }).prepare();
-
-				const [_all, _get, _run, _values] = [
-					yield* qRaw.all(),
-					yield* qRaw.get(),
-					yield* qRaw.run(),
-					yield* qRaw.values(),
-				];
-				const [all, get, run, values] = [
-					yield* qCache.all(),
-					yield* qCache.get(),
-					yield* qCache.run(),
-					yield* qCache.values(),
-				];
-
-				expect(all).toStrictEqual(_all);
-				expect(get).toStrictEqual(_get);
-				// `.run()` meta includes query duration, which differs between runs
-				const _runResult = _run as { meta: Record<string, unknown> };
-				expect(run).toStrictEqual({
-					..._runResult,
-					meta: {
-						..._runResult.meta,
-						duration: expect.any(Number),
-					},
-				});
-				expect(values).toStrictEqual(_values);
-
-				expect(spyPut).toHaveBeenCalledTimes(4);
-				expect(spyGet).toHaveBeenCalledTimes(4);
-				expect(spyInvalidate).toHaveBeenCalledTimes(0);
-
-				spyPut.mockClear();
-				spyGet.mockClear();
-				spyInvalidate.mockClear();
-			}));
+		unsafeNumericTests(it, createDB);
 
 		// Bypass broken D1 joins by aliasing duplicate column names
 		it.effect('partial join with alias - D1 aliasing', () =>

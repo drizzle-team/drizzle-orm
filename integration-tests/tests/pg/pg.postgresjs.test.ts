@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { composeHint, requireEnv, retry } from '@drizzle/test-utils';
 import { defineRelations, DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { alias, pgTable } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -37,39 +38,18 @@ let db: PostgresJsDatabase<typeof relations>;
 let client: postgres.Sql<{}>;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'PG_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up postgres` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('PG_CONNECTION_STRING', composeHint('postgres'));
 
-	const sleep = 250;
-	let timeLeft = 5000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = postgres(connectionString, {
-				max: 1,
-				onnotice: () => {
-					// disable notices
-				},
-			});
-			await client`select 1`;
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await client?.end().catch(console.error);
-		throw lastError;
-	}
+	client = await retry(async () => {
+		const postgresClient = postgres(connectionString, {
+			max: 1,
+			onnotice: () => {
+				// disable notices
+			},
+		});
+		await postgresClient`select 1`;
+		return postgresClient;
+	}, { interval: 250, timeout: 5000 });
 	db = drizzle({ client, relations, logger: ENABLE_LOGGING });
 });
 
@@ -1702,6 +1682,27 @@ test('[Find Many] Get users with posts + prepared limit', async (t) => {
 		invitedBy: null,
 		posts: [{ id: 6, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }],
 	});
+});
+
+test('[Find Many] Get users with posts + zero and negative limits', async (t) => {
+	const { pgjsDbV2: db } = t;
+
+	await db.insert(usersTable).values([{ id: 1, name: 'Dan' }, { id: 2, name: 'Andrew' }]);
+	await db.insert(postsTable).values([{ ownerId: 1, content: 'Post1' }, { ownerId: 2, content: 'Post2' }]);
+
+	// Pagination values aren't skipped: they reach the database exactly as given
+	expect(await db.query.usersTable.findMany({ orderBy: { id: 'asc' }, limit: 0, offset: 0 })).toStrictEqual([]);
+	expect(
+		await db.query.usersTable.findMany({
+			columns: { id: true },
+			orderBy: { id: 'asc' },
+			with: { posts: { columns: { id: true }, limit: 0 } },
+		}),
+	).toStrictEqual([{ id: 1, posts: [] }, { id: 2, posts: [] }]);
+
+	const negative = db.query.usersTable.findMany({ limit: -1 });
+	expect(negative.toSQL().params).toStrictEqual([-1]);
+	await expect(negative).rejects.toThrow();
 });
 
 test('[Find Many] Get users with posts + prepared limit + offset', async (t) => {

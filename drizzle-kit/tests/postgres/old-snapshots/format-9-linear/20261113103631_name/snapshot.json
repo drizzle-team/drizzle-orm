@@ -1,0 +1,121 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "1d9af6b3-5a1d-442b-85b5-2c44a41bb9d6",
+  "prevIds": [
+    "4f939b99-a487-404d-8b26-2feac4470925"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "users",
+        "name"
+      ],
+      "writes": [
+        "s|col|public.users.name",
+        "n|col|public.users.name",
+        "e|col|public.users.name"
+      ],
+      "reads": [
+        "n|tbl|public.users",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "recreate_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "users",
+        "users_email_idx"
+      ],
+      "writes": [
+        "s|idx|public.users_email_idx",
+        "n|idx|public.users_email_idx",
+        "e|idx|public.users_email_idx",
+        "n|rel|public.users_email_idx"
+      ],
+      "reads": [
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.users.email"
+      ],
+      "sharedWrites": [],
+      "sqlHash": "76ab643ef455c097"
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "users",
+        "users_name_idx"
+      ],
+      "writes": [
+        "s|idx|public.users_name_idx",
+        "n|idx|public.users_name_idx",
+        "e|idx|public.users_name_idx",
+        "n|rel|public.users_name_idx"
+      ],
+      "reads": [
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.users.name"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "users",
+        "name": "name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "users",
+        "name": "users_name_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "name",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": true,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "indexes\u0000[\"public\",\"users_email_idx\"]",
+      "set": {
+        "where": "\"email\" is not null",
+        "concurrently": true
+      }
+    }
+  ]
+}

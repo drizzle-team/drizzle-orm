@@ -1,6 +1,4 @@
-import type { Connection, FullResult, Tx } from '@tidbcloud/serverless';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
+import type { Connection, Decoders, FullResult, Tx } from '@tidbcloud/serverless';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -11,9 +9,31 @@ import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
 
+const rawText = (value: string) => value;
+/** `bigint` as a number in the safe integer range (e.g. for `count(*)`), exact text outside of it */
+const safeIntegerOrText = (value: string) => {
+	const number = Number(value);
+	return Number.isSafeInteger(number) ? number : value;
+};
+
+/**
+ * Per-query `decoders` returning temporal, `decimal`, `bigint` values as text and `json` values parsed for codecs to
+ * decode, whatever decoders the client is configured with. Applied to queries decoded by codecs (queries with a mapper),
+ * proxy servers apply them to such queries as well
+ */
+export const tidbRawTextDecoders = {
+	BIGINT: safeIntegerOrText,
+	'UNSIGNED BIGINT': safeIntegerOrText,
+	DECIMAL: rawText,
+	DATE: rawText,
+	DATETIME: rawText,
+	TIMESTAMP: rawText,
+	TIME: rawText,
+	JSON: (value: string) => JSON.parse(value),
+} as Decoders;
+
 export interface TiDBServerlessSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -49,7 +69,6 @@ export class TiDBServerlessSession<
 
 	private logger: Logger;
 	private client: Tx | Connection;
-	private cache: Cache;
 
 	constructor(
 		private baseClient: Connection,
@@ -61,20 +80,17 @@ export class TiDBServerlessSession<
 		super(dialect);
 		this.client = tx ?? baseClient;
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (response: Record<string, unknown>[] | unknown[][] | { insertId: number; affectedRows: number }) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;
 		const queryConfig = mode === 'arrays'
-			? { arrayMode: true }
-			: { fullResult: true };
+			? { arrayMode: true, decoders: mapper ? tidbRawTextDecoders : undefined }
+			: { fullResult: true, decoders: mapper ? tidbRawTextDecoders : undefined };
 
 		const executor = async (params: any[] = []) => {
 			const raw = client.execute(
@@ -100,9 +116,6 @@ export class TiDBServerlessSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

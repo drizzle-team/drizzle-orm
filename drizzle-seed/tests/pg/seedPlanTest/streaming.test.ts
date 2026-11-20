@@ -1,4 +1,4 @@
-import { PGlite } from '@electric-sql/pglite';
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { boolean, foreignKey, integer, pgTable, text, varchar } from 'drizzle-orm/pg-core';
@@ -70,7 +70,7 @@ const wide = pgTable('wide', {
 const wideDdl = [sql`create table wide (id integer primary key, name text, label text)`];
 
 const makeDb = async (ddl: typeof acyclicDdl) => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = drizzle({ client });
 	for (const query of ddl) await db.execute(query);
 

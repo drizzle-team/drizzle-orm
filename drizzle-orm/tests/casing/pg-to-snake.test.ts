@@ -95,6 +95,7 @@ const cache = {
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
 describe('postgres to snake case', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/6082
 	it('unicode column names', ({ expect }) => {
 		const unicode = snakeCase.table('unicode', {
 			칼럼명: text(),
@@ -105,6 +106,7 @@ describe('postgres to snake case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5734
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = snakeCase.table('a', { id: integer('id').primaryKey(), cId: integer().notNull() });
 		const b = snakeCase.table('b', { id: integer('id').primaryKey(), cId: integer().notNull(), label: text() });
@@ -121,6 +123,7 @@ describe('postgres to snake case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/3096
 	it('qualifier preservation for subquery fields', ({ expect }) => {
 		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
 		const query = db
@@ -344,6 +347,7 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + orderBy + limit', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			orderBy: { firstName: 'asc' },
@@ -358,6 +362,7 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + limit + offset', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({ limit: 2, offset: 4, with: { developers: true } });
 
@@ -368,6 +373,7 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + relation where', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			where: { developers: { usesDrizzleORM: true } },
@@ -381,6 +387,7 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + where + relation where + orderBy', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			where: { firstName: { like: 'A%' }, developers: { usesDrizzleORM: true } },
@@ -395,6 +402,7 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + relation where + limit', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			where: { developers: { usesDrizzleORM: true } },
@@ -409,6 +417,7 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + RAW where', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			where: { RAW: (t, { sql }) => sql`${t.id} > 1` },
@@ -422,6 +431,7 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + where + orderBy', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			where: { firstName: { like: 'A%' } },
@@ -436,6 +446,7 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - schema table, deeply nested + orderBy + limit on every level', ({ expect }) => {
 		const query = rqbDb.query.developers.findMany({
 			orderBy: { userId: 'desc' },
@@ -452,6 +463,7 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - subquery, nested + orderBy + limit', ({ expect }) => {
 		const query = rqbDb.query.staff.findMany({
 			orderBy: { role: 'asc' },
@@ -466,6 +478,7 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + where + limit', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			where: { firstName: { like: 'A%' } },
@@ -689,8 +702,7 @@ describe('postgres to snake case', () => {
 			.union(db.select({ firstName: users.firstName }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql:
-				'select "first_name" from ((select "first_name" from "users") union (select "first_name" from "users")) "drizzle_union"',
+			sql: '(select "first_name" from "users") union (select "first_name" from "users")',
 			params: [],
 		});
 	});
@@ -702,8 +714,7 @@ describe('postgres to snake case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql:
-				'select "first_name" from ((select "first_name" from "users") union (select "first_name" from "users")) "drizzle_union"',
+			sql: '(select "first_name" from "users") union (select "first_name" from "users")',
 			params: [],
 		});
 	});
@@ -718,7 +729,7 @@ describe('postgres to snake case', () => {
 			.orderBy(order, byName);
 
 		expect(query.toSQL().sql).toBe(
-			'select "first_name" from ((select "first_name" from "users") union (select "first_name" from "users") order by "first_name" desc, lower("first_name") || \'x\') "drizzle_union"',
+			'(select "first_name" from "users") union (select "first_name" from "users") order by "first_name" desc, lower("first_name") || \'x\'',
 		);
 		// Same SQL objects keep their qualifiers in other queries
 		expect(db.select({ firstName: users.firstName }).from(users).orderBy(order, byName).toSQL().sql).toBe(
@@ -754,6 +765,8 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection)', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName', 'age')
@@ -766,6 +779,8 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, multiple rows)', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName')
@@ -777,6 +792,8 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, omitted optional column)', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName', 'age')
@@ -788,6 +805,8 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) with select', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName')
@@ -801,6 +820,8 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) on conflict do update', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName', 'age')
@@ -815,6 +836,8 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) emits columns in list order', ({ expect }) => {
 		const query = db
 			.insert(users, 'age', 'lastName', 'firstName')
@@ -826,6 +849,8 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) always-generated identity with overridingSystemValue', ({ expect }) => {
 		const query = db
 			.insert(products, 'alwaysIdentity', 'label')
@@ -840,6 +865,8 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) always-generated identity with overridingSystemValue (multiple rows)', ({ expect }) => {
 		const query = db
 			.insert(products, 'alwaysIdentity', 'label')
@@ -852,6 +879,8 @@ describe('postgres to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) by-default-generated identity without override', ({ expect }) => {
 		const query = db
 			.insert(products, 'byDefaultIdentity', 'label')
@@ -955,101 +984,18 @@ describe('postgres to snake case', () => {
 		});
 	});
 
-	describe('selection casts', () => {
-		const castCodecs = { ...postgresJsCodecs, int: { ...postgresJsCodecs.int, cast: castToText } };
-		const castDb = drizzle({ client: postgres(''), codecs: castCodecs });
-		const casts = snakeCase.table('casts', { castValue: integer() });
-		const castTargets = snakeCase.table('cast_targets', { targetId: text() });
-		const castSubquery = () => castDb.select({ castValue: casts.castValue }).from(casts).as('sq');
-
-		it(`Cast respects alias config`, ({ expect }) => {
-			expect(castDb.select({ c: casts.castValue }).from(casts).toSQL().sql).toEqual(
-				'select "cast_value"::text from "casts"',
-			);
-			expect(castDb.select({ c: casts.castValue.as('alias') }).from(casts).toSQL().sql).toEqual(
-				'select "cast_value"::text as "alias" from "casts"',
-			);
-		});
-
-		it(`Cast applied to selected subquery depending on it's selection`, ({ expect }) => {
-			expect(castDb.select({ x: castSubquery() }).from(castTargets).toSQL().sql).toEqual(
-				'select (select "cast_value" from "casts")::text "sq" from "cast_targets"',
-			);
-		});
-
-		it('Nested queries ignore casts', ({ expect }) => {
-			const outer = castDb.select({ x: castSubquery() }).from(castTargets).as('outer');
-
-			expect(castDb.select().from(outer).toSQL().sql).toEqual(
-				'select (select "cast_value" from "casts")::text "sq" from (select (select "cast_value" from "casts") "sq" from "cast_targets") "outer"',
-			);
-		});
-
-		it('Queries in operators ignore casts', ({ expect }) => {
-			const inner = () => castDb.select({ castValue: casts.castValue }).from(casts);
-
-			expect(castDb.select({ x: casts.castValue }).from(casts).where(eq(casts.castValue, inner())).toSQL().sql)
-				.toEqual(
-					'select "cast_value"::text from "casts" where "casts"."cast_value" = (select "cast_value" from "casts")',
-				);
-			expect(castDb.select({ x: casts.castValue }).from(casts).where(inArray(casts.castValue, inner())).toSQL().sql)
-				.toEqual(
-					'select "cast_value"::text from "casts" where "casts"."cast_value" in (select "cast_value" from "casts")',
-				);
-			expect(castDb.select({ x: casts.castValue }).from(casts).where(exists(inner())).toSQL().sql)
-				.toEqual('select "cast_value"::text from "casts" where exists (select "cast_value" from "casts")');
-		});
-
-		it(`Column as decoder applies cast`, ({ expect }) => {
-			expect(
-				castDb.select({
-					x: sql`${casts.castValue}`.mapWith(casts.castValue),
-					y: sql`${casts.castValue}`.mapWith(casts.castValue).as('y'),
-				}).from(casts).toSQL().sql,
-			)
-				.toEqual('select "cast_value"::text, "cast_value"::text as "y" from "casts"');
-		});
-
-		it(`Cast doesn't bleed params into selection`, ({ expect }) => {
-			// Regression test for pre-existing issue
-			const query = castDb.select({ x: castSubquery() }).from(castTargets).toSQL();
-
-			expect(query.params).toEqual([]);
-			expect(query.sql).not.toMatch(/\$\d|\?|@par/);
-		});
-
-		it(`No double spaces in union's 'order by' `, ({ expect }) => {
-			const branch = () => castDb.select({ x: casts.castValue }).from(casts);
-			const query = branch()
-				.unionAll(branch())
-				.orderBy(sql`1`)
-				.limit(3);
-
-			expect(query.toSQL().sql).toEqual(
-				'select "cast_value"::text from ((select "cast_value" from "casts") union all (select "cast_value" from "casts") order by 1 limit $1) "drizzle_union"',
-			);
-			expect(query.toSQL().sql).not.toContain('order by 1  ');
-		});
-
-		it(`$with field is cast by field's alias`, ({ expect }) => {
-			const w = castDb.$with('w').as(castDb.select({ castValue: casts.castValue }).from(casts));
-
-			expect(castDb.with(w).select({ x: w }).from(w).toSQL().sql).toEqual(
-				'with "w" as (select "cast_value" from "casts") select "w"::text from "w"',
-			);
-		});
-	});
-
 	describe('param casts', () => {
+		const paramClient = postgres('');
+		const defaultCodecs = postgresJsCodecs(paramClient);
 		const paramCodecs = {
-			...postgresJsCodecs,
+			...defaultCodecs,
 			int: {
-				...postgresJsCodecs.int,
+				...defaultCodecs.int,
 				castParam: (name: string) => `${name}::integer`,
 				normalizeParam: (value: number) => value * 10,
 			},
 		};
-		const paramDb = drizzle({ client: postgres(''), codecs: paramCodecs });
+		const paramDb = drizzle({ client: paramClient, codecs: paramCodecs });
 		const paramValues = snakeCase.table('params', { paramValue: integer() });
 
 		it('Param codecs are applied to bound params', ({ expect }) => {

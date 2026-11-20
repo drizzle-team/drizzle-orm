@@ -1,0 +1,4 @@
+input.ts:6:3 error TSPG010: unsupported template tag
+    sql`SELECT 1`
+    ^^^
+  hint: the DSL lives on the ctx parameter: ctx.sql`...`, ctx.lockRowsOrdered(), ctx.notice(), ctx.warning(), ctx.commit(), ctx.rollback(), ctx.try(), ctx.isNull(), ctx.coalesce() (destructure it: const { sql } = ctx); plus throw new PgError()

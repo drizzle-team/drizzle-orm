@@ -11,6 +11,7 @@ import type {
 	pgDefaultCredentials,
 	pgLiteClientCredentials,
 	pgLiteCredentials,
+	postgresClientCredentials,
 } from './cli/validations/postgres';
 import type { singlestoreCredentials } from './cli/validations/singlestore';
 import type { d1HttpCredentials, sqliteCloudCredentials, sqliteDefaultCredentials } from './cli/validations/sqlite';
@@ -158,7 +159,9 @@ export interface DialectDriverMap extends Record<Dialect, Driver | 'default'> {
 export interface DialectCredentials {
 	turso: { default: { dbCredentials: TypeOf<typeof libSQLCredentials> } };
 	postgresql: {
-		default: { dbCredentials: ExclusiveUnion<TypeOf<typeof pgDefaultCredentials>> };
+		default: {
+			dbCredentials: ExclusiveUnion<TypeOf<typeof pgDefaultCredentials> | TypeOf<typeof postgresClientCredentials>>;
+		};
 		'aws-data-api': { dbCredentials: TypeOf<typeof awsDataApiCredentials> };
 		pglite: ExclusiveUnion<
 			| {

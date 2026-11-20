@@ -7,12 +7,12 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { tracer } from '~/tracing.ts';
-import { applyMixins, type Assume, resolveNullableObjectPaths } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
-import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
+import type { PgAsyncPreparedQuery, PgAsyncRuntimeHKT, PgAsyncSession } from './session.ts';
 
 export type PgAsyncSelectPrepare<T extends AnyPgAsyncSelect> = PgAsyncPreparedQuery<
 	PreparedQueryConfig & {
@@ -39,6 +39,7 @@ export type PgAsyncSelect<
 >;
 
 export interface PgAsyncSelectHKT extends PgSelectHKTBase {
+	runtime: PgAsyncRuntimeHKT;
 	_type: PgAsyncSelectBase<
 		this['tableName'],
 		Assume<this['selection'], ColumnsSelection>,
@@ -98,60 +99,8 @@ export class PgAsyncSelectBase<
 	static override readonly [entityKind]: string = 'PgAsyncSelectQueryBuilder';
 
 	declare protected session: PgAsyncSession;
-
-	/** @internal */
-	_prepare(name?: string, generateName = false): PgAsyncSelectPrepare<this> {
-		const { session, dialect, cacheConfig, config, joinsNotNullableMap } = this;
-
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const fieldsList = this._resolveSelection();
-			const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, joinsNotNullableMap);
-
-			const shape = config.shape ??= dialect.shapeGenerator?.(
-				{ type: 'plain', fields: fieldsList },
-				nullableObjectPaths,
-			);
-
-			const sequel = this.getSQL(true);
-			const query = config.tagged ? dialect._sqlToQuery(sequel) : dialect.sqlToQuery(sequel);
-			const mapper = shape
-				? undefined
-				: (config.mapper ??= dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths));
-
-			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
-				query,
-				shape ? 'objects' : 'arrays',
-				name ?? generateName,
-				mapper,
-				{ type: 'select', tables: () => this.getUsedTables(sequel) },
-				cacheConfig,
-				shape,
-			);
-
-			return preparedQuery;
-		});
-	}
-
-	/**
-	 * Create a prepared statement for this query. This allows
-	 * the database to remember this query for the given session
-	 * and call it by name, rather than specifying the full query.
-	 *
-	 * {@link https://www.postgresql.org/docs/current/sql-prepare.html | Postgres prepare documentation}
-	 */
-	prepare(
-		name?: string,
-	): PgAsyncSelectPrepare<this> {
-		return this._prepare(name, true);
-	}
-
-	execute(placeholderValues?: Record<string, unknown>) {
-		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
-		});
-	}
 }
 
-applyMixins(PgAsyncSelectBase, [QueryPromise]);
+applyMixins(PgAsyncSelectBase, [QueryPromise, PgRunnableQuery]);
 
 export type AnyPgAsyncSelect = PgAsyncSelectBase<any, any, any, any, any, any, any, any>;

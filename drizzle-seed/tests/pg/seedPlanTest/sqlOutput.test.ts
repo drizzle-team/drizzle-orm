@@ -1,3 +1,4 @@
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import type { SQL } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
@@ -77,7 +78,7 @@ const wideDdl = [
 ];
 
 const makeDb = async (tableDdl: SQL[]) => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = drizzle({ client });
 	for (const query of tableDdl) await db.execute(query);
 

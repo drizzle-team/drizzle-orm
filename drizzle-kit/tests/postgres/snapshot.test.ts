@@ -3,6 +3,7 @@ import { type Delta, delta } from 'src/dialects/dialect';
 import { createDDL } from 'src/dialects/postgres/ddl';
 import { reconstruct, startingState } from 'src/dialects/postgres/reconstruct';
 import { type PostgresBaseSnapshot, type PostgresSnapshot, snapshotValidator } from 'src/dialects/postgres/snapshot';
+import { latestVersion } from 'src/dialects/postgres/versions';
 import { originUUID } from 'src/utils';
 import { describe, expect, test } from 'vitest';
 import { columnRow } from './folder-flow';
@@ -28,7 +29,7 @@ const columnKey = (table: string, name: string) => `columns\0${JSON.stringify(['
 
 const base = (id: string, ddl: ReturnType<typeof createDDL>): PostgresBaseSnapshot => ({
 	type: 'base',
-	version: '9',
+	version: latestVersion,
 	dialect: 'postgres',
 	id,
 	prevIds: [originUUID],
@@ -38,7 +39,7 @@ const base = (id: string, ddl: ReturnType<typeof createDDL>): PostgresBaseSnapsh
 
 const diff = (id: string, prevIds: string[], deltas: Delta[]): PostgresSnapshot => ({
 	type: 'diff',
-	version: '9',
+	version: latestVersion,
 	dialect: 'postgres',
 	id,
 	prevIds,
@@ -229,14 +230,19 @@ describe('reconstruct', () => {
 		const state = () => [
 			{ entityType: 'schemas' as const, name: 'public' },
 			...[...tables].flatMap(([table, columns]) => [
-				{ entityType: 'tables' as const, schema: 'public', name: table, isRlsEnabled: false },
+				{
+					entityType: 'tables' as const,
+					schema: 'public',
+					name: table,
+					isRlsEnabled: false,
+				},
 				...columns.map((it) => columnRow(table, it.name, 'integer', it.notNull)),
 			]),
 		];
 
 		const first: PostgresBaseSnapshot = {
 			type: 'base',
-			version: '9',
+			version: latestVersion,
 			dialect: 'postgres',
 			id: 's0',
 			prevIds: [originUUID],
@@ -267,12 +273,15 @@ describe('reconstruct', () => {
 			history.set(`s${idx}`, diff(`s${idx}`, [`s${idx - 1}`], deltas));
 		}
 
-		const started = performance.now();
+		// CPU time of this process, not the wall clock: reconstruct runs synchronously, and on a CI machine shared by
+		// many jobs the wall clock also counts the time spent waiting for a CPU (1.6 s against 1 s of budget).
+		const started = process.cpuUsage();
 		const reconstructed = reconstruct(history, 's999');
-		const elapsed = performance.now() - started;
+		const { user, system } = process.cpuUsage(started);
+		const elapsed = (user + system) / 1000;
 
 		expect(normalizeDDL(reconstructed.entities.list())).toStrictEqual(normalizeDDL(state()));
-		console.info(`Reconstructed the last of 1000 snapshots in ${elapsed.toFixed(1)} ms`);
+		console.info(`Reconstructed the last of 1000 snapshots in ${elapsed.toFixed(1)} ms of CPU time`);
 		expect(elapsed).toBeLessThan(1000);
 	});
 });
@@ -332,12 +341,41 @@ describe('snapshotValidator', () => {
 		expect(valid({ ...base('a', users), ddl: [{ entityType: 'tables', name: 1 }] })).toBe(false);
 	});
 
+	// Format 9 had `concurrently` in every row of an index, and format 10 dropped it. So a snapshot of the latest
+	// format with `concurrently` is malformed, and `up` must drop it from the rows and the deltas of format 9.
+	test('rejects concurrently in the rows and the deltas of indexes', () => {
+		const indexed = ddlOf('users', ['id']);
+		indexed.indexes.push({
+			schema: 'public',
+			table: 'users',
+			name: 'users_id_idx',
+			nameExplicit: true,
+			columns: [{ value: 'id', isExpression: false, asc: true, nullsFirst: false, opclass: null }],
+			isUnique: false,
+			where: null,
+			with: '',
+			method: 'btree',
+		});
+		const index = indexed.indexes.list()[0];
+		const key = 'indexes\0["public","users_id_idx"]';
+		const withConcurrently = indexed.entities.list().map((it) =>
+			it.entityType === 'indexes' ? { ...it, concurrently: false } : it
+		);
+
+		expect(valid(base('a', indexed))).toBe(true);
+		expect(valid({ ...base('a', indexed), ddl: withConcurrently })).toBe(false);
+		expect(valid(diff('b', ['a'], [{ op: 'create', row: index }]))).toBe(true);
+		expect(valid(diff('b', ['a'], [{ op: 'create', row: { ...index, concurrently: true } }]))).toBe(false);
+		expect(valid(diff('b', ['a'], [{ op: 'alter', key, set: { where: 'true' } }]))).toBe(true);
+		expect(valid(diff('b', ['a'], [{ op: 'alter', key, set: { concurrently: true } }]))).toBe(false);
+	});
+
 	// `file` builds each snapshot with `JSON.parse`, because only `JSON.parse` makes a key `__proto__` an own
 	// field of the row, as a snapshot file on disk does.
 	test('rejects a base with an entity whose type or field is a name that every object inherits', () => {
 		const file = (entity: string) =>
 			JSON.parse(
-				`{"type":"base","version":"9","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
+				`{"type":"base","version":"${latestVersion}","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
 					+ '"footprints":[]}',
 			);
 		const table = '"entityType":"tables","schema":"public","name":"users","isRlsEnabled":false';
@@ -352,7 +390,7 @@ describe('snapshotValidator', () => {
 	test('rejects a base with an entity type that is not a string', () => {
 		const file = (entity: string) =>
 			JSON.parse(
-				`{"type":"base","version":"9","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
+				`{"type":"base","version":"${latestVersion}","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
 					+ '"footprints":[]}',
 			);
 

@@ -55,7 +55,6 @@ const postgresIndex = (table: string, name: string, columns: string[]): Postgres
 	where: null,
 	with: '',
 	method: 'btree',
-	concurrently: false,
 	forPK: false,
 	forUnique: false,
 });
@@ -82,6 +81,8 @@ const postgresTable = (name: string, columns: string[], rest: Partial<PostgresTa
 	schema: 'public',
 	name,
 	isRlsEnabled: false,
+	partitionBy: null,
+	partitionsCount: 0,
 	columns: columns.map((column) => postgresColumn(name, column)),
 	pks: [],
 	fks: [],

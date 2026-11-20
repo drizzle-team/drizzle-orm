@@ -1,0 +1,4 @@
+input.ts:3:11 error TSPG023: procedure name '$transfer' is not a valid unquoted PostgreSQL identifier
+  procedure('$transfer', { id: 'bigint' }, (ctx) => {
+            ^^^^^^^^^^^
+  hint: PostgreSQL identifiers start with a letter or underscore and contain only letters, digits and underscores

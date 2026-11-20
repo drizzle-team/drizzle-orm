@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	AnyMsSqlColumn,
@@ -32,6 +33,7 @@ import {
 } from 'drizzle-orm/mssql-core';
 import fs from 'fs';
 import { fromDatabaseForDrizzle } from 'src/dialects/mssql/introspect';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/mssql/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -911,8 +913,7 @@ test('Issue No5993', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5992
 // pull must not crash when a filtered-in table has an FK to a filtered-out table
-// TODO need to update introspect for mssql
-test.skipIf(Date.now() < +new Date('2026-11-24'))(
+test(
 	'introspect fk to a table excluded by tablesFilter is skipped',
 	async () => {
 		await db.query('CREATE TABLE referenced_table (id int NOT NULL PRIMARY KEY)');
@@ -921,29 +922,36 @@ test.skipIf(Date.now() < +new Date('2026-11-24'))(
 			'ALTER TABLE parent_table ADD CONSTRAINT FK_parent_referenced FOREIGN KEY (child_id) REFERENCES referenced_table(id)',
 		);
 
-		const {
-			pushSqlStatements: sqlStatements,
-			pushStatements: statements,
-			fromFileDDL,
-			introspectDDL,
-			generateStatements,
-			generateSqlStatements,
-		} = await diffIntrospect(
+		const entityFilter = prepareEntityFilter('mssql', {
+			tables: 'parent_table',
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
+		}, []);
+		const schema = await fromDatabaseForDrizzle(
 			db,
-			{},
-			'#5992',
-			[],
-			['parent_table'],
+			entityFilter,
+			() => {},
+			{
+				table: '__drizzle_migrations',
+				schema: 'drizzle',
+			},
 		);
 
-		expect(sqlStatements).toStrictEqual([]);
-		expect(generateSqlStatements).toStrictEqual([]);
-		expect(statements).toStrictEqual([]);
-		expect(generateStatements).toStrictEqual([]);
-		expect(fromFileDDL.fks.list()).toStrictEqual([]);
-		expect(fromFileDDL.tables.list().map((it) => it.name)).toStrictEqual(['parent_table']);
-		expect(introspectDDL.fks.list()).toStrictEqual([]);
-		expect(introspectDDL.tables.list().map((it) => it.name)).toStrictEqual(['parent_table']);
+		expect(schema.tables.map((it) => it.name)).toStrictEqual(['parent_table']);
+		expect(schema.fks).toStrictEqual([{
+			table: 'parent_table',
+			tableTo: 'referenced_table',
+			columns: ['child_id'],
+			columnsTo: ['id'],
+			onDelete: 'NO ACTION',
+			onUpdate: 'NO ACTION',
+			schema: 'dbo',
+			schemaTo: 'dbo',
+			entityType: 'fks',
+			nameExplicit: true,
+			name: 'FK_parent_referenced',
+		}]);
 	},
 );
 test('introspect fk is kept when both tables pass tablesFilter', async () => {
@@ -1194,4 +1202,167 @@ test('introspect default expressions with a backslash, a backtick and "${"', asy
 		expected,
 	);
 	expect(Object.fromEntries(fromFileDDL.defaults.list().map((it) => [it.column, it.default]))).toStrictEqual(expected);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6423
+test('Issue 6423', async () => {
+	await db.query(
+		`CREATE TABLE [dbo].[Staff]
+(
+    [StaffId] INT NOT NULL IDENTITY(0, 1),
+        CONSTRAINT [PK_Staff_StaffId] PRIMARY KEY ([StaffId]), 
+    [LastName] VARCHAR(50) NOT NULL,
+    [FirstName] VARCHAR(50) NOT NULL,
+    [ModifiedBy] INT NOT NULL,
+        CONSTRAINT [FK_Staff_Staff_ModifiedBy] FOREIGN KEY ([ModifiedBy]) REFERENCES [dbo].[Staff]([StaffId]), 
+)`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, fromFileDDL, introspectDDL } = await diffIntrospect(
+		db,
+		{},
+		'issue-6423.identity-seed=0',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+
+	expect(fromFileDDL.columns.one({ name: 'StaffId' })?.identity).toStrictEqual({
+		increment: 1,
+		seed: 0,
+	});
+	expect(introspectDDL.columns.one({ name: 'StaffId' })?.identity).toStrictEqual({
+		increment: 1,
+		seed: 0,
+	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6357
+// Windows users (U) and groups (G) need an existing Windows account and
+// Entra users (E) and groups (X) need Azure, so the test covers every owner type available locally: SQL user (S),
+// certificate user (C), asymmetric key user (K), application role (A), custom role (R) and fixed role (R)
+test('introspect schemas owned by any principal type', async () => {
+	await db.query(`CREATE USER no_login_user WITHOUT LOGIN;`);
+	await db.query(`CREATE CERTIFICATE cert ENCRYPTION BY PASSWORD = 'password1#!23123' WITH SUBJECT = 'cert';`);
+	await db.query(`CREATE USER cert_user FROM CERTIFICATE cert;`);
+	await db.query(
+		`CREATE ASYMMETRIC KEY asym_key WITH ALGORITHM = RSA_2048 ENCRYPTION BY PASSWORD = 'password1#!23123';`,
+	);
+	await db.query(`CREATE USER key_user FROM ASYMMETRIC KEY asym_key;`);
+	await db.query(`CREATE APPLICATION ROLE app_role WITH PASSWORD = 'password1#!23123';`);
+	await db.query(`CREATE ROLE app_owner;`);
+	await db.query(`CREATE SCHEMA by_user AUTHORIZATION no_login_user;`);
+	await db.query(`CREATE SCHEMA by_cert_user AUTHORIZATION cert_user;`);
+	await db.query(`CREATE SCHEMA by_key_user AUTHORIZATION key_user;`);
+	await db.query(`CREATE SCHEMA by_app_role AUTHORIZATION app_role;`);
+	await db.query(`CREATE SCHEMA by_role AUTHORIZATION app_owner;`);
+	await db.query(`CREATE SCHEMA by_db_owner AUTHORIZATION db_owner;`);
+	await db.query(`CREATE TABLE by_app_role.a_items (id INT);`);
+	await db.query(`CREATE TABLE by_cert_user.b_items (id INT);`);
+	await db.query(`CREATE TABLE by_db_owner.c_items (id INT);`);
+	await db.query(`CREATE TABLE by_key_user.d_items (id INT);`);
+	await db.query(`CREATE TABLE by_role.e_items (id INT);`);
+	await db.query(`CREATE TABLE by_user.f_items (id INT);`);
+
+	const { schemas, tables } = await fromDatabaseForDrizzle(
+		db,
+		() => true,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	// built-in db_owner ... db_denydatawriter schemas are not introspected
+	expect([...schemas, ...tables]).toStrictEqual([
+		{ entityType: 'schemas', name: 'by_app_role' },
+		{ entityType: 'schemas', name: 'by_cert_user' },
+		{ entityType: 'schemas', name: 'by_db_owner' },
+		{ entityType: 'schemas', name: 'by_key_user' },
+		{ entityType: 'schemas', name: 'by_role' },
+		{ entityType: 'schemas', name: 'by_user' },
+		{ entityType: 'tables', name: 'a_items', schema: 'by_app_role' },
+		{ entityType: 'tables', name: 'b_items', schema: 'by_cert_user' },
+		{ entityType: 'tables', name: 'c_items', schema: 'by_db_owner' },
+		{ entityType: 'tables', name: 'd_items', schema: 'by_key_user' },
+		{ entityType: 'tables', name: 'e_items', schema: 'by_role' },
+		{ entityType: 'tables', name: 'f_items', schema: 'by_user' },
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6564
+test.skipIf(postponed)('Issue No 6564', async () => {
+	await db.query(`create table t (id int primary key, a nvarchar(3), c as (a))`);
+
+	// the test runs in a transaction, so the user without VIEW DEFINITION is impersonated on the same connection,
+	// a new connection would not see the uncommitted table
+	await db.query(`create user no_view_definition without login`);
+	await db.query(`grant select on t to no_view_definition`);
+	await db.query(`execute as user = 'no_view_definition'`);
+
+	try {
+		const res = await db.query(`select HAS_PERMS_BY_NAME(DB_NAME(), 'DATABASE', 'VIEW DEFINITION')`);
+		expect(res).toStrictEqual([{ '': 0 }]);
+
+		const { pushSqlStatements, generateSqlStatements, fromFileDDL, introspectDDL } = await diffIntrospect(
+			db,
+			{},
+			'issue-6564',
+		);
+
+		expect(pushSqlStatements).toStrictEqual([]);
+		expect(generateSqlStatements).toStrictEqual([]);
+		expect(fromFileDDL.columns.list()).toStrictEqual([]);
+		expect(introspectDDL.columns.list()).toStrictEqual([]);
+	} finally {
+		// revert execute as user = 'no_view_definition'
+		await db.query(`revert`);
+	}
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6410
+test('Issue 6410', async () => {
+	await db.query(`CREATE SCHEMA [Lookup];`);
+	await db.query(
+		`CREATE TABLE [Lookup].[Color]
+(
+    [ColorId] VARCHAR(10) NOT NULL,
+        CONSTRAINT [PK_Color_ColorId] PRIMARY KEY ([ColorId]), 
+    [Name] VARCHAR(100) NOT NULL,
+        CONSTRAINT [CK_Color_Name_not_blank_string] CHECK (LEN([Name]) > 0), 
+        CONSTRAINT [UQ_Color_Name] UNIQUE ([Name]), 
+ )`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, fromFileDDL, introspectDDL } = await diffIntrospect(
+		db,
+		{},
+		'issue-6410',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+
+	const expectedUnique = {
+		columns: [
+			'Name',
+		],
+		entityType: 'uniques',
+		name: 'UQ_Color_Name',
+		nameExplicit: true,
+		schema: 'Lookup',
+		table: 'Color',
+	};
+	const expectedCheck = {
+		entityType: 'checks',
+		name: 'CK_Color_Name_not_blank_string',
+		schema: 'Lookup',
+		table: 'Color',
+		value: '(len([Name])>(0))',
+	};
+	expect(fromFileDDL.uniques.one({ name: 'UQ_Color_Name' })).toStrictEqual(expectedUnique);
+	expect(fromFileDDL.checks.one({ name: 'CK_Color_Name_not_blank_string' })).toStrictEqual(expectedCheck);
+	expect(introspectDDL.uniques.one({ name: 'UQ_Color_Name' })).toStrictEqual(expectedUnique);
+	expect(introspectDDL.checks.one({ name: 'CK_Color_Name_not_blank_string' })).toStrictEqual(expectedCheck);
 });

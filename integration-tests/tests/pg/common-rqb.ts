@@ -1,8 +1,10 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, defineRelations, eq, inArray, not, sql } from 'drizzle-orm';
+import { postponed } from '@drizzle/test-utils';
+import { and, defineRelations, eq, exists, inArray, not, sql } from 'drizzle-orm';
 import type { AnyPgColumn, PgColumnBuilder } from 'drizzle-orm/pg-core';
 import {
 	bigint,
+	customType,
 	decimal,
 	index,
 	integer,
@@ -1045,7 +1047,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
 		// postgresjs returns strings for itemCount but other drivers return numbers
-		test.skipIf(Date.now() < +new Date('2026-11-24')).concurrent(
+		test.skipIf(postponed).concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = pgTable('rqb_order_item_19', {
@@ -1393,6 +1395,8 @@ export function tests(test: Test) {
 		}));
 
 		const recordsQuery = db.query.candidates.findMany({
+			// `created_on` would be selected through the driver's own cast codec - not what's tested here
+			columns: { createdOn: false },
 			extras: {
 				activeJobs: db
 					.$count(
@@ -1417,7 +1421,7 @@ export function tests(test: Test) {
 				'CLOSED',
 			],
 			sql:
-				'select "d0"."id" as "id", "d0"."created_on" as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in ($1, $2)))))) as "activeJobs" from "candidates" as "d0"',
+				'select "d0"."id" as "id", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in ($1, $2)))))) as "activeJobs" from "candidates" as "d0"',
 		});
 	});
 
@@ -1543,5 +1547,251 @@ export function tests(test: Test) {
 		const res2 = await db.select().from(corrupt_jsonb_demo);
 
 		expect(res2).toStrictEqual([{ id: 1, data: { a: 1 } }]);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/6580
+	test.concurrent('issue 6580. correlated exists with root table column from RAW callback', async ({ createDB, push }) => {
+		const rootTable = pgTable('root_table_6580_callback', {
+			id: uuid().primaryKey(),
+			relatedId: uuid('related_id').notNull(),
+		});
+		const accountTable = pgTable('account_table_6580_callback', {
+			id: uuid().primaryKey(),
+			rootId: uuid('root_id').notNull(),
+			provider: text().notNull(),
+		});
+
+		await push({ rootTable, accountTable });
+		const db = createDB({ rootTable, accountTable });
+
+		const rootId = '550e8400-e29b-41d4-a716-446655440000';
+		await db.insert(rootTable).values([
+			{ id: rootId, relatedId: rootId },
+			{ id: '550e8400-e29b-41d4-a716-446655440001', relatedId: rootId },
+		]);
+		await db.insert(accountTable).values({
+			id: '550e8400-e29b-41d4-a716-446655440002',
+			rootId,
+			provider: 'github',
+		});
+
+		const result = await db.query.rootTable.findFirst({
+			where: {
+				id: rootId,
+				RAW: (root) =>
+					exists(
+						db.select({ id: accountTable.id }).from(accountTable).where(
+							and(eq(accountTable.provider, 'github'), eq(accountTable.rootId, root.id)),
+						),
+					),
+			},
+		});
+
+		expect(result).toStrictEqual({ id: rootId, relatedId: rootId });
+	});
+
+	// Nothing of one relational query may leak into the next one of the same shape: each shape below is run several
+	// times, with other values each time
+	test.concurrent('RQB v2 one shape run again with other values', async ({ createDB, push }) => {
+		const owners = pgTable('rqb_shape_owners', {
+			id: integer().primaryKey().notNull(),
+			name: text().notNull(),
+			score: integer().notNull(),
+			tags: text().array().notNull(),
+			meta: jsonb().$type<{ k: number; group: number; list: number[] }>().notNull(),
+			createdAt: timestamp('created_at', { mode: 'date', precision: 3 }).notNull(),
+		});
+		const items = pgTable('rqb_shape_items', {
+			id: integer().primaryKey().notNull(),
+			ownerId: integer('owner_id').notNull(),
+			label: text().notNull(),
+		});
+
+		await push({ owners, items });
+		const db = createDB({ owners, items }, (r) => ({
+			owners: { items: r.many.items({ from: r.owners.id, to: r.items.ownerId }) },
+			items: { owner: r.one.owners({ from: r.items.ownerId, to: r.owners.id }) },
+		}));
+
+		const ownerRows = [1, 2, 3, 4, 5, 6].map((i) => ({
+			id: i,
+			name: `owner${i}`,
+			score: i * 10,
+			tags: [`t${i}`, i % 2 ? 'odd' : 'even'],
+			meta: { k: i, group: i % 3, list: [i, i + 1] },
+			createdAt: new Date(1e12 + i * 1000),
+		}));
+		const itemRows = ownerRows.flatMap((owner) =>
+			[1, 2, 3].map((j) => ({ id: owner.id * 10 + j, ownerId: owner.id, label: `l${j}` }))
+		);
+		await db.insert(owners).values(ownerRows);
+		await db.insert(items).values(itemRows);
+
+		const byId = { id: 'asc' } as const;
+		for (let round = 0; round < 3; ++round) {
+			for (const i of [1, 2, 3, 4, 5, 6]) {
+				const owner = ownerRows[i - 1]!;
+				const parity = i % 2 ? 'odd' : 'even';
+
+				expect(await db.query.owners.findFirst({ where: { id: i } })).toStrictEqual(owner);
+				expect(await db.query.owners.findFirst({ where: { name: `owner${i}` } })).toStrictEqual(owner);
+
+				expect(await db.query.owners.findMany({ where: { score: { gt: i * 10, lte: i * 10 + 20 } }, orderBy: byId }))
+					.toStrictEqual(ownerRows.filter((row) => row.score > i * 10 && row.score <= i * 10 + 20));
+
+				expect(await db.query.owners.findMany({ where: { name: { like: `%${i}` } } })).toStrictEqual([owner]);
+
+				expect(await db.query.owners.findMany({ where: { id: { in: [i, 7 - i] } }, orderBy: byId }))
+					.toStrictEqual(ownerRows.filter((row) => row.id === i || row.id === 7 - i));
+
+				expect(await db.query.owners.findMany({ where: { createdAt: { gt: owner.createdAt } }, orderBy: byId }))
+					.toStrictEqual(ownerRows.filter((row) => row.id > i));
+
+				// an array and a JSON value are one param each, whatever is inside
+				expect(await db.query.owners.findMany({ where: { tags: { arrayContains: [`t${i}`] } } }))
+					.toStrictEqual([owner]);
+				expect(await db.query.owners.findMany({ where: { tags: { arrayContains: [parity, `t${i}`] } } }))
+					.toStrictEqual([owner]);
+				expect(await db.query.owners.findMany({ where: { tags: { arrayOverlaps: [parity] } }, orderBy: byId }))
+					.toStrictEqual(ownerRows.filter((row) => row.id % 2 === i % 2));
+				expect(await db.query.owners.findMany({ where: { tags: { eq: owner.tags } } })).toStrictEqual([owner]);
+				expect(await db.query.owners.findMany({ where: { meta: { eq: owner.meta } } })).toStrictEqual([owner]);
+
+				expect(await db.query.owners.findMany({ orderBy: byId, limit: i, offset: 6 - i }))
+					.toStrictEqual(ownerRows.slice(6 - i, 6));
+
+				expect(
+					await db.query.owners.findMany({
+						where: { OR: [{ id: i }, { AND: [{ score: { gte: 50 } }, { NOT: { name: `owner${i}` } }] }] },
+						orderBy: byId,
+					}),
+				).toStrictEqual(ownerRows.filter((row) => row.id === i || (row.score >= 50 && row.id !== i)));
+
+				const label = `l${(i % 3) + 1}`;
+				expect(
+					await db.query.owners.findFirst({
+						where: { id: i },
+						columns: { id: true, name: true },
+						with: { items: { where: { label: { ne: label } }, orderBy: byId, limit: (i % 2) + 1 } },
+					}),
+				).toStrictEqual({
+					id: i,
+					name: owner.name,
+					items: itemRows.filter((row) => row.ownerId === i && row.label !== label).slice(0, (i % 2) + 1),
+				});
+
+				expect(await db.query.owners.findMany({ where: { items: { id: i * 10 + 1 } } })).toStrictEqual([owner]);
+
+				expect(
+					await db.query.items.findFirst({ where: { id: i * 10 + 2 }, with: { owner: { columns: { name: true } } } }),
+				)
+					.toStrictEqual({ id: i * 10 + 2, ownerId: i, label: 'l2', owner: { name: owner.name } });
+			}
+		}
+	});
+
+	// Values that decide the query, not only its params. Each sequence was once answered with the query of the
+	// value before it, so every one is run from each of its values first, and then again
+	test.concurrent('RQB v2 values that change the query, in sequences', async ({ createDB, push }) => {
+		// SQL around the value for some values, the value itself for the rest
+		const lowered = customType<{ data: string }>({
+			dataType: () => 'text',
+			toDriver: (value) => (value.startsWith('raw:') ? sql`lower(${value.slice(4)})` : value),
+		});
+		const rows = pgTable('rqb_sequence_rows', {
+			id: integer().primaryKey().notNull(),
+			slug: lowered().notNull(),
+			bio: text(),
+			meta: jsonb().$type<unknown>().notNull(),
+			tags: text().array().notNull(),
+		});
+
+		await push({ rows });
+		const db = createDB({ rows }, () => ({}));
+
+		const data = [
+			{ id: 1, slug: 's1', bio: null, meta: { a: { b: [1] } }, tags: ['a'] },
+			{ id: 2, slug: 's2', bio: 'b2', meta: { a: { b: [2] } }, tags: ['b'] },
+			{ id: 3, slug: 's3', bio: null, meta: [1, 'a'], tags: ['a', 'b'] },
+			{ id: 4, slug: 's4', bio: 'b4', meta: [1, 'a', 2, 'b'], tags: ['c', 'd'] },
+			{ id: 5, slug: 's5', bio: null, meta: [1, 2], tags: ['a', 'c'] },
+			{ id: 6, slug: 's6', bio: 'b6', meta: [3, 4], tags: ['d', 'c'] },
+		];
+		await db.insert(rows).values(data);
+
+		const ids = async (config: Record<string, unknown>) => {
+			const found = await db.query.rows.findMany(
+				{ columns: { id: true }, orderBy: { id: 'asc' }, ...config } as any,
+			);
+			return (found as { id: number }[]).map((row) => row.id);
+		};
+		const idsWhere = (keep: (row: typeof data[number]) => boolean) => data.filter(keep).map((row) => row.id);
+
+		/** Runs `check` over the values starting from each of them in turn, twice around */
+		const everyOrder = async <T>(values: T[], check: (value: T) => Promise<void>) => {
+			for (let first = 0; first < values.length; ++first) {
+				for (let i = 0; i < values.length * 2; ++i) await check(values[(first + i) % values.length]!);
+			}
+		};
+
+		// a custom type that gives SQL for some values
+		const slugOf = (value: string) => (value.startsWith('raw:') ? value.slice(4).toLowerCase() : value);
+		await everyOrder(['s1', 'raw:S2', 's3', 'raw:S4', 'missing', 'raw:MISSING'], async (value) => {
+			const slug = slugOf(value);
+			expect(await ids({ where: { slug: value } }), value).toStrictEqual(idsWhere((row) => row.slug === slug));
+			expect(await ids({ where: { slug: { ne: value } } }), value)
+				.toStrictEqual(idsWhere((row) => row.slug !== slug));
+			expect(await ids({ where: { slug: { in: [value, 'raw:S6'] } } }), value)
+				.toStrictEqual(idsWhere((row) => row.slug === slug || row.slug === 's6'));
+			expect(await ids({ where: { id: { gt: 1 }, slug: value }, limit: 5 }), value)
+				.toStrictEqual(idsWhere((row) => row.id > 1 && row.slug === slug));
+		});
+
+		// `isNull` / `isNotNull` given a number or a string: a falsy one means no filter
+		await everyOrder<unknown>([1, 0, 2, 0, 'x', ''], async (value) => {
+			expect(await ids({ where: { bio: { isNull: value } } }), String(value))
+				.toStrictEqual(idsWhere((row) => !value || row.bio === null));
+			expect(await ids({ where: { id: { lte: 5 }, bio: { isNotNull: value } } }), String(value))
+				.toStrictEqual(idsWhere((row) => row.id <= 5 && (!value || row.bio !== null)));
+		});
+
+		// JSON values that differ deep inside, and JSON arrays of other lengths and element types
+		await everyOrder(data, async (row) => {
+			expect(await ids({ where: { meta: { eq: row.meta } } }), JSON.stringify(row.meta)).toStrictEqual([row.id]);
+			expect(await ids({ where: { meta: { ne: row.meta }, id: { gt: 0 } } }), JSON.stringify(row.meta))
+				.toStrictEqual(idsWhere((other) => other.id !== row.id));
+		});
+
+		// array values of other lengths and contents
+		await everyOrder(data, async (row) => {
+			expect(await ids({ where: { tags: { eq: row.tags } } }), row.tags.join()).toStrictEqual([row.id]);
+			expect(await ids({ where: { tags: { arrayContains: row.tags } } }), row.tags.join())
+				.toStrictEqual(idsWhere((other) => row.tags.every((tag) => other.tags.includes(tag))));
+			expect(await ids({ where: { tags: { arrayOverlaps: row.tags } } }), row.tags.join())
+				.toStrictEqual(idsWhere((other) => row.tags.some((tag) => other.tags.includes(tag))));
+		});
+
+		// lists of every length, short and long
+		for (const length of [1, 2, 3, 2, 33, 40, 200, 1, 33]) {
+			const list = new Array(length).fill(0).map((_, i) => i + 1);
+			expect(await ids({ where: { id: { in: list } } }), `in ${length}`)
+				.toStrictEqual(idsWhere((row) => row.id <= length));
+			expect(await ids({ where: { id: { notIn: list } } }), `notIn ${length}`)
+				.toStrictEqual(idsWhere((row) => row.id > length));
+		}
+
+		// `limit` and `offset`, zero among them
+		await everyOrder([0, 3, 0, 6, 1], async (value) => {
+			expect(await ids({ limit: value }), `limit ${value}`).toStrictEqual(data.slice(0, value).map((row) => row.id));
+			expect(await ids({ limit: 2, offset: value }), `offset ${value}`)
+				.toStrictEqual(data.slice(value, value + 2).map((row) => row.id));
+		});
+
+		// the same filter with its keys in another order
+		for (const i of [1, 2, 3, 4, 5, 6, 1]) {
+			const expected = idsWhere((row) => row.id >= i && row.slug !== `s${i}`).slice(0, 3);
+			expect(await ids({ where: { id: { gte: i }, slug: { ne: `s${i}` } }, limit: 3 })).toStrictEqual(expected);
+			expect(await ids({ limit: 3, where: { slug: { ne: `s${i}` }, id: { gte: i } } })).toStrictEqual(expected);
+		}
 	});
 }

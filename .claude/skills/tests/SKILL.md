@@ -15,7 +15,7 @@ This monorepo's tests fall into two buckets: **unit-style** (no DB, run anywhere
 
 **2. Latent trigger: legacy `?? createDockerDB()` fallbacks are still wired up.** Many `integration-tests/tests/{pg,mysql,cockroach,mssql,bun,seeder}/*.test.ts` files contain `process.env.X ?? await createDockerDB()`. Running `pnpm --filter integration-tests test:*` without the matching env var will silently spin up a container via `dockerode` — even if you've already brought DBs up via `compose/dockers.sh`. The same fallthrough exists in `drizzle-kit/tests/<dialect>/mocks.ts::prepareTestDatabase()`. **Setting env vars is not optional — it is what prevents Docker spawn.** Always export the connection string before invoking these scripts, even when "just running the suite to see what passes". If you discover a new test using this pattern, flag it as tech debt — do not extend it.
 
-**3. Agent narration must not tempt operators into `docker run`.** When you (or a spawned subagent) summarize how to run a new DB-backed test, **always** reference `bash compose/dockers.sh up <dialect>` plus the connection-string env var. Never write "this test starts a postgres container" or suggest `docker run` in a final message — the user pattern-matches that as "tests spawned Docker again", even when the underlying code is well-behaved.
+**3. Agent narration must not tempt operators into `docker run`.** When you (or a spawned subagent) summarize how to run a new DB-backed test, **always** reference `bash compose/dockers.sh up <image>` plus the connection-string env var. Never write "this test starts a postgres container" or suggest `docker run` in a final message — the user pattern-matches that as "tests spawned Docker again", even when the underlying code is well-behaved.
 
 **4. Spawned subagents do not inherit this skill.** When delegating any test-writing or test-running work via the Agent tool, paste rules 1–3 verbatim into the subagent prompt. Subagents only see the prompt you give them, not the project's `.claude/skills/` directory. If a subagent's diff adds `import Docker` or its summary tells the operator to `docker run`, that's the failure mode this rule prevents.
 
@@ -50,7 +50,7 @@ Skip if `drizzle-kit/.env` already exists — never overwrite the user's local e
 
 Pick the right script. Most users want one of these:
 
-| Command | Cwd | Needs DB? | Compose dialect(s) | Env vars consumed |
+| Command | Cwd | Needs DB? | Compose image(s) | Env vars consumed |
 |---|---|---|---|---|
 | `pnpm --filter drizzle-kit test` | repo root | no | — | (TEST_CONFIG_PATH_PREFIX) |
 | `pnpm --filter drizzle-kit test:types` | repo root | no | — | — |
@@ -67,9 +67,10 @@ Pick the right script. Most users want one of these:
 | `pnpm --filter integration-tests test:mysql` | repo root | yes | `mysql` | `MYSQL_CONNECTION_STRING` |
 
 Notes:
-- `drizzle-kit test:postgres` runs against PGlite (in-process) **unless** `PG_VERSION` is set. If the user wants to test against real Postgres (e.g., to repro a production-only behavior), set `PG_VERSION=18` (or 17/16) AND have the matching `postgres18` dialect running.
+- `drizzle-kit test:postgres` runs against PGlite (in-process) **unless** `PG_VERSION` is set. If the user wants to test against real Postgres (e.g., to repro a production-only behavior), set `PG_VERSION=18` (or 17/16) AND have the matching `postgres18` image running.
 - `drizzle-kit test:other` mixes pure-vitest sqlite/`other` tests with mysql tests — only the mysql portion needs Docker.
 - `integration-tests` is a separate package with a separate `.env` (`integration-tests/.env`) and different port conventions — do not confuse the two .env files.
+- Every integration-tests common suite (pg, mysql, sqlite, singlestore, dsql, their Effect variants, bun) has `all types … - upstash` tests that **fail** without `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`. Run them against the local Upstash REST API: `bash compose/dockers.sh up upstash`, then `UPSTASH_REDIS_REST_URL=http://localhost:8079` and `UPSTASH_REDIS_REST_TOKEN=drizzle_local_upstash_token` (`integration-tests/.env.example` has both).
 
 ### 3. SingleStore overload — important footgun
 
@@ -82,11 +83,11 @@ The `.env.example` documents this in a comment block. Don't try to "fix" this in
 
 ### 4. Bring up the DBs via `compose/dockers.sh`
 
-Always use `compose/dockers.sh` — never let test mocks spin up Docker via `dockerode`, and never invent ad-hoc `docker run` commands. The script is the single source of truth for "which port is which dialect on", and each compose YAML carries the canonical healthcheck. Spawned subagents must be told this explicitly because they don't see this skill by default.
+Always use `compose/dockers.sh` — never let test mocks spin up Docker via `dockerode`, and never invent ad-hoc `docker run` commands. The script is the single source of truth for "which port is which image on", and each compose YAML carries the canonical healthcheck. Spawned subagents must be told this explicitly because they don't see this skill by default.
 
 ```bash
-# Start exactly the dialects the test needs:
-bash compose/dockers.sh up <dialect> [<dialect>...]
+# Start exactly the images the test needs:
+bash compose/dockers.sh up <image> [<image>...]
 
 # Examples:
 bash compose/dockers.sh up postgres                    # for PG_CONNECTION_STRING tests
@@ -95,17 +96,18 @@ bash compose/dockers.sh up mysql                       # for test:other (mysql s
 bash compose/dockers.sh up cockroach                   # for test:cockroach
 bash compose/dockers.sh up mssql                       # for test:mssql
 bash compose/dockers.sh up singlestore                 # for test:singlestore (after .env swap)
-bash compose/dockers.sh up postgres mysql cockroach    # multiple dialects in one go
+bash compose/dockers.sh up postgres mysql cockroach    # multiple images in one go
 
-# No-args = bring up every supported dialect (postgres, postgres16/17/18, postgres-postgis,
-# postgres-vector, mysql, mariadb, cockroach, cockroach-many, mssql, singlestore, singlestore-many).
-# Heavy on macOS — ~10GB RAM peak. Prefer naming the dialects you actually need.
+# No-args = bring up every supported image (postgres, postgres16/17/18, postgres-postgis,
+# postgres-vector, mysql, mariadb, cockroach, cockroach-many, mssql, singlestore, singlestore-many,
+# postgres-http-gateway, aws-data-api, neon, turso, planetscale, upstash).
+# Heavy on macOS — ~10GB RAM peak. Prefer naming the images you actually need.
 bash compose/dockers.sh up
 ```
 
-The `up` subcommand runs `docker compose ... up -d --wait --wait-timeout 120` and then `bash compose/wait.sh <dialect>` so the script returns only after the host-side TCP probe succeeds. **Tests are safe to launch immediately after the script returns.** No `sleep` loops needed.
+The `up` subcommand runs `docker compose ... up -d --wait --wait-timeout 120` and then `bash compose/wait.sh <image>` so the script returns only after the host-side TCP probe succeeds. **Tests are safe to launch immediately after the script returns.** No `sleep` loops needed.
 
-If `bash compose/dockers.sh up <dialect>` reports `Unknown dialect '...'`, the dialect name is wrong; the script prints the valid list. Common mistakes: `postgres-15` (doesn't exist — only 16/17/18), `singlestore2` (use `singlestore-many`).
+If `bash compose/dockers.sh up <image>` reports `Unknown image '...'`, the image name is wrong; the script prints the valid list. Common mistakes: `postgres-15` (doesn't exist — only 16/17/18), `singlestore2` (use `singlestore-many`).
 
 ### 5. Run the test
 
@@ -120,8 +122,8 @@ Run from the repo root with `--filter`; this respects pnpm workspaces and avoids
 ### 6. Tear down (optional)
 
 ```bash
-bash compose/dockers.sh down <dialect>     # one dialect, wipes its volumes
-bash compose/dockers.sh down               # all dialects
+bash compose/dockers.sh down <image>       # one image, wipes its volumes
+bash compose/dockers.sh down               # all images
 ```
 
 `down` uses `-v` to wipe volumes — test DBs are ephemeral and `mocks.ts` `clear()` recreates the schema each run, so persistent volumes have no value here. Leaving DBs running between iterations is fine and the common workflow during active development.
@@ -152,15 +154,15 @@ Only after ruling out an expired postpone should you start debugging the test lo
 |---|---|---|
 | A previously-passing test suddenly fails with no obvious code change | Expired `.skipIf(Date.now() < +new Date('YYYY-MM-DD'))` postpone — the gate just opened | See "Before debugging" section above; bump the date(s) to one month from today |
 | `process.env.PG18_URL is not set` (or any `_URL`/`_CONNECTION_STRING`) | `drizzle-kit/.env` missing or env var commented out | Run step 1; check the line is uncommented in `drizzle-kit/.env` |
-| `connect ECONNREFUSED 127.0.0.1:55433` (or any port) | DB container not running, or running on the wrong port | `bash compose/dockers.sh up <dialect>`; if it's already up, check `bash compose/dockers.sh ps <dialect>` shows it healthy on the expected port |
+| `connect ECONNREFUSED 127.0.0.1:55433` (or any port) | DB container not running, or running on the wrong port | `bash compose/dockers.sh up <image>`; if it's already up, check `bash compose/dockers.sh ps <image>` shows it healthy on the expected port |
 | Tests hang after starting | Older `dockers.sh` was inline `docker run` with mismatched ports — `git pull` first; the new dispatcher gates on `wait.sh` | `git status` to confirm `compose/dockers.sh` is the dispatcher form, not the old inline form |
 | Singlestore tests connect to MySQL | `MYSQL_CONNECTION_STRING` still points at mysql:3306 | Swap the env var per step 3 (singlestore overload) |
-| `port is already allocated` from `compose up` | Previous container left bound | `bash compose/dockers.sh down <dialect>` then re-up; or `docker ps` to find the stray container |
+| `port is already allocated` from `compose up` | Previous container left bound | `bash compose/dockers.sh down <image>` then re-up; or `docker ps` to find the stray container |
 | `EACCES`/permission errors writing tests/postgres/tmp | Stale tmp dir owned by docker | `rm -rf drizzle-kit/tests/<dialect>/tmp/` and re-run |
 
-## Quick reference: dialect → port → image
+## Quick reference: image → port → Docker image
 
-| Dialect | Port | Image | Compose file |
+| Image | Port | Docker image(s) | Compose file |
 |---|---|---|---|
 | postgres | 55433 | postgres:17-alpine | compose/postgres.yml |
 | postgres16 | 54323 | pgvector/pgvector:pg16 | compose/postgres16.yml |
@@ -175,5 +177,6 @@ Only after ruling out an expired postpone should you start debugging the test lo
 | mssql | 1433 | mcr.microsoft.com/azure-sql-edge | compose/mssql.yml |
 | singlestore | 33307 | singlestoredb-dev:0.2.67 | compose/singlestore.yml |
 | singlestore-many | 3308–3311 | (4× singlestoredb-dev) | compose/singlestore-many.yml |
+| upstash | 8079 | redis:7.4-alpine + hiett/serverless-redis-http:0.0.10 | compose/upstash.yml |
 
 For the connection-string format that pairs with each port, copy the matching line from `drizzle-kit/.env.example` — it's the source of truth and tracks every port/credential change.

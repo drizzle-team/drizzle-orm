@@ -392,6 +392,11 @@ export const fromDatabase = async (
 		});
 	}
 
+	const tablesWithSequences = new Set(dbTablesWithSequences.map((it) => it.name));
+	const tableToIndexList = new Map(
+		Object.entries(tableToIndexColumns).map(([table, indexes]) => [table, Object.values(indexes)]),
+	);
+
 	const columns: InterimColumn[] = [];
 	for (const column of dbTableColumns) {
 		columnsCount += 1;
@@ -408,12 +413,12 @@ export const fromDatabase = async (
 		const isPrimary = column.pk !== 0;
 
 		const columnDefault: Column['default'] = parseDefault(column.columnType, column.defaultValue);
-		const autoincrement = isPrimary && dbTablesWithSequences.some((it) => it.name === column.table);
+		const autoincrement = isPrimary && tablesWithSequences.has(column.table);
 		const pk = tableToPk[column.table];
 		const primaryKey = isPrimary && pk && pk.length === 1;
 		const generated = tableToGenerated[column.table]?.[column.name] || null;
 
-		const tableIndexes = Object.values(tableToIndexColumns[column.table] || {});
+		const tableIndexes = tableToIndexList.get(column.table) ?? [];
 		// implicit indexes carry no sql of their own, their constraint is declared in the table ddl
 		const parsedDdl = tableToParsedDdl[column.table];
 

@@ -1,26 +1,17 @@
-import {
-	castToDouble,
-	castToText,
-	floatFromDouble,
-	refineGenericSingleStoreCodecs,
-	vectorNormalizer,
-} from '~/singlestore-core/codecs.ts';
+import { refineGenericSingleStoreCodecs, vectorNormalizer } from '~/singlestore-core/codecs.ts';
 
 export const singleStoreCodecs = refineGenericSingleStoreCodecs({
 	serial: {
-		cast: castToText,
 		normalize: Number,
 	},
 	bigint: {
-		cast: castToText,
 		normalize: BigInt,
 	},
 	'bigint:number': {
-		cast: castToText,
 		normalize: Number,
 	},
 	'bigint:string': {
-		cast: castToText,
+		normalize: String,
 	},
 	boolean: {
 		normalize: (value: number) => value === 1,
@@ -39,10 +30,6 @@ export const singleStoreCodecs = refineGenericSingleStoreCodecs({
 	},
 	'decimal:bigint': {
 		normalize: BigInt,
-	},
-	float: {
-		cast: castToDouble,
-		normalize: floatFromDouble,
 	},
 	binary: {
 		normalize: (value: Buffer) => value.toString(),

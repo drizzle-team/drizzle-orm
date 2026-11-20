@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
-import { getTableConfig, int, mysqlTable, text } from 'drizzle-orm/mysql-core';
-import { drizzle } from 'drizzle-orm/mysql2';
+import { refineCodecs } from 'drizzle-orm/codecs';
+import { boolean, getTableConfig, int, mediumtext, mysqlTable, text } from 'drizzle-orm/mysql-core';
+import { drizzle, mysql2Codecs } from 'drizzle-orm/mysql2';
 import type { MySql2Database, MySql2RawExecuteResult } from 'drizzle-orm/mysql2';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -8,13 +9,99 @@ import { createPool as createCallbackPool } from 'mysql2';
 import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
 import { createConnection, createPool } from 'mysql2/promise';
 import { describe, expect, expectTypeOf } from 'vitest';
+import { allTypesDataWith, makeAllTypes } from '../all-types';
 import { mysqlTest as test } from '../instrumentation';
 import { tests } from '../mysql-common';
-import { runTests } from '../mysql-common-cache';
 import { usersMigratorTable } from '../schema2';
+import { allTypesWithReplacementsSkips, allTypesWithReplacementsTests } from '../unsupported-types';
 
-runTests('mysql', test);
-tests(test);
+// MySQL rounds `float` to 6 significant digits in the text protocol the driver uses, with no per-query alternative
+// (a driver quirk): all-types tests are redefined with a `float` value that rounds to itself
+tests(test, new Set(allTypesWithReplacementsSkips));
+allTypesWithReplacementsTests(test, { float: 1.0486 });
+
+test('all types - client with custom type options', async ({ push, client: { database } }) => {
+	const client = createPool({
+		uri: process.env['MYSQL_CONNECTION_STRING']!,
+		database,
+		connectionLimit: 1,
+		decimalNumbers: true,
+		jsonStrings: true,
+	});
+	const db = drizzle({ client });
+
+	const table = makeAllTypes('all_types_client_options');
+	const allTypesData = allTypesDataWith({ float: 1.0486 });
+	await push({ table });
+
+	const originalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	try {
+		for (const tz of ['America/Los_Angeles', 'Pacific/Kiritimati']) {
+			process.env['TZ'] = tz;
+
+			await db.delete(table);
+			await db.insert(table).values(allTypesData);
+
+			expect(await db.select().from(table), tz).toStrictEqual([allTypesData]);
+		}
+	} finally {
+		process.env['TZ'] = originalTz;
+		await client.end();
+	}
+});
+
+test('custom codecs for client with custom typeCast (changelog example)', async ({ push, client: { database } }) => {
+	const client = createPool({
+		uri: process.env['MYSQL_CONNECTION_STRING']!,
+		database,
+		connectionLimit: 1,
+		typeCast: (field, next) => {
+			// `tinyint(1)` is returned as `boolean` instead of `number`
+			if (field.type === 'TINY' && field.length === 1) return field.string() === '1';
+			// `BLOB`-typed fields (`text`, `blob` columns) are returned as `Buffer` instead of `string`
+			if (field.type === 'BLOB') return field.buffer();
+			return next();
+		},
+	});
+	const fromBuffer = (value: Buffer) => value.toString('utf8');
+	const db = drizzle({
+		client,
+		codecs: refineCodecs(mysql2Codecs, {
+			// default `boolean` codec expects `0` / `1` - client's output is already final
+			boolean: { normalize: undefined },
+			// text codecs have no decoders by default - client's output is expected to be a string
+			text: { normalize: fromBuffer },
+			mediumtext: { normalize: fromBuffer },
+		}),
+	});
+	const defaultDb = drizzle({ client });
+
+	const table = mysqlTable('custom_codecs_type_cast', {
+		id: int().primaryKey(),
+		flag: boolean().notNull(),
+		text: text().notNull(),
+		mediumtext: mediumtext().notNull(),
+	});
+	await push({ table });
+
+	try {
+		await db.insert(table).values([
+			{ id: 1, flag: true, text: 'text', mediumtext: 'mediumtext ✓' },
+			{ id: 2, flag: false, text: '', mediumtext: '' },
+		]);
+
+		expect(await db.select().from(table).orderBy(table.id)).toStrictEqual([
+			{ id: 1, flag: true, text: 'text', mediumtext: 'mediumtext ✓' },
+			{ id: 2, flag: false, text: '', mediumtext: '' },
+		]);
+		expect(await defaultDb.select().from(table).orderBy(table.id)).toStrictEqual([
+			{ id: 1, flag: false, text: Buffer.from('text'), mediumtext: Buffer.from('mediumtext ✓') },
+			{ id: 2, flag: false, text: Buffer.from(''), mediumtext: Buffer.from('') },
+		]);
+	} finally {
+		await client.end();
+	}
+});
 
 describe('migrator', () => {
 	test('migrator', async ({ db }) => {
@@ -257,7 +344,7 @@ describe('migrator', () => {
 	});
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/5972
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as MySql2Database;
 	const table = sql.identifier('raw_execute_types');
@@ -293,6 +380,7 @@ test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	await db.execute<never>(sql`drop table ${table}`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5972
 describe('driver init', () => {
 	const resolveConfig = (client: any) => {
 		const cfg = client.config ?? client.pool?.config ?? client.connection?.config;

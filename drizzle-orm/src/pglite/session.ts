@@ -1,39 +1,23 @@
 import type { ParserOptions, PGlite, Results, Row, Transaction } from '@electric-sql/pglite';
-import { types } from '@electric-sql/pglite';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession } from '~/pg-core/async/session.ts';
 import { PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import { pgRawTextOids } from '~/pg-core/codecs.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
-export type PgliteClient = PGlite;
+const rawText = (value: string) => value;
 
-const parsers: ParserOptions = {
-	[types.TIMESTAMP]: (value) => value,
-	[types.TIMESTAMPTZ]: (value) => value,
-	[types.INTERVAL]: (value) => value,
-	[types.DATE]: (value) => value,
-	// numeric[]
-	[1231]: (value) => value,
-	// timestamp[]
-	[1115]: (value) => value,
-	// timestamp with timezone[]
-	[1185]: (value) => value,
-	// interval[]
-	[1187]: (value) => value,
-	// date[]
-	[1182]: (value) => value,
-};
+export const pgliteRawTextParsers: ParserOptions = Object.fromEntries([...pgRawTextOids].map((oid) => [oid, rawText]));
+
+export type PgliteClient = PGlite;
 
 export interface PgliteSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -41,7 +25,6 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 	static override readonly [entityKind]: string = 'PgliteSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: PgliteClient | Transaction,
@@ -51,21 +34,18 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const executor = async (params?: unknown[]) => {
 			return this.client.query(query.sql, params, {
 				rowMode: mode === 'arrays' ? 'array' : 'object',
-				parsers,
+				parsers: mapper && mode !== 'call' ? pgliteRawTextParsers : undefined,
 			}).then((r) => mode === 'raw' ? r : r.rows);
 		};
 
@@ -75,9 +55,6 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

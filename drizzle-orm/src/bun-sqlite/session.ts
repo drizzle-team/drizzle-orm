@@ -1,7 +1,6 @@
 /// <reference types="bun-types" />
 
 import type { Changes, Database } from 'bun:sqlite';
-import type { QueryMetadata } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
@@ -21,13 +20,14 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface SQLiteBunSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
 export type SQLiteBunRunResult = Changes;
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
+
+const safeIntegersMark = '\n/* drizzle: safe integers */';
 
 export class SQLiteBunSession<TRelations extends AnyRelations>
 	extends SQLiteAsyncSession<'sync', SQLiteBunRunResult, TRelations>
@@ -56,11 +56,16 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
 	): SQLiteAsyncPreparedQuery<T & { run: SQLiteBunRunResult }> {
 		let stmt: ReturnType<typeof this.client.query>;
 		try {
-			stmt = this.client.query(query.sql);
+			if (mapper) {
+				// integers past the safe integer range lose precision as numbers: queries decoded by codecs read them as
+				// bigints. `query()` statements are cached per SQL text and finalized by the database, the comment gives
+				// them a cache entry of their own, so `safeIntegers` doesn't leak into other queries with the same SQL
+				stmt = this.client.query(query.sql + safeIntegersMark);
+				stmt.safeIntegers(true);
+			} else stmt = this.client.query(query.sql);
 		} catch (e) {
 			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
@@ -86,9 +91,6 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			undefined,
-			queryMetadata,
-			undefined,
 			this.options.paramsInErrors,
 		);
 	}

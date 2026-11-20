@@ -1,0 +1,4 @@
+input.ts:6:3 error TSPG018: interpolations inside SQL string literals are not supported
+    sql`UPDATE owners SET name = '${name}' WHERE id = ${id}`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  hint: '${x}' would emit the text p_x, not the value — interpolations lower to bare identifiers (invariant 3)

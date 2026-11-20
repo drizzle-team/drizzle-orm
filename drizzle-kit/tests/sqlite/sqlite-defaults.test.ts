@@ -63,9 +63,11 @@ test('text', async () => {
 	// raw default sql for the line below: ('text''\text"')
 	const res3 = await diffDefault(_, text().default('text\'\\text"'), `'text''\\\\text"'`);
 	const res4 = await diffDefault(_, text({ enum: ['one', 'two', 'three'] }).default('one'), `'one'`);
-	const res5 = await diffDefault(_, text().default(sql`CURRENT_TIME`), 'CURRENT_TIME');
-	const res6 = await diffDefault(_, text().default(sql`CURRENT_DATE`), 'CURRENT_DATE');
-	const res7 = await diffDefault(_, text().default(sql`CURRENT_TIMESTAMP`), 'CURRENT_TIMESTAMP');
+	const res5 = await diffDefault(_, text().default(sql`CURRENT_TIME`), 'CURRENT_TIME', null, { recreateOnAdd: true });
+	const res6 = await diffDefault(_, text().default(sql`CURRENT_DATE`), 'CURRENT_DATE', null, { recreateOnAdd: true });
+	const res7 = await diffDefault(_, text().default(sql`CURRENT_TIMESTAMP`), 'CURRENT_TIMESTAMP', null, {
+		recreateOnAdd: true,
+	});
 	const res8 = await diffDefault(_, text({ mode: 'json' }).default({ key: 'value' }), `'{"key":"value"}'`);
 	const res9 = await diffDefault(
 		_,

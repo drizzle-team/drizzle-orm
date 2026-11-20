@@ -1,12 +1,11 @@
-import type { QueryResult, ShapeSpec } from '@drizzle-team/minipg';
-import type { AuroraClient } from '@drizzle-team/minipg/aurora';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryResult, ShapeSpec } from '#postgres';
+import type { AuroraClient } from '#postgres/aurora';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { setTransactionSnapshotSQL } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
@@ -15,7 +14,6 @@ export type PostgresAuroraClient = AuroraClient;
 
 export interface PostgresAuroraSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -25,7 +23,6 @@ export class PostgresAuroraSession<
 	static override readonly [entityKind]: string = 'PostgresAuroraSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: PostgresAuroraClient,
@@ -35,16 +32,13 @@ export class PostgresAuroraSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 		shape?: ShapeSpec,
 	) {
 		const executor = async (params?: unknown[]) => {
@@ -62,9 +56,6 @@ export class PostgresAuroraSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}
@@ -88,7 +79,7 @@ export class PostgresAuroraSession<
 			);
 
 			if (typeof config?.snapshot === 'string') {
-				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
+				await tx.execute(setTransactionSnapshotSQL(config.snapshot));
 			}
 
 			return transaction(tx);

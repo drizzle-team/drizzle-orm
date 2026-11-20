@@ -51,13 +51,15 @@ async function processFile(file: string, ext: string) {
 	await fs.writeFile(file, code);
 }
 
-// Process CJS files
-const cjsGlob = new Glob('dist.new/**/*.{cjs,d.cts}');
-const cjsFiles: string[] = [];
-for await (const file of cjsGlob.scan('.')) {
-	cjsFiles.push(file);
+if (process.argv.includes('--dual')) {
+	// Process CJS files
+	const cjsGlob = new Glob('dist.new/**/*.{cjs,d.cts}');
+	const cjsFiles: string[] = [];
+	for await (const file of cjsGlob.scan('.')) {
+		cjsFiles.push(file);
+	}
+	await Promise.all(cjsFiles.map((file) => processFile(file, '.cjs')));
 }
-await Promise.all(cjsFiles.map((file) => processFile(file, '.cjs')));
 
 // Process ESM files
 const esmGlob = new Glob('dist.new/**/*.{js,d.ts}');

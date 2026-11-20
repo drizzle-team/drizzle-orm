@@ -4,6 +4,7 @@ import { pushSchema } from 'src/payload/mssql';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { prepareTestDatabase, type TestDatabase } from './mocks';
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6053
 describe.skipIf(!process.env['MSSQL_CONNECTION_STRING'])('payload pushSchema', () => {
 	let _: TestDatabase;
 

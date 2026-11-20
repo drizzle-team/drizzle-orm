@@ -35,6 +35,7 @@ describe.concurrent('casing', () => {
 		expect(toSnakeCase('العمود')).toEqual('العمود');
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6082
 	it('preserves caseless scripts when transforming to camel case', ({ expect }) => {
 		expect(toCamelCase('칼럼명')).toEqual('칼럼명');
 		expect(toCamelCase('日本語')).toEqual('日本語');

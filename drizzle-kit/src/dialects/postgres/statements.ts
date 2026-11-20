@@ -9,6 +9,7 @@ import type {
 	Policy,
 	PrimaryKey,
 	Privilege,
+	Procedure,
 	Role,
 	Schema,
 	Sequence,
@@ -446,7 +447,19 @@ export type JsonStatement =
 	| JsonDropView
 	| JsonRenameView
 	| JsonAlterCheck
-	| JsonRecreateIndex;
+	| JsonRecreateIndex
+	| JsonCreateProcedure
+	| JsonDropProcedure;
+
+export interface JsonCreateProcedure {
+	type: 'create_procedure';
+	procedure: Procedure;
+}
+
+export interface JsonDropProcedure {
+	type: 'drop_procedure';
+	procedure: Procedure;
+}
 
 export const prepareStatement = <
 	TType extends JsonStatement['type'],

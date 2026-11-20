@@ -34,5 +34,5 @@ export abstract class QueryPromise<T> implements Promise<T> {
 		return this.execute().then(onFulfilled, onRejected);
 	}
 
-	abstract execute(): Promise<T>;
+	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T>;
 }

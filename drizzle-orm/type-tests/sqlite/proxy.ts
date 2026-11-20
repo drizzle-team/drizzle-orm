@@ -10,9 +10,10 @@ interface ProxyRunResult {
 	lastInsertRowid: bigint;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3394
+// https://github.com/drizzle-team/drizzle-orm/issues/5461
 const db = drizzle({
 	all: async () => [],
-	// oxlint-disable-next-line no-useless-undefined
 	get: async () => undefined,
 	run: async (): Promise<ProxyRunResult> => ({ rowsAffected: 1, lastInsertRowid: 1n }),
 });
@@ -29,7 +30,6 @@ Expect<Equal<ProxyRunResult, Awaited<typeof preparedRun>>>;
 
 const scalarRunDb = drizzle({
 	all: async () => [],
-	// oxlint-disable-next-line no-useless-undefined
 	get: async () => undefined,
 	run: async () => 42,
 });

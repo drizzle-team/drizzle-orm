@@ -1,0 +1,41 @@
+name: Share build
+description: >-
+  Publishes prepare's build output (every workspace package's dist plus .tsbuildinfo) to the jobs that test it.
+  GitHub-hosted: the build-dist artifact. Self-hosted: a tar on the machine's own disk, because the jobs that use
+  it run on that same machine; uploading ~150 MB to GitHub only for each of them to download it again is waste.
+  Pairs with .github/actions/fetch-build.
+
+runs:
+  using: composite
+  steps:
+    - if: runner.environment != 'self-hosted'
+      uses: actions/upload-artifact@v7
+      with:
+        name: build-dist
+        # The workspace's own output only: consumers install their own node_modules, and the dist folders inside
+        # it made up ~130 MB of the ~146 MB this artifact used to be.
+        path: |
+          **/dist
+          **/*.tsbuildinfo
+          !**/node_modules/**
+
+    - if: runner.environment == 'self-hosted'
+      shell: bash
+      run: |
+        set -euo pipefail
+        root="$HOME/.cache/drizzle-ci/artifacts"
+        dir="$root/$GITHUB_RUN_ID"
+        mkdir -p "$dir"
+        # Runs' directories are only needed while the run lasts.
+        find "$root" -mindepth 1 -maxdepth 1 -type d -mmin +720 -exec rm -rf {} + 2>/dev/null || true
+        # The workspace's own output; consumers install their own node_modules.
+        find . -path '*/node_modules' -prune -o -path ./.git -prune \
+          -o \( -type d -name dist -print -prune \) -o \( -type f -name '*.tsbuildinfo' -print \) > "$dir/build-dist.files"
+        # Copied once into the cache, for fetch-build to hardlink into each job's workspace: ~20 jobs each unpacking
+        # ~150 MB wrote ~3 GB to the machine's disk at the start of every run. Fresh files that nothing writes to
+        # again, unlike this workspace's, which the next build here replaces. Streamed through tar, not kept as one.
+        rm -rf "$dir/tree.tmp" && mkdir "$dir/tree.tmp"
+        tar -cf - -T "$dir/build-dist.files" | tar -xf - -C "$dir/tree.tmp"
+        mv "$dir/tree.tmp" "$dir/tree"
+        touch "$dir/build-dist.ready" # last: wait-for-prepare waits for this file
+        echo "build-dist: $(wc -l < "$dir/build-dist.files") paths, $(du -sh "$dir/tree" | cut -f1) in $dir/tree"

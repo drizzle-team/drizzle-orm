@@ -1,4 +1,3 @@
-/* eslint-disable drizzle-internal/require-entity-kind */
 import prand from 'pure-rand';
 import { AbstractGenerator } from '../Generators.ts';
 

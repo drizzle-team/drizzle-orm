@@ -1,6 +1,6 @@
 import { SqliteClient } from '@effect/sql-sqlite-wasm/SqliteClient';
+import type * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
-import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
@@ -26,8 +26,8 @@ export class EffectSQLiteWasmDatabase<TRelations extends AnyRelations = EmptyRel
 /**
  * Creates an EffectSQLiteWasmDatabase instance.
  *
- * Requires `SqliteClient`, `EffectLogger`, and `EffectCache` services to be provided.
- * Use `DefaultServices` to provide default (no-op) logger and cache implementations.
+ * Requires `SqliteClient`, and `EffectLogger` services to be provided.
+ * Use `DefaultServices` to provide the default (no-op) logger implementation.
  *
  * @example
  * ```ts
@@ -54,7 +54,6 @@ export const make = Effect.fn('SQLiteWasmDrizzle.make')(
 		TRelations extends AnyRelations = EmptyRelations,
 	>(config: EffectDrizzleSQLiteConfig<TRelations> = {}) {
 		const client = yield* SqliteClient;
-		const cache = yield* EffectCache;
 		const logger = yield* EffectLogger;
 
 		const dialect = new SQLiteDialect({
@@ -65,18 +64,13 @@ export const make = Effect.fn('SQLiteWasmDrizzle.make')(
 		const relations = config.relations ?? {} as TRelations;
 		const session = new EffectSQLiteWasmSession(client, dialect, relations, {
 			logger,
-			cache,
 			paramsInErrors: config.paramsInErrors,
 		});
 		const db = new EffectSQLiteWasmDatabase(dialect, session, relations);
 		(<any> db).$client = client;
-		(<any> db).$cache = cache;
-		if ((<any> db).$cache) {
-			(<any> db).$cache['invalidate'] = cache.onMutate;
-		}
 
 		return db as EffectSQLiteWasmDatabase<TRelations> & {
-			$client: SqliteClient;
+			$client: Context.Service.Shape<typeof SqliteClient>;
 		};
 	},
 );

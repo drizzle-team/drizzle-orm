@@ -1,0 +1,3 @@
+input.ts:8:21 error TSPG018: read a field: res.row.<field>
+      const x: text = res.row
+                      ^^^^^^^

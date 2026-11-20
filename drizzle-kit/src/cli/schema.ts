@@ -4,7 +4,8 @@ import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
@@ -822,7 +823,7 @@ export const runPull = async (
 			migrate = db.migrate;
 			driverError = {
 				database: 'postgresql',
-				packages: ['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', '@drizzle-team/minipg'],
+				packages: ['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', 'drizzle-orm'],
 				message: 'Failed to connect to or introspect the Postgres database',
 			};
 
@@ -834,8 +835,10 @@ export const runPull = async (
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
 				'postgresql',
-				['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', '@drizzle-team/minipg'],
+				['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', 'drizzle-orm'],
 				'Failed to connect to or introspect the Postgres database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else if (dialect === 'mysql') {
@@ -857,6 +860,8 @@ export const runPull = async (
 				'mysql',
 				['mysql2', 'bun', '@planetscale/database'],
 				'Failed to connect to or introspect the MySQL database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else if (dialect === 'sqlite') {
@@ -878,6 +883,8 @@ export const runPull = async (
 				'sqlite',
 				['better-sqlite3', 'bun', '@libsql/client', '@tursodatabase/database', 'node:sqlite'],
 				'Failed to connect to or introspect the SQLite database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else if (dialect === 'turso') {
@@ -899,6 +906,8 @@ export const runPull = async (
 				'turso',
 				['@libsql/client', '@tursodatabase/database', '@tursodatabase/serverless'],
 				'Failed to connect to or introspect the Turso database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else if (dialect === 'singlestore') {
@@ -920,6 +929,8 @@ export const runPull = async (
 				'singlestore',
 				['mysql2'],
 				'Failed to connect to or introspect the SingleStore database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else if (dialect === 'mssql') {
@@ -941,6 +952,8 @@ export const runPull = async (
 				'mssql',
 				['mssql'],
 				'Failed to connect to or introspect the MsSQL database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else if (dialect === 'cockroach') {
@@ -962,6 +975,8 @@ export const runPull = async (
 				'cockroach',
 				['pg'],
 				'Failed to connect to or introspect the Cockroach database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else {
@@ -990,7 +1005,13 @@ export const runPull = async (
 			error = await migrate!(migrateInput);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
-			throw new DatabaseDriverCliError(driverError!.database, driverError!.packages, driverError!.message);
+			throw new DatabaseDriverCliError(
+				driverError!.database,
+				driverError!.packages,
+				driverError!.message,
+				undefined,
+				{ cause: e },
+			);
 		}
 
 		if (error) {
@@ -1321,9 +1342,10 @@ export const skills = command({
 	options: {},
 	subcommands: [skillsVersion],
 	handler: async () => {
-		const candidates = [resolve(__dirname, 'skills'), resolve(__dirname, '../../skills')];
-		const skillsDir = candidates.find((p) => existsSync(p));
-		if (!skillsDir) {
+		// The export of the package itself gives its root, in the published layout and in this tree.
+		const packageRoot = dirname(fileURLToPath(import.meta.resolve('drizzle-kit')));
+		const skillsDir = resolve(packageRoot, 'skills');
+		if (!existsSync(skillsDir)) {
 			process.stderr.write('Could not locate bundled skills directory.\n');
 			process.exit(1);
 		}

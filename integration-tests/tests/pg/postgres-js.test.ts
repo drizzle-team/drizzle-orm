@@ -1,21 +1,27 @@
-import { Name, sql } from 'drizzle-orm';
+import { postponed } from '@drizzle/test-utils';
+import { Name, param, sql } from 'drizzle-orm';
+import { refineCodecs } from 'drizzle-orm/codecs';
 import {
+	arrayCompatNormalize,
+	arrayCompatNormalizeInput,
 	boolean,
 	customType,
 	getTableConfig,
 	integer,
 	json,
 	jsonb,
+	line,
 	pgTable,
+	point,
 	serial,
 	text,
 	timestamp,
 } from 'drizzle-orm/pg-core';
-import { drizzle } from 'drizzle-orm/postgres-js';
+import { drizzle, postgresJsCodecs } from 'drizzle-orm/postgres-js';
 import type { PostgresJsDatabase, PostgresJsRawExecuteResult } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import type { RowList } from 'postgres';
+import postgres, { type RowList } from 'postgres';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
@@ -31,8 +37,91 @@ tests(test, [
 	'Issue No1504',
 	'set json/jsonb fields with strings and retrieve with the ->> operator',
 	'set json/jsonb fields with strings and retrieve with the -> operator',
+	// null-element handling is broken on used in tests version of the driver, orm side is fine
+	'all types ~codecs~ - null array elements',
+	'all types ~codecs~ - custom type null array elements',
 ]);
 
+test('custom codecs for client with custom types (changelog example)', async ({ kit, push }) => {
+	type Line = [a: number, b: number, c: number];
+
+	const url = new URL(process.env['PG_CONNECTION_STRING']!);
+	url.pathname = `/${kit.database}`;
+	const client = postgres(url.toString(), {
+		max: 1,
+		onnotice: () => {},
+		types: {
+			// `point` (and `point[]`) is returned as `{ x, y }` instead of `(x,y)` text
+			point: {
+				to: 600,
+				from: [600],
+				// drizzle already encodes points to `(x,y)` text
+				serialize: (value: string) => value,
+				parse: (value: string) => {
+					const [x, y] = value.slice(1, -1).split(',').map(Number);
+					return { x, y };
+				},
+			},
+			// `line` (and `line[]`) is returned as `[a, b, c]` instead of `{a,b,c}` text, params are expected as `[a, b, c]`
+			line: {
+				to: 628,
+				from: [628],
+				serialize: ([a, b, c]: Line) => `{${a},${b},${c}}`,
+				parse: (value: string) => value.slice(1, -1).split(',').map(Number) as Line,
+			},
+		},
+	});
+	const toABC = ([a, b, c]: Line) => ({ a, b, c });
+	const toLine = (value: string) => value.slice(1, -1).split(',').map(Number) as Line;
+	const db = drizzle({
+		client,
+		codecs: refineCodecs(postgresJsCodecs(client), {
+			// default `point` codecs parse `(x,y)` text - client's output is already final
+			point: { normalize: undefined, normalizeArray: undefined },
+			// `line({ mode: 'abc' })` columns
+			line: {
+				normalize: toABC,
+				normalizeArray: arrayCompatNormalize(toABC),
+				// drizzle encodes `{ a, b, c }` to `{a,b,c}` text
+				normalizeParam: toLine,
+				// `postgres.js` 4 serializes array params element by element, with the type's `serialize` - elements are typed,
+				// or it would read the tuples as nested arrays
+				normalizeParamArray: arrayCompatNormalizeInput((value: string) => client.typed(toLine(value) as any, 628)),
+			},
+		}),
+	});
+	const defaultDb = drizzle({ client });
+
+	const table = pgTable('custom_codecs_types', {
+		id: integer().primaryKey(),
+		point: point({ mode: 'xy' }).notNull(),
+		points: point({ mode: 'xy' }).array().notNull(),
+		line: line({ mode: 'abc' }).notNull(),
+		lines: line({ mode: 'abc' }).array().notNull(),
+	});
+	await push({ table });
+
+	try {
+		const row = {
+			id: 1,
+			point: { x: 1, y: 2 },
+			points: [{ x: 3, y: 4 }, { x: 5.5, y: -6 }],
+			line: { a: 1, b: 2, c: 3 },
+			lines: [{ a: 4, b: 5, c: 6 }, { a: 7.5, b: -8, c: 0 }],
+		};
+		await db.insert(table).values(row);
+
+		expect(await db.select().from(table)).toStrictEqual([row]);
+		expect(await db.select().from(table).where(sql`${table.line} = ${param(row.line, table.line)}`))
+			.toStrictEqual([row]);
+		await expect(defaultDb.select().from(table)).rejects.toThrow();
+		await expect(defaultDb.insert(table).values({ ...row, id: 2 })).rejects.toThrow();
+	} finally {
+		await client.end();
+	}
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresJsDatabase;
 	const table = sql.identifier('raw_execute_types');
@@ -254,7 +343,7 @@ describe('postgresjs', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect([...result2]).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -285,7 +374,7 @@ describe('postgresjs', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect([...result]).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -318,7 +407,7 @@ describe('postgresjs', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
 		expect(new Date(result[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
@@ -358,7 +447,7 @@ describe('postgresjs', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect([...result2]).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -398,7 +487,7 @@ describe('postgresjs', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect([...result2]).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
@@ -444,7 +533,7 @@ describe('postgresjs', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect([...result2]).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -491,7 +580,7 @@ describe('postgresjs', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect([...result2]).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
 
@@ -663,6 +752,8 @@ describe('postgresjs', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3171
+// https://github.com/drizzle-team/drizzle-orm/issues/5789
 describe('raw sql`` params', () => {
 	test('insert -> select roundtrip over json, jsonb and date columns', async ({ db }) => {
 		const table = pgTable('raw_sql_params', {
@@ -691,6 +782,7 @@ describe('raw sql`` params', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3171
 describe('json params', () => {
 	test.concurrent('Issue No1504 - postgres-js', async ({ push, db }) => {
 		type PropTypes = { [key: string]: any };
@@ -796,6 +888,36 @@ describe('json params', () => {
 					jsonbNumberField: testNumber,
 				},
 			]);
+		},
+	);
+
+	// A `json` column keeps the text it is given: the order of keys, and keys that repeat. `jsonb` sorts the keys.
+	// A value sent as a `jsonb` parameter is parsed as `jsonb` first and only then cast to `json`, so it reaches
+	// the `json` column with its keys already sorted
+	test.skipIf(postponed).concurrent(
+		'a json column keeps the order of keys - postgres-js',
+		async ({ db, push }) => {
+			const jsonOrderTable = pgTable('json_key_order_10', {
+				id: serial('id').primaryKey(),
+				json: json('json').notNull(),
+				jsonb: jsonb('jsonb').notNull(),
+			});
+
+			await push({ jsonOrderTable });
+
+			const value = { b: 1, a: 2, nested: { z: 1, y: 2 } };
+			await db.insert(jsonOrderTable).values({ json: value, jsonb: value });
+
+			const [stored] = await db
+				.select({ json: sql<string>`${jsonOrderTable.json}::text`, jsonb: sql<string>`${jsonOrderTable.jsonb}::text` })
+				.from(jsonOrderTable);
+			expect(stored).toStrictEqual({
+				json: '{"b":1,"a":2,"nested":{"z":1,"y":2}}',
+				jsonb: '{"a": 2, "b": 1, "nested": {"y": 2, "z": 1}}',
+			});
+
+			const [row] = await db.select({ json: jsonOrderTable.json }).from(jsonOrderTable);
+			expect(Object.keys(row!.json as object)).toStrictEqual(['b', 'a', 'nested']);
 		},
 	);
 });

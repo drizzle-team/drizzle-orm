@@ -292,6 +292,12 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	builder: T,
 	expectedDefault: string,
 	pre: SqliteSchema | null = null,
+	override?: {
+		// non-constant default (CURRENT_TIMESTAMP, expression in parentheses, ...) can't be added with ADD COLUMN
+		// to a table with data, so adding the column recreates the table
+		// https://github.com/drizzle-team/drizzle-orm/issues/6408
+		recreateOnAdd?: boolean;
+	},
 ) => {
 	await kit.clear();
 
@@ -389,9 +395,17 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	await push({ db, to: schema3 });
 	const { sqlStatements: st4 } = await push({ db, to: schema4 });
 
-	const expectedAddColumn = `ALTER TABLE \`table\` ADD \`column\` ${type} DEFAULT ${expectedDefault};`;
-	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
-		res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
+	if (override?.recreateOnAdd) {
+		const expectedRecreate =
+			`CREATE TABLE \`__new_table\` (\n\t\`id\` integer,\n\t\`column\` ${type} DEFAULT ${expectedDefault}\n);\n`;
+		if (st4.length !== 6 || st4[1] !== expectedRecreate) {
+			res.push(`Unexpected add column:\n${st4.join('\n')}\n\n${expectedRecreate}`);
+		}
+	} else {
+		const expectedAddColumn = `ALTER TABLE \`table\` ADD \`column\` ${type} DEFAULT ${expectedDefault};`;
+		if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
+			res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
+		}
 	}
 
 	return res;

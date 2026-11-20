@@ -29,6 +29,7 @@ import { tests } from './common';
 import { awsDataApiTest as test } from './instrumentation';
 import { usersMigratorTable } from './schema';
 import { assertSnapshotIsolatesTransaction } from './snapshot';
+import { allTypesWithReplacementsSkips, allTypesWithReplacementsTests } from './unsupported-types';
 
 const skips = [
 	// Data API dialect uses `:N` placeholders with type casts instead of `$N`, redefined below
@@ -40,15 +41,44 @@ const skips = [
 	'comments',
 	'RQB v2 find many - $count',
 	'issue #4169',
+	// string-mode `timestamptz` and `bytea[]` throw an unsupported column type error with Data API, tests holding their
+	// values are redefined with `null`s below
+	...allTypesWithReplacementsSkips,
+	// local-data-api fails (HTTP 500) reading `timestamptz` arrays in non-UTC sessions and `timetz` arrays; these tests also
+	// hold `timetz`, string-mode `timestamptz` values, which throw an unsupported column type error
+	'time zones are preserved',
+	'time zones are preserved - non-UTC session',
+	'all types ~codecs~ - non-UTC session',
+	// local-data-api ignores `longReturnType`, returning `int8` as JSON numbers that lose precision past 2^53
+	'issue 5760. bigint precision',
 	// Data API returns json as text, results without codecs (raw, untyped `sql`) keep it as a string, redefined below
 	'raw jsons',
 	'set json/jsonb fields with objects and retrieve with the -> operator',
 	'set json/jsonb fields with strings and retrieve with the -> operator',
+	// Data API has no representation for `null` array elements
+	'all types ~codecs~ - null array elements',
+	'all types ~codecs~ - custom type null array elements',
 ];
 
 describe('aws-data-api/pg', () => {
 	tests(test, skips);
+	allTypesWithReplacementsTests(test, {
+		// Data API converts `timestamptz` to UTC dropping the session's offset
+		// and has no binary arrays: those column types throw an unsupported column type error, `null`s never reach a decoder
+		timestampTzstr: null,
+		arrtimestampTzstr: null,
+		arrbytea: null,
+		mtxbytea: null,
+		// local-data-api ignores `longReturnType`, returning `int8` as JSON numbers that lose precision past 2^53;
+		// `serial` types can't be `null`
+		bigserial: 1n,
+		bigint: 1n,
+		bigintstr: '1',
+		arrbigint: [1n],
+		arrbigintstr: ['1'],
+	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/661
 	test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 		const db = fixtureDb as unknown as AwsDataApiPgDatabase;
 		const table = sql.identifier('raw_execute_types');
@@ -939,11 +969,11 @@ describe('aws-data-api/pg', () => {
 				{ timestamp: timestampString },
 			]);
 
-			// 2. Select date in string format and check that the values are the same
-			const result = await db.select().from(table);
-
-			// 2.1 Notice that postgres will return the date in UTC, but it is exactly the same
-			expect(result).toEqual([{ id: 1, timestamp: '2022-01-01 02:00:00.123456+00' }]);
+			// 2. Data API converts `timestamptz` to UTC, dropping the offset the server formats in the session's time zone,
+			// with no per-query alternative - selecting string-mode values throws
+			await expect(db.select().from(table)).rejects.toThrow(
+				'Column type "timestamp with time zone" is not supported with the aws-data-api driver',
+			);
 
 			// 3. Select as raw query and checke that values are the same
 			const result2 = await db.execute<{

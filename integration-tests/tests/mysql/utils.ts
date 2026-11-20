@@ -6,7 +6,7 @@ import { MySqlEffectDatabase } from 'drizzle-orm/mysql-core/effect/db';
 export function normalizeDataWithDbCodecs(
 	cfg: {
 		db: MySqlAsyncDatabase<any, any> | MySqlEffectDatabase<any, any, any>;
-		data: Record<string, unknown>[] | string;
+		data: Record<string, unknown>[] | unknown[][] | string;
 		columns: Record<string, Column>;
 		mode: 'json' | 'query';
 	},
@@ -24,10 +24,12 @@ export function normalizeDataWithDbCodecs(
 	for (const item of data) {
 		const current: Record<string, any> = {};
 
-		for (const [k, v] of dbNamedColumns) {
-			current[k] = item[k] === null
-				? item[k]
-				: codecs.apply(v, mode === 'query' ? 'normalize' : 'normalizeInJson', item[k]!);
+		for (let i = 0; i < dbNamedColumns.length; ++i) {
+			const [k, v] = dbNamedColumns[i]!;
+			const raw = Array.isArray(item) ? item[i] : item[k];
+			current[k] = raw === null
+				? raw
+				: codecs.apply(v, mode === 'query' ? 'normalize' : 'normalizeInJson', raw!);
 		}
 
 		res.push(current);

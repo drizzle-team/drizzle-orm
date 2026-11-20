@@ -1,0 +1,4 @@
+input.ts:6:19 error TSPG016: 'order' is a reserved SQL keyword and cannot be used as a table name
+    lockRowsOrdered('order', [a])
+                    ^^^^^^^
+  hint: rename the table, or add a quoting-aware schema qualification to the DSL first

@@ -1,16 +1,17 @@
 import { entityKind, is } from '~/entity.ts';
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfigRoot,
-	relationalQueryUsedTablesInit,
-	type RelationalRowsMapper,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
+import type { QueryRuntimeHKT } from '~/query-builders/runtime.ts';
+import type {
+	BuildQueryResult,
+	BuildRelationalQueryResult,
+	DBQueryConfigRoot,
+	RelationalRowsMapper,
+	TableRelationalConfig,
+	TablesRelationalConfig,
 } from '~/relations.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { tracer } from '~/tracing.ts';
 import type { PgDialect } from '../dialect.ts';
-import type { PgSession } from '../session.ts';
+import type { PgBasePreparedQuery, PgRunnableQueryMethods, PgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
 
 export type PgDBQueryConfigRoot<
@@ -88,6 +89,8 @@ export class RelationalQueryBuilder<
 }
 
 export interface PgRelationalQueryHKTBase {
+	/** How the builder's runtime wraps it's results */
+	runtime: QueryRuntimeHKT;
 	result: unknown;
 	_type: unknown;
 }
@@ -102,6 +105,11 @@ export type PgRelationalQueryKind<
 > = (T & {
 	result: TResult;
 })['_type'];
+
+export interface PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult>
+	extends PgRunnableQueryMethods<THKT['runtime'], TResult>
+{
+}
 
 export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgRelationalQueryV2';
@@ -133,14 +141,13 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 	) {}
 
 	/** @internal */
-	_getQuery(usedTables?: Set<string>) {
+	_getQuery() {
 		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
 			mode: this.mode,
-			usedTables,
 		});
 	}
 
@@ -148,16 +155,54 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 		return this._getQuery().sql;
 	}
 
-	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query; usedTables: Set<string> | undefined } {
-		const usedTables = relationalQueryUsedTablesInit(this.config);
-		const query = this._getQuery(usedTables);
+	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
+		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql);
 
-		return { query, builtQuery, usedTables };
+		return { query, builtQuery };
 	}
 
 	toSQL(): Query {
 		return this._toSQL().builtQuery;
+	}
+
+	/**
+	 * Prepares the query on the session, for both runtimes: the session decides what the prepared query's `execute`
+	 * returns. Rows are mapped by the driver's shape when it has one, by a row mapper otherwise. The runtime's
+	 * builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const { dialect } = this;
+			const isFirst = this.mode === 'first';
+
+			const { query, builtQuery } = this._toSQL();
+			const shape = this.shape ??= dialect.shapeGenerator?.(
+				{ type: 'relational', fields: query.selection },
+				undefined,
+			);
+
+			const mapper = this.mapper ??= shape
+				? (isFirst ? (rows: any[]) => rows[0] : undefined)
+				: dialect.mapperGenerators.relationalRows({
+					isFirst,
+					parseJson: this.parseJson,
+					parseJsonIfString: false,
+					rootJsonMappers: false,
+					selection: query.selection,
+					arrayModeRoot: true,
+				});
+
+			return this.session.prepareQuery(
+				builtQuery,
+				shape ? 'objects' : 'arrays',
+				name ?? generateName,
+				mapper as ((rows: unknown[]) => any) | undefined,
+				shape,
+			);
+		});
 	}
 }

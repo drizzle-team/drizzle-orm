@@ -1,0 +1,4 @@
+input.ts:6:32 error TSPG012: table 'accounts' has no column 'credit'
+    sql`UPDATE ${accounts} SET ${accounts.credit} = 0 WHERE ${accounts.id} = ${args.id}`
+                                 ^^^^^^^^^^^^^^^
+  hint: columns: id, balance, ownerName, reviewed

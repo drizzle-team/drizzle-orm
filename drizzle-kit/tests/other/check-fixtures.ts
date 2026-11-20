@@ -1,6 +1,7 @@
 import { integer as pgInteger, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { latestVersion } from 'src/dialects/postgres/versions';
 import { footprintsOf } from '../../src/dialects/postgres/commutativity';
 import { createDDL } from '../../src/dialects/postgres/ddl';
 import { ddlDiffDry } from '../../src/dialects/postgres/diff';
@@ -9,15 +10,15 @@ import { drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
 
 export const ORIGIN = '00000000-0000-0000-0000-000000000000';
 
-// Builds a version 9 postgres snapshot of `schema` for a staged migration folder. With `from`, the snapshot is a
-// diff that holds the deltas from `from` to `schema`. Without `from`, the snapshot is a base.
+// Builds a postgres snapshot of the latest format of `schema` for a staged migration folder. With `from`, the
+// snapshot is a diff that holds the deltas from `from` to `schema`. Without `from`, the snapshot is a base.
 export const makePgSnapshot = async (
 	id: string,
 	prevIds: string[],
 	schema: PostgresSchema,
 	from?: PostgresSchema,
 ): Promise<PostgresSnapshot> => {
-	const header = { version: '9', dialect: 'postgres', id, prevIds } as const;
+	const header = { version: latestVersion, dialect: 'postgres', id, prevIds } as const;
 	const { ddl } = drizzleToDDL(schema);
 	const { deltas, groupedStatements } = await ddlDiffDry(
 		from ? drizzleToDDL(from).ddl : createDDL(),

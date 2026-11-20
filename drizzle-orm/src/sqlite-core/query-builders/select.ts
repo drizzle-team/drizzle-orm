@@ -1,4 +1,3 @@
-import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
@@ -16,13 +15,20 @@ import { SQL } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLitePreparedQuery } from '~/sqlite-core/session.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { usedTablesOf } from '~/used-tables.ts';
-import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
+import {
+	getTableColumns,
+	getTableLikeName,
+	haveSameKeys,
+	orderSelectedFields,
+	resolveNullableObjectPaths,
+	type ValueOrArray,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
 import { SQLiteViewBase } from '../view-base.ts';
@@ -173,7 +179,6 @@ export class SQLiteSelectBase<
 	private isPartialSelect: boolean;
 	protected session: SQLiteSession<any, any> | undefined;
 	protected dialect: SQLiteDialect;
-	protected cacheConfig?: WithCacheConfig = undefined;
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
@@ -203,15 +208,6 @@ export class SQLiteSelectBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
-	}
-
-	/**
-	 * @internal
-	 * Collects every table query's SQL references - `from`, joins, CTEs, set operators, raw SQL & subqueries of fields, filters, etc.
-	 * @param sql - query's already built SQL, to avoid rebuilding it
-	 */
-	getUsedTables(sql: SQL = this.getSQL()) {
-		return usedTablesOf(sql);
 	}
 
 	private createJoin<TJoinType extends JoinType>(
@@ -824,24 +820,13 @@ export class SQLiteSelectBase<
 		return this as any;
 	}
 
-	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
-		this.cacheConfig = config === undefined
-			? { config: {}, enabled: true, autoInvalidate: true }
-			: config === false
-			? { enabled: false }
-			: { enabled: true, autoInvalidate: true, ...config };
-		return this;
-	}
-
-	getSQL(withCastCodecs = false): SQL {
+	getSQL(): SQL {
 		this.config.fieldsFlat ??= orderSelectedFields<SQLiteColumn>(this.config.fields, undefined, this.dialect.codecs);
-		return this.dialect.buildSelectQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	as<TAlias extends string>(
@@ -863,6 +848,23 @@ export class SQLiteSelectBase<
 
 	$dynamic(): SQLiteSelectDynamic<this> {
 		return this;
+	}
+
+	/**
+	 * Prepares the query on the session, for every runtime. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(prepare = false): SQLitePreparedQuery {
+		// Build query before accessing `fieldsFlat` - build mutates it
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		const fieldsList = this.config.fieldsFlat!;
+		const mapper = this.config.mapper ??= this.dialect.mapperGenerators.rows(
+			fieldsList,
+			resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap),
+		);
+
+		return this.session!.prepareQuery(query, 'arrays', prepare, 'all', mapper);
 	}
 }
 

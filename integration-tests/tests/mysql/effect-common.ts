@@ -1,6 +1,7 @@
-import { assert, expect, expectTypeOf, it, vi, Vitest } from '@effect/vitest';
+import { assert, expect, expectTypeOf, it, Vitest } from '@effect/vitest';
 import {
 	asc,
+	desc,
 	eq,
 	getColumns,
 	getTableColumns,
@@ -14,45 +15,30 @@ import {
 	makeJitRqbMapper,
 	sql,
 } from 'drizzle-orm';
-import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache-effect';
 import { EffectLogger, type EffectLoggerShape, QueryEffectHKTBase } from 'drizzle-orm/effect-core';
 import {
 	alias,
 	bigint,
-	binary,
-	blob,
 	boolean,
 	char,
 	date,
 	datetime,
 	decimal,
-	double,
 	except,
-	float,
 	getViewConfig,
 	int,
 	json,
-	longblob,
-	mediumblob,
-	mediumint,
 	MySqlDialect,
-	mysqlEnum,
 	mysqlSchema,
 	mysqlTable,
 	mysqlView,
 	primaryKey,
-	real,
 	serial,
-	smallint,
 	text,
 	time,
 	timestamp,
-	tinyblob,
-	tinyint,
 	union,
 	unionAll,
-	varbinary,
-	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
 import type { MySqlEffectDatabase } from 'drizzle-orm/mysql-core/effect/db';
@@ -71,12 +57,22 @@ import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
-import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
-import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
-import { TestCache } from './instrumentation';
+import { jsonRows, parseStoredJson } from '~/json-values';
+import { expectRecentTime } from '~/recent-time';
+import {
+	type AllTypes,
+	allTypesData,
+	allTypesTable,
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
+	makeAllTypes,
+} from './all-types';
 import relations from './relations';
 import { rqbPost, rqbUser } from './schema';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -255,338 +251,51 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 
 		it.effect('all types', () =>
 			Effect.gen(function*() {
-				const en = mysqlEnum('en_48', ['enVal1', 'enVal2']);
-				const allTypesTable = mysqlTable('all_types_48', {
-					serial: serial('serial'),
-					bigint53: bigint('bigint53', {
-						mode: 'number',
-					}),
-					bigint64: bigint('bigint64', {
-						mode: 'bigint',
-					}),
-					bigintString: bigint('bigint_string', {
-						mode: 'string',
-					}),
-					binary: binary('binary'),
-					boolean: boolean('boolean'),
-					char: char('char'),
-					date: date('date', {
-						mode: 'date',
-					}),
-					dateStr: date('date_str', {
-						mode: 'string',
-					}),
-					datetime: datetime('datetime', {
-						mode: 'date',
-					}),
-					datetimeStr: datetime('datetime_str', {
-						mode: 'string',
-					}),
-					decimal: decimal('decimal'),
-					decimalNum: decimal('decimal_num', {
-						precision: 30,
-						mode: 'number',
-					}),
-					decimalBig: decimal('decimal_big', {
-						precision: 30,
-						mode: 'bigint',
-					}),
-					double: double('double'),
-					float: float('float'),
-					int: int('int'),
-					json: json('json'),
-					medInt: mediumint('med_int'),
-					smallInt: smallint('small_int'),
-					real: real('real'),
-					text: text('text'),
-					time: time('time', { fsp: 3 }),
-					timestamp: timestamp('timestamp', {
-						mode: 'date',
-					}),
-					timestampStr: timestamp('timestamp_str', {
-						mode: 'string',
-					}),
-					tinyInt: tinyint('tiny_int'),
-					varbin: varbinary('varbin', {
-						length: 16,
-					}),
-					varchar: varchar('varchar', {
-						length: 255,
-					}),
-					year: year('year'),
-					enum: mysqlEnum('enum', ['enV1', 'enV2']),
-					blob: blob('blob'),
-					tinyblob: tinyblob('tinyblob'),
-					mediumblob: mediumblob('mediumblob'),
-					longblob: longblob('longblob'),
-					stringblob: blob('stringblob', { mode: 'string' }),
-					stringtinyblob: tinyblob('stringtinyblob', { mode: 'string' }),
-					stringmediumblob: mediumblob('stringmediumblob', { mode: 'string' }),
-					stringlongblob: longblob('stringlongblob', { mode: 'string' }),
-				});
+				const table = makeAllTypes('all_types_48');
 
 				const db = yield* DB;
-				yield* push(db, { en, allTypesTable });
+				yield* push(db, { table });
 
-				yield* db.insert(allTypesTable).values({
-					serial: 1,
-					bigint53: 9007199254740991,
-					bigint64: 5044565289845416380n,
-					bigintString: '5044565289845416380',
-					binary: '1',
-					boolean: true,
-					char: 'c',
-					date: new Date('2025-03-12T00:00:00.000Z'),
-					dateStr: new Date('2025-03-12T00:00:00.000Z').toISOString().slice(0, 19).replace('T', ' '),
-					datetime: new Date('2025-03-12T00:00:00.000Z'),
-					datetimeStr: new Date('2025-03-12T00:00:00.000Z').toISOString().slice(0, 19).replace('T', ' '),
-					decimal: '47521',
-					decimalNum: 9007199254740991,
-					decimalBig: 5044565289845416380n,
-					double: 15.35325689124218,
-					enum: 'enV1',
-					float: 1.048596,
-					real: 1.048596,
-					text: 'C4-',
-					int: 621,
-					json: {
-						str: 'strval',
-						arr: ['str', 10],
-					},
-					medInt: 560,
-					smallInt: 14,
-					time: '04:13:22.120',
-					timestamp: new Date('2025-03-12T00:00:00.000Z'),
-					timestampStr: new Date('2025-03-12T00:00:00.000Z').toISOString().slice(0, 19).replace('T', ' '),
-					tinyInt: 7,
-					varbin: '1010110101001101',
-					varchar: 'VCHAR',
-					year: 2025,
-					blob: Buffer.from('string'),
-					longblob: Buffer.from('string'),
-					mediumblob: Buffer.from('string'),
-					tinyblob: Buffer.from('string'),
-					stringblob: 'string',
-					stringlongblob: 'string',
-					stringmediumblob: 'string',
-					stringtinyblob: 'string',
-				});
+				yield* db.insert(table).values(allTypesData);
 
-				const rawRes = yield* db.select().from(allTypesTable);
+				const rawRes = yield* db.select().from(table);
 
-				type ExpectedType = {
-					serial: number;
-					bigint53: number | null;
-					bigint64: bigint | null;
-					bigintString: string | null;
-					binary: string | null;
-					boolean: boolean | null;
-					char: string | null;
-					date: Date | null;
-					dateStr: string | null;
-					datetime: Date | null;
-					datetimeStr: string | null;
-					decimal: string | null;
-					decimalNum: number | null;
-					decimalBig: bigint | null;
-					double: number | null;
-					float: number | null;
-					int: number | null;
-					json: unknown;
-					medInt: number | null;
-					smallInt: number | null;
-					real: number | null;
-					text: string | null;
-					time: string | null;
-					timestamp: Date | null;
-					timestampStr: string | null;
-					tinyInt: number | null;
-					varbin: string | null;
-					varchar: string | null;
-					year: number | null;
-					enum: 'enV1' | 'enV2' | null;
-					blob: Buffer | null;
-					tinyblob: Buffer | null;
-					mediumblob: Buffer | null;
-					longblob: Buffer | null;
-					stringblob: string | null;
-					stringtinyblob: string | null;
-					stringmediumblob: string | null;
-					stringlongblob: string | null;
-				}[];
-
-				const expectedRes: ExpectedType = [
-					{
-						serial: 1,
-						bigint53: 9007199254740991,
-						bigint64: 5044565289845416380n,
-						bigintString: '5044565289845416380',
-						binary: '1',
-						boolean: true,
-						char: 'c',
-						date: new Date('2025-03-12T00:00:00.000Z'),
-						dateStr: '2025-03-12',
-						datetime: new Date('2025-03-12T00:00:00.000Z'),
-						datetimeStr: '2025-03-12 00:00:00',
-						decimal: '47521',
-						decimalNum: 9007199254740991,
-						decimalBig: 5044565289845416380n,
-						double: 15.35325689124218,
-						float: 1.048596,
-						int: 621,
-						json: { arr: ['str', 10], str: 'strval' },
-						medInt: 560,
-						smallInt: 14,
-						real: 1.048596,
-						text: 'C4-',
-						time: '04:13:22.120',
-						timestamp: new Date('2025-03-12T00:00:00.000Z'),
-						timestampStr: '2025-03-12 00:00:00',
-						tinyInt: 7,
-						varbin: '1010110101001101',
-						varchar: 'VCHAR',
-						year: 2025,
-						enum: 'enV1',
-						blob: Buffer.from('string'),
-						longblob: Buffer.from('string'),
-						mediumblob: Buffer.from('string'),
-						tinyblob: Buffer.from('string'),
-						stringblob: 'string',
-						stringlongblob: 'string',
-						stringmediumblob: 'string',
-						stringtinyblob: 'string',
-					},
-				];
-
-				expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
-				expect(rawRes).toStrictEqual(expectedRes);
+				expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+				expect(rawRes).toStrictEqual([allTypesData]);
 			}));
 
 		it.effect('all types ~codecs~', () =>
 			Effect.gen(function*() {
-				const db = yield* createDB({ allTypesTable: allTypesCodecsTable }, (r) => ({
+				const db = yield* createDB({ allTypesTable, ...boundsSchema }, (r) => ({
 					allTypesTable: {
 						self: r.many.allTypesTable({
 							from: r.allTypesTable.serial,
 							to: r.allTypesTable.serial,
 						}),
 					},
+					...boundsRelations(r),
 				}));
-				yield* push(db, { allTypesCodecsTable });
+				yield* push(db, { allTypesTable });
 
-				type ExpectedType = {
-					serial: number;
-					bigint53: number;
-					bigint64: bigint;
-					bigintstr: string;
-					binary: string;
-					boolean: boolean;
-					char: string;
-					date: Date;
-					datestr: string;
-					datetime: Date;
-					datetimestr: string;
-					decimal: string;
-					decimalnum: number;
-					decimalbig: bigint;
-					double: number;
-					float: number;
-					int: number;
-					json1: unknown;
-					json2: unknown;
-					json3: unknown;
-					json4: unknown;
-					medint: number;
-					smallint: number;
-					real: number;
-					text: string;
-					tinytext: string;
-					mediumtext: string;
-					longtext: string;
-					time: string;
-					timestamp: Date;
-					timestampstr: string;
-					tinyint: number;
-					varbin: string;
-					varchar: string;
-					year: number;
-					enum: 'enV1' | 'enV2';
-					blob: Buffer;
-					tinyblob: Buffer;
-					mediumblob: Buffer;
-					longblob: Buffer;
-					stringblob: string;
-					stringtinyblob: string;
-					stringmediumblob: string;
-					stringlongblob: string;
-				};
-
-				const testData: ExpectedType = {
-					serial: 1,
-					bigint53: 9007199254740991,
-					bigint64: 5044565289845416380n,
-					bigintstr: '5044565289845416380',
-					binary: '1',
-					boolean: true,
-					char: 'c',
-					date: new Date('2025-03-12'),
-					datestr: '2025-03-12',
-					datetime: new Date(1741743161623),
-					datetimestr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
-					decimal: '47521',
-					decimalnum: 9007199254740991,
-					decimalbig: 5044565289845416380n,
-					double: 15.35325689124218,
-					enum: 'enV1',
-					float: 1.048596,
-					real: 1.048596,
-					text: 'C4-',
-					tinytext: 'tiny text',
-					mediumtext: 'medium text',
-					longtext: 'long text',
-					int: 621,
-					json1: { str: 'strval', arr: ['str', 10] },
-					json2: [{ key: 'value', num: 7 }, 'v', '11', 5],
-					json3: 5,
-					json4: '5',
-					medint: 560,
-					smallint: 14,
-					time: '04:13:22.120',
-					timestamp: new Date(1741743161623),
-					timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
-					tinyint: 7,
-					varbin: '1010110101001101',
-					varchar: 'VCHAR',
-					year: 2025,
-					blob: Buffer.from('string'),
-					longblob: Buffer.from('string'),
-					mediumblob: Buffer.from('string'),
-					tinyblob: Buffer.from('string'),
-					stringblob: 'string',
-					stringlongblob: 'string',
-					stringmediumblob: 'string',
-					stringtinyblob: 'string',
-				};
-
-				yield* db.insert(allTypesCodecsTable).values(testData);
+				yield* db.insert(allTypesTable).values(allTypesData);
 
 				const session = (<any> db).session as MySqlEffectSession;
 
-				const queryRaw = yield* session.objects<ExpectedType>(
+				const queryRaw = yield* session.objects<AllTypes>(
 					db.select(
 						Object.fromEntries(
-							Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)]),
+							Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)]),
 						),
-					).from(allTypesCodecsTable).getSQL(true),
+					).from(allTypesTable).getSQL(),
 				);
 				const queryRes = normalizeDataWithDbCodecs({
 					db,
-					columns: getColumns(allTypesCodecsTable),
+					columns: getColumns(allTypesTable),
 					data: queryRaw,
 					mode: 'query',
 				})[0];
 
-				const relationRaw = yield* session.objects<ExpectedType & { self: ExpectedType[] }>(
+				const relationRaw = yield* session.objects<AllTypes & { self: AllTypes[] }>(
 					db.query.allTypesTable.findFirst({
 						with: {
 							self: true,
@@ -596,28 +305,57 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				const { self: relationSelf, ...rootRaw } = relationRaw[0]!;
 				const relationRes = normalizeDataWithDbCodecs({
 					db,
-					columns: getColumns(allTypesCodecsTable),
+					columns: getColumns(allTypesTable),
 					data: relationSelf,
 					mode: 'json',
 				})[0]!;
 				const rootRes = normalizeDataWithDbCodecs({
 					db,
-					columns: getColumns(allTypesCodecsTable),
+					columns: getColumns(allTypesTable),
 					data: [rootRaw],
 					mode: 'query',
 				})[0]!;
 
-				expect(queryRes).toStrictEqual(testData);
-				expect(relationRes).toStrictEqual(testData);
-				expect(rootRes).toStrictEqual(testData);
+				expect(queryRes).toStrictEqual(allTypesData);
+				expect(relationRes).toStrictEqual(allTypesData);
+				expect(rootRes).toStrictEqual(allTypesData);
 
 				const unionsContext = yield* Effect.context<never>();
 				yield* Effect.promise(() =>
-					assertAllTypesUnions(db as any, allTypesCodecsTable, (query) => Effect.runPromiseWith(unionsContext)(query))
+					assertAllTypesUnions(db as any, allTypesTable, (query) => Effect.runPromiseWith(unionsContext)(query))
 				);
 
 				const context = yield* Effect.context<never>();
-				yield* Effect.promise(() => assertAllTypesBounds(db as any, (query) => Effect.runPromiseWith(context)(query)));
+				yield* Effect.promise(() =>
+					assertAllTypesBounds(db as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
+				);
+				yield* Effect.promise(() =>
+					assertAllTypesTemporalBounds(db as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
+				);
+			}));
+
+		it.effect('all types ~json~', () =>
+			Effect.gen(function*() {
+				const table = mysqlTable('all_types_json', {
+					id: int('id').primaryKey(),
+					json: json('json'),
+				});
+
+				const db = yield* DB;
+				yield* push(db, { table });
+
+				const { input, output } = jsonRows(['json']);
+
+				yield* db.insert(table).values(input);
+
+				// json text as the database stores it, read without decoding
+				const stored = yield* db.select({
+					id: table.id,
+					json: sql<string>`cast(${table.json} as char)`,
+				}).from(table).orderBy(table.id);
+
+				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+				expect(parseStoredJson(stored)).toStrictEqual(output);
 			}));
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/1442
@@ -1876,6 +1614,85 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
+		it.effect('select distinct ordered by cast columns', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = mysqlTable('distinct_cast_order', {
+					id: int('id').notNull(),
+					createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+					amount: decimal('amount', { mode: 'number', precision: 10, scale: 2 }).notNull(),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table).values([
+					{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+					{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+					{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+					{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+				]);
+
+				const byDate = yield* db
+					.selectDistinct({ id: table.id, createdAt: table.createdAt, amount: table.amount })
+					.from(table)
+					.orderBy(desc(table.createdAt));
+				const byAmount = yield* db
+					.selectDistinct({ id: table.id, amount: table.amount })
+					.from(table)
+					.orderBy(desc(table.amount));
+
+				expect(byDate).toEqual([
+					{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+					{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+					{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+				]);
+				expect(byAmount).toEqual([
+					{ id: 2, amount: 100 },
+					{ id: 3, amount: 10 },
+					{ id: 1, amount: 9 },
+				]);
+			}));
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
+		it.effect('order by aliased cast columns', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = mysqlTable('alias_cast_order', {
+					id: int('id').notNull(),
+					amount: decimal('amount', { mode: 'number', precision: 10, scale: 2 }).notNull(),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table).values([
+					{ id: 1, amount: 9 },
+					{ id: 2, amount: 100 },
+					{ id: 3, amount: 10 },
+				]);
+
+				const amountAlias = table.amount.as('amount_alias');
+				const amountSql = sql<number>`${table.amount}`.mapWith(table.amount).as('amount_sql');
+
+				const byColumnAlias = yield* db.select({ id: table.id, amount: amountAlias }).from(table).orderBy(
+					desc(amountAlias),
+				);
+				const bySqlAlias = yield* db.select({ id: table.id, amount: amountSql }).from(table).orderBy(desc(amountSql));
+				const byDistinctAlias = yield* db
+					.selectDistinct({ id: table.id, amount: amountAlias })
+					.from(table)
+					.orderBy(desc(amountAlias));
+
+				const expected = [
+					{ id: 2, amount: 100 },
+					{ id: 3, amount: 10 },
+					{ id: 1, amount: 9 },
+				];
+				expect(byColumnAlias).toEqual(expected);
+				expect(bySqlAlias).toEqual(expected);
+				expect(byDistinctAlias).toEqual(expected);
+			}));
+
 		it.effect('update with returning all fields', () =>
 			Effect.gen(function*() {
 				const users = mysqlTable('users_9', {
@@ -1899,7 +1716,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				const usersResult = yield* db.select().from(users);
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(1000);
+				expectRecentTime(usersResult[0]!.createdAt, now, 1000);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);
@@ -1948,7 +1765,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				yield* db.delete(users).where(eq(users.name, 'John'));
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(1000);
+				expectRecentTime(usersResult[0]!.createdAt, now, 1000);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);
@@ -2764,170 +2581,6 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				expect(loggedQueries.length).toBeGreaterThanOrEqual(2);
 				expect(loggedQueries.some((q) => q.query.toLowerCase().includes('insert'))).toBe(true);
 				expect(loggedQueries.some((q) => q.query.toLowerCase().includes('select'))).toBe(true);
-			}));
-
-		it.effect('custom EffectCache override - user provided cache takes precedence over default', () =>
-			Effect.gen(function*() {
-				const cacheOperations = yield* Ref.make<Array<{ op: 'get' | 'put' | 'mutate'; key?: string }>>([]);
-
-				const customCacheService: EffectCacheShape = {
-					strategy: () => 'all' as const,
-					get: (key: string, _tables: string[], _isTag: boolean, _isAutoInvalidate?: boolean) =>
-						Effect.gen(function*() {
-							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'get' as const, key }]);
-							// oxlint-disable-next-line no-useless-undefined
-							return undefined;
-						}),
-					put: (key: string, _response: any, _tables: string[], _isTag: boolean, _config?: any) =>
-						Effect.gen(function*() {
-							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'put' as const, key }]);
-						}),
-					onMutate: (_params: any) =>
-						Effect.gen(function*() {
-							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'mutate' as const }]);
-						}),
-				};
-				const customCacheLayer = Layer.succeed(EffectCache, customCacheService);
-
-				const db = yield* MySqlDrizzle.make({ relations }).pipe(
-					Effect.provide(customCacheLayer),
-					Effect.provide(MySqlDrizzle.DefaultServices),
-				);
-
-				const users = mysqlTable('users_custom_cache', {
-					id: serial('id').primaryKey(),
-					name: text('name').notNull(),
-				});
-
-				yield* push(db, { users });
-				yield* db.insert(users).values({ name: 'John' });
-				yield* db.select().from(users).$withCache();
-
-				const ops = yield* Ref.get(cacheOperations);
-				expect(ops.some((o) => o.op === 'mutate')).toBe(true);
-				expect(ops.some((o) => o.op === 'get')).toBe(true);
-			}));
-
-		it.effect('Cache: onMutate runs after the write is committed', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('explicit');
-
-				const db = yield* MySqlDrizzle.make({ relations }).pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
-					Effect.provide(MySqlDrizzle.DefaultServices),
-				);
-
-				const users = mysqlTable('users_cache_mutate_order', {
-					id: int('id').primaryKey(),
-					name: text('name').notNull(),
-				});
-
-				yield* push(db, { users });
-
-				const context = yield* Effect.context<never>();
-				const run = (query: any) => Effect.runPromiseWith(context)(query);
-				const seen: string[][] = [];
-				using spyInvalidate = vi.spyOn(baseCache, 'onMutate').mockImplementation(async () => {
-					const rows = await run(db.select({ name: users.name }).from(users)) as { name: string }[];
-					seen.push(rows.map((r) => r.name));
-				});
-
-				yield* db.insert(users).values({ id: 1, name: 'John' });
-
-				expect(spyInvalidate).toHaveBeenCalledTimes(1);
-				expect(seen).toStrictEqual([['John']]);
-			}));
-
-		it.effect('Cache: relational query - withCache, used tables, invalidation', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('explicit');
-
-				const db = yield* MySqlDrizzle.make({ relations }).pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
-					Effect.provide(MySqlDrizzle.DefaultServices),
-				);
-
-				yield* push(db, { rqbUser, rqbPost });
-				const createdAt = new Date(120000);
-				yield* db.insert(rqbUser).values({ id: 1, name: 'John', createdAt });
-				yield* db.insert(rqbPost).values({ id: 1, userId: 1, content: 'First', createdAt });
-
-				using spyPut = vi.spyOn(baseCache, 'put');
-				using spyGet = vi.spyOn(baseCache, 'get');
-
-				const query = (withCache?: boolean) =>
-					db.query.rqbUser.findMany({
-						columns: { name: true },
-						with: { posts: { columns: { content: true }, orderBy: { id: 'asc' } } },
-						withCache,
-					});
-
-				yield* query();
-				expect(spyGet).toHaveBeenCalledTimes(0);
-
-				expect(yield* query(true)).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
-				expect(spyPut.mock.calls[0]![2]).toStrictEqual(['user_rqb_test', 'post_rqb_test']);
-
-				// Bypasses cache invalidation, cached result is served
-				yield* db.execute(sql`insert into ${rqbPost} values (2, 1, 'Unseen', now())`);
-				expect(yield* query(true)).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
-				expect(spyGet).toHaveBeenCalledTimes(2);
-				expect(spyPut).toHaveBeenCalledTimes(1);
-
-				yield* db.insert(rqbPost).values({ id: 3, userId: 1, content: 'Third', createdAt });
-				expect(yield* query(true)).toStrictEqual([{
-					name: 'John',
-					posts: [{ content: 'First' }, { content: 'Unseen' }, { content: 'Third' }],
-				}]);
-				expect(spyPut).toHaveBeenCalledTimes(2);
-			}));
-
-		it.effect('Cache: relational query - all strategy unless withCache: false', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('all');
-
-				const db = yield* MySqlDrizzle.make({ relations }).pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
-					Effect.provide(MySqlDrizzle.DefaultServices),
-				);
-
-				yield* push(db, { rqbUser });
-
-				using spyPut = vi.spyOn(baseCache, 'put');
-				using spyGet = vi.spyOn(baseCache, 'get');
-
-				yield* db.query.rqbUser.findMany({ withCache: false });
-				expect(spyGet).toHaveBeenCalledTimes(0);
-
-				yield* db.query.rqbUser.findFirst();
-				expect(spyGet).toHaveBeenCalledTimes(1);
-				expect(spyPut).toHaveBeenCalledTimes(1);
-				expect(spyPut.mock.calls[0]![2]).toStrictEqual(['user_rqb_test']);
-			}));
-
-		it.effect('Cache: no onMutate on failed write', () =>
-			Effect.gen(function*() {
-				const baseCache = new TestCache('explicit');
-
-				const db = yield* MySqlDrizzle.make({ relations }).pipe(
-					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
-					Effect.provide(MySqlDrizzle.DefaultServices),
-				);
-
-				const users = mysqlTable('users_cache_failed_write', {
-					id: int('id').primaryKey(),
-					name: text('name').notNull(),
-				});
-
-				yield* push(db, { users });
-				yield* db.insert(users).values({ id: 1, name: 'John' });
-
-				using spyInvalidate = vi.spyOn(baseCache, 'onMutate');
-
-				const res = yield* db.insert(users).values({ id: 1, name: 'Jane' }).pipe(Effect.result);
-
-				assert(Result.isFailure(res));
-				expect(spyInvalidate).toHaveBeenCalledTimes(0);
 			}));
 
 		it.effect('makeWithDefaults - convenience function that includes DefaultServices', () =>
@@ -4626,6 +4279,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4464
 		it.effect('db.execute modes', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4673,6 +4327,8 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4698,6 +4354,8 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list - select', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4724,6 +4382,8 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list - on duplicate key update', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4779,6 +4439,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				}]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params', () =>
 			Effect.gen(function*() {
 				for (const paramsInErrors of [undefined, false, true]) {
@@ -4796,6 +4457,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				}
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params - transaction', () =>
 			Effect.gen(function*() {
 				for (const paramsInErrors of [undefined, false, true]) {

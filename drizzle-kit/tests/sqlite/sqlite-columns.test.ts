@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import { sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
@@ -650,7 +651,7 @@ test('dropped, added unique index', async (t) => {
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		`DROP INDEX IF EXISTS \`customers_address_unique\`;`,
+		`DROP INDEX \`customers_address_unique\`;`,
 		`CREATE UNIQUE INDEX \`customers_is_confirmed_unique\` ON \`customers\` (\`is_confirmed\`);`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -658,6 +659,39 @@ test('dropped, added unique index', async (t) => {
 
 	const hints0: string[] = [];
 	expect(phints).toStrictEqual(hints0);
+});
+
+// DROP TABLE of a recreated table already removes its indexes, so a DROP INDEX that comes after it has to
+// tolerate the index being gone
+test.skipIf(postponed)('recreate table and drop its index in the same diff', async () => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+		}, (table) => [index('users_name_idx').on(table.name)]),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	// the generated migration runs on a database that has the first schema
+	await push({ db, to: schema1 });
+	for (const statement of st) await db.run(statement);
+	expect(await db.query(`SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'users_name_idx'`))
+		.toStrictEqual([]);
+
+	// and so does push
+	await _.clear();
+	await push({ db, to: schema1 });
+	await push({ db, to: schema2 });
+	expect(await db.query(`SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'users_name_idx'`))
+		.toStrictEqual([]);
 });
 
 test('drop autoincrement. drop column with data', async (t) => {
@@ -1281,7 +1315,6 @@ test('alter column add default #2', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'ALTER TABLE `table` ADD `age` integer;',
 		'PRAGMA foreign_keys=OFF;',
 		"CREATE TABLE `__new_table` (\n\t`name` text DEFAULT 'dan',\n\t`age` integer\n);\n",
 		'INSERT INTO `__new_table`(`name`) SELECT `name` FROM `table`;',
@@ -1776,7 +1809,6 @@ test('issue #5822. Add column - table recreation', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schemaTo });
 
 	const st0: string[] = [
-		'ALTER TABLE `test` ADD `column3` text NOT NULL;',
 		'PRAGMA foreign_keys=OFF;',
 		`CREATE TABLE \`__new_test\` (
 \t\`column1\` text NOT NULL,
@@ -2040,4 +2072,178 @@ test('drop column without values in a table with data', async () => {
 	const { hints: phints } = await push({ db, to: schema2 });
 
 	expect(phints).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6408
+test('Issue 6408', async () => {
+	const schema1 = {
+		materials: sqliteTable('materials', {
+			materialNumber: integer('material_number').primaryKey(),
+			materialName: text('material_name').notNull(),
+		}),
+	};
+	const schema2 = {
+		materials: sqliteTable('materials', {
+			materialNumber: integer('material_number').primaryKey(),
+			materialName: text('material_name').notNull(),
+			createdTimestamp: int('created_timestamp', { mode: 'timestamp' }).notNull().default(
+				sql`(CURRENT_TIMESTAMP)`,
+			),
+			updatedTimestamp: int('updated_timestamp', { mode: 'timestamp' }).notNull().default(
+				sql`(CURRENT_TIMESTAMP)`,
+			),
+			deletedTimestamp: int('deleted_timestamp', { mode: 'timestamp' }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	await db.run("INSERT INTO `materials` VALUES (1, 'steel');");
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_materials` (\n'
+		+ '\t`material_number` integer PRIMARY KEY,\n'
+		+ '\t`material_name` text NOT NULL,\n'
+		+ '\t`created_timestamp` integer DEFAULT (CURRENT_TIMESTAMP) NOT NULL,\n'
+		+ '\t`updated_timestamp` integer DEFAULT (CURRENT_TIMESTAMP) NOT NULL,\n'
+		+ '\t`deleted_timestamp` integer\n'
+		+ ');\n',
+		'INSERT INTO `__new_materials`(`material_number`, `material_name`) SELECT `material_number`, `material_name` FROM `materials`;',
+		'DROP TABLE `materials`;',
+		'ALTER TABLE `__new_materials` RENAME TO `materials`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const res = await db.query(
+		'select `material_number`, `material_name`, `created_timestamp` is not null as `created`, `deleted_timestamp` from `materials`;',
+	);
+	expect(res).toStrictEqual([{ material_number: 1, material_name: 'steel', created: 1, deleted_timestamp: null }]);
+});
+// https://github.com/drizzle-team/drizzle-orm/issues/6408
+test('Issue 6408. add column with constant default in parentheses', async () => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+			col1: integer('col1').default(sql`(1)`),
+			col2: integer('col2').default(sql`((1))`),
+			col3: integer('col3').notNull().default(sql`(-1)`),
+			col4: text('col4').default(sql`('abc')`),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	await db.run('INSERT INTO `users` VALUES (1);');
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER TABLE `users` ADD `col1` integer DEFAULT (1);',
+		'ALTER TABLE `users` ADD `col2` integer DEFAULT ((1));',
+		'ALTER TABLE `users` ADD `col3` integer DEFAULT (-1) NOT NULL;',
+		"ALTER TABLE `users` ADD `col4` text DEFAULT ('abc');",
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const res = await db.query('select * from `users`;');
+	expect(res).toStrictEqual([{ id: 1, col1: 1, col2: 1, col3: -1, col4: 'abc' }]);
+});
+// https://github.com/drizzle-team/drizzle-orm/issues/6408
+test('Issue 6408. add column with function and CURRENT_TIMESTAMP default', async () => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+			name: text('name'),
+		}, (t) => [index('users_name_idx').on(t.name)]),
+	};
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+			name: text('name'),
+			createdAt: text('created_at').default(sql`(datetime('now'))`),
+			updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+		}, (t) => [index('users_name_idx').on(t.name)]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	await db.run("INSERT INTO `users` VALUES (1, 'a');");
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY,\n'
+		+ '\t`name` text,\n'
+		+ "\t`created_at` text DEFAULT (datetime('now')),\n"
+		+ '\t`updated_at` text DEFAULT CURRENT_TIMESTAMP\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`) SELECT `id`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+		'CREATE INDEX `users_name_idx` ON `users` (`name`);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const res = await db.query(
+		'select `id`, `name`, `created_at` is not null as `created`, `updated_at` is not null as `updated` from `users`;',
+	);
+	expect(res).toStrictEqual([{ id: 1, name: 'a', created: 1, updated: 1 }]);
+});
+// https://github.com/drizzle-team/drizzle-orm/issues/6408
+test('Issue 6408. add column with non constant default', async () => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+			name: text('name'),
+		}, (t) => [index('users_name_idx').on(t.name)]),
+	};
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+			name: text('name'),
+			col: text('col').default(sql`(1 + 1)`),
+		}, (t) => [index('users_name_idx').on(t.name)]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	await db.run("INSERT INTO `users` VALUES (1, 'a');");
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY,\n'
+		+ '\t`name` text,\n'
+		+ '\t`col` text DEFAULT (1 + 1)\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`) SELECT `id`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+		'CREATE INDEX `users_name_idx` ON `users` (`name`);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const res = await db.query(
+		'select `id`, `name`, `col` from `users`;',
+	);
+	expect(res).toStrictEqual([{ id: 1, name: 'a', col: '2' }]);
 });

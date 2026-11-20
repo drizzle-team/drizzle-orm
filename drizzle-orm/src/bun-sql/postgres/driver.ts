@@ -26,10 +26,9 @@ function construct<
 ): BunSQLDatabase<TRelations> & {
 	$client: SQL;
 } {
-	client.options.bigint = true;
 	const dialect = new PgDialect({
 		useJitMappers: jitCompatCheck(config.jit),
-		codecs: config.codecs ?? bunSqlPgCodecs,
+		codecs: config.codecs ?? bunSqlPgCodecs(client),
 	});
 	let logger;
 	if (config.logger === true) {
@@ -41,19 +40,22 @@ function construct<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new BunSQLSession(client, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new BunSQLDatabase(dialect, session, relations, false, true) as BunSQLDatabase<TRelations>;
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }
 
+/**
+ * Driver quirks:
+ * - `timestamp` in `string` mode loses microseconds
+ * - Dates of sessions with a non-ISO `DateStyle` are read as `null`s
+ *
+ * Unsupported column types (throw on non-null values):
+ * - `timestamptz` in `string` mode (offset dropped)
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends SQL = SQL,
@@ -110,11 +112,6 @@ export namespace drizzle {
 	): BunSQLDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({
-			options: {
-				parsers: {},
-				serializers: {},
-			},
-		} as any, config) as any;
+		return construct({ json: (value: unknown) => value } as any, config) as any;
 	}
 }

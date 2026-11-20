@@ -1,5 +1,7 @@
-import type { MysqlClient } from '@effect/sql-mysql2/MysqlClient';
+import { MysqlClient } from '@effect/sql-mysql2/MysqlClient';
+import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
+import type { SqlClient } from 'effect/sql/SqlClient';
 import type { SqlError } from 'effect/sql/SqlError';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { Equal } from 'type-tests/utils.ts';
@@ -24,7 +26,7 @@ type AsEffect<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.E
 	Expect<
 		Equal<
 			DbEffect,
-			Effect.Effect<EffectMysql2Database<EmptyRelations> & { $client: MysqlClient }, never, MysqlClient>
+			Effect.Effect<EffectMysql2Database<EmptyRelations> & { $client: MysqlClient & SqlClient }, never, MysqlClient>
 		>
 	>;
 }
@@ -37,10 +39,9 @@ type AsEffect<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.E
 		Equal<
 			DbEffect,
 			Effect.Effect<
-				EffectMysql2Database<EmptyRelations> & { $client: MysqlClient },
+				EffectMysql2Database<EmptyRelations> & { $client: MysqlClient & SqlClient },
 				never,
 				| import('~/effect-core/logger.ts').EffectLogger
-				| import('~/cache/core/cache-effect.ts').EffectCache
 				| MysqlClient
 			>
 		>
@@ -170,6 +171,7 @@ declare const db: EffectMysql2Database<Record<string, never>>;
 	Expect<Equal<DeleteAllEffect, Effect.Effect<ResultSetHeader, EffectDrizzleQueryError, never>>>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6403
 {
 	const txResult = db.transaction((tx) => tx.select().from(users));
 	type TxResultType = typeof txResult;
@@ -292,6 +294,8 @@ declare const db: EffectMysql2Database<Record<string, never>>;
 	Expect<Equal<typeof d4, Expected>>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
+// https://github.com/drizzle-team/drizzle-orm/issues/6382
 {
 	interface UserInterface {
 		id: number;
@@ -304,6 +308,8 @@ declare const db: EffectMysql2Database<Record<string, never>>;
 	Expect<Equal<ObjectsEffect, Effect.Effect<UserInterface[], EffectDrizzleQueryError, never>>>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
+// https://github.com/drizzle-team/drizzle-orm/issues/6382
 {
 	const raw = db.execute(`select 1 as id, 'a' as name`);
 	type RawEffect = AsEffect<typeof raw>;
@@ -326,6 +332,8 @@ declare const db: EffectMysql2Database<Record<string, never>>;
 	Expect<Equal<AsEffect<typeof del>, Effect.Effect<ResultSetHeader, EffectDrizzleQueryError, never>>>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
+// https://github.com/drizzle-team/drizzle-orm/issues/6382
 {
 	interface UserInterface {
 		id: number;
@@ -348,4 +356,22 @@ declare const db: EffectMysql2Database<Record<string, never>>;
 	// concrete shape - rows of given shape
 	const typed = db.execute<UserInterface>(`select 1 as id, 'a' as name`);
 	Expect<Equal<AsEffect<typeof typed>, Raw<UserInterface[]>>>;
+}
+
+{
+	const values = { homeCity: 1, class: 'A', age1: 1, enumCol: 'a' } as const;
+
+	// @ts-expect-error `$returningId` can't report updated rows' ids
+	db.insert(users).values(values).onDuplicateKeyUpdate({ set: { age1: 2 } }).$returningId();
+	// @ts-expect-error `$returningId` can't report updated rows' ids
+	db.insert(users).values(values).$returningId().onDuplicateKeyUpdate({ set: { age1: 2 } });
+}
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6685
+// `$client` must keep the full service shape so it can be re-provided via the native Effect service API
+{
+	Effect.gen(function*() {
+		const db = yield* makeWithDefaults();
+		return Context.make(MysqlClient, db.$client);
+	});
 }

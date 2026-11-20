@@ -1,3 +1,4 @@
+import { composeHint, requireEnv } from '@drizzle/test-utils';
 import { SQL as BunSQL } from 'bun';
 import { afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, test } from 'bun:test';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -97,17 +98,44 @@ import {
 } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { PgQueryResultHKT } from 'drizzle-orm/pg-core/session';
-import { allTypesData, makeAllTypes } from '~/pg/all-types';
+import { jsonRows, parseStoredJson } from '~/json-values';
+import {
+	allTypesDataWith,
+	type AllTypesReplacements,
+	makeAllTypes,
+	temporalBoundsData,
+	withEmptyArrays,
+} from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
 import { Expect } from '~/utils';
-import { assertAllTypesBounds } from '../pg/all-types';
+import {
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesTemporalBoundsInSessions,
+	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
+} from '../pg/all-types';
 import { relations } from '../pg/relations';
 import {
 	assertMalformedSnapshotRejected,
 	assertSnapshotIdNotInjectable,
 	assertSnapshotIsolatesTransaction,
 } from '../pg/snapshot';
+
+// `bun`'s `SQL` decodes timestamps to `Date`s: string-mode `timestamp`s lose microseconds (a driver quirk), string-mode
+// `timestamptz`s lose the offset the server formats in the session's time zone and throw an unsupported column type
+// error. All-types tests hold `null`s in their place (nullable columns, `null` never reaches a decoder) and leave out
+// unions, temporal bounds hold `timestamp` values cut to milliseconds
+const unsupportedReplacements = { timestampTzstr: null, arrtimestampTzstr: null } satisfies AllTypesReplacements;
+const allTypesData = allTypesDataWith(unsupportedReplacements);
+const cutToMilliseconds = (value: string | null) => value?.replace(/(\.\d{3})\d+/, '$1') ?? null;
+const temporalBoundsDataMillis = temporalBoundsData.map((row) => ({
+	...row,
+	timestampStr: cutToMilliseconds(row.timestampStr),
+	timestampTzStr: null,
+}));
 
 export const usersTable = pgTable('users', {
 	id: serial('id' as string).primaryKey(),
@@ -230,12 +258,7 @@ const { allTypesTable } = makeAllTypes('all_types', 'en');
 let db: BunSQLDatabase<typeof relations> & { $client: BunSQL };
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'PG_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up postgres` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('PG_CONNECTION_STRING', composeHint('postgres'));
 	const connClient = new BunSQL(connectionString, { max: 1 });
 	await connClient.unsafe(`select 1`);
 
@@ -519,6 +542,7 @@ test('table config: primary keys name', async () => {
 	expect(tableConfig.primaryKeys[0]!.getName()).toBe('custom_pk');
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5779
 test('select all fields', async () => {
 	const now = Date.now();
 
@@ -597,6 +621,7 @@ test('$default function', async () => {
 	}]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4464
 test('db.execute modes', async () => {
 	const users = pgTable('users_execute_modes_1', {
 		id: integer('id').primaryKey(),
@@ -817,6 +842,32 @@ test('json insert', async () => {
 	expect(result).toEqual([{ id: 1, name: 'John', jsonb: ['foo', 'bar'] }]);
 });
 
+// A `json` column keeps the text it is given: the order of keys, and keys that repeat. `jsonb` sorts the keys.
+// A value sent as a `jsonb` parameter is parsed as `jsonb` first and only then cast to `json`, so it reaches
+// the `json` column with its keys already sorted
+test('a json column keeps the order of keys', async () => {
+	const jsonOrderTable = pgTable('jsontest', {
+		id: serial('id').primaryKey(),
+		json: json('json').notNull(),
+		jsonb: jsonb('jsonb').notNull(),
+	});
+
+	const value = { b: 1, a: 2, nested: { z: 1, y: 2 } };
+	await db.insert(jsonOrderTable).values({ json: value, jsonb: value });
+
+	const [stored] = await db
+		.select({ json: sql<string>`${jsonOrderTable.json}::text`, jsonb: sql<string>`${jsonOrderTable.jsonb}::text` })
+		.from(jsonOrderTable);
+	console.log('stored', stored);
+	expect(stored).toStrictEqual({
+		json: '{"b":1,"a":2,"nested":{"z":1,"y":2}}',
+		jsonb: '{"a": 2, "b": 1, "nested": {"y": 2, "z": 1}}',
+	});
+
+	const [row] = await db.select({ json: jsonOrderTable.json }).from(jsonOrderTable);
+	expect(Object.keys(row!.json as object)).toStrictEqual(['b', 'a', 'nested']);
+});
+
 test('char insert', async () => {
 	await db.insert(citiesTable).values({ name: 'Austin', state: 'TX' });
 	const result = await db
@@ -855,6 +906,8 @@ test('insert with overridden default values', async () => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5001
+// https://github.com/drizzle-team/drizzle-orm/issues/5309
 test('insert with explicit column list', async () => {
 	const table = pgTable('column_selection', {
 		id: serial('id').primaryKey(),
@@ -883,6 +936,8 @@ test('insert with explicit column list', async () => {
 	await db.execute(sql`drop table ${table}`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5001
+// https://github.com/drizzle-team/drizzle-orm/issues/5309
 test('insert with explicit column list - select', async () => {
 	const src = pgTable('column_selection_select_src', {
 		id: integer('id').primaryKey(),
@@ -915,6 +970,8 @@ test('insert with explicit column list - select', async () => {
 	await db.execute(sql`drop table ${dst}`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5001
+// https://github.com/drizzle-team/drizzle-orm/issues/5309
 test('insert with explicit column list - on conflict', async () => {
 	const table = pgTable('column_selection_conflict', {
 		id: integer('id').primaryKey(),
@@ -1395,6 +1452,13 @@ test('Insert all defaults in multiple rows', async () => {
 	expect(res).toEqual([{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
 });
 
+const jsonParam = (value: unknown) =>
+	typeof db.$client.json === 'function'
+		? db.$client.json(value)
+		: db.$client.options.prepare === false
+		? JSON.stringify(value)
+		: expect.objectContaining({ value });
+
 test('build query insert with onConflict do update', async () => {
 	const query = db
 		.insert(usersTable)
@@ -1405,7 +1469,7 @@ test('build query insert with onConflict do update', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
-		params: ['John', ['foo', 'bar'], 'John1'],
+		params: ['John', jsonParam(['foo', 'bar']), 'John1'],
 	});
 });
 
@@ -1419,7 +1483,7 @@ test('build query insert with onConflict do update / multiple columns', async ()
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-		params: ['John', ['foo', 'bar'], 'John1'],
+		params: ['John', jsonParam(['foo', 'bar']), 'John1'],
 	});
 });
 
@@ -1433,7 +1497,7 @@ test('build query insert with onConflict do nothing', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
-		params: ['John', ['foo', 'bar']],
+		params: ['John', jsonParam(['foo', 'bar'])],
 	});
 });
 
@@ -1447,7 +1511,7 @@ test('build query insert with onConflict do nothing + target', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-		params: ['John', ['foo', 'bar']],
+		params: ['John', jsonParam(['foo', 'bar'])],
 	});
 });
 
@@ -1908,7 +1972,7 @@ test('select all fields from subquery without alias', () => {
 test('select count()', async () => {
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 
-	const res = await db.select({ count: sql`count(*)` }).from(usersTable);
+	const res = await db.select({ count: sql<string>`count(*)`.mapWith(BigInt) }).from(usersTable);
 
 	expect(res).toEqual([{ count: 2n }]);
 });
@@ -2474,7 +2538,7 @@ test('all date and time columns', async () => {
 		datetimeWTZ: timestamp('datetime_wtz', { withTimezone: true }).notNull(),
 		datetimeString: timestamp('datetime_string', { mode: 'string' }).notNull(),
 		datetimeFullPrecision: timestamp('datetime_full_precision', { precision: 6, mode: 'string' }).notNull(),
-		datetimeWTZString: timestamp('datetime_wtz_string', { withTimezone: true, mode: 'string' }).notNull(),
+		datetimeWTZString: timestamp('datetime_wtz_string', { withTimezone: true, mode: 'string' }),
 		interval: interval('interval').notNull(),
 	});
 
@@ -2489,7 +2553,7 @@ test('all date and time columns', async () => {
 					datetime_wtz timestamp with time zone not null,
 					datetime_string timestamp not null,
 					datetime_full_precision timestamp(6) not null,
-					datetime_wtz_string timestamp with time zone not null,
+					datetime_wtz_string timestamp with time zone,
 					interval interval not null
 			)
 	`);
@@ -2505,7 +2569,8 @@ test('all date and time columns', async () => {
 		datetimeWTZ: someDatetime,
 		datetimeString: '2022-01-01T00:00:00.123Z',
 		datetimeFullPrecision: fullPrecision,
-		datetimeWTZString: '2022-01-01T00:00:00.123Z',
+		// string-mode `timestamptz` throws an unsupported column type error with `bun`'s `SQL`, `null` never reaches a decoder
+		datetimeWTZString: null,
 		interval: '1 day',
 	});
 
@@ -2521,7 +2586,7 @@ test('all date and time columns', async () => {
 			datetimeWTZ: Date;
 			datetimeString: string;
 			datetimeFullPrecision: string;
-			datetimeWTZString: string;
+			datetimeWTZString: string | null;
 			interval: string;
 		}[], typeof result>
 	>;
@@ -2535,7 +2600,7 @@ test('all date and time columns', async () => {
 			datetimeWTZ: Date;
 			datetimeString: string;
 			datetimeFullPrecision: string;
-			datetimeWTZString: string;
+			datetimeWTZString?: string | null | undefined;
 			interval: string;
 			id?: number | undefined;
 		}, typeof table.$inferInsert>
@@ -2549,8 +2614,9 @@ test('all date and time columns', async () => {
 			datetime: someDatetime,
 			datetimeWTZ: someDatetime,
 			datetimeString: '2022-01-01 00:00:00.123',
-			datetimeFullPrecision: fullPrecision.replace('T', ' ').replace('Z', ''),
-			datetimeWTZString: '2022-01-01 00:00:00.123+00',
+			// `bun` decodes timestamps to `Date`s, losing microseconds (driver quirk)
+			datetimeFullPrecision: fullPrecision.replace('T', ' ').replace('Z', '').slice(0, 23),
+			datetimeWTZString: null,
 			interval: '1 day',
 		},
 	]);
@@ -3717,6 +3783,7 @@ test('test $onUpdateFn and $onUpdate works updating', async () => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5780
 test('$onUpdateFn called only when needed', async () => {
 	let counter = 0;
 	const table = pgTable('on_update_call_test', {
@@ -4195,7 +4262,7 @@ test('mySchema :: build query insert with onConflict do update / multiple column
 	expect(query).toEqual({
 		sql:
 			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-		params: ['John', ['foo', 'bar'], 'John1'],
+		params: ['John', jsonParam(['foo', 'bar']), 'John1'],
 	});
 });
 
@@ -4208,7 +4275,7 @@ test('mySchema :: build query insert with onConflict do nothing + target', async
 	expect(query).toEqual({
 		sql:
 			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-		params: ['John', ['foo', 'bar']],
+		params: ['John', jsonParam(['foo', 'bar'])],
 	});
 });
 
@@ -4381,13 +4448,10 @@ test('limit 0', async () => {
 });
 
 test('limit -1', async () => {
-	await db.insert(usersTable).values({ name: 'John' });
-	const users = await db
-		.select()
-		.from(usersTable)
-		.limit(-1);
-
-	expect(users.length).toBeGreaterThan(0);
+	// A negative limit isn't dropped: it reaches the database, which rejects it
+	const query = db.select().from(usersTable).limit(-1);
+	expect(query.toSQL().params).toStrictEqual([-1]);
+	await expect(query.execute()).rejects.toThrow();
 });
 
 test('Object keys as column names', async () => {
@@ -5977,12 +6041,10 @@ test('RQB v2 transaction find many - placeholders', async () => {
 	}
 });
 
-test('all types', async () => {
-	// Same fixture and data as the other suites' `all types` (see ~/pg/all-types.ts). The DDL is the schema
-	// drizzle-kit emits for that table - this suite has no push fixture to build it from the definition.
-	await db.execute(sql`CREATE TYPE "en" AS ENUM('enVal1', 'enVal2');`);
-	await db.execute(sql`
-		CREATE TABLE "all_types" (
+const createAllTypes = async (tableName: string, enumName: string) => {
+	await db.execute(sql.raw(`CREATE TYPE "${enumName}" AS ENUM('enVal1', 'enVal2');`));
+	await db.execute(sql.raw(`
+		CREATE TABLE "${tableName}" (
 			"serial" serial,
 			"bigserial" bigserial,
 			"bigserialnum" bigserial,
@@ -5997,7 +6059,7 @@ test('all types', async () => {
 			"date" date NOT NULL,
 			"datestr" date NOT NULL,
 			"double" double precision NOT NULL,
-			"enum" "en" NOT NULL,
+			"enum" "${enumName}" NOT NULL,
 			"inet" inet NOT NULL,
 			"interval" interval NOT NULL,
 			"json" json NOT NULL,
@@ -6025,7 +6087,7 @@ test('all types', async () => {
 			"timestamp" timestamp NOT NULL,
 			"timestampTz" timestamp with time zone NOT NULL,
 			"timestampstr" timestamp NOT NULL,
-			"timestampTzstr" timestamp with time zone NOT NULL,
+			"timestampTzstr" timestamp with time zone,
 			"uuid" uuid NOT NULL,
 			"varchar" varchar NOT NULL,
 			"arrint" integer[] NOT NULL,
@@ -6040,7 +6102,7 @@ test('all types', async () => {
 			"arrdate" date[] NOT NULL,
 			"arrdatestr" date[] NOT NULL,
 			"arrdouble" double precision[] NOT NULL,
-			"arrenum" "en"[] NOT NULL,
+			"arrenum" "${enumName}"[] NOT NULL,
 			"arrinet" inet[] NOT NULL,
 			"arrinterval" interval[] NOT NULL,
 			"arrjson" json[] NOT NULL,
@@ -6067,21 +6129,39 @@ test('all types', async () => {
 			"arrtimestamp" timestamp[] NOT NULL,
 			"arrtimestampTz" timestamp with time zone[] NOT NULL,
 			"arrtimestampstr" timestamp[] NOT NULL,
-			"arrtimestampTzstr" timestamp with time zone[] NOT NULL,
+			"arrtimestampTzstr" timestamp with time zone[],
 			"arruuid" uuid[] NOT NULL,
 			"arrvarchar" varchar[] NOT NULL
 		);
-	`);
+	`));
+};
 
-	// Driver can't handle numbers in json fields
-	const { json2: _json2, jsonb2: _jsonb2, ...bunAllTypesData } = allTypesData;
-	const { json2: _c1, jsonb2: _c2, ...bunAllTypesColumns } = getTableColumns(allTypesTable);
+test('all types', async () => {
+	await createAllTypes('all_types', 'en');
 
-	await db.insert(allTypesTable).values(bunAllTypesData as typeof allTypesData);
+	await db.insert(allTypesTable).values(allTypesData);
 
-	const rawRes = await db.select(bunAllTypesColumns).from(allTypesTable);
+	const rawRes = await db.select().from(allTypesTable);
 
-	expect(rawRes).toStrictEqual([bunAllTypesData]);
+	expect(rawRes).toStrictEqual([allTypesData]);
+
+	// The client's own decoding settings must not leak into what the ORM returns
+	const bigintClient = new BunSQL(process.env['PG_CONNECTION_STRING']!, { max: 1, bigint: true });
+	const bigintDb = drizzle({ client: bigintClient });
+	const originalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	try {
+		for (const tz of ['America/Los_Angeles', 'Pacific/Kiritimati']) {
+			process.env['TZ'] = tz;
+
+			await bigintDb.delete(allTypesTable);
+			await bigintDb.insert(allTypesTable).values(allTypesData);
+
+			expect(await bigintDb.select().from(allTypesTable)).toStrictEqual([allTypesData]);
+		}
+	} finally {
+		process.env['TZ'] = originalTz;
+		await bigintClient.close();
+	}
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5287
@@ -6253,10 +6333,11 @@ test('all types ~codecs~', async () => {
 		timestampTzstr: timestamp('timestampTzstr', {
 			mode: 'string',
 			withTimezone: true,
-		}).notNull(),
+		}),
 		uuid: uuid('uuid').notNull(),
 		varchar: varchar('varchar').notNull(),
 		arrint: integer('arrint').array().notNull(),
+		mtxint: integer('mtxint').array('[][]').notNull(),
 		arrbigint: bigint('arrbigint', {
 			mode: 'bigint',
 		}).array().notNull(),
@@ -6307,7 +6388,7 @@ test('all types ~codecs~', async () => {
 			mode: 'tuple',
 		}).array().notNull(),
 		arrreal: real('arrreal').array().notNull(),
-		// mtxreal: real('mtxreal').array('[][]'), // MULTIDIMENSIONAL ARRAYS NOT SUPPORTED YET BY DRIVER
+		mtxreal: real('mtxreal').array('[][]').notNull(),
 		arrsmallint: smallint('arrsmallint').array().notNull(),
 		arrtext: text('arrtext').array().notNull(),
 		arrtime: time('arrtime').array().notNull(),
@@ -6324,19 +6405,20 @@ test('all types ~codecs~', async () => {
 		arrtimestampTzstr: timestamp('arrtimestampTzstr', {
 			mode: 'string',
 			withTimezone: true,
-		}).array().notNull(),
+		}).array(),
 		arruuid: uuid('arruuid').array().notNull(),
 		arrvarchar: varchar('arrvarchar').array().notNull(),
 	});
 
 	const db = drizzle(process.env['PG_CONNECTION_STRING']!, {
-		relations: defineRelations({ allTypesTable }, (r) => ({
+		relations: defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
 			allTypesTable: {
 				self: r.many.allTypesTable({
 					from: r.allTypesTable.serial,
 					to: r.allTypesTable.serial,
 				}),
 			},
+			...boundsRelations(r),
 		})),
 	});
 
@@ -6478,10 +6560,11 @@ test('all types ~codecs~', async () => {
 		timestamp: Date;
 		timestampTz: Date;
 		timestampstr: string;
-		timestampTzstr: string;
+		timestampTzstr: string | null;
 		uuid: string;
 		varchar: string;
 		arrint: number[];
+		mtxint: number[][];
 		arrbigint: bigint[];
 		arrbigintnum: number[];
 		arrbigintstr: string[];
@@ -6513,6 +6596,7 @@ test('all types ~codecs~', async () => {
 		arrnumericbig: bigint[];
 		arrpoint: { x: number; y: number }[];
 		arrpointtuple: [number, number][];
+		mtxreal: number[][];
 		arrreal: number[];
 		arrsmallint: number[];
 		arrtext: string[];
@@ -6520,7 +6604,7 @@ test('all types ~codecs~', async () => {
 		arrtimestamp: Date[];
 		arrtimestampTz: Date[];
 		arrtimestampstr: string[];
-		arrtimestampTzstr: string[];
+		arrtimestampTzstr: string[] | null;
 		arruuid: string[];
 		arrvarchar: string[];
 	};
@@ -6566,10 +6650,12 @@ test('all types ~codecs~', async () => {
 		timestamp: new Date('2025-03-12 01:32:41.623'),
 		timestampTz: new Date('2025-03-12 01:32:41.623+00'),
 		timestampstr: '2025-03-12 01:32:41.623',
-		timestampTzstr: '2025-03-12 01:32:41.623+00',
+		// string-mode `timestamptz` throws an unsupported column type error with `bun`'s `SQL`, `null` never reaches a decoder
+		timestampTzstr: null,
 		uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
 		varchar: 'C4-',
 		arrint: [621],
+		mtxint: [[1, 2], [3, 4]],
 		arrbigint: [5044565289845416380n],
 		arrbigintnum: [9007199254740991],
 		arrbigintstr: ['5044565289845416380'],
@@ -6604,6 +6690,7 @@ test('all types ~codecs~', async () => {
 		arrnumericbig: [5044565289845416380n],
 		arrpoint: [{ x: 24.5, y: 49.6 }],
 		arrpointtuple: [[24.5, 49.6]],
+		mtxreal: [[1.048596, 2.5], [-3.25, 4]],
 		arrreal: [1.048596],
 		arrsmallint: [10],
 		arrtext: ['TEXT STRING'],
@@ -6611,14 +6698,16 @@ test('all types ~codecs~', async () => {
 		arrtimestamp: [new Date('2025-03-12 01:32:41.623')],
 		arrtimestampTz: [new Date('2025-03-12 01:32:41.623+00')],
 		arrtimestampstr: ['2025-03-12 01:32:41.623'],
-		arrtimestampTzstr: ['2025-03-12 01:32:41.623+00'],
+		arrtimestampTzstr: null,
 		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
 		arrvarchar: ['C4-'],
 	};
 
 	await db.insert(allTypesTable).values(testData);
 
-	const queryRes = await db.execute<ExpectedType>(db.select().from(allTypesTable).getSQL(true)).then((e) =>
+	const queryRes = await (<any> db).session.arrays(db.select().from(allTypesTable).getSQL()).then((
+		e: unknown[][],
+	) =>
 		normalizeDataWithDbCodecs({
 			db,
 			columns: getColumns(allTypesTable),
@@ -7291,7 +7380,7 @@ test('all types ~codecs~', async () => {
 			'time ∪ time': '13:59:28',
 			'datestr ∪ datestr': '2025-03-12',
 			'timestampstr ∪ timestampstr': '2025-03-12 01:32:41.623',
-			'timestampTzstr ∪ timestampTzstr': '2025-03-12 01:32:41.623+00',
+			'timestampTzstr ∪ timestampTzstr': null,
 			'bool ∪ bool': true,
 			'bytea ∪ bytea': Buffer.from('BYTES'),
 			'enum ∪ enum': 'enVal1',
@@ -7311,7 +7400,7 @@ test('all types ~codecs~', async () => {
 			'time ∪ time': '13:59:28',
 			'datestr ∪ datestr': '2025-03-12',
 			'timestampstr ∪ timestampstr': '2025-03-12 01:32:41.623',
-			'timestampTzstr ∪ timestampTzstr': '2025-03-12 01:32:41.623+00',
+			'timestampTzstr ∪ timestampTzstr': null,
 			'bool ∪ bool': true,
 			'bytea ∪ bytea': Buffer.from('BYTES'),
 			'enum ∪ enum': 'enVal1',
@@ -7322,9 +7411,52 @@ test('all types ~codecs~', async () => {
 		},
 	]));
 
-	await assertAllTypesBounds(db);
+	await assertAllTypesBounds(db, { rqb: true });
+	await assertAllTypesTemporalBounds(db, { data: temporalBoundsDataMillis, rqb: true });
+
+	// string-mode `timestamptz` arrays stay `null`s, empty arrays would reach their decoder too
+	const emptyArrays = { ...withEmptyArrays(testData), arrtimestampTzstr: null };
+	await db.delete(allTypesTable);
+	await db.insert(allTypesTable).values(emptyArrays);
+	expect(await db.select().from(allTypesTable)).toStrictEqual([emptyArrays]);
+	expect(await db.query.allTypesTable.findFirst({ with: { self: true } })).toStrictEqual({
+		...emptyArrays,
+		self: [emptyArrays],
+	});
 
 	await db.$client.close();
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6132
+// https://github.com/drizzle-team/drizzle-orm/issues/6591
+test('all types ~json~', async () => {
+	const table = pgTable('all_types_json', {
+		id: integer('id').primaryKey(),
+		json: json('json'),
+		jsonb: jsonb('jsonb'),
+		arrjson: json('arrjson').array(),
+		arrjsonb: jsonb('arrjsonb').array(),
+	});
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(
+		sql`create table ${table} (id integer primary key, json json, jsonb jsonb, arrjson json[], arrjsonb jsonb[])`,
+	);
+
+	const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
+
+	await db.insert(table).values(input);
+
+	// json text as the database stores it, read without decoding
+	const stored = await db.select({
+		id: table.id,
+		json: sql<string>`${table.json}::text`,
+		jsonb: sql<string>`${table.jsonb}::text`,
+		arrjson: sql<string>`array_to_json(${table.arrjson})::text`,
+		arrjsonb: sql<string>`array_to_json(${table.arrjsonb})::text`,
+	}).from(table).orderBy(table.id);
+
+	expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+	expect(parseStoredJson(stored)).toStrictEqual(output);
 });
 
 test('Query error wrapping', async () => {
@@ -7334,6 +7466,7 @@ test('Query error wrapping', async () => {
 	expect(err).toBeInstanceOf(DrizzleQueryError);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params', async () => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const paramsDb = drizzle({ client: db.$client, paramsInErrors });
@@ -7349,6 +7482,7 @@ test('Query error params', async () => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params - transaction', async () => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const paramsDb = drizzle({ client: db.$client, paramsInErrors });
@@ -7365,6 +7499,7 @@ test('Query error params - transaction', async () => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs', async () => {
 	let customCast = false;
 	let customMap = false;
@@ -7618,6 +7753,7 @@ test('Column as decoder applies codecs', async () => {
 	await db.$client.close();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs - Jit mappers', async () => {
 	let customCast = false;
 	let customMap = false;
@@ -8435,8 +8571,30 @@ test('time zones are preserved', async () => {
 		arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
 	};
 
-	expect(await db.select().from(tzTypes)).toStrictEqual([expected]);
-	expect(await db.query.tzTypes.findFirst({ with: { self: true } })).toStrictEqual({ ...expected, self: [expected] });
+	// `bun` decodes `timestamptz` to `Date`s, dropping the offset the server formats in the session's time zone:
+	// string-mode `timestamptz`s throw an unsupported column type error. Nested relations are decoded from JSON text,
+	// which keeps it
+	await expect(db.select().from(tzTypes).execute()).rejects.toThrow(
+		'Column type "timestamp with time zone" is not supported with the bun-sql driver',
+	);
+	const { tstz: _tstz, arrtstz: _arrtstz, mtxtstz: _mtxtstz, ...columns } = getColumns(tzTypes);
+	const { tstz: _, arrtstz: __, mtxtstz: ___, ...decodable } = expected;
+
+	expect(await db.select(columns).from(tzTypes)).toStrictEqual([decodable]);
+	expect(
+		await db.query.tzTypes.findFirst({
+			columns: { tstz: false, arrtstz: false, mtxtstz: false },
+			with: { self: true },
+		}),
+	).toStrictEqual({ ...decodable, self: [expected] });
+});
+
+test('all types ~codecs~ - non-UTC session', async () => {
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, {
+		relations: defineRelations({ ...boundsSchema }, boundsRelations),
+	});
+
+	await assertAllTypesTemporalBoundsInSessions(db, { data: temporalBoundsDataMillis, rqb: true });
 });
 
 test('time zones are preserved - non-UTC session', async () => {
@@ -8501,8 +8659,22 @@ test('time zones are preserved - non-UTC session', async () => {
 			arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
 		});
 
-		expect(await tx.select().from(tzTypes)).toStrictEqual([expected]);
-		expect(await tx.query.tzTypes.findFirst({ with: { self: true } })).toStrictEqual({ ...expected, self: [expected] });
+		// `bun` decodes `timestamptz` to `Date`s, dropping the offset the server formats in the session's time zone:
+		// string-mode `timestamptz`s throw an unsupported column type error. Nested relations are decoded from JSON text,
+		// which keeps it
+		await expect(tx.select().from(tzTypes).execute()).rejects.toThrow(
+			'Column type "timestamp with time zone" is not supported with the bun-sql driver',
+		);
+		const { tstz: _tstz, arrtstz: _arrtstz, mtxtstz: _mtxtstz, ...columns } = getColumns(tzTypes);
+		const { tstz: _, arrtstz: __, mtxtstz: ___, ...decodable } = expected;
+
+		expect(await tx.select(columns).from(tzTypes)).toStrictEqual([decodable]);
+		expect(
+			await tx.query.tzTypes.findFirst({
+				columns: { tstz: false, arrtstz: false, mtxtstz: false },
+				with: { self: true },
+			}),
+		).toStrictEqual({ ...decodable, self: [expected] });
 	});
 });
 
@@ -8615,6 +8787,7 @@ describe('transaction config', () => {
 		await db.execute(sql`drop table users_tx_cfg_deferrable_bun`);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/1772
 	test('transaction with an empty options object', async () => {
 		const users = pgTable('users_tx_cfg_empty_bun', {
 			id: serial('id').primaryKey(),
@@ -8779,15 +8952,9 @@ test('Issue #5090', async () => {
 	const date = '2025-12-31 04:17:26.222644+00';
 	await db.execute(sql`INSERT INTO ${table} VALUES (1, ${date})`);
 
-	const result = await db.select().from(table);
-
-	expect(result).toStrictEqual(
-		[
-			{
-				id: 1,
-				updatedAt: '2025-12-31 04:17:26.222644+00',
-			},
-		],
+	// `bun` decodes `timestamptz` to `Date`s, dropping the offset the server formats in the session's time zone
+	await expect(db.select().from(table).execute()).rejects.toThrow(
+		'Column type "timestamp with time zone" is not supported with the bun-sql driver',
 	);
 
 	await db.$client.close();
@@ -8863,6 +9030,7 @@ test('Issue No2279', async () => {
 });
 
 describe('raw execute', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/661
 	test('raw db.execute type matches returned data', async () => {
 		const table = sql.identifier('raw_execute_types');
 

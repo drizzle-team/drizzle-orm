@@ -1,6 +1,6 @@
 import { PgliteClient } from '@effect/sql-pglite/PgliteClient';
+import type * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
-import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
@@ -22,8 +22,8 @@ export class EffectPgDatabase<TRelations extends AnyRelations = EmptyRelations>
 /**
  * Creates an EffectPgDatabase instance.
  *
- * Requires `PgliteClient`, `EffectLogger`, and `EffectCache` services to be provided.
- * Use `DefaultServices` to provide default (no-op) logger and cache implementations.
+ * Requires `PgliteClient`, and `EffectLogger` services to be provided.
+ * Use `DefaultServices` to provide the default (no-op) logger implementation.
  *
  * @example
  * ```ts
@@ -44,13 +44,20 @@ export class EffectPgDatabase<TRelations extends AnyRelations = EmptyRelations>
  *   Effect.provide(PgDrizzle.DefaultServices),
  * );
  * ```
+ *
+ * Driver quirks:
+ * - BC `date`s are read as `Invalid Date`s
+ * - Years 1 - 99 of `timestamptz` values are read as 19xx
+ *
+ * Unsupported column types (throw on non-null values):
+ * - `timestamp` in both modes (decoded in process-local time)
+ * - `timestamptz` in `string` mode (offset dropped)
  */
 export const make = Effect.fn('PgDrizzle.make')(
 	function*<
 		TRelations extends AnyRelations = EmptyRelations,
 	>(config: EffectDrizzlePgConfig<TRelations> = {}) {
 		const client = yield* PgliteClient;
-		const cache = yield* EffectCache;
 		const logger = yield* EffectLogger;
 
 		const dialect = new PgDialect({
@@ -61,18 +68,13 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const relations = config.relations ?? {} as TRelations;
 		const session = new EffectPgSession(client, dialect, relations, {
 			logger,
-			cache,
 			paramsInErrors: config.paramsInErrors,
 		});
 		const db = new EffectPgDatabase(dialect, session, relations) as EffectPgDatabase<TRelations>;
 		(<any> db).$client = client;
-		(<any> db).$cache = cache;
-		if ((<any> db).$cache) {
-			(<any> db).$cache['invalidate'] = cache.onMutate;
-		}
 
 		return db as EffectPgDatabase<TRelations> & {
-			$client: PgliteClient;
+			$client: Context.Service.Shape<typeof PgliteClient>;
 		};
 	},
 );

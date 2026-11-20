@@ -108,7 +108,7 @@ const fromSubquery = await db.select({
 	count: db.select({ count: count().as('c') }).from(posts).where(eq(posts.authorId, users.id)).as('count'),
 }).from(users);
 
-Expect<Equal<typeof fromSubquery, { count: number }[]>>;
+Expect<Equal<typeof fromSubquery, { count: number | null }[]>>;
 
 const fromSubquery2 = await db.select({
 	name: db.select({ name: users.name }).from(users).where(eq(users.id, posts.authorId)).as('name'),
@@ -150,11 +150,11 @@ Expect<Equal<typeof errorSubquery, { name: DrizzleTypeError<'You can only select
 	Expect<Equal<{ id: number }[], typeof joinOfDynamic>>;
 
 	const scalarDynamic = await db.select({ id: users.id, sub: dynamicSq.as('scalar_sq') }).from(users);
-	Expect<Equal<{ id: number; sub: number }[], typeof scalarDynamic>>;
+	Expect<Equal<{ id: number; sub: number | null }[], typeof scalarDynamic>>;
 
 	const scalarGeneric = async <T extends MySqlSelect>(qb: T) =>
 		db.select({ id: users.id, sub: qb.as('scalar_sq') }).from(users);
 
 	const scalarOfDynamic = await scalarGeneric(dynamicSq);
-	Expect<Equal<{ id: number; sub: number }[], typeof scalarOfDynamic>>;
+	Expect<Equal<{ id: number; sub: number | null }[], typeof scalarOfDynamic>>;
 }

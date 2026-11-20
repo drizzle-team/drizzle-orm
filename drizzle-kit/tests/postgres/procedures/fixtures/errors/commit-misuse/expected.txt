@@ -1,0 +1,12 @@
+input.ts:5:3 error TSPG010: commit() takes no arguments
+    commit(true)
+    ^^^^^^^^^^^^
+
+input.ts:6:23 error TSPG010: rollback() is a statement, not an expression
+    const ok: boolean = ctx.rollback()
+                        ^^^^^^^^^^^^^^
+
+input.ts:7:13 error TSPG014: 'commit' is a DSL primitive — call it, it is not a value
+    const c = commit
+              ^^^^^^
+  hint: call it: commit(...)

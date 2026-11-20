@@ -1,4 +1,3 @@
-/* eslint-disable drizzle-internal/require-entity-kind */
 import type { InferInsertModel, Table as DrizzleTable } from 'drizzle-orm';
 import { is } from 'drizzle-orm';
 import type { Relations } from 'drizzle-orm/_relations';

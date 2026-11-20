@@ -1,0 +1,8 @@
+input.ts:5:14 error TSPG003: bare `number` is not supported
+    let total: number = 0
+               ^^^^^^
+  hint: use a SQL type from drizzle-orm/pg-core: int, bigint_ or numeric
+
+input.ts:6:3 error TSPG012: unknown identifier 'total'
+    total = total + qty
+    ^^^^^

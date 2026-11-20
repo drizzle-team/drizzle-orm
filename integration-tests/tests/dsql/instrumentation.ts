@@ -1,18 +1,14 @@
 import { AuroraDSQLClient } from '@aws/aurora-dsql-node-postgres-connector';
 import { auroraDSQLPostgres } from '@aws/aurora-dsql-postgresjs-connector';
+import { createProvider } from '@drizzle/test-utils';
 import {
 	type AnyRelationsBuilderConfig,
 	defineRelations,
 	type ExtractTablesFromSchema,
 	type ExtractTablesWithRelations,
-	getCacheKey,
-	is,
 	type RelationsBuilder,
 	type RelationsBuilderConfig,
-	Table,
 } from 'drizzle-orm';
-import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
-import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import { drizzle as drizzleNodePgDsql } from 'drizzle-orm/node-postgres/dsql';
 import type {
 	PgEnum,
@@ -27,7 +23,6 @@ import type {
 } from 'drizzle-orm/pg-core';
 import type { DsqlAsyncDatabase } from 'drizzle-orm/pg-core/async/dsql';
 import { drizzle as drizzlePostgresJsDsql } from 'drizzle-orm/postgres-js/dsql';
-import Keyv from 'keyv';
 import type { Sql } from 'postgres';
 import { test as base } from 'vitest';
 import { relations } from '../pg/relations';
@@ -47,70 +42,6 @@ export type PostgresSchema = Record<
 	| PgPolicy
 	| unknown
 >;
-
-// oxlint-disable-next-line drizzle-internal/require-entity-kind
-export class TestCache extends Cache {
-	private globalTtl: number = 1000;
-	private usedTablesPerKey: Record<string, string[]> = {};
-
-	constructor(private readonly strat: 'explicit' | 'all', private kv: Keyv = new Keyv()) {
-		super();
-	}
-
-	override strategy() {
-		return this.strat;
-	}
-
-	override async get(key: string, _tables: string[], _isTag: boolean): Promise<any[] | undefined> {
-		const res = await this.kv.get(key) ?? undefined;
-		return res;
-	}
-
-	override async put(
-		key: string,
-		response: any,
-		tables: string[],
-		isTag: boolean,
-		config?: CacheConfig,
-	): Promise<void> {
-		await this.kv.set(key, response, config ? config.ex : this.globalTtl);
-		for (const table of tables) {
-			const keys = this.usedTablesPerKey[table];
-			if (keys === undefined) {
-				this.usedTablesPerKey[table] = [key];
-			} else {
-				keys.push(key);
-			}
-		}
-	}
-
-	override async onMutate(params: MutationOption): Promise<void> {
-		const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
-		const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
-
-		const keysToDelete = new Set<string>();
-
-		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-			const keys = this.usedTablesPerKey[tableName] ?? [];
-			for (const key of keys) keysToDelete.add(key);
-		}
-
-		if (keysToDelete.size > 0 || tagsArray.length > 0) {
-			for (const tag of tagsArray) {
-				await this.kv.delete(tag);
-			}
-
-			for (const key of keysToDelete) {
-				await this.kv.delete(key);
-				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
-					this.usedTablesPerKey[tableName] = [];
-				}
-			}
-		}
-	}
-}
 
 export const _push = async (
 	query: (sql: string, params: any[]) => Promise<any[]>,
@@ -202,30 +133,12 @@ type Vendor =
 	| 'node-postgres-dsql'
 	| 'postgres-js-dsql';
 
-const providerClosure = async <T>(items: T[]) => {
-	return async () => {
-		while (true) {
-			const c = items.shift();
-			if (!c) {
-				await new Promise((resolve) => setTimeout(resolve, 50));
-				continue;
-			}
-			return {
-				...c,
-				release: () => {
-					items.push(c);
-				},
-			};
-		}
-	};
-};
-
 export const provideForNodePgDsql = async () => {
 	const clients = [
 		await prepareNodePgDsql(),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForPostgresJsDsql = async () => {
@@ -233,7 +146,7 @@ export const provideForPostgresJsDsql = async () => {
 		await preparePostgresJsDsql(),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 type ProvideForNodePgDsql = Awaited<ReturnType<typeof provideForNodePgDsql>>;
@@ -264,7 +177,6 @@ const testFor = (vendor: Vendor) => {
 				paramsInErrors?: boolean,
 			): DsqlAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
-		caches: { all: DsqlAsyncDatabase<any, typeof relations>; explicit: DsqlAsyncDatabase<any, typeof relations> };
 	}>({
 		provider: [
 			// oxlint-disable-next-line no-empty-pattern
@@ -329,37 +241,26 @@ const testFor = (vendor: Vendor) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'node-postgres-dsql') {
-						return drizzleNodePgDsql({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzleNodePgDsql({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+						});
 					}
 					if (vendor === 'postgres-js-dsql') {
-						return drizzlePostgresJsDsql({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzlePostgresJsDsql({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+						});
 					}
 
 					throw new Error();
 				};
 
 				await use(createDB);
-			},
-			{ scope: 'test' },
-		],
-		caches: [
-			async ({ kit }, use) => {
-				const config1 = { client: kit.client as any, relations, cache: new TestCache('all') };
-				const config2 = { client: kit.client as any, relations, cache: new TestCache('explicit') };
-
-				const db1 = vendor === 'node-postgres-dsql'
-					? drizzleNodePgDsql(config1)
-					: vendor === 'postgres-js-dsql'
-					? drizzlePostgresJsDsql(config1)
-					: '' as never;
-
-				const db2 = vendor === 'node-postgres-dsql'
-					? drizzleNodePgDsql(config2)
-					: vendor === 'postgres-js-dsql'
-					? drizzlePostgresJsDsql(config2)
-					: '' as never;
-
-				await use({ all: db1, explicit: db2 });
 			},
 			{ scope: 'test' },
 		],

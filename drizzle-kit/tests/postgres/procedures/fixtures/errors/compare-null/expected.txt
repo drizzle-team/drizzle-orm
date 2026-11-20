@@ -1,0 +1,4 @@
+input.ts:6:19 error TSPG007: comparing against a null literal is not supported
+    if (balance === null) {
+                    ^^^^
+  hint: use isNull(x)

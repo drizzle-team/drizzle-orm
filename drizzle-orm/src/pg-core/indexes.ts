@@ -16,11 +16,6 @@ interface IndexConfig {
 	unique: boolean;
 
 	/**
-	 * If true, the index will be created as `create index concurrently` instead of `create index`.
-	 */
-	concurrently?: boolean;
-
-	/**
 	 * If true, the index will be created as `create index ... on only <table>` instead of `create index ... on <table>`.
 	 */
 	only: boolean;
@@ -103,7 +98,7 @@ export type PgIndexOpClass =
 	| 'bit_hamming_ops'
 	| 'bit_jaccard_ops'
 	| 'halfvec_l2_ops'
-	| 'sparsevec_l2_op'
+	| 'sparsevec_l2_ops'
 	| (string & {});
 
 export class IndexBuilderOn {
@@ -262,11 +257,6 @@ export class IndexBuilder implements AnyIndexBuilder {
 			only,
 			method,
 		};
-	}
-
-	concurrently(): this {
-		this.config.concurrently = true;
-		return this;
 	}
 
 	with(obj: Record<string, any>): this {

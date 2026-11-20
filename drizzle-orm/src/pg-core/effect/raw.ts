@@ -2,14 +2,15 @@ import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { SQLWrapper } from '~/sql/sql.ts';
 import { PgRaw } from '../query-builders/raw.ts';
-import type { PgEffectPreparedQuery } from './session.ts';
+import type { PgEffectRuntimeHKT } from './session.ts';
 
 export interface PgEffectRaw<TResult, TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
-	extends Effect.Effect<TResult, TEffectHKT['error'], TEffectHKT['context']>, RunnableQuery<TResult, 'pg'>, SQLWrapper
+	extends Effect.Effect<TResult, TEffectHKT['error'], TEffectHKT['context']>, SQLWrapper
 {}
-export class PgEffectRaw<TResult, TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgRaw<TResult>
+export class PgEffectRaw<TResult, TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
+	extends PgRaw<TResult, PgEffectRuntimeHKT<TEffectHKT>>
 	implements RunnableQuery<TResult, 'pg'>
 {
 	static override readonly [entityKind]: string = 'PgEffectRaw';
@@ -18,29 +19,6 @@ export class PgEffectRaw<TResult, TEffectHKT extends QueryEffectHKTBase = QueryE
 		readonly dialect: 'pg';
 		readonly result: TResult;
 	};
-
-	declare protected prepared: PgEffectPreparedQuery<{
-		execute: TResult;
-	}, TEffectHKT>;
-
-	constructor(
-		prepared: PgEffectPreparedQuery<{
-			execute: TResult;
-		}, TEffectHKT>,
-		sql: SQL,
-		query: Query,
-	) {
-		super(prepared, sql, query);
-	}
-
-	execute(placeholderValues?: Record<string, unknown>) {
-		return this.prepared.execute(placeholderValues);
-	}
-
-	/** @internal */
-	override _prepare() {
-		return this.prepared;
-	}
 }
 
 applyEffectWrapper(PgEffectRaw);

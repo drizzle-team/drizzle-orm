@@ -1,8 +1,6 @@
 /// <reference types="bun-types" />
 
 import type { SavepointSQL, SQL, TransactionSQL } from 'bun';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -14,7 +12,6 @@ import type { Query } from '~/sql/sql.ts';
 
 export interface BunSQLSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -25,7 +22,6 @@ export class BunSQLSession<
 	static override readonly [entityKind]: string = 'BunSQLSession';
 
 	logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		readonly client: TSQL,
@@ -36,16 +32,13 @@ export class BunSQLSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const tagged = query._sql ? query._sql : null;
 		const client = this.client;
@@ -63,9 +56,6 @@ export class BunSQLSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

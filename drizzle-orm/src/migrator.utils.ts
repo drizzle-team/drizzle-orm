@@ -1,4 +1,10 @@
-import type { MigrationMeta } from './migrator.ts';
+export interface MigrationMeta {
+	sql: string[];
+	folderMillis: number;
+	hash: string;
+	bps: boolean;
+	name: string;
+}
 
 export function formatToMillis(dateStr: string): number {
 	const year = parseInt(dateStr.slice(0, 4), 10);
@@ -21,4 +27,38 @@ export function getMigrationsToRun(params: {
 		dbMigrations.map((m) => m.name).filter((n): n is string => n !== null),
 	);
 	return localMigrations.filter((lm) => !lm.name || !dbNamesSet.has(lm.name));
+}
+
+/** Reads migrations bundled as an object of `<tag>: <sql>` */
+export function readMigrationsFromRecord(migrations: Record<string, string>): MigrationMeta[] {
+	const migrationQueries: MigrationMeta[] = [];
+
+	const sortedMigrations = Object.keys(migrations).sort();
+
+	for (const key of sortedMigrations) {
+		const query = migrations[key];
+		if (!query) {
+			throw new Error(`Missing migration: ${key}`);
+		}
+
+		try {
+			const result = query.split('--> statement-breakpoint').map((it) => {
+				return it;
+			});
+
+			const migrationDate = formatToMillis(key.slice(0, 14));
+
+			migrationQueries.push({
+				sql: result,
+				bps: true,
+				folderMillis: migrationDate,
+				hash: '',
+				name: key,
+			});
+		} catch {
+			throw new Error(`Failed to parse migration: ${key}`);
+		}
+	}
+
+	return migrationQueries;
 }

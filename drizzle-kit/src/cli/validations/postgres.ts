@@ -1,4 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
+import type { Pool } from 'drizzle-orm/postgres';
 import type { ConnectionOptions } from 'tls';
 import type { TypeOf } from 'zod';
 import { boolean, coerce, custom, literal, object, string, undefined as zUndefined, union } from 'zod';
@@ -66,13 +67,25 @@ export const pgLiteClientCredentials = object({
 	client: custom<PGlite>((client) => typeof client === 'object' && client !== null),
 });
 
+export const postgresClientCredentials = object({
+	client: custom<Pool>((client) => typeof client === 'object' && client !== null),
+});
+
+const connectionFields = ['url', 'host', 'port', 'user', 'password', 'database', 'ssl'] as const;
+
 export const postgresCredentials = union([
 	object({
 		driver: zUndefined(),
+		client: zUndefined(),
 	}).and(pgDefaultCredentials).transform((o) => {
 		delete o.driver;
+		delete o.client;
 		return o;
 	}),
+	object({
+		driver: zUndefined(),
+		...Object.fromEntries(connectionFields.map((field) => [field, zUndefined()])),
+	}).and(postgresClientCredentials).transform(({ client }) => ({ client })),
 	object({ driver: awsDataApiDriver }).and(awsDataApiCredentials),
 	object({ driver: pgliteDriver }).and(union([pgLiteCredentials, pgLiteClientCredentials])),
 	object({ driver: dsqlDriver }).and(dsqlCredentials),
@@ -106,6 +119,21 @@ export const printConfigConnectionIssues = (
 			['url', 'client'],
 			error(
 				`Please provide either "url" or "client" for PGlite driver`,
+			),
+		);
+	}
+
+	if (options.driver === undefined && options.client !== undefined) {
+		const conflicting = connectionFields.filter((field) => options[field] !== undefined);
+		throw new ConfigConnectionCliError(
+			'postgresql',
+			['client'],
+			error(
+				conflicting.length > 0
+					? `dbCredentials.client cannot be combined with ${
+						conflicting.map((field) => `'${field}'`).join(', ')
+					}. Remove dbCredentials.client to let Drizzle Kit connect with these params, or remove these params to use your postgres Pool`
+					: `dbCredentials.client is not a Drizzle Postgres Pool. Pass a Pool from '@drizzle-team/postgres' or 'drizzle-orm/postgres' as 'dbCredentials.client'`,
 			),
 		);
 	}

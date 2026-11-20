@@ -4,6 +4,7 @@ import type { JoinType, SelectResultFields } from '~/query-builders/select.types
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
+import type { SQLitePreparedQuery } from '~/sqlite-core/session.ts';
 import type { SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
@@ -31,7 +32,6 @@ export interface SQLiteUpdateConfig {
 	joins: SQLiteSelectJoinConfig[];
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	useSelectionCastCodecs?: boolean;
 }
 
 export type SQLiteUpdateSetSource<
@@ -237,7 +237,12 @@ export type SQLiteUpdateDynamic<T extends AnySQLiteUpdate> = SQLiteUpdateKind<
 export type SQLiteUpdate<
 	TTable extends SQLiteTable = SQLiteTable,
 	TRunResult = any,
-	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined = undefined,
+	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined =
+		| SQLiteTable
+		| Subquery
+		| SQLiteViewBase
+		| SQL
+		| undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = SQLiteUpdateBase<SQLiteUpdateQueryBuilderHKT, TTable, TRunResult, TFrom, TReturning, true, never>;
 
@@ -454,17 +459,30 @@ export class SQLiteUpdateBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildUpdateQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	$dynamic(): SQLiteUpdateDynamic<this> {
 		return this as any;
+	}
+
+	/**
+	 * Prepares the query on the session, for every runtime. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(prepare = false): SQLitePreparedQuery {
+		return this.session.prepareQuery(
+			this.dialect.sqlToQuery(this.getSQL()),
+			'arrays',
+			prepare,
+			this.config.returning ? 'all' : 'run',
+			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
+		);
 	}
 }

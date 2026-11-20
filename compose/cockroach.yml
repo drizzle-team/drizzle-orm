@@ -1,10 +1,12 @@
 services:
   cockroach:
     image: cockroachdb/cockroach:v25.2.0
+    network_mode: bridge
+    mem_limit: 3g
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:
-      - "26257:26257"
-      - "8080:8080"
+      - "${DRIZZLE_PORT_COCKROACH:-26257}:26257"
+      - "${DRIZZLE_PORT_COCKROACH_CONSOLE:-18080}:8080" # web console
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 26257"]
       interval: 2s

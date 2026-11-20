@@ -2851,3 +2851,41 @@ test('Issue No6368', async () => {
 	expect(st1).toStrictEqual(st0);
 	expect(pst1).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6472
+test('Issue No6472. Drop column that is in constraint', async () => {
+	const from = {
+		items: pgTable(
+			'items',
+			{
+				id: integer().primaryKey(),
+				a: integer(),
+				b: integer(),
+			},
+			(table) => [check('items_a_b', sql`${table.a} > 0 and ${table.b} > 0`)],
+		),
+	};
+
+	const to = {
+		items: pgTable(
+			'items',
+			{
+				id: integer().primaryKey(),
+				a: integer(),
+			},
+			(table) => [check('items_a_b', sql`${table.a} > 0`)],
+		),
+	};
+
+	await push({ db, to: from });
+
+	const { sqlStatements: st1 } = await diff(from, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to: to });
+
+	const st0 = [
+		'ALTER TABLE "items" DROP COLUMN "b";',
+		'ALTER TABLE "items" ADD CONSTRAINT "items_a_b" CHECK ("a" > 0);',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});

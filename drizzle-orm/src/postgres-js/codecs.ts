@@ -1,200 +1,243 @@
-import { makePgArray } from '~/pg-core/array.ts';
+import type { Sql } from 'postgres';
+import type { NormalizeArrayCodec, NormalizeCodec } from '~/codecs.ts';
+import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
-	castToTextArr,
 	makeBoxArray,
 	makeGeometryArray,
 	parseGeometryTuple,
 	parseGeometryXY,
 	parseLineABC,
 	parseLineTuple,
+	parsePgArrayAndNormalize,
+	parsePgArrayOfStrings,
 	parsePgVector,
 	parsePointTuple,
 	parsePointXY,
 	refineGenericPgCodecs,
 	textToDate,
+	textToDatePgArray,
 	textToDateWithTz,
+	textToDateWithTzPgArray,
 } from '~/pg-core/codecs.ts';
 
-export const postgresJsCodecs = refineGenericPgCodecs({
-	interval: { normalizeParamArray: (v) => makePgArray(v) },
-	point: {
-		normalize: parsePointXY,
-		normalizeArray: arrayCompatNormalize(parsePointXY),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	'point:tuple': {
-		normalize: parsePointTuple,
-		normalizeArray: arrayCompatNormalize(parsePointTuple),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	line: {
-		normalize: parseLineABC,
-		normalizeArray: arrayCompatNormalize(parseLineABC),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	'line:tuple': {
-		normalize: parseLineTuple,
-		normalizeArray: arrayCompatNormalize(parseLineTuple),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	macaddr8: { normalizeParamArray: (v) => makePgArray(v) },
-	json: {
-		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
-	},
-	jsonb: {
-		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
-	},
+/**
+ * Arrays of extension types (and enums) come back parsed only if `postgres.js` fetched their types on connection - the
+ * type existed by then - others come back as array literals
+ */
+const fetchedTypeArray = (normalize: NormalizeCodec, delim?: string): NormalizeArrayCodec => {
+	const fromLiteral = parsePgArrayAndNormalize(normalize, delim);
+	const fromParsed = arrayCompatNormalize(normalize);
+	return (value, arrayDimensions) =>
+		typeof value === 'string' ? fromLiteral(value, arrayDimensions) : fromParsed(value, arrayDimensions);
+};
+const fetchedTypeArrayOfStrings: NormalizeArrayCodec = (value: string | unknown[]) =>
+	typeof value === 'string' ? parsePgArray(value) : value;
 
-	bit: { normalizeParamArray: (v) => makePgArray(v) },
-	bool: { normalizeParamArray: (v) => makePgArray(v) },
-	box: { normalizeParamArray: makeBoxArray },
-	box2d: { normalizeParamArray: (v) => makePgArray(v) },
-	box3d: { normalizeParamArray: (v) => makePgArray(v) },
-	char: { normalizeParamArray: (v) => makePgArray(v) },
-	cidr: { normalizeParamArray: (v) => makePgArray(v) },
-	circle: { normalizeParamArray: (v) => makePgArray(v) },
-	datemultirange: { normalizeParamArray: (v) => makePgArray(v) },
-	daterange: { normalizeParamArray: (v) => makePgArray(v) },
-	float8: { normalizeParamArray: (v) => makePgArray(v) },
-	'geography(point)': { normalizeParamArray: makeGeometryArray },
-	'geography(point):tuple': { normalizeParamArray: makeGeometryArray },
-	halfvec: {
-		normalize: parsePgVector,
-		normalizeArray: arrayCompatNormalize(parsePgVector),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	inet: { normalizeParamArray: (v) => makePgArray(v) },
-	int4multirange: { normalizeParamArray: (v) => makePgArray(v) },
-	int4range: { normalizeParamArray: (v) => makePgArray(v) },
-	int8multirange: { normalizeParamArray: (v) => makePgArray(v) },
-	int8range: { normalizeParamArray: (v) => makePgArray(v) },
-	lseg: { normalizeParamArray: (v) => makePgArray(v) },
-	macaddr: { normalizeParamArray: (v) => makePgArray(v) },
-	money: { normalizeParamArray: (v) => makePgArray(v) },
-	nummultirange: { normalizeParamArray: (v) => makePgArray(v) },
-	numrange: { normalizeParamArray: (v) => makePgArray(v) },
-	oid: { normalizeParamArray: (v) => makePgArray(v) },
-	path: { normalizeParamArray: (v) => makePgArray(v) },
-	polygon: { normalizeParamArray: (v) => makePgArray(v) },
-	raster: { normalizeParamArray: (v) => makePgArray(v) },
-	regclass: { normalizeParamArray: (v) => makePgArray(v) },
-	regconfig: { normalizeParamArray: (v) => makePgArray(v) },
-	regdictionary: { normalizeParamArray: (v) => makePgArray(v) },
-	regnamespace: { normalizeParamArray: (v) => makePgArray(v) },
-	regoper: { normalizeParamArray: (v) => makePgArray(v) },
-	regoperator: { normalizeParamArray: (v) => makePgArray(v) },
-	regproc: { normalizeParamArray: (v) => makePgArray(v) },
-	regprocedure: { normalizeParamArray: (v) => makePgArray(v) },
-	regrole: { normalizeParamArray: (v) => makePgArray(v) },
-	regtype: { normalizeParamArray: (v) => makePgArray(v) },
-	serial: { normalizeParamArray: (v) => makePgArray(v) },
-	smallint: { normalizeParamArray: (v) => makePgArray(v) },
-	smallserial: { normalizeParamArray: (v) => makePgArray(v) },
-	sparsevec: { normalizeParamArray: (v) => makePgArray(v) },
-	text: { normalizeParamArray: (v) => makePgArray(v) },
-	time: { normalizeParamArray: (v) => makePgArray(v) },
-	timetz: { normalizeParamArray: (v) => makePgArray(v) },
-	tsmultirange: { normalizeParamArray: (v) => makePgArray(v) },
-	tsquery: { normalizeParamArray: (v) => makePgArray(v) },
-	tsrange: { normalizeParamArray: (v) => makePgArray(v) },
-	tstzmultirange: { normalizeParamArray: (v) => makePgArray(v) },
-	tstzrange: { normalizeParamArray: (v) => makePgArray(v) },
-	tsvector: { normalizeParamArray: (v) => makePgArray(v) },
-	varbit: { normalizeParamArray: (v) => makePgArray(v) },
-	varchar: { normalizeParamArray: (v) => makePgArray(v) },
-	vector: {
-		normalize: parsePgVector,
-		normalizeArray: arrayCompatNormalize(parsePgVector),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	xml: { normalizeParamArray: (v) => makePgArray(v) },
-	bytea: { normalizeParamArray: (v) => makePgArray(v) },
-	enum: {
-		castArray: castToTextArr,
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	'geometry(point)': {
-		castArray: castToTextArr,
-		normalize: parseGeometryXY,
-		normalizeArray: arrayCompatNormalize(parseGeometryXY),
-		normalizeParamArray: makeGeometryArray,
-	},
-	'geometry(point):tuple': {
-		castArray: castToTextArr,
-		normalize: parseGeometryTuple,
-		normalizeArray: arrayCompatNormalize(parseGeometryTuple),
-		normalizeParamArray: makeGeometryArray,
-	},
-	numeric: {
-		castArray: castToTextArr,
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	'numeric:number': {
-		castArray: castToTextArr,
-		normalize: Number,
-		normalizeArray: arrayCompatNormalize(Number),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	'numeric:bigint': {
-		castArray: castToTextArr,
-		normalize: BigInt,
-		normalizeArray: arrayCompatNormalize(BigInt),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	bigint: {
-		normalize: BigInt,
-		normalizeArray: arrayCompatNormalize(BigInt),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	'bigint:number': {
-		normalize: Number,
-		normalizeArray: arrayCompatNormalize(Number),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	'bigint:string': { normalizeParamArray: (v) => makePgArray(v) },
-	bigserial: {
-		normalize: BigInt,
-		normalizeArray: arrayCompatNormalize(BigInt),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	'bigserial:number': {
-		normalize: Number,
-		normalizeArray: arrayCompatNormalize(Number),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	float4: { normalizeParamArray: (v) => makePgArray(v) },
-	int: { normalizeParamArray: (v) => makePgArray(v) },
-	uuid: { normalizeParamArray: (v) => makePgArray(v) },
-	date: {
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	'date:string': {
-		castArray: castToTextArr,
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	timestamp: {
-		castArray: castToTextArr,
-		normalize: textToDateWithTz,
-		normalizeArray: arrayCompatNormalize(textToDateWithTz),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	timestamptz: {
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	'timestamp:string': {
-		castArray: castToTextArr,
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-	'timestamptz:string': {
-		castArray: castToTextArr,
-		normalizeParamArray: (v) => makePgArray(v),
-	},
-});
+/** JSON param marker exists only on client and isn't importable outside of it */
+export const postgresJsCodecs = (client: Sql) => {
+	// `postgres.js` 4 serializes array params element by element, through the element type's serializer (JSON-encoding
+	// a prebuilt array literal), recursing into nested arrays unless an element is a typed parameter. 3 sends a prebuilt
+	// literal as is and infers the param type from typed elements - so each version gets its own form
+	const isV4 = typeof (client as { batch?: unknown }).batch === 'function';
+	const jsonParamArray = (param: (value: unknown) => unknown) =>
+		isV4 ? arrayCompatNormalizeInput(param) : arrayCompatNormalizeInput((v) => JSON.stringify(v), true);
+
+	// `client.json` types the param as `jsonb` (oid 3802). Postgres parses such a param as `jsonb` before casting it to
+	// `json`, which sorts the keys and drops repeated ones, so `json` params are typed as `json` (oid 114) instead and
+	// the column keeps the text `JSON.stringify` makes
+	const jsonParam = (value: unknown) => client.typed(value, 114);
+	const jsonbParam = (value: unknown) => client.json(value as any);
+
+	return refineGenericPgCodecs({
+		interval: {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayOfStrings,
+		},
+		point: {
+			normalize: parsePointXY,
+			normalizeArray: arrayCompatNormalize(parsePointXY),
+			normalizeParamArray: (v) => makePgArray(v),
+		},
+		'point:tuple': {
+			normalize: parsePointTuple,
+			normalizeArray: arrayCompatNormalize(parsePointTuple),
+			normalizeParamArray: (v) => makePgArray(v),
+		},
+		line: {
+			normalize: parseLineABC,
+			normalizeArray: arrayCompatNormalize(parseLineABC),
+			normalizeParamArray: (v) => makePgArray(v),
+		},
+		'line:tuple': {
+			normalize: parseLineTuple,
+			normalizeArray: arrayCompatNormalize(parseLineTuple),
+			normalizeParamArray: (v) => makePgArray(v),
+		},
+		macaddr8: { normalizeParamArray: (v) => makePgArray(v) },
+		json: {
+			normalizeParam: jsonParam,
+			normalizeParamArray: jsonParamArray(jsonParam),
+		},
+		jsonb: {
+			normalizeParam: jsonbParam,
+			normalizeParamArray: jsonParamArray(jsonbParam),
+		},
+
+		bit: { normalizeParamArray: (v) => makePgArray(v) },
+		bool: { normalizeParamArray: (v) => makePgArray(v) },
+		box: { normalizeParamArray: makeBoxArray },
+		box2d: { normalizeParamArray: (v) => makePgArray(v) },
+		box3d: { normalizeParamArray: (v) => makePgArray(v) },
+		char: { normalizeParamArray: (v) => makePgArray(v) },
+		cidr: { normalizeParamArray: (v) => makePgArray(v) },
+		circle: { normalizeParamArray: (v) => makePgArray(v) },
+		datemultirange: { normalizeParamArray: (v) => makePgArray(v) },
+		daterange: { normalizeParamArray: (v) => makePgArray(v) },
+		float8: { normalizeParamArray: (v) => makePgArray(v) },
+		'geography(point)': { normalizeParamArray: makeGeometryArray },
+		'geography(point):tuple': { normalizeParamArray: makeGeometryArray },
+		halfvec: {
+			normalize: parsePgVector,
+			normalizeArray: fetchedTypeArray(parsePgVector),
+			normalizeParamArray: (v) => makePgArray(v),
+		},
+		inet: { normalizeParamArray: (v) => makePgArray(v) },
+		int4multirange: { normalizeParamArray: (v) => makePgArray(v) },
+		int4range: { normalizeParamArray: (v) => makePgArray(v) },
+		int8multirange: { normalizeParamArray: (v) => makePgArray(v) },
+		int8range: { normalizeParamArray: (v) => makePgArray(v) },
+		lseg: { normalizeParamArray: (v) => makePgArray(v) },
+		macaddr: { normalizeParamArray: (v) => makePgArray(v) },
+		money: { normalizeParamArray: (v) => makePgArray(v) },
+		nummultirange: { normalizeParamArray: (v) => makePgArray(v) },
+		numrange: { normalizeParamArray: (v) => makePgArray(v) },
+		oid: { normalizeParamArray: (v) => makePgArray(v) },
+		path: { normalizeParamArray: (v) => makePgArray(v) },
+		polygon: { normalizeParamArray: (v) => makePgArray(v) },
+		raster: { normalizeParamArray: (v) => makePgArray(v) },
+		regclass: { normalizeParamArray: (v) => makePgArray(v) },
+		regconfig: { normalizeParamArray: (v) => makePgArray(v) },
+		regdictionary: { normalizeParamArray: (v) => makePgArray(v) },
+		regnamespace: { normalizeParamArray: (v) => makePgArray(v) },
+		regoper: { normalizeParamArray: (v) => makePgArray(v) },
+		regoperator: { normalizeParamArray: (v) => makePgArray(v) },
+		regproc: { normalizeParamArray: (v) => makePgArray(v) },
+		regprocedure: { normalizeParamArray: (v) => makePgArray(v) },
+		regrole: { normalizeParamArray: (v) => makePgArray(v) },
+		regtype: { normalizeParamArray: (v) => makePgArray(v) },
+		serial: { normalizeParamArray: (v) => makePgArray(v) },
+		smallint: { normalizeParamArray: (v) => makePgArray(v) },
+		smallserial: { normalizeParamArray: (v) => makePgArray(v) },
+		sparsevec: {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: fetchedTypeArrayOfStrings,
+		},
+		text: { normalizeParamArray: (v) => makePgArray(v) },
+		time: {
+			normalizeParamArray: (v) => makePgArray(v),
+		},
+		timetz: {
+			normalizeParamArray: (v) => makePgArray(v),
+		},
+		tsmultirange: { normalizeParamArray: (v) => makePgArray(v) },
+		tsquery: { normalizeParamArray: (v) => makePgArray(v) },
+		tsrange: { normalizeParamArray: (v) => makePgArray(v) },
+		tstzmultirange: { normalizeParamArray: (v) => makePgArray(v) },
+		tstzrange: { normalizeParamArray: (v) => makePgArray(v) },
+		tsvector: { normalizeParamArray: (v) => makePgArray(v) },
+		varbit: { normalizeParamArray: (v) => makePgArray(v) },
+		varchar: { normalizeParamArray: (v) => makePgArray(v) },
+		vector: {
+			normalize: parsePgVector,
+			normalizeArray: fetchedTypeArray(parsePgVector),
+			normalizeParamArray: (v) => makePgArray(v),
+		},
+		xml: { normalizeParamArray: (v) => makePgArray(v) },
+		bytea: { normalizeParamArray: (v) => makePgArray(v) },
+		enum: {
+			normalizeArray: fetchedTypeArrayOfStrings,
+			normalizeParamArray: (v) => makePgArray(v),
+		},
+		'geometry(point)': {
+			normalize: parseGeometryXY,
+			normalizeParamArray: makeGeometryArray,
+			normalizeArray: fetchedTypeArray(parseGeometryXY, ':'),
+		},
+		'geometry(point):tuple': {
+			normalize: parseGeometryTuple,
+			normalizeParamArray: makeGeometryArray,
+			normalizeArray: fetchedTypeArray(parseGeometryTuple, ':'),
+		},
+		numeric: {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayOfStrings,
+		},
+		'numeric:number': {
+			normalize: Number,
+			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayAndNormalize(Number),
+		},
+		'numeric:bigint': {
+			normalize: BigInt,
+			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayAndNormalize(BigInt),
+		},
+		bigint: {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalize: BigInt,
+			normalizeArray: arrayCompatNormalize(BigInt),
+		},
+		'bigint:number': {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalize: Number,
+			normalizeArray: arrayCompatNormalize(Number),
+		},
+		'bigint:string': {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalize: String,
+			normalizeArray: arrayCompatNormalize(String),
+		},
+		bigserial: {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalize: BigInt,
+			normalizeArray: arrayCompatNormalize(BigInt),
+		},
+		'bigserial:number': {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalize: Number,
+			normalizeArray: arrayCompatNormalize(Number),
+		},
+		float4: { normalizeParamArray: (v) => makePgArray(v) },
+		int: { normalizeParamArray: (v) => makePgArray(v) },
+		uuid: { normalizeParamArray: (v) => makePgArray(v) },
+		date: {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalize: textToDate,
+			normalizeArray: textToDatePgArray,
+		},
+		'date:string': {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayOfStrings,
+		},
+		timestamp: {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalize: textToDateWithTz,
+			normalizeArray: textToDateWithTzPgArray,
+		},
+		timestamptz: {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalize: textToDate,
+			normalizeArray: textToDatePgArray,
+		},
+		'timestamp:string': {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayOfStrings,
+		},
+		'timestamptz:string': {
+			normalizeParamArray: (v) => makePgArray(v),
+			normalizeArray: parsePgArrayOfStrings,
+		},
+	});
+};

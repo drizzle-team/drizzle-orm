@@ -1,6 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { Query } from '~/sql/sql.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import type { SQLitePreparedQuery } from '~/sqlite-core/session.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
@@ -49,5 +50,25 @@ export class SQLiteCountBuilder extends SQL<number> implements SQLWrapper<number
 		}
 
 		return this.dialect.sqlToQuery(this.executableSql);
+	}
+
+	/** @internal */
+	_prepare(): SQLitePreparedQuery {
+		return this.session.prepareQuery(
+			this.build(),
+			'arrays',
+			false,
+			'all', // Do not use 'get' - mapper returns an item instead of an array, would break on session's destructuring; query itself is already aggregated into 1 item, so no performance overhead occurs.
+			(rows) => {
+				const v = (rows[0] as unknown[] | undefined)?.[0];
+				if (typeof v === 'number') return v;
+				return v ? Number(v) : 0;
+			},
+		);
+	}
+
+	/** Runs the count: the runtime's builder narrows the return type */
+	execute(placeholderValues?: Record<string, unknown>): unknown {
+		return this._prepare().execute(placeholderValues);
 	}
 }

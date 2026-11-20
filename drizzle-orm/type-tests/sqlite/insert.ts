@@ -379,6 +379,7 @@ stmt.run({ id: 1, limit: 10, offset: 20 });
 		);
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6107
 // `.get()` may return `undefined` when the insert can affect zero rows
 {
 	type User = typeof users.$inferSelect;
