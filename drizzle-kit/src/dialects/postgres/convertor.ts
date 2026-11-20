@@ -21,7 +21,7 @@ export const convertor = <
 };
 
 const createSchemaConvertor = convertor('create_schema', (st) => {
-	return `CREATE SCHEMA "${st.name}";\n`;
+	return `CREATE SCHEMA${st.ifNotExists ? ' IF NOT EXISTS' : ''} "${st.name}";\n`;
 });
 
 const dropSchemaConvertor = convertor('drop_schema', (st) => {

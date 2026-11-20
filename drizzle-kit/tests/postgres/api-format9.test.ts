@@ -18,9 +18,10 @@ import {
 
 // Verifies the postgres functions of the `drizzle-kit/api-postgres` entry point. `generateDrizzleJson` returns
 // a schema state, and `generateMigration` gives the SQL between two states of format 5, 7, 8 or 9 and rejects a
-// diff snapshot. `up` converts one saved state of an older format. `reconstruct` rebuilds the state of a snapshot
-// from the snapshot files of a migrations folder, and its errors have the same messages as the CLI commands.
-// The tests write these folders with the real `generate` command in temporary directories.
+// diff snapshot. It also returns the snapshot of the migration. `up` converts a folder of full states to base and
+// diff snapshots. `reconstruct` rebuilds the state of a snapshot from the snapshot files of a migrations folder,
+// and its errors have the same messages as the CLI commands. The tests write these folders with the real
+// `generate` command in temporary directories.
 
 const users = pgTable('users', { id: integer() });
 const likes = pgTable('likes', { id: integer() });
@@ -73,7 +74,7 @@ test('generateDrizzleJson with a prevId returns a schema state with that parent'
 	const single = await generateDrizzleJson(v2, parent.id);
 
 	expect(single.prevIds).toStrictEqual([parent.id]);
-	expect(await generateMigration(parent, single)).toStrictEqual(addEmail);
+	expect((await generateMigration(parent, single)).sqlStatements).toStrictEqual(addEmail);
 });
 
 // The JSON round trip of `before` follows Payload CMS. Payload saves each state as a JSON file, reads the
@@ -82,8 +83,8 @@ test('generateMigration gives the up and the down SQL for a state that was saved
 	const before = JSON.parse(JSON.stringify(await generateDrizzleJson(v1)));
 	const after = await generateDrizzleJson(v2);
 
-	expect(await generateMigration(before, after)).toStrictEqual(addEmail);
-	expect(await generateMigration(after, before)).toStrictEqual(dropEmail);
+	expect((await generateMigration(before, after)).sqlStatements).toStrictEqual(addEmail);
+	expect((await generateMigration(after, before)).sqlStatements).toStrictEqual(dropEmail);
 });
 
 test('generateMigration ignores the id, the parents and the type of its arguments', async () => {
@@ -91,17 +92,17 @@ test('generateMigration ignores the id, the parents and the type of its argument
 	const after = await generateDrizzleJson(v2, 'not-the-id-of-before');
 	const base = { ...before, type: 'base', id: after.id, prevIds: [after.id] };
 
-	expect(await generateMigration(base, after)).toStrictEqual(addEmail);
-	expect(await generateMigration(after, base)).toStrictEqual(dropEmail);
+	expect((await generateMigration(base, after)).sqlStatements).toStrictEqual(addEmail);
+	expect((await generateMigration(after, base)).sqlStatements).toStrictEqual(dropEmail);
 });
 
 test('generateMigration takes format 8 states in either argument position', async () => {
 	const before = await generateDrizzleJson(v1);
 	const after = await generateDrizzleJson(v2);
 
-	expect(await generateMigration(format8(before), format8(after))).toStrictEqual(addEmail);
-	expect(await generateMigration(format8(before), after)).toStrictEqual(addEmail);
-	expect(await generateMigration(after, format8(before))).toStrictEqual(dropEmail);
+	expect((await generateMigration(format8(before), format8(after))).sqlStatements).toStrictEqual(addEmail);
+	expect((await generateMigration(format8(before), after)).sqlStatements).toStrictEqual(addEmail);
+	expect((await generateMigration(after, format8(before))).sqlStatements).toStrictEqual(dropEmail);
 });
 
 // A saved rc.5 state and a state of the same schema give no SQL, although only the rc.5 state has `concurrently`.
@@ -110,8 +111,8 @@ test('generateMigration gives no SQL between a format 9 state of drizzle-kit 1.0
 	const state = await generateDrizzleJson(rc5Schema);
 	expect(rc5.version).toBe('9');
 
-	expect(await generateMigration(rc5, state)).toStrictEqual([]);
-	expect(await generateMigration(state, rc5)).toStrictEqual([]);
+	expect((await generateMigration(rc5, state)).sqlStatements).toStrictEqual([]);
+	expect((await generateMigration(state, rc5)).sqlStatements).toStrictEqual([]);
 });
 
 test('generateMigration converts format 5 and format 7 states in either argument position', async () => {
@@ -119,13 +120,17 @@ test('generateMigration converts format 5 and format 7 states in either argument
 
 	const v5 = oldSnapshot('format-5/meta/0000_snapshot.json');
 	expect(v5.version).toBe('5');
-	expect(await generateMigration(empty, v5)).toContainEqual(expect.stringContaining('CREATE TABLE "users"'));
-	expect(await generateMigration(v5, empty)).toStrictEqual(['DROP TABLE "users";']);
+	expect((await generateMigration(empty, v5)).sqlStatements).toContainEqual(
+		expect.stringContaining('CREATE TABLE "users"'),
+	);
+	expect((await generateMigration(v5, empty)).sqlStatements).toStrictEqual(['DROP TABLE "users";']);
 
 	const v7 = [oldSnapshot('format-7/meta/0000_snapshot.json'), oldSnapshot('format-7/meta/0001_snapshot.json')];
 	expect(v7.map((it) => it.version)).toStrictEqual(['7', '7']);
-	expect(await generateMigration(v7[0], v7[1])).toContainEqual(expect.stringContaining('CREATE TABLE "posts"'));
-	expect(await generateMigration(v7[1], v7[0])).toContainEqual('DROP TABLE "posts";');
+	expect((await generateMigration(v7[0], v7[1])).sqlStatements).toContainEqual(
+		expect.stringContaining('CREATE TABLE "posts"'),
+	);
+	expect((await generateMigration(v7[1], v7[0])).sqlStatements).toContainEqual('DROP TABLE "posts";');
 });
 
 test('generateMigration takes an empty previous state in format 7 and in format 8', async () => {
@@ -144,10 +149,11 @@ test('generateMigration takes an empty previous state in format 7 and in format 
 	};
 	const empty8 = { version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [], renames: [] };
 
-	expect(await generateMigration(payloadDefault, after)).toStrictEqual(createUsers);
-	expect(await generateMigration(after, payloadDefault)).toStrictEqual(['DROP TABLE "users";']);
-	expect(await generateMigration(empty8, after)).toStrictEqual(createUsers);
-	expect(await generateMigration(after, empty8)).toStrictEqual(['DROP TABLE "users";']);
+	expect((await generateMigration(payloadDefault, after)).sqlStatements).toStrictEqual(createUsers);
+	expect((await generateMigration(payloadDefault, after)).snapshot.type).toBe('base');
+	expect((await generateMigration(after, payloadDefault)).sqlStatements).toStrictEqual(['DROP TABLE "users";']);
+	expect((await generateMigration(empty8, after)).sqlStatements).toStrictEqual(createUsers);
+	expect((await generateMigration(after, empty8)).sqlStatements).toStrictEqual(['DROP TABLE "users";']);
 });
 
 test('generateMigration rejects a diff snapshot', async () => {
@@ -168,34 +174,16 @@ test('generateMigration rejects a diff snapshot', async () => {
 	);
 });
 
-test('up converts one saved state of an older format without a history', () => {
-	const first = up({ version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [], renames: ['a->b'] });
-	const second = up({ version: '8', dialect: 'postgres', id: 'p2', prevIds: ['p1'], ddl: [], renames: [] });
-	const legacy = up(oldSnapshot('format-7/meta/0001_snapshot.json'));
-
-	expect(first).toStrictEqual({
-		snapshot: { version: latestVersion, dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] },
-		hints: [],
-	});
-	expect(second.snapshot).toStrictEqual({
-		version: latestVersion,
-		dialect: 'postgres',
-		id: 'p2',
-		prevIds: ['p1'],
-		ddl: [],
-	});
-	expect(legacy.snapshot).toMatchObject({ version: latestVersion, dialect: 'postgres' });
-	expect(legacy.snapshot.ddl).toContainEqual(expect.objectContaining({ entityType: 'tables', name: 'posts' }));
-});
-
 test('up converts a format 9 state of drizzle-kit 1.0.0-rc.5 and drops concurrently from the rows of indexes', async () => {
 	const rc5 = oldSnapshot('format-9-state.json');
 	const state = await generateDrizzleJson(rc5Schema);
 	expect(JSON.stringify(rc5.ddl)).toContain('"concurrently":true');
 
-	const { snapshot, hints } = up(rc5);
+	const { snapshots, hints } = await up({ '20250101000000_init': rc5 });
+	const snapshot = snapshots['20250101000000_init'];
 
 	expect(hints).toStrictEqual([]);
+	if (snapshot.type !== 'base') throw new Error('The first snapshot of a folder must be a base snapshot.');
 	expect(snapshot).toMatchObject({ version: '10', dialect: 'postgres', id: rc5.id, prevIds: [ORIGIN] });
 	expect(normalizeDDL(snapshot.ddl)).toStrictEqual(normalizeDDL(state.ddl));
 });
@@ -220,25 +208,24 @@ test('up converts a format 8 state of drizzle-kit 1.0.0-rc.4 and drops concurren
 	expect(rc4.version).toBe('8');
 	expect(JSON.stringify(rc4.ddl)).toContain('"concurrently":false');
 
-	const { snapshot, hints } = up(rc4);
+	const { snapshots, hints } = await up({ '20250101000000_init': rc4 });
+	const snapshot = snapshots['20250101000000_init'];
 
 	expect(hints).toStrictEqual([]);
-	expect(snapshot).toMatchObject({ version: latestVersion, dialect: 'postgres', id: rc4.id, prevIds: rc4.prevIds });
+	if (snapshot.type !== 'base') throw new Error('The first snapshot of a folder must be a base snapshot.');
+	expect(snapshot).toMatchObject({ version: latestVersion, dialect: 'postgres', id: rc4.id, prevIds: [ORIGIN] });
 	expect(normalizeDDL(snapshot.ddl)).toStrictEqual(normalizeDDL(state.ddl));
 });
 
-test('up returns a schema state unchanged', async () => {
-	const state = await generateDrizzleJson(v1);
-
-	expect(up(JSON.parse(JSON.stringify(state)))).toStrictEqual({ snapshot: state, hints: [] });
-});
-
-test('up rejects a state of format 8 or 9 that has no rows or no parents', () => {
+test('up rejects a state of format 8 or 9 that has no rows or no parents', async () => {
 	const message = 'State p1 has no `ddl` or no `prevIds` array. Pass the result of generateDrizzleJson, '
 		+ 'or a full state of an older format.';
 
-	expect(() => up({ version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], renames: [] })).toThrow(message);
-	expect(() => up({ version: '9', dialect: 'postgres', id: 'p1', ddl: [] })).toThrow(message);
+	const v8 = { version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], renames: [] };
+	await expect(up({ '20250101000000_init': v8 })).rejects.toThrow(message);
+	await expect(up({ '20250101000000_init': { version: '9', dialect: 'postgres', id: 'p1', ddl: [] } })).rejects.toThrow(
+		message,
+	);
 });
 
 test('reconstruct rebuilds any snapshot of a linear folder, and the leaf when no id is given', async () => {
@@ -261,7 +248,9 @@ test('reconstruct rebuilds any snapshot of a linear folder, and the leaf when no
 		prevIds: middle.prevIds,
 		ddl: second.ddl,
 	});
-	expect(await generateMigration(second, leaf)).toStrictEqual(['ALTER TABLE "users" ADD COLUMN "age" integer;']);
+	expect((await generateMigration(second, leaf)).sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ADD COLUMN "age" integer;',
+	]);
 });
 
 // Branch a creates `likes` and then drops it, and the last `reconstruct` call gets the files in reverse order.
@@ -402,5 +391,97 @@ test('reconstruct asks to run up for a format 9 snapshot', async () => {
 
 	await expect(reconstruct(files)).rejects.toThrow(
 		'20250101000000_init is not of the latest version, please run "drizzle-kit up"',
+	);
+});
+
+test('reconstruct asks to convert a folder of full states', async () => {
+	const files = { '20250101000000_init': await generateDrizzleJson(v1) };
+
+	await expect(reconstruct(files)).rejects.toThrow(
+		'Snapshot 20250101000000_init is a full state without a `type`, such as a result of generateDrizzleJson. '
+			+ 'Convert the folder with up, or store the snapshot that generateMigration returns.',
+	);
+});
+
+// The snapshots replace the ones that the CLI wrote, so `check` and the next `generate` read a folder that
+// Payload CMS writes with the programmatic API.
+test('generateMigration returns a base and a diff snapshot that the CLI accepts', async () => {
+	const flow = createFolderFlow();
+	const first = await flow.generate('main', v1);
+	const second = await flow.generate('main', v2);
+
+	const base = await generateMigration(undefined, await generateDrizzleJson(v1));
+	const prev = await reconstruct({ [first.folder]: base.snapshot });
+	const diff = await generateMigration(prev, await generateDrizzleJson(v2));
+	flow.overwriteSnapshot('main', first.folder, JSON.stringify(base.snapshot));
+	flow.overwriteSnapshot('main', second.folder, JSON.stringify(diff.snapshot));
+
+	expect(base.sqlStatements).toStrictEqual(['CREATE TABLE "users" (\n\t"id" integer\n);\n']);
+	expect(base.snapshot).toMatchObject({ type: 'base', version: latestVersion, prevIds: [ORIGIN] });
+	expect(diff.sqlStatements).toStrictEqual(addEmail);
+	expect(diff.snapshot).toMatchObject({ type: 'diff', version: latestVersion, prevIds: [base.snapshot.id] });
+	expect(diff.snapshot.footprints).not.toHaveLength(0);
+	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+	const third = await flow.generate('main', v3);
+	expect(flow.sql('main', third.folder)).toBe('ALTER TABLE "users" ADD COLUMN "age" integer;');
+});
+
+// Payload CMS saved a full state for each migration: format 7 with drizzle-kit 0.x, format 9 with 1.0.0-rc.5,
+// and the latest format after that. The states do not list each other as parents.
+test('up converts a folder of full states of any format, and keeps a converted folder as it is', async () => {
+	const files = {
+		'20250101000000_a': oldSnapshot('format-7/meta/0000_snapshot.json'),
+		'20250102000000_b': oldSnapshot('format-7/meta/0001_snapshot.json'),
+		'20250103000000_c': oldSnapshot('format-9-state.json'),
+		'20250104000000_d': JSON.parse(JSON.stringify(await generateDrizzleJson(v3))),
+	};
+	const states = await Promise.all(
+		Object.values(files).map(async (file) => (await generateMigration(undefined, file)).snapshot),
+	);
+
+	const { snapshots: converted } = await up(files);
+
+	const snapshots = Object.values(converted);
+	expect(snapshots.map((it) => it.type)).toStrictEqual(['base', 'diff', 'diff', 'diff']);
+	expect(snapshots.slice(1).map((it) => it.prevIds)).toStrictEqual(snapshots.slice(0, -1).map((it) => [it.id]));
+	for (const [i, folder] of Object.keys(files).entries()) {
+		expect(snapshotValidator.parse(converted[folder]).success).toBe(true);
+		const state = await reconstruct(converted, converted[folder].id);
+		const expected = states[i];
+		if (expected.type !== 'base') throw new Error('A migration without a parent must have a base snapshot.');
+		expect(normalizeDDL(state.ddl)).toStrictEqual(normalizeDDL(expected.ddl));
+	}
+	expect((await up(JSON.parse(JSON.stringify(converted)))).snapshots).toStrictEqual(converted);
+});
+
+// Payload CMS keeps the full states of its older migrations and stores the snapshots that generateMigration
+// returns for new migrations. generateMigration takes the last full state as `prev`.
+test('up converts the full states before a diff snapshot and keeps that diff snapshot', async () => {
+	const first = await generateDrizzleJson(v1);
+	const second = await generateDrizzleJson(v2);
+	const { snapshot } = await generateMigration(second, await generateDrizzleJson(v3));
+
+	const { snapshots } = await up({
+		'20250101000000_a': first,
+		'20250102000000_b': second,
+		'20250103000000_c': snapshot,
+	});
+
+	expect(snapshots['20250103000000_c']).toStrictEqual(snapshot);
+	expect(normalizeDDL((await reconstruct(snapshots)).ddl)).toStrictEqual(schemaState(v3));
+});
+
+test('up rejects a file that is not an object, a malformed snapshot and two snapshots with one id', async () => {
+	const state = await generateDrizzleJson(v1);
+	const broken = { type: 'diff', version: latestVersion, dialect: 'postgres', id: 'd1', prevIds: [ORIGIN] };
+
+	await expect(up({ '20250101000000_a': 'text' })).rejects.toThrow(
+		'Snapshot 20250101000000_a is not a JSON object. Pass the parsed JSON of its snapshot.json.',
+	);
+	await expect(up({ '20250101000000_a': broken })).rejects.toThrow(
+		'Snapshot 20250101000000_a is malformed. Restore it from git, or pass a full state in its place.',
+	);
+	await expect(up({ '20250101000000_a': state, '20250102000000_b': state })).rejects.toThrow(
+		`Snapshots 20250101000000_a and 20250102000000_b have the same id ${state.id}. Give each snapshot its own id.`,
 	);
 });

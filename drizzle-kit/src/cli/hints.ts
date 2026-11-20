@@ -199,6 +199,8 @@ class InvalidHintShapeCliError extends Error {
 export class HintsHandler {
 	private readonly userHints: Hints;
 	readonly missingHints: MissingHint[] = [];
+	// The hints that the run applied: the user hints that matched an entity, and the answers to the prompts.
+	readonly resolvedHints: Hint[] = [];
 
 	constructor(hints: readonly Hint[] = []) {
 		this.userHints = buildHints(hints);
@@ -269,10 +271,17 @@ export class HintsHandler {
 		});
 	}
 
+	// A matched confirmation is a resolved hint, because the data loss check lets the statement run.
 	matchConfirm<K extends ConfirmEntityKind>(kind: K, entityId: ConfirmIdFor<K>) {
-		return this.userHints.confirms.find((hint): hint is Extract<ConfirmDataLossHint, { kind: K }> => {
+		const match = this.userHints.confirms.find((hint): hint is Extract<ConfirmDataLossHint, { kind: K }> => {
 			return hint.kind === kind && tuplesEqual(hint.entity, entityId);
 		});
+		if (match) this.pushResolvedHint(match);
+		return match;
+	}
+
+	pushResolvedHint(hint: Hint): void {
+		if (!this.resolvedHints.includes(hint)) this.resolvedHints.push(hint);
 	}
 
 	pushMissingHint<K extends RenameCreateHintKind>(kind: K, entity: IdFor<K>): void;
@@ -306,13 +315,16 @@ export class HintsHandler {
 	}
 }
 
-// The programmatic API has no terminal, so the resolvers must not prompt and must not print.
+// By default the resolvers of the programmatic API do not prompt and do not print. With `interactive` and a
+// terminal on stdin, they prompt and print as the CLI does. Without a terminal, `interactive` has no effect.
 export const runWithApiHints = async <T>(
 	raw: Hint[],
 	callback: (hints: HintsHandler) => Promise<T>,
+	interactive = false,
 ): Promise<T> => {
 	const hints = await HintsHandler.fromCli({ hints: raw });
-	return runWithCliContext({ output: 'json', interactive: false }, () => callback(hints));
+	const prompts = interactive && process.stdin.isTTY === true;
+	return runWithCliContext({ output: prompts ? 'text' : 'json', interactive: prompts }, () => callback(hints));
 };
 
 function formatIssuePath(path: readonly (string | number)[]): string {

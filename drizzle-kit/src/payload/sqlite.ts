@@ -1,7 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnySQLiteTable } from 'drizzle-orm/sqlite-core';
+import type { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core/async';
 import type { Hint } from '../cli/hints';
+import type { EntitiesFilterConfig } from '../cli/validations/common';
 import type { SqliteCredentials } from '../cli/validations/sqlite';
 import type { Column, Table } from '../dialects/sqlite/ddl';
 import { createDDL, interimToDDL } from '../dialects/sqlite/ddl';
@@ -31,11 +33,12 @@ export const generateDrizzleJson = async (
 	return toJsonSnapshot(ddl, randomUUID(), prevId ? [prevId] : [originUUID], []);
 };
 
+// Returns the SQL statements that turn `prev` into `cur`, and the hints that the run applied.
 export const generateMigration = async (
 	prev: SqliteSnapshot,
 	cur: SqliteSnapshot,
-	options?: { hints?: Hint[] },
-) => {
+	options?: { hints?: Hint[]; interactive?: boolean },
+): Promise<{ sqlStatements: string[]; hints: Hint[] }> => {
 	const { resolver } = await import('../cli/prompts');
 	const { ddlDiff } = await import('../dialects/sqlite/diff');
 	const { runWithApiHints } = await import('../cli/hints');
@@ -59,21 +62,28 @@ export const generateMigration = async (
 		);
 		hints.throwIfMissingHints();
 
-		return sqlStatements;
-	});
+		return { sqlStatements, hints: hints.resolvedHints };
+	}, options?.interactive);
 };
 
+// Returns the SQL statements that turn the database into the schema of `imports`, the data loss warnings, the hints
+// that the run applied, and `apply`, which runs the statements. With `interactive`, the data loss checks do not ask
+// for confirmations. They return `warnings`, and the caller shows them before it calls `apply`.
 export const pushSchema = async (
 	imports: Record<string, unknown>,
-	db: SQLiteClient,
+	drizzleInstance: SQLiteAsyncDatabase<any, any, any>,
+	entitiesConfig?: EntitiesFilterConfig,
 	migrationsConfig?: {
 		table?: string;
 		schema?: string;
 	},
-	options?: { hints?: Hint[] },
+	options?: { hints?: Hint[]; interactive?: boolean },
 ) => {
+	const { sql } = await import('drizzle-orm');
 	const { resolver } = await import('../cli/prompts');
-	const { fromDatabaseForDrizzle } = await import('src/dialects/sqlite/introspect');
+	const { prepareEntityFilter } = await import('../dialects/pull-utils');
+	const { extractSqliteExisting } = await import('../dialects/drizzle');
+	const { fromDatabaseForDrizzle } = await import('../dialects/sqlite/introspect');
 	const { fromDrizzleSchema, fromExports } = await import('../dialects/sqlite/drizzle');
 	const { suggestions } = await import('../cli/commands/push-sqlite');
 	const { ddlDiff } = await import('../dialects/sqlite/diff');
@@ -84,15 +94,39 @@ export const pushSchema = async (
 		table: migrationsConfig?.table || '__drizzle_migrations',
 	};
 
-	const prepared = fromExports(imports);
+	const run = async (query: string) => {
+		await drizzleInstance.run(sql.raw(query));
+	};
+	const db: SQLiteClient = {
+		query: async <T>(query: string) => (await drizzleInstance.all(sql.raw(query))) as T[],
+		run,
+		// libsql and D1 run a batch in one transaction. Other drivers run the statements one by one.
+		batch: async (statements: string[]) => {
+			const batch = (drizzleInstance as { batch?: (items: unknown[]) => Promise<unknown> }).batch;
+			if (batch && statements.length > 0) {
+				await batch.call(drizzleInstance, statements.map((it) => drizzleInstance.run(sql.raw(it))));
+				return;
+			}
+			for (const statement of statements) await run(statement);
+		},
+	};
 
-	const prev = await fromDatabaseForDrizzle(db, () => true, () => {}, migrations);
+	const prepared = fromExports(imports);
+	const filterConfig = entitiesConfig ?? {
+		tables: [],
+		schemas: [],
+		extensions: [],
+		entities: undefined,
+	} satisfies EntitiesFilterConfig;
+	const filter = prepareEntityFilter('sqlite', filterConfig, extractSqliteExisting(prepared.views));
+
+	const prev = await fromDatabaseForDrizzle(db, filter, () => {}, migrations);
 	const { schema: cur, metadata } = fromDrizzleSchema(prepared.tables, prepared.views);
 
 	const { ddl: from } = interimToDDL(prev);
 	const { ddl: to } = interimToDDL(cur);
 
-	const { sqlStatements, hints } = await runWithApiHints(options?.hints ?? [], async (userHints) => {
+	const { sqlStatements, warnings, hints } = await runWithApiHints(options?.hints ?? [], async (userHints) => {
 		const { sqlStatements, statements } = await ddlDiff(
 			from,
 			to,
@@ -104,17 +138,18 @@ export const pushSchema = async (
 		// An unresolved rename is diffed as a drop plus a create, so a data loss check on it would report a false drop.
 		userHints.throwIfMissingHints();
 
-		const hints = await suggestions(db, statements, userHints);
+		const warnings = await suggestions(db, statements, userHints);
 		userHints.throwIfMissingHints();
 
-		return { sqlStatements, hints };
-	});
+		return { sqlStatements, warnings, hints: userHints.resolvedHints };
+	}, options?.interactive);
 
 	return {
 		sqlStatements,
+		warnings,
 		hints,
 		apply: async () => {
-			const losses = hints.map((x) => x.statement).filter((x): x is string => typeof x !== 'undefined');
+			const losses = warnings.map((x) => x.statement).filter((x): x is string => typeof x !== 'undefined');
 			await db.batch([...losses, ...sqlStatements]);
 		},
 	};
@@ -174,7 +209,21 @@ export const startStudioServer = async (
 	});
 };
 
-export { updateToV7 as up } from '../cli/commands/up-sqlite';
+// Converts the snapshots of a migrations folder to the latest format, and returns each snapshot under its folder
+// name. `files` maps each migration folder name to the parsed JSON of its snapshot.json. SQLite has no conversion
+// hints. `hints` is always empty, so that both dialects return one shape.
+export const up = async (
+	files: Record<string, unknown>,
+): Promise<{ snapshots: Record<string, SqliteSnapshot>; hints: string[] }> => {
+	const { upToV7 } = await import('../cli/commands/up-sqlite');
+	const snapshots = Object.fromEntries(
+		Object.entries(files).map(([folder, raw]) => {
+			const snapshot = raw as Record<string, any>;
+			return [folder, Number(snapshot.version) < 7 ? upToV7(snapshot) : snapshot as SqliteSnapshot];
+		}),
+	);
+	return { snapshots, hints: [] };
+};
 
 export type { MissingHintsError } from '../cli/errors';
 export type { Hint, MissingHint } from '../cli/hints';

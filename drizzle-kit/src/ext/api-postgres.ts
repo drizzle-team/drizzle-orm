@@ -20,9 +20,16 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../dialects/postgres/ddl';
-import { fromEntities, interimToDDL } from '../dialects/postgres/ddl';
-import type { PostgresBaseSnapshot, PostgresBaseSnapshotV9, PostgresSchemaState } from '../dialects/postgres/snapshot';
-import { isSnapshotV8, latestVersion, upToV10, upToV8 } from '../dialects/postgres/versions';
+import { createDDL, fromEntities, interimToDDL } from '../dialects/postgres/ddl';
+import type {
+	AnyDeltaPostgresSnapshot,
+	PostgresBaseSnapshot,
+	PostgresBaseSnapshotV9,
+	PostgresSchemaState,
+	PostgresSnapshot,
+	PostgresSnapshotV8,
+} from '../dialects/postgres/snapshot';
+import { isDeltaSnapshot, isSnapshotV8, latestVersion, upToV10, upToV8 } from '../dialects/postgres/versions';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
 
@@ -79,21 +86,32 @@ export const generateDrizzleJson = async (
 	return schemaState(randomUUID(), prevId ? [prevId] : [], ddl.entities.list());
 };
 
-// Returns the SQL statements that turn `prev` into `cur`. Each argument is a schema state or a full state of an
-// older format. Only the rows of each state are read, so `cur` does not have to list `prev` as a parent.
+// Returns the SQL statements that turn `prev` into `cur`, the snapshot that the migrations folder stores for them,
+// and the hints that the run applied. Each argument is a schema state or a full state of an older format, and `prev`
+// is usually the result of `reconstruct`. If `prev` is not given or has the origin id, the snapshot is a base
+// snapshot. Otherwise it is a diff snapshot with `prev` as its parent.
 export const generateMigration = async (
-	prev: PostgresSchemaState | Record<string, any>,
+	prev: PostgresSchemaState | Record<string, any> | null | undefined,
 	cur: PostgresSchemaState | Record<string, any>,
-	options?: { hints?: Hint[] },
-) => {
+	options?: { hints?: Hint[]; interactive?: boolean; createSchemaIfNotExists?: boolean },
+): Promise<{ sqlStatements: string[]; snapshot: PostgresSnapshot; hints: Hint[] }> => {
+	const { randomUUID } = await import('crypto');
 	const { resolver } = await import('../cli/prompts');
-	const { ddlDiff } = await import('../dialects/postgres/diff');
 	const { runWithApiHints } = await import('../cli/hints');
+	const { ddlDiff } = await import('../dialects/postgres/diff');
+	const { fromJson } = await import('../dialects/postgres/convertor');
+	const { footprintsOf } = await import('../dialects/postgres/commutativity');
+
+	const parent = prev ? upState(prev).snapshot : undefined;
+	const parentId = parent && parent.id !== originUUID ? parent.id : undefined;
+	const to = fromEntities(upState(cur).snapshot.ddl);
 
 	return runWithApiHints(options?.hints ?? [], async (hints) => {
-		const { sqlStatements } = await ddlDiff(
-			fromEntities(up(prev).snapshot.ddl),
-			fromEntities(up(cur).snapshot.ddl),
+		// `ddlDiff` changes `to`. The base snapshot stores the changed `to`, because its auto-named constraints then
+		// have the names that the SQL leaves in the database.
+		const diff = await ddlDiff(
+			parent ? fromEntities(parent.ddl) : createDDL(),
+			to,
 			resolver<Schema>('schema', hints),
 			resolver<Enum>('enum', hints),
 			resolver<Sequence>('sequence', hints),
@@ -111,8 +129,16 @@ export const generateMigration = async (
 		);
 		hints.throwIfMissingHints();
 
-		return sqlStatements;
-	});
+		const { sqlStatements, groupedStatements } = options?.createSchemaIfNotExists
+			? fromJson(diff.statements.map((it) => (it.type === 'create_schema' ? { ...it, ifNotExists: true } : it)))
+			: diff;
+		const header = { version: latestVersion, dialect: 'postgres', id: randomUUID() } as const;
+		const footprints = footprintsOf(groupedStatements);
+		const snapshot: PostgresSnapshot = parentId
+			? { type: 'diff', ...header, prevIds: [parentId], footprints, deltas: diff.deltas }
+			: { type: 'base', ...header, prevIds: [originUUID], footprints, ddl: to.entities.list() };
+		return { sqlStatements, snapshot, hints: hints.resolvedHints };
+	}, options?.interactive);
 };
 
 export const pushSchema = async (
@@ -123,7 +149,7 @@ export const pushSchema = async (
 		table?: string;
 		schema?: string;
 	},
-	options?: { hints?: Hint[] },
+	options?: { hints?: Hint[]; interactive?: boolean },
 ) => {
 	const { prepareEntityFilter } = await import('src/dialects/pull-utils');
 	const { resolver } = await import('../cli/prompts');
@@ -168,7 +194,9 @@ export const pushSchema = async (
 
 	// TODO: handle errors, for now don't throw
 
-	const { sqlStatements, hints } = await runWithApiHints(options?.hints ?? [], async (userHints) => {
+	// With `interactive`, the data loss checks do not ask for confirmations. They return `warnings`, and the caller
+	// shows them before it calls `apply`.
+	const { sqlStatements, warnings, hints } = await runWithApiHints(options?.hints ?? [], async (userHints) => {
 		const { sqlStatements, statements } = await ddlDiff(
 			from,
 			to,
@@ -190,17 +218,18 @@ export const pushSchema = async (
 		// An unresolved rename is diffed as a drop plus a create, so a data loss check on it would report a false drop.
 		userHints.throwIfMissingHints();
 
-		const hints = await suggestions(db, statements, userHints);
+		const warnings = await suggestions(db, statements, userHints);
 		userHints.throwIfMissingHints();
 
-		return { sqlStatements, hints };
-	});
+		return { sqlStatements, warnings, hints: userHints.resolvedHints };
+	}, options?.interactive);
 
 	return {
 		sqlStatements,
+		warnings,
 		hints,
 		apply: async () => {
-			const losses = hints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
+			const losses = warnings.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 			for (const st of losses) {
 				await db.query(st);
 			}
@@ -266,7 +295,7 @@ export const startStudioServer = async (
 // and this function takes the same steps for one state as `drizzle-kit up` takes for a base snapshot: `upToV8`,
 // and then the steps from format 9 on. A base snapshot keeps its full state in format 9, so a state of format 8
 // holds the rows of a format 9 base snapshot and goes on to `upToV10` as one.
-export const up = (it: Record<string, any>): { snapshot: PostgresSchemaState; hints: string[] } => {
+const upState = (it: Record<string, any>): { snapshot: PostgresSchemaState; hints: string[] } => {
 	if (it.type === 'diff') {
 		throw new Error(
 			`Snapshot ${it.id} is a diff snapshot, so it holds only the changes of one migration. `
@@ -302,6 +331,14 @@ export const reconstruct = async (files: Record<string, unknown>, id?: string): 
 
 	// `entries` are sorted by folder name, because a merge applies the rest of its history in that order.
 	const entries = Object.keys(files).sort().map((folder) => ({ folder, path: folder, raw: files[folder] }));
+	// A format 8 file has no `type` too, and the status check asks to run `drizzle-kit up` for it.
+	const fullState = entries.find(({ raw }) => isFullState(raw) && Number(raw.version) >= 9);
+	if (fullState) {
+		throw new Error(
+			`Snapshot ${fullState.folder} is a full state without a \`type\`, such as a result of generateDrizzleJson. `
+				+ 'Convert the folder with up, or store the snapshot that generateMigration returns.',
+		);
+	}
 	assertHistory(entries);
 	const migrations = loadFolder(validFiles(entries));
 
@@ -321,6 +358,56 @@ export const reconstruct = async (files: Record<string, unknown>, id?: string): 
 
 	const state = stateOf(migrations, id);
 	return schemaState(id, migrations.snapshots.get(id)!.prevIds, state.entities.list());
+};
+
+const isFullState = (raw: unknown): raw is Record<string, any> =>
+	typeof raw === 'object' && raw !== null && !('type' in raw);
+
+// Converts a migrations folder to base and diff snapshots of the latest format, and returns each snapshot under
+// its folder name. `files` maps each migration folder name to the parsed JSON of its snapshot.json. A full state of
+// any format, such as a result of generateDrizzleJson, gets the snapshot of the folder before it as its parent. A
+// base or a diff snapshot keeps its parents. A full state does not store renames, so the diff snapshot stores a
+// rename between two full states as a drop and a create. The reconstructed states are equal to the full states.
+// `hints` lists the primary keys, unique constraints and indexes of format 7 and older states whose generated names
+// differ from the names that drizzle-kit generates now.
+export const up = async (
+	files: Record<string, unknown>,
+): Promise<{ snapshots: Record<string, PostgresSnapshot>; hints: string[] }> => {
+	const { upToV9 } = await import('../dialects/postgres/versions-v9');
+
+	const folders = Object.keys(files).sort();
+	const folderOfId = new Map<string, string>();
+	let parentId = originUUID;
+	const hints: string[] = [];
+	const converted = folders.map((folder) => {
+		const raw = files[folder];
+		if (typeof raw !== 'object' || raw === null) {
+			throw new Error(`Snapshot ${folder} is not a JSON object. Pass the parsed JSON of its snapshot.json.`);
+		}
+		let snapshot: PostgresSnapshotV8 | AnyDeltaPostgresSnapshot;
+		if (isFullState(raw)) {
+			const state = upState(raw);
+			hints.push(...state.hints.map((it) => `${folder}: ${it}`));
+			snapshot = { ...state.snapshot, version: '8', prevIds: [parentId], renames: [] };
+		} else {
+			snapshot = raw as AnyDeltaPostgresSnapshot;
+		}
+		if (snapshot.version !== '8' && !isDeltaSnapshot(snapshot)) {
+			throw new Error(`Snapshot ${folder} is malformed. Restore it from git, or pass a full state in its place.`);
+		}
+		const other = folderOfId.get(snapshot.id);
+		if (other) {
+			throw new Error(
+				`Snapshots ${other} and ${folder} have the same id ${snapshot.id}. Give each snapshot its own id.`,
+			);
+		}
+		folderOfId.set(snapshot.id, folder);
+		parentId = snapshot.id;
+		return { folder, snapshot };
+	});
+
+	const latest = upToV10(await upToV9(converted));
+	return { snapshots: Object.fromEntries(folders.map((folder, i) => [folder, latest[i]])), hints };
 };
 
 export type { MissingHintsError } from '../cli/errors';
