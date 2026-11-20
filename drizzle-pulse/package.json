@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-pulse",
-	"version": "0.6.0",
+	"version": "1.0.0-rc.6",
 	"description": "Type-safe realtime SDK for Drizzle",
 	"type": "module",
 	"license": "Apache-2.0",

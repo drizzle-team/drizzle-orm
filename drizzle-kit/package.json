@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-kit",
-	"version": "1.0.0-rc.5",
+	"version": "1.0.0-rc.6",
 	"type": "module",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
