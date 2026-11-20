@@ -83,7 +83,8 @@ asyncConnector;
 declare const edb: EffectPostgresDatabase;
 
 {
-	// batch: one transaction, a tuple of results
+	// batch: one transaction, a tuple of results. It runs as the async driver's, through the pool's `batch`, so every
+	// failure is the failing query's `EffectDrizzleQueryError`
 	const batched = edb.batch([
 		edb.select().from(items),
 		edb.insert(items).values({ id: 1, name: 'a' }).returning({ id: items.id }),
@@ -91,18 +92,18 @@ declare const edb: EffectPostgresDatabase;
 	Expect<
 		Equal<
 			typeof batched,
-			Effect.Effect<[Item[], { id: number }[]], EffectDrizzleQueryError | SqlError, never>
+			Effect.Effect<[Item[], { id: number }[]], EffectDrizzleQueryError, never>
 		>
 	>;
 
-	// pipeline: one connection, no transaction; each query settles on it's own
+	// pipeline: one connection, no transaction; each query settles on it's own, and nothing fails the whole
 	const piped = edb.pipeline([edb.select().from(items), edb.delete(items).returning({ id: items.id })]);
 	Expect<
 		Equal<
 			typeof piped,
 			Effect.Effect<
 				[Result.Result<Item[], EffectDrizzleQueryError>, Result.Result<{ id: number }[], EffectDrizzleQueryError>],
-				SqlError,
+				never,
 				never
 			>
 		>
@@ -135,10 +136,10 @@ declare const edb: EffectPostgresDatabase;
 	// prepared queries, and prepared queries with bound placeholder values, run under their statement name
 	const byId = edb.select().from(items).where(eq(items.id, sql.placeholder('id'))).prepare('by_id');
 	const counted = edb.batch([byId.bind({ id: 1 }), byId, edb.$count(items)]);
-	Expect<Equal<typeof counted, Effect.Effect<[Item[], Item[], number], EffectDrizzleQueryError | SqlError, never>>>;
+	Expect<Equal<typeof counted, Effect.Effect<[Item[], Item[], number], EffectDrizzleQueryError, never>>>;
 
 	const settled = edb.pipeline([byId.bind({ id: 2 })]);
-	Expect<Equal<typeof settled, Effect.Effect<[Result.Result<Item[], EffectDrizzleQueryError>], SqlError, never>>>;
+	Expect<Equal<typeof settled, Effect.Effect<[Result.Result<Item[], EffectDrizzleQueryError>], never, never>>>;
 }
 
 {
