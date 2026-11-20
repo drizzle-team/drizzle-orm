@@ -44,10 +44,6 @@ interface SharedWaiter {
 	retry: () => void; // start over, e.g. to wait for recovery once the breaker trips
 }
 
-// Statements that open a transaction. A query that matches anywhere in its text gets its own
-// connection, because on a shared one the queries pipelined behind it would run inside it.
-const OPENS_TX = /\b(?:begin|start\s+transaction)\b/i;
-
 // What an aborted query rejects with: the signal's reason, as a connection does
 const abortReason = (signal: AbortSignal): Error =>
 	(signal.reason as Error) ?? Object.assign(new Error('query aborted'), { name: 'AbortError' });
@@ -564,9 +560,13 @@ export class Pool {
 		// A cancel stops whatever the backend runs at that moment, which on a shared connection can be
 		// someone else's query, so only an abort that sends none (`cancel: false`) may share; a snapshot query is
 		// a transaction of its own.
+		//
+		// The statement's text is not looked at: a caller opens a transaction with `transaction()`, which takes a
+		// connection of its own. A `BEGIN` sent here as plain SQL runs on a shared connection, with other callers'
+		// statements behind it; the check-in below ends such a transaction.
 		if (
 			!this.shareQueries || (opts.cancel !== false && (opts.timeout != null || opts.signal !== undefined))
-			|| opts.snapshot !== undefined || OPENS_TX.test(sql)
+			|| opts.snapshot !== undefined
 		) {
 			// on a connection of its own, a cancel can only stop this query: send it
 			if (opts.cancel === false) {
@@ -684,7 +684,7 @@ export class Pool {
 			return;
 		}
 		if (c.inTransaction) {
-			// A shared query opened a transaction that OPENS_TX did not catch. Stop dispatching here; the
+			// A shared query opened a transaction with plain SQL. Stop dispatching here; the
 			// release queues a ROLLBACK behind the queries already sent, then checks the connection back in.
 			this.idle.splice(i, 1);
 			this.clearIdleTimer(c);

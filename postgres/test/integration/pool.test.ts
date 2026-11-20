@@ -878,20 +878,24 @@ describe('pipelined pool', () => {
 		}
 	});
 
-	test('a BEGIN sent through pool.query never leaves a shared connection in a transaction', async () => {
+	// The pool doesn't read a statement's text: a transaction is opened with pool.transaction(), which takes a
+	// connection of its own. A BEGIN sent as plain SQL runs on the shared connection, so the statements pipelined
+	// behind it run inside it (one xid for both). The pool ends that transaction when the connection is checked in.
+	test('a BEGIN sent through pool.query runs on the shared connection, and the pool rolls it back at check-in', async () => {
 		const pool = testPool({ max: 1, applicationName: appName() });
 		try {
-			// inside one transaction both would report the same xid; in autocommit each gets its own
-			const [, , a, b] = await Promise.all([
+			const [, , res1, res2] = await Promise.all([
 				pool.query('select 1'),
 				pool.query('begin'),
 				pool.query('select pg_current_xact_id()::text'),
 				pool.query('select pg_current_xact_id()::text'),
 			]);
-			expect(a.rows[0]).not.toEqual(b.rows[0]);
 			const h = await pool.connect();
-			expect(h.client.inTransaction).toBe(false);
+			const res3 = h.client.inTransaction;
 			h.release();
+
+			expect(res1.rows[0]).toEqual(res2.rows[0]);
+			expect(res3).toBe(false);
 		} finally {
 			await pool.end();
 		}
