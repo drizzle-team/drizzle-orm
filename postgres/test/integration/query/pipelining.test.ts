@@ -3,7 +3,7 @@
 // `pipeline:false` gates to one-at-a-time. Read-only: only SELECTs, every connection is ended.
 import { describe, expect, test } from 'bun:test';
 import net from 'node:net';
-import { PgError, TEST_CONFIG, testConnect, withConn } from '../../helpers/db.ts';
+import { PgError, PGLITE, TEST_CONFIG, testConnect, withConn } from '../../helpers/db.ts';
 
 const nums = (n: number) => Array.from({ length: n }, (_, i) => i);
 
@@ -120,15 +120,17 @@ async function delayProxy(delayMs: number): Promise<{ port: number; close: () =>
 }
 
 describe("depth: 'auto' follows the round trip", () => {
-	test('a local connection keeps the floor of 100', async () => {
+	// Under 1 ms of round trip the depth stays at the floor of 100. A local server is usually that close, but not
+	// through Docker's port forwarding or with the suite's parallel workers busy, so the measured round trip decides.
+	test('a connection keeps the floor of 100 below 1 ms of round trip, and follows it above', async () => {
 		await withConn(async (c) => {
 			await c.query('select 1');
-			expect(c.rtt.min).toBeLessThan(1);
-			expect(c.stats.pipelineDepth).toBe(100);
+			expect(c.stats.pipelineDepth).toBe(Math.max(100, Math.ceil(100 * c.rtt.min!)));
 		});
 	});
 
-	test('a 12 ms round trip raises the depth to about 100 per ms', async () => {
+	// a TCP proxy delays the round trip: a PGlite has no socket
+	test.skipIf(PGLITE)('a 12 ms round trip raises the depth to about 100 per ms', async () => {
 		if (TEST_CONFIG.host === undefined) return; // remote URL: no proxy
 		const proxy = await delayProxy(6);
 		const c = await testConnect({ host: '127.0.0.1', port: proxy.port });

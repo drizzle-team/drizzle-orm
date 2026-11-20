@@ -60,7 +60,7 @@ describe('DrizzlePostgresClient over PGlite', () => {
 		expect((await pg.query('select id from effect_pglite')).rows).toEqual([{ id: 1000 }]);
 	});
 
-	test('an interrupt closes the connection, and the next statement opens a clean one', async () => {
+	test('an interrupted statement runs to the end, and the next statement runs after it', async () => {
 		const result = await run(Effect.gen(function*() {
 			const sql = yield* SqlClient;
 			const slow = yield* Effect.forkChild(sql`select pg_sleep(0.2)`);

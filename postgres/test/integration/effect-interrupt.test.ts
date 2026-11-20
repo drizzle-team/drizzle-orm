@@ -1,4 +1,5 @@
-// Interrupting a statement in the Effect entry point cancels it on the server and keeps the pool healthy.
+// Interrupting a statement in the Effect entry point: the Effect ends at once, as interrupted, and the statement runs
+// to the end on the server, as an abandoned Promise of the async entry point does. The pool stays healthy.
 import { describe, expect, test } from 'bun:test';
 import { Effect, Exit, Fiber } from 'effect';
 import { SqlClient } from 'effect/sql/SqlClient';
@@ -20,28 +21,27 @@ const activeQueries = async (applicationName: string): Promise<number> => {
 
 describe('interrupting a statement', () => {
 	test(
-		'a timed-out pg_sleep is canceled on the server, ends as interrupted, and the pool serves the next statement',
+		'an interrupted pg_sleep ends as interrupted at once, runs to the end on the server, and the pool serves the next statement',
 		async () => {
 			const applicationName = `effect_interrupt_${process.pid}`;
 			const result = await runTest(
 				Effect.gen(function*() {
 					const sql = yield* SqlClient;
-					const fiber = yield* Effect.forkChild(sql`select pg_sleep(5)`);
+					const fiber = yield* Effect.forkChild(sql`select pg_sleep(1)`);
 					yield* Effect.sleep('200 millis');
+					const t0 = Date.now();
 					const exit = yield* Fiber.interrupt(fiber).pipe(Effect.andThen(Fiber.await(fiber)));
-					let active = 1;
-					for (let i = 0; i < 40 && active > 0; i++) {
-						yield* Effect.sleep('50 millis');
-						active = yield* Effect.promise(() => activeQueries(applicationName));
-					}
+					const interruptMs = Date.now() - t0;
+					const activeAfter = yield* Effect.promise(() => activeQueries(applicationName));
 					const [next] = yield* sql<{ n: number }>`select 7 as n`;
-					return { exit, active, next };
+					return { exit, interruptMs, activeAfter, next };
 				}),
 				{ applicationName },
 			);
 			expect(Exit.isFailure(result.exit) && Exit.hasInterrupts(result.exit)).toBe(true);
 			expect(Exit.isFailure(result.exit) && Exit.hasFails(result.exit)).toBe(false);
-			expect(result.active).toBe(0);
+			expect(result.interruptMs).toBeLessThan(500);
+			expect(result.activeAfter).toBe(1);
 			expect(result.next).toEqual({ n: 7 });
 		},
 		10000,

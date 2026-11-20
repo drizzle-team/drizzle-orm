@@ -16,6 +16,7 @@ import type { PgDialect } from '../dialect.ts';
 import {
 	getTransactionConfigStatements,
 	PgBasePreparedQuery,
+	PgBoundQuery,
 	type PgQueryResultHKT,
 	PgSession,
 	type PgTransactionConfig,
@@ -53,6 +54,45 @@ export class PgEffectPreparedQuery<
 		paramsInErrors: boolean | undefined,
 	) {
 		super(executor, query, mapper, mode, logger, paramsInErrors);
+	}
+
+	/**
+	 * Pairs this query with values for it's placeholders without running it: the lazy counterpart of
+	 * {@link execute}. Nothing is sent until the result is run as an item of `batch`, `pipeline` or `parallel`
+	 * of the `drizzle-orm/effect-drizzle-postgres` driver, which runs it under this query's statement name:
+	 *
+	 * ```ts
+	 * const [alice, bob] = yield* db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
+	 * ```
+	 *
+	 * Other drivers' batches don't accept it.
+	 */
+	bind(placeholderValues: Record<string, unknown> = {}): PgEffectBoundQuery<T, TEffectHKT> {
+		return new PgEffectBoundQuery(this, placeholderValues);
+	}
+}
+
+/**
+ * A prepared query paired with values for it's placeholders, not run yet:
+ *
+ * ```ts
+ * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
+ * const [alice, bob] = yield* db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
+ * ```
+ *
+ * Accepted by `batch`, `pipeline` and `parallel` of the `drizzle-orm/effect-drizzle-postgres` driver, which run it
+ * under the prepared statement's name. Created by {@link PgEffectPreparedQuery.bind}.
+ */
+export class PgEffectBoundQuery<
+	T extends PreparedQueryConfig,
+	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
+> extends PgBoundQuery {
+	static override readonly [entityKind]: string = 'PgEffectBoundQuery';
+
+	declare readonly prepared: PgEffectPreparedQuery<T, TEffectHKT>;
+
+	constructor(prepared: PgEffectPreparedQuery<T, TEffectHKT>, placeholderValues: Record<string, unknown>) {
+		super(prepared, placeholderValues);
 	}
 }
 

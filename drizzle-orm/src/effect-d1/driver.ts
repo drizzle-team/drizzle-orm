@@ -1,4 +1,5 @@
 import { D1Client } from '@effect/sql-d1/D1Client';
+import type * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
@@ -71,7 +72,7 @@ export const make = Effect.fn('SQLiteD1Drizzle.make')(
 		(<any> db).$client = client;
 
 		return db as EffectSQLiteD1Database<TRelations> & {
-			$client: D1Client;
+			$client: Context.Service.Shape<typeof D1Client>;
 		};
 	},
 );

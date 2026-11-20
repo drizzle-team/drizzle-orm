@@ -10,8 +10,12 @@
 #   wal_level=logical  (replication.test.ts)
 #   table t, 3 fixture rows (query/results.test.ts and friends)
 #
-# Mode is auto-detected: local binaries when `initdb` and `pg_ctl` are on PATH, otherwise Docker.
-# Force one with DRIZZLE_POSTGRES_PG_MODE=native|docker. Docker knobs: DRIZZLE_POSTGRES_PG_IMAGE, DRIZZLE_POSTGRES_PG_CONTAINER.
+# Mode is auto-detected: local binaries when `initdb` and `pg_ctl` are on PATH, otherwise Docker, which starts the
+# monorepo's compose image postgres through compose/dockers.sh: the server drizzle-orm's own tests use, where this
+# suite keeps to its own databases. Force one with DRIZZLE_POSTGRES_PG_MODE=native|docker.
+#
+# `bun test --parallel=N` gives every worker a database of its own on this server, seeded the same way
+# (test/helpers/worker-db.ts).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -21,25 +25,17 @@ SOCK=/tmp/postgres_sock
 export PGPASSWORD=postgres
 
 MODE="${DRIZZLE_POSTGRES_PG_MODE:-auto}"
-IMAGE="${DRIZZLE_POSTGRES_PG_IMAGE:-postgres:16}"
-CONTAINER="${DRIZZLE_POSTGRES_PG_CONTAINER:-postgres-test-pg}"
-PSQL_MODE=host # 'container' when the host has no psql (docker mode only)
 
 if [ "$MODE" = auto ]; then
   if command -v initdb >/dev/null 2>&1 && command -v pg_ctl >/dev/null 2>&1; then MODE=native; else MODE=docker; fi
 fi
 
-# ---- seeding: ONE definition of the roles/database/fixtures, run identically by both modes ----
+# ---- seeding of the native cluster; compose/postgres/driver-fixtures.sql seeds the docker one the same way ----
 psql_run() { # $1 = database; SQL on stdin
-  if [ "$PSQL_MODE" = host ]; then
-    psql "host=127.0.0.1 port=$PGPORT user=postgres dbname=$1" -v ON_ERROR_STOP=1
-  else
-    docker exec -i "$CONTAINER" psql -U postgres -d "$1" -v ON_ERROR_STOP=1
-  fi
+  psql "host=127.0.0.1 port=$PGPORT user=postgres dbname=$1" -v ON_ERROR_STOP=1
 }
 
 seed_cluster() {
-  # CREATE DATABASE is conditional: the docker image already made testdb from POSTGRES_DB.
   psql_run postgres <<'SQL'
 SET password_encryption='md5';
 CREATE ROLE md5user LOGIN PASSWORD 'md5pw';
@@ -95,62 +91,17 @@ EOF
 }
 
 # ---------------------------------------------------------------------------------- docker container
-wait_ready() { # the image bootstraps on a unix socket first, so poll TCP — that is what the tests use
-  for _ in $(seq 1 60); do
-    docker exec "$CONTAINER" pg_isready -h 127.0.0.1 -p 5432 -U postgres >/dev/null 2>&1 && return 0
-    sleep 1
-  done
-  echo "postgres in container '$CONTAINER' never became ready; last log lines:" >&2
-  docker logs --tail 30 "$CONTAINER" >&2
-  return 1
-}
-
+# The monorepo's compose image postgres (compose/postgres.yml) has what this cluster has: TLS, the md5user and
+# scramuser roles, logical WAL, testdb with the fixture table t, and this port besides its own. compose/dockers.sh
+# starts it, seeds it and puts its certificate at $PGDATA/server.crt.
 setup_docker() {
   command -v docker >/dev/null 2>&1 || {
     echo "no local PostgreSQL binaries (initdb/pg_ctl) and no docker — install either one" >&2; exit 1; }
-  command -v psql >/dev/null 2>&1 || PSQL_MODE=container
-
-  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
-  rm -rf "$PGDATA"; mkdir -p "$PGDATA" # host side holds only the CA copy the TLS tests read
-
-  docker run -d --name "$CONTAINER" \
-    -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=testdb \
-    -p "127.0.0.1:$PGPORT:5432" "$IMAGE" >/dev/null
-  wait_ready
-
-  local D=/var/lib/postgresql/data
-  # Generated INSIDE the container, unlike the native path: postgres rejects a key file it does not own
-  # whose mode is looser than 0600, and a bind-mounted host file arrives owned by the host's uid.
-  docker exec "$CONTAINER" sh -c "openssl req -new -x509 -days 3650 -nodes -text -subj '/CN=localhost' \
-    -out $D/server.crt -keyout $D/server.key >/dev/null 2>&1 \
-    && chmod 600 $D/server.key && chown postgres:postgres $D/server.crt $D/server.key"
-
-  # Connections arrive from the DOCKER GATEWAY address, never 127.0.0.1, so the native file's /32 rules
-  # would reject every one of them. Same auth methods and same per-role split, wider CIDR.
-  docker exec -i "$CONTAINER" sh -c "cat > $D/pg_hba.conf && chown postgres:postgres $D/pg_hba.conf" <<'EOF'
-local   all all               trust
-host    all md5user 0.0.0.0/0 md5
-host    all md5user ::0/0     md5
-host    all all     0.0.0.0/0 scram-sha-256
-host    all all     ::0/0     scram-sha-256
-EOF
-
-  # ALTER SYSTEM rather than appending to postgresql.conf: the image owns that file, and .auto.conf
-  # survives the restart these settings need.
-  docker exec -i "$CONTAINER" psql -U postgres -v ON_ERROR_STOP=1 -q <<'SQL'
-ALTER SYSTEM SET ssl = 'on';
-ALTER SYSTEM SET ssl_cert_file = 'server.crt';
-ALTER SYSTEM SET ssl_key_file = 'server.key';
-ALTER SYSTEM SET wal_level = 'logical';
-ALTER SYSTEM SET jit = 'off';
-SQL
-  docker restart "$CONTAINER" >/dev/null
-  wait_ready
-
-  # the TLS suite loads this as its CA (the self-signed cert is its own issuer)
-  docker cp "$CONTAINER:$D/server.crt" "$PGDATA/server.crt" >/dev/null
-  seed_cluster
-  seed_fixtures
+  local root
+  root="$(cd "$HERE/../.." && pwd)"
+  [ -f "$root/compose/dockers.sh" ] || {
+    echo "compose/dockers.sh not found next to postgres/: docker mode runs from the monorepo" >&2; exit 1; }
+  (cd "$root" && bash compose/dockers.sh up postgres)
 }
 
 case "$MODE" in
@@ -160,5 +111,5 @@ case "$MODE" in
 esac
 
 echo "PG READY on 127.0.0.1:$PGPORT via $MODE (db=testdb user=postgres pw=postgres; md5user/md5pw; scramuser/scrampw)"
-[ "$MODE" = docker ] && echo "  container '$CONTAINER' — remove it with: docker rm -f $CONTAINER"
+[ "$MODE" = docker ] && echo "  stop it with: bash compose/dockers.sh down postgres (from the monorepo root)"
 exit 0

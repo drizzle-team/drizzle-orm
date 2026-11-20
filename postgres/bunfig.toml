@@ -1,3 +1,7 @@
 [test]
 # test/cf runs inside workerd through vitest (`bun run test:cf`), and test/deno runs under Deno.
 pathIgnorePatterns = ["test/cf/**", "test/deno/**"]
+# With --parallel, every worker gets a database of its own (test/helpers/worker-db.ts).
+preload = ["./test/helpers/worker-db.ts"]
+# Print only failed tests and the totals, not a line for every passing test.
+onlyFailures = true

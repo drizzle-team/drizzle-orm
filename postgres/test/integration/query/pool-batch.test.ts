@@ -1,7 +1,7 @@
 // Domain: "pool lazy query API" — pool.query() is a lazy thenable, pool.execute() is eager, and
 // pool.batch() runs a set pipelined (one connection) or concurrently (fan-out). Read-only SELECTs.
 import { describe, expect, test } from 'bun:test';
-import { caught, PgError, testPool } from '../../helpers/db.ts';
+import { caught, PgError, PGLITE, testPool } from '../../helpers/db.ts';
 
 const cell = (r: { rows: unknown[] }, k: string) => (r.rows[0] as Record<string, unknown>)[k];
 
@@ -293,7 +293,8 @@ describe('pool.batch (atomic transaction) / pipeline (one conn) / parallel (fan-
 		}
 	});
 
-	test('batch runs on an exported snapshot', async () => {
+	// the snapshot is exported by a second session: a PGlite has one
+	test.skipIf(PGLITE)('batch runs on an exported snapshot', async () => {
 		const pool = testPool({ max: 3 });
 		await pool.execute('create table pb_snapshot (v int)');
 		await pool.execute('insert into pb_snapshot values (1)');
@@ -359,7 +360,8 @@ describe('pool.batch (atomic transaction) / pipeline (one conn) / parallel (fan-
 		}
 	});
 
-	test('parallel fans the set out across connections', async () => {
+	// a PGlite pool has one connection
+	test.skipIf(PGLITE)('parallel fans the set out across connections', async () => {
 		const pool = testPool({ max: 5 });
 		try {
 			const rs = await pool.parallel([

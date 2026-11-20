@@ -16,8 +16,7 @@ export const toPoolConfig = (config: DrizzlePostgresClientConfig) => ({
 	host: config.host,
 	port: config.port,
 	path: config.path,
-	// The core's `ssl: true` only encrypts, like libpq's sslmode=require, so `true` becomes 'verify-full' here.
-	ssl: config.ssl === true ? 'verify-full' as const : config.ssl,
+	ssl: config.ssl, // as given: what each value means is the driver's to decide, for every entry point
 	database: config.database,
 	user: config.username,
 	password: config.password && Redacted.value(config.password),

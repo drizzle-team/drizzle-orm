@@ -5,7 +5,7 @@
 // Requires a running cluster: `bun run test:setup`. public.t is READ-ONLY.
 import { describe, expect, test } from 'bun:test';
 import type { PgError } from '../../helpers/db.ts';
-import { caught, TEST_TIMEOUT, testConnect, testPool, withConn } from '../../helpers/db.ts';
+import { caught, PGLITE, TEST_TIMEOUT, testConnect, testPool, withConn } from '../../helpers/db.ts';
 
 // Unique per-process prefix so concurrently-running suites never collide on
 // statement names visible in pg_prepared_statements (names are per-session, but
@@ -314,7 +314,9 @@ describe('prepared-statement cache invalidation (self-heal + collisions)', () =>
 		});
 	});
 
-	test('a shape (_typed) query is NOT auto-retried on 0A000 — it surfaces (the declared mapper could be stale)', async () => {
+	// It used to surface 0A000, because the declared int4 mapper would have read the int8 bytes. The shape is now
+	// settled against the fresh column types (src/shape-compat.ts), so the re-run reads the int8 as the number.
+	test('a shape query is re-run on 0A000 and reads the new column type', async () => {
 		await withConn(async (c) => {
 			await c.query('create temp table fg_shape(a int4)');
 			await c.query('insert into fg_shape values (1000000)');
@@ -323,8 +325,10 @@ describe('prepared-statement cache invalidation (self-heal + collisions)', () =>
 			await c.query('select a from fg_shape', [], { name, shape });
 			await c.query('select a from fg_shape', [], { name, shape });
 			await c.query('alter table fg_shape alter column a type bigint'); // shape declares int4 but col is int8 now
-			const err = await caught(() => c.query('select a from fg_shape', [], { name, shape }));
-			expect((err as PgError).code).toBe('0A000'); // surfaced, not silently decoded with the stale int4 mapper
+
+			const res1 = await c.query('select a from fg_shape', [], { name, shape });
+
+			expect(res1.rows).toEqual([{ a: 1000000 }]);
 		});
 	});
 
@@ -414,7 +418,8 @@ describe('spec-correctness guards', () => {
 	});
 });
 
-describe('pool: per-connection statement isolation', () => {
+// two connections of one pool at once: a PGlite pool has one
+describe.skipIf(PGLITE)('pool: per-connection statement isolation', () => {
 	test('each connection owns its own cache; a name prepared on A is unknown on B', async () => {
 		const pool = testPool({ max: 2 });
 		try {

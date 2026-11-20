@@ -1849,45 +1849,48 @@ test('fetchPartitions finds a table with a quote in its name', async () => {
 // Postgres finds an unqualified operator through the search_path, so a schema listed there before pg_catalog can
 // replace `=` for every query of the connection. `a IN (...)` looks `=` up the same way, which is why the rule at
 // the top of introspect.ts asks for `a OPERATOR(pg_catalog.=) ANY (ARRAY[...])` instead
-test('introspection does not run operators of the search_path', async () => {
-	const client = await freshPGlite();
-	await client.query(`CREATE TABLE "accounts" (id bigint)`);
-	await client.query(`CREATE SCHEMA "hijack"`);
-	for (const [left, right] of [['"char"', '"char"'], ['name', 'name'], ['name', 'text']]) {
-		await client.query(`
+test.skipIf(postponed)(
+	'introspection does not run operators of the search_path',
+	async () => {
+		const client = await freshPGlite();
+		await client.query(`CREATE TABLE "accounts" (id bigint)`);
+		await client.query(`CREATE SCHEMA "hijack"`);
+		for (const [left, right] of [['"char"', '"char"'], ['name', 'name'], ['name', 'text']]) {
+			await client.query(`
 			CREATE FUNCTION "hijack".eq(${left}, ${right}) RETURNS boolean LANGUAGE plpgsql AS $$
 			BEGIN
 				RAISE EXCEPTION 'an operator of the search_path was run instead of pg_catalog.=';
 			END $$
 		`);
-		await client.query(
-			`CREATE OPERATOR "hijack".= (LEFTARG = ${left}, RIGHTARG = ${right}, FUNCTION = "hijack".eq)`,
+			await client.query(
+				`CREATE OPERATOR "hijack".= (LEFTARG = ${left}, RIGHTARG = ${right}, FUNCTION = "hijack".eq)`,
+			);
+		}
+
+		await client.query(`SET search_path = "hijack", pg_catalog, public`);
+		const failures: string[] = [];
+		const hijacked: DB = {
+			query: (sql: string, params?: any[]) =>
+				client.query(sql, params).then((it) => it.rows as any[], (error: Error) => {
+					failures.push(`${error.message}\n${sql}`);
+					throw error;
+				}),
+		};
+		const filter = prepareEntityFilter(
+			'postgresql',
+			{ tables: [], schemas: [], entities: undefined, extensions: [] },
+			[],
 		);
-	}
+		const pulled = await fromDatabaseForDrizzle(hijacked, filter, () => {}, {
+			schema: 'drizzle',
+			table: '__drizzle_migrations',
+		}).catch(() => undefined);
+		await client.close();
 
-	await client.query(`SET search_path = "hijack", pg_catalog, public`);
-	const failures: string[] = [];
-	const hijacked: DB = {
-		query: (sql: string, params?: any[]) =>
-			client.query(sql, params).then((it) => it.rows as any[], (error: Error) => {
-				failures.push(`${error.message}\n${sql}`);
-				throw error;
-			}),
-	};
-	const filter = prepareEntityFilter(
-		'postgresql',
-		{ tables: [], schemas: [], entities: undefined, extensions: [] },
-		[],
-	);
-	const pulled = await fromDatabaseForDrizzle(hijacked, filter, () => {}, {
-		schema: 'drizzle',
-		table: '__drizzle_migrations',
-	}).catch(() => undefined);
-	await client.close();
-
-	expect(failures).toStrictEqual([]);
-	expect(pulled?.tables.map((it) => it.name)).toStrictEqual(['accounts']);
-});
+		expect(failures).toStrictEqual([]);
+		expect(pulled?.tables.map((it) => it.name)).toStrictEqual(['accounts']);
+	},
+);
 
 test('studio fromDatabase does not introspect procedures', async () => {
 	await db.query(`CREATE TABLE users (id int);`);

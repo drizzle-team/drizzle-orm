@@ -57,8 +57,8 @@ import * as Fiber from 'effect/Fiber';
 import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
 import * as Result from 'effect/Result';
-import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
+import { describe } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import { expectRecentTime } from '~/recent-time';
 import {
@@ -98,6 +98,21 @@ export const push = (db: PgEffectDatabase<any, any, any>, schema: Record<string,
 				}
 			})
 		);
+	});
+
+/** The suite's default `push`, under a name the suite's own `push` option doesn't shadow */
+const pushTransaction = push;
+
+/** {@link push} for drivers with no interactive transactions (HTTP): creates the entities one statement at a time */
+export const pushStatements = (db: PgEffectDatabase<any, any, any>, schema: Record<string, any>) =>
+	Effect.gen(function*() {
+		const diff = yield* Effect.promise(() => getDiff());
+
+		const { sqlStatements } = yield* Effect.promise(() => diff({}, schema, []));
+
+		for (const s of sqlStatements) {
+			yield* db.execute(s);
+		}
 	});
 
 const dnStaff = pgTable('dn_staff', (t) => ({ userId: t.integer('user_id').primaryKey() }));
@@ -196,8 +211,23 @@ const runDeepNullification = (db: PgEffectDatabase<any, any, any>) =>
 		]);
 	});
 
-export interface RunCommonEffectPgTestsOptions {
-	testLayer: Layer.Layer<DB | SqlClient, SqlError, never>;
+/**
+ * How the tests get their services: one layer for the whole suite, or a provider handing each test it's own (a pool of
+ * databases, as the hosted suites take turns on) - the tests of a provider run concurrently
+ */
+type CommonEffectPgTestsProvision<TClient> =
+	| { testLayer: Layer.Layer<DB | TClient, SqlError, never>; provideTest?: never }
+	| {
+		testLayer?: never;
+		/** Runs a test with it's services, scoped to the test */
+		provideTest: <A, E>(test: Effect.Effect<A, E, DB | TClient>) => Effect.Effect<A, E, never>;
+	};
+
+/**
+ * `TClient` - the driver's own client tag (`PgClient`, `PgliteClient`, ...), which isn't a `SqlClient` subtype since effect
+ * 4.1, and `SqlClient` for the drivers that provide it
+ */
+export type RunCommonEffectPgTestsOptions<TClient = never> = CommonEffectPgTestsProvision<TClient> & {
 	PgDrizzle: {
 		// Methods: parameters checked bivariantly, so drivers requiring config (`effect-d1`) fit
 		make<TRelations extends AnyRelations = EmptyRelations>(
@@ -221,10 +251,12 @@ export interface RunCommonEffectPgTestsOptions {
 		never,
 		any
 	>;
+
 	usedSchema: string;
+	push?: typeof push;
 	skipTests?: string[];
-	addTests?: (it: Vitest.MethodsNonLive<DB | SqlClient>) => void;
-}
+	addTests?: (it: Vitest.MethodsNonLive<DB | TClient>) => void;
+};
 
 const failureMessage = (failure: unknown): string => {
 	const seen = new Set<unknown>();
@@ -241,16 +273,19 @@ const failureMessage = (failure: unknown): string => {
 	return messages.join(' | ');
 };
 
-export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): void => {
-	const { testLayer, usedSchema, PgDrizzle, createDB, addTests, skipTests = [] } = opts;
+export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgTestsOptions<TClient>): void => {
+	const { testLayer, provideTest, usedSchema, PgDrizzle, createDB, addTests, skipTests = [] } = opts;
+	const push = opts.push ?? pushTransaction;
 
-	it.layer(testLayer)('common', (layerIt) => {
+	const suite = (layerIt: Vitest.MethodsNonLive<DB | TClient>) => {
 		// Run setup before each test.
 		const _effect = layerIt.effect;
+		// The services of a provider come with each test, not from the layer's context
+		const provide: <A, E>(test: Effect.Effect<A, E, any>) => Effect.Effect<A, E, any> = provideTest ?? ((test) => test);
 		const effect: typeof layerIt.effect = Object.assign(
 			(testName: string, fn: () => Effect.Effect<any, any, any>, timeout?: number) =>
 				_effect(testName, () =>
-					Effect.andThen(
+					provide(Effect.andThen(
 						Effect.gen(function*() {
 							const db = yield* DB;
 
@@ -263,7 +298,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 							yield* db.execute(sql`SET TIME ZONE 'UTC';`);
 						}),
 						fn(),
-					), timeout),
+					)), timeout),
 			layerIt.effect,
 		);
 		const it = new Proxy(layerIt, {
@@ -5529,7 +5564,11 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 			}));
 
 		addTests?.(it);
-	});
+	};
+
+	if (testLayer) it.layer(testLayer)('common', suite);
+	// No layer: each test's services come from `provideTest`
+	else describe.concurrent('common', () => suite(it as unknown as Vitest.MethodsNonLive<DB | TClient>));
 };
 
 export { relations } from './relations';

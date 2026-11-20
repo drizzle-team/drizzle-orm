@@ -5,8 +5,9 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { connect } from '../../src/index.ts';
 import type { Plugin } from '../../src/plugin.ts';
 import { collector, otel, sentry } from '../../src/telemetry.ts';
+import { LOCAL_CONFIG, TEST_DATABASE } from '../helpers/db.ts';
 
-const CFG = { host: '127.0.0.1', port: 54329, user: 'postgres', password: 'postgres', database: 'testdb' };
+const CFG = LOCAL_CONFIG;
 let open: Array<Awaited<ReturnType<typeof connect>>> = [];
 afterEach(async () => {
 	for (const c of open) await c.end().catch(() => {});
@@ -26,7 +27,7 @@ describe('plugin metrics', () => {
 		expect(events.length).toBe(1);
 		const { info, metrics, error } = events[0];
 		expect(error).toBeUndefined();
-		expect(info.database).toBe('testdb');
+		expect(info.database).toBe(TEST_DATABASE);
 		expect(metrics.command).toBe('SELECT');
 		expect(metrics.rowCount).toBe(50);
 		expect(metrics.columnCount).toBe(1);
@@ -120,7 +121,7 @@ describe('otel() plugin (mock tracer)', () => {
 		const s = t.spans[0];
 		expect(s.name).toBe('pg.query');
 		expect(s.attrs['db.system.name']).toBe('postgresql');
-		expect(s.attrs['db.namespace']).toBe('testdb');
+		expect(s.attrs['db.namespace']).toBe(TEST_DATABASE);
 		expect(s.attrs['db.operation.name']).toBe('SELECT');
 		expect(s.attrs['db.response.returned_rows']).toBe(3);
 		expect(s.attrs['postgres.decode_ms']).toBeGreaterThanOrEqual(0);

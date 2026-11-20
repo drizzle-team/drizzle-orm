@@ -1,4 +1,5 @@
 import { SqliteClient } from '@effect/sql-sqlite-do/SqliteClient';
+import type * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
@@ -71,7 +72,7 @@ export const make = Effect.fn('SQLiteDODrizzle.make')(
 		(<any> db).$client = client;
 
 		return db as EffectSQLiteDoDatabase<TRelations> & {
-			$client: SqliteClient;
+			$client: Context.Service.Shape<typeof SqliteClient>;
 		};
 	},
 );

@@ -81,5 +81,5 @@ export type Equal<X, Y extends X> = (<T>() => T extends X ? 1 : 2) extends (<T>(
 
 // Tests postponed until a fix lands skip themselves with `test.skipIf(postponed)`. One date for the whole
 // repo: when it passes, every postponed test runs again, so move it here (and nowhere else) to postpone more.
-export const POSTPONED_UNTIL = '2026-11-27';
+export const POSTPONED_UNTIL = '2026-11-22';
 export const postponed = Date.now() < +new Date(POSTPONED_UNTIL);

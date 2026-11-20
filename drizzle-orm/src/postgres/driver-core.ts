@@ -52,7 +52,12 @@ export class PostgresDatabase<
 	 *
 	 * ```ts
 	 * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
-	 * const [alice, bob] = await db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
+	 * const [alice, bob, inserted, allUsers] = await db.batch([
+	 *   getUser.bind({ id: 1 }),
+	 *   getUser.bind({ id: 2 }),
+	 *   db.insert(users).values({ name: 'John' }).returning(),
+	 *   db.select().from(users),
+	 * ]);
 	 * ```
 	 *
 	 * With `metrics` on, the response also carries the driver's telemetry for the batch as `response.metrics`.
@@ -78,6 +83,19 @@ export class PostgresDatabase<
 	 * Never throws because of a failing query
 	 *
 	 * Failing query does not stop or roll back the others
+	 *
+	 * Takes the same items as `batch`:
+	 *
+	 * ```ts
+	 * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
+	 * const [alice, bob, inserted, allUsers] = await db.pipeline([
+	 *   getUser.bind({ id: 1 }),
+	 *   getUser.bind({ id: 2 }),
+	 *   db.insert(users).values({ name: 'John' }).returning(),
+	 *   db.select().from(users),
+	 * ]);
+	 * // each is `{ status: 'fulfilled', value }` or `{ status: 'rejected', reason }`
+	 * ```
 	 */
 	async pipeline<U extends PostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
@@ -91,6 +109,19 @@ export class PostgresDatabase<
 	 * Never throws because of a failing query
 	 *
 	 * Failing query does not stop or roll back the others
+	 *
+	 * Takes the same items as `batch`:
+	 *
+	 * ```ts
+	 * const getUser = db.select().from(users).where(eq(users.id, sql.placeholder('id'))).prepare('get_user');
+	 * const [alice, bob, inserted, allUsers] = await db.parallel([
+	 *   getUser.bind({ id: 1 }),
+	 *   getUser.bind({ id: 2 }),
+	 *   db.insert(users).values({ name: 'John' }).returning(),
+	 *   db.select().from(users),
+	 * ]);
+	 * // each is `{ status: 'fulfilled', value }` or `{ status: 'rejected', reason }`
+	 * ```
 	 */
 	async parallel<U extends PostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
 		batch: T,

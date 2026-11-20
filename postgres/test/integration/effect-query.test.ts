@@ -58,7 +58,8 @@ describe('DrizzlePostgresClient.query', () => {
 		expect(rows).toEqual([{ id: 1 }]);
 	});
 
-	test('errors are SqlErrors, and an interrupt cancels the query', async () => {
+	// The timed-out pg_sleep isn't canceled: it runs to the end, and `select 9` waits behind it on the one connection
+	test('errors are SqlErrors, and Effect.timeout returns at once', async () => {
 		const result = await runTest(
 			Effect.gen(function*() {
 				const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
@@ -80,4 +81,55 @@ describe('DrizzlePostgresClient.query', () => {
 		expect(result.elapsed).toBeLessThan(2000);
 		expect(result.next).toEqual([[9]]);
 	}, 10000);
+
+	// As in query/query-shape-compat.test.ts: a shape that disagrees with the column (drizzle's schema in code vs the
+	// database) reads the real type, and fails when the declared JS type can't hold the value.
+	test('a shape that disagrees with the column reads the real type', async () => {
+		const [res1, res2] = await runTest(Effect.gen(function*() {
+			const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
+			const res1 = yield* client.query('select 5000000000::int8 as v', [], { shape: { v: 'int4' } });
+			const res2 = yield* Effect.exit(client.query('select 9007199254740993::int8 as v', [], { shape: { v: 'int4' } }));
+			return [res1, res2] as const;
+		}));
+
+		expect(res1.rows).toEqual([{ v: 5000000000 }]);
+		expect(Exit.isFailure(res2)).toBe(true);
+	});
+
+	// One connection, so the named statement is the one cached before the DDL
+	test('a named statement with a shape still works after DDL changes its result type', async () => {
+		const T = `effect_shape_ddl_${process.pid}`;
+		const got = await runTest(
+			Effect.gen(function*() {
+				const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
+				yield* client.query(`drop table if exists ${T}`);
+				yield* client.query(`create table ${T} (v varchar(10))`);
+				yield* client.query(`insert into ${T} values ('a')`);
+				const run = Effect.exit(
+					client.query(`select v from ${T}`, [], { name: `${T}_q`, mode: 'object', shape: { v: 'varchar' } }),
+				);
+				const before = yield* run;
+				yield* client.query(`alter table ${T} alter column v type varchar(20)`);
+				const after = yield* run;
+				yield* client.query(`drop table ${T}`);
+				const value = (exit: typeof before) => Exit.isSuccess(exit) ? exit.value.rows[0]!['v'] : 'error';
+				return { before: value(before), after: value(after) };
+			}),
+			{ maxConnections: 1 },
+		);
+		expect(got).toEqual({ before: 'a', after: 'a' });
+	});
+
+	// The byte type of Deno, Workers and browsers: a Uint8Array that is not a Buffer must reach a bytea as those bytes.
+	// @effect/sql-pg sends it as bytea; it must not be the JSON text of an object.
+	test('a Uint8Array param is bytea, through client.query and an effect/sql statement', async () => {
+		const bytes = new Uint8Array([0xab, 0xcd, 0x00, 0x01]);
+		const got = await runTest(Effect.gen(function*() {
+			const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
+			const viaQuery = yield* client.query('select $1::bytea as a', [bytes], { mode: 'object' });
+			const [viaStatement] = yield* client<{ a: Uint8Array }>`select ${bytes}::bytea as a`;
+			return { viaQuery: [...(viaQuery.rows[0]!.a as Uint8Array)], viaStatement: [...viaStatement!.a] };
+		}));
+		expect(got).toEqual({ viaQuery: [0xab, 0xcd, 0x00, 0x01], viaStatement: [0xab, 0xcd, 0x00, 0x01] });
+	});
 });

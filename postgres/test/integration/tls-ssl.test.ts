@@ -608,11 +608,11 @@ describe('SCRAM channel binding (SCRAM-SHA-256-PLUS, tls-server-end-point)', () 
 
 	test('replication() binds too: require over TLS on the walsender', async () => {
 		const { replication } = await import('../../src/index.ts');
-		const { TEST_CONFIG } = await import('../helpers/db.ts');
+		const { TEST_CONFIG, TEST_DATABASE } = await import('../helpers/db.ts');
 		const repl = await replication({ ...(TEST_CONFIG as object), ssl: true, channelBinding: 'require' });
 		try {
 			const sys = await repl.identify();
-			expect(sys.dbname).toBe('testdb');
+			expect(sys.dbname).toBe(TEST_DATABASE);
 		} finally {
 			repl.end();
 		}

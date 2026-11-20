@@ -1,4 +1,5 @@
 import { MysqlClient } from '@effect/sql-mysql2/MysqlClient';
+import type * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Redacted from 'effect/Redacted';
 import { DefaultServices } from '~/effect-core/defaults.ts';
@@ -123,7 +124,7 @@ export const make = Effect.fn('MySqlDrizzle.make')(
 		(<any> db).$client = client;
 
 		return db as EffectMysql2Database<TRelations> & {
-			$client: MysqlClient;
+			$client: Context.Service.Shape<typeof MysqlClient>;
 		};
 	},
 );

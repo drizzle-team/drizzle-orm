@@ -9,6 +9,7 @@ import { type CodegenCol, compileRow } from './decode.ts';
 import { pickDecoder } from './decode.ts';
 import { parseRowDescription } from './protocol.ts';
 import type { CustomTypeDef } from './registry.ts';
+import { reconcileCols } from './shape-compat.ts';
 import type { Decoder, Field } from './types.ts';
 
 /** Decodes one DataRow body. `start` is where the body begins in `body` (default 0): the wire transports
@@ -200,7 +201,12 @@ export interface ShapePlan {
 	deferred: boolean;
 	object?: RowMapper;
 	array?: RowMapper;
+	/** The plan for each column layout the server answered with: this plan itself when the real types are the
+	 *  declared ones, else its columns reconciled with them (shape-compat.ts). Keyed by the fields array, which
+	 *  fieldsFor shares between results of one layout. */
+	byFields?: WeakMap<readonly Field[], ReconciledPlan>;
 }
+type ReconciledPlan = Pick<ShapePlan, 'cols' | 'object' | 'array'>;
 
 // Bound on each map. Shapes are normally a small fixed set, but an inline Transform() mints a new id per
 // call (so a new key), and dynamic column lists do too — without a cap those grow for the client's
@@ -382,6 +388,23 @@ export class RowMappers {
 			this.shapes.set(shape, p);
 		}
 		return p;
+	}
+
+	/** The columns of a shape plan as the server really returns them: 'unknown' ones filled in, and one whose
+	 *  declared type differs read by its real type. The work is done once per plan and column layout; after that
+	 *  this is one WeakMap lookup. Throws a ShapeMismatchError for a column that can't give its declared value. */
+	reconciled(p: ShapePlan, fields: readonly Field[], resolve: (cols: CodegenCol[]) => CodegenCol[]): ReconciledPlan {
+		const known = (p.byFields ??= new WeakMap()).get(fields);
+		if (known) return known;
+		const cols = reconcileCols(p.cols, fields);
+		const plan: ReconciledPlan = cols === p.cols ? p : { cols: resolve(cols) };
+		p.byFields.set(fields, plan);
+		return plan;
+	}
+
+	/** The mapper of {@link reconciled} in `mode`, compiled once. */
+	reconciledMapper(plan: ReconciledPlan, mode: Mode): RowMapper {
+		return plan[mode] ??= this.forCols(plan.cols, mode);
 	}
 
 	/** The mapper for a non-deferred plan in `mode`, compiled once per plan. */

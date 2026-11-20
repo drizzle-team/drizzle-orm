@@ -353,7 +353,31 @@ describe('bytea — hex in/out, NUL bytes, large blobs', () => {
 		expect((dec(Buffer.from('\\xff00', 'utf8')) as Buffer).equals(Buffer.from([0xff, 0x00]))).toBe(true);
 	});
 
-	test.todo('Uint8Array/ArrayBuffer bytea param (only Buffer matches encodeParam today)', () => {});
+	// A Uint8Array that is not a Buffer is how Deno, Workers and browsers hold bytes: it must reach a bytea as those
+	// bytes, as a Buffer does, not as the JSON text of an object.
+	test('Uint8Array param -> bytea, the same bytes', async () => {
+		const r = await c.query(
+			'select $1::bytea a, octet_length($1::bytea) n',
+			[new Uint8Array([0xab, 0xcd, 0x00, 0x01])],
+			{
+				mode: 'object',
+			},
+		);
+		const row = r.rows[0] as { a: Buffer; n: number };
+		expect([...row.a]).toEqual([0xab, 0xcd, 0x00, 0x01]);
+		expect(row.n).toBe(4);
+	});
+
+	test('a Uint8Array view sends only the bytes it covers', async () => {
+		const view = new Uint8Array([9, 1, 2, 9]).subarray(1, 3);
+		const r = await c.query('select $1::bytea a', [view]);
+		expect([...(aCell(r) as Buffer)]).toEqual([1, 2]);
+	});
+
+	test('ArrayBuffer param -> bytea, the same bytes', async () => {
+		const r = await c.query('select $1::bytea a', [new Uint8Array([7, 8]).buffer]);
+		expect([...(aCell(r) as Buffer)]).toEqual([7, 8]);
+	});
 });
 
 // ===========================================================================

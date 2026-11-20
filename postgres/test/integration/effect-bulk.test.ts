@@ -63,29 +63,33 @@ describe('bulk writes', () => {
 		expect(reason).toBe('UniqueViolation');
 	});
 
-	test('an interrupt returns the connection to the pool', async () => {
+	// An interrupt doesn't cancel a driver call: the write runs to the end and commits, and its connection then goes
+	// back to the pool.
+	test('an interrupted bulk write runs to the end, and the pool serves the next statement', async () => {
 		const holder = testPool();
 		const { client: lock, release } = await holder.connect();
 		try {
 			await lock.query('begin');
 			await lock.query(`lock table ${T}`);
-			const next = await runTest(
+			const { exit, next } = await runTest(
 				Effect.gen(function*() {
 					const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
 					const blocked = yield* Effect.forkChild(client.bulkInsert(T, COLUMNS, [[1, 'a']]));
 					yield* Effect.sleep('200 millis');
-					yield* Fiber.interrupt(blocked);
-					return (yield* client.query('select 1')).rows;
+					const exit = yield* Fiber.interrupt(blocked).pipe(Effect.andThen(Fiber.await(blocked)));
+					yield* Effect.promise(() => lock.query('rollback'));
+					return { exit, next: (yield* client.query('select 1')).rows };
 				}).pipe(Effect.timeout('3 seconds')),
 				{ maxConnections: 1 },
 			);
+			expect(Exit.isFailure(exit) && Exit.hasInterrupts(exit)).toBe(true);
 			expect(next).toEqual([[1]]);
 		} finally {
 			await lock.query('rollback');
 			release();
 			await holder.end();
 		}
-		expect(await rows()).toEqual([]);
+		expect(await rows()).toEqual([[1, 'a']]);
 	}, 10000);
 });
 

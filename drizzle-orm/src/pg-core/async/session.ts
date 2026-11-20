@@ -1,5 +1,5 @@
 import type { SettledQueryResult } from '~/batch.ts';
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import { type DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
@@ -12,7 +12,7 @@ import { migrate as migrateProgram } from '~/up-migrations/pg-program.ts';
 import { pgMigrationRunner } from '~/up-migrations/pg.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '../session.ts';
-import { getTransactionConfigStatements, PgBasePreparedQuery, PgSession } from '../session.ts';
+import { getTransactionConfigStatements, PgBasePreparedQuery, PgBoundQuery, PgSession } from '../session.ts';
 import { PgAsyncDatabase } from './db.ts';
 
 /**
@@ -26,19 +26,14 @@ import { PgAsyncDatabase } from './db.ts';
  * Accepted by `batch`, `pipeline` and `parallel` of the `drizzle-orm/postgres` driver, which run it under the
  * prepared statement's name. Created by {@link PgAsyncPreparedQuery.bind}.
  */
-export class PgAsyncBoundQuery<T extends PreparedQueryConfig> {
-	static readonly [entityKind]: string = 'PgAsyncBoundQuery';
-	static [Symbol.hasInstance](value: unknown): boolean {
-		return is(value, this);
+export class PgAsyncBoundQuery<T extends PreparedQueryConfig> extends PgBoundQuery {
+	static override readonly [entityKind]: string = 'PgAsyncBoundQuery';
+
+	declare readonly prepared: PgAsyncPreparedQuery<T>;
+
+	constructor(prepared: PgAsyncPreparedQuery<T>, placeholderValues: Record<string, unknown>) {
+		super(prepared, placeholderValues);
 	}
-
-	// No `_` result marker on purpose: with it, this class would match the builder-only batch item type that the
-	// other pg drivers take (their declarations keep only `_`), and they would send it's placeholders unfilled.
-
-	constructor(
-		readonly prepared: PgAsyncPreparedQuery<T>,
-		readonly placeholderValues: Record<string, unknown>,
-	) {}
 }
 
 /** What a statement of `batch`, `pipeline` or `parallel` gives for the driver's result of it */

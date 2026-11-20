@@ -12,6 +12,7 @@
 		"pack:artifact": "turbo run pack:artifact --color --log-order=stream",
 		"test": "turbo run test --filter=!@drizzle-team/postgres --color --log-order=stream",
 		"t": "pnpm test",
+		"test:pool": "pnpm --filter @drizzle-team/postgres test:pool",
 		"test:types": "turbo run test:types --color --log-order=stream",
 		"test:types-lint": "turbo run test:types //#lint --color --log-order=stream",
 		"lint": "pnpm oxlint",

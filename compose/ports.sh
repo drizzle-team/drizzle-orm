@@ -84,6 +84,8 @@ export DRIZZLE_PORT_TURSO3="$(_port 8093 29)"
 export DRIZZLE_PORT_TURSO4="$(_port 8094 30)"
 export DRIZZLE_PORT_PLANETSCALE="$(_port 3900 31)"
 export DRIZZLE_PORT_PULSE="$(_port 5433 32)"
+# The postgres server's second port, for the Drizzle Postgres driver's suite (postgres/)
+export DRIZZLE_PORT_POSTGRES_DRIVER="$(_port 54329 33 shared)"
 
 # host:port where this machine reaches a compose service's container port, for connection strings.
 #   drizzle_addr <image> <service> <container port> <published port>

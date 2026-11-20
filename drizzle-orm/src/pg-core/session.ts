@@ -66,6 +66,25 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 }
 
 /**
+ * A prepared query of either runtime with values for it's placeholders, not run yet: an item of `batch`, `pipeline`
+ * and `parallel` of the `drizzle-orm/postgres` drivers. Created by the runtime's `bind`.
+ */
+export class PgBoundQuery {
+	static readonly [entityKind]: string = 'PgBoundQuery';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	// No `_` result marker on purpose: with it, this class would match the builder-only batch item type that the
+	// other pg drivers take (their declarations keep only `_`), and they would send it's placeholders unfilled.
+
+	constructor(
+		readonly prepared: PgBasePreparedQuery,
+		readonly placeholderValues: Record<string, unknown>,
+	) {}
+}
+
+/**
  * `prepare` and `execute` of a builder that runs on a session (implemented by `PgRunnableQuery`): typed by the
  * builder's runtime (see {@link QueryRuntimeHKT}) for its result
  */

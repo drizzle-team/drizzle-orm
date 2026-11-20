@@ -22,7 +22,7 @@ import {
 	type TransactionBatch,
 	Transform,
 } from '../../src/index.ts';
-import { TEST_CONFIG, TEST_TIMEOUT, testPool, withConn } from '../helpers/db.ts';
+import { TEST_CONFIG, TEST_DATABASE, TEST_TIMEOUT, testPool, withConn } from '../helpers/db.ts';
 
 const K = `repl_${process.pid}`;
 
@@ -45,7 +45,7 @@ describe('replication()', () => {
 			const sys = await repl.identify();
 			expect(sys.timeline).toBeGreaterThan(0);
 			expect(sys.xlogpos).toMatch(/^[0-9A-F]+\/[0-9A-F]+$/);
-			expect(sys.dbname).toBe('testdb');
+			expect(sys.dbname).toBe(TEST_DATABASE);
 		} finally {
 			repl.end();
 		}

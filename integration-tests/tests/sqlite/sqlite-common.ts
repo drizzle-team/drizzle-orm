@@ -5615,6 +5615,22 @@ export function tests(
 			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
 		});
 
+		// SQLite accepts `offset` only after `limit`, so an offset alone has to reach the database with a limit
+		test.skipIf(postponed).concurrent(
+			'pagination: offset without limit',
+			async ({ db, push }) => {
+				const items = sqliteTable('pagination_5', { id: integer('id').primaryKey() });
+				await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+				await push({ items });
+				await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+				const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+				expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+				expect(await query().offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+				expect(await query().offset(5)).toStrictEqual([]);
+			},
+		);
+
 		test.concurrent('rowId: a number, rowId.big: a bigint', async ({ db, push }) => {
 			const items = sqliteTable('row_id_1', { name: text('name').notNull() });
 			await db.run(sql`DROP TABLE IF EXISTS ${items}`);

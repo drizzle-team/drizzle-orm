@@ -138,10 +138,13 @@ describe('a cancel request that arrives after its query finished', () => {
 	}, 10000);
 });
 
-describe('cancel over a unix socket', () => {
+// The socket of the native cluster (test/setup-pg.sh); a server in Docker (compose/postgres.yml) has none.
+const UNIX_SOCKET = `/tmp/postgres_sock/.s.PGSQL.${TEST_CONFIG.port}`;
+
+describe.skipIf(!fs.existsSync(UNIX_SOCKET))('cancel over a unix socket', () => {
 	test('a timeout cancels the query through the socket path, and the same backend serves the next query', async () => {
 		// Port 59999 has no server, so the cancel works only if it uses the socket path.
-		const c = await testPooledConnect({ path: `/tmp/postgres_sock/.s.PGSQL.${TEST_CONFIG.port}`, port: 59999 });
+		const c = await testPooledConnect({ path: UNIX_SOCKET, port: 59999 });
 		try {
 			const pid = c.backendKey!.pid;
 			const t0 = Date.now();

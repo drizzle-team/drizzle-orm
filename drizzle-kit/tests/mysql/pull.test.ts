@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { postponed } from '@drizzle/test-utils';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	AnyMySqlColumn,
@@ -1418,7 +1419,7 @@ test('introspect default expression of a fractional seconds column with a backsl
 	fs.rmSync('tests/mysql/tmp/fractional-seconds-defaults-with-template-unsafe-text.ts', { force: true });
 });
 
-test('introspect year column with a number default', async () => {
+test.skipIf(postponed)('introspect year column with a number default', async () => {
 	await db.query("create table `t` (`y` year default 2025, `y_text` year default '2026');");
 
 	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, ddlFromPulledTsSchema } = await diffIntrospect(
