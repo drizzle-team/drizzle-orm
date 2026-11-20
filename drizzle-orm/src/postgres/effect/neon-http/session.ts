@@ -1,61 +1,37 @@
 import type { QueryResult, ShapeSpec } from '#postgres';
-import type { DrizzlePostgresHttpClient as Client } from '#postgres/effect/http';
+import type { DrizzlePostgresHttpClient as Client } from '#postgres/effect/neon-http';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
-import * as Result from 'effect/Result';
+import type * as Result from 'effect/Result';
 import type { SqlError } from 'effect/sql/SqlError';
 import type { BatchItem } from '~/batch.ts';
 import { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
-import type { EffectLoggerShape } from '~/effect-core/logger.ts';
-import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import { PgEffectPreparedQuery, PgEffectSession, type PgEffectTransaction } from '~/pg-core/effect/session.ts';
-import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { buildHttpMulti } from '~/postgres/http/session.ts';
+import { PgEffectSession, type PgEffectTransaction } from '~/pg-core/effect/session.ts';
+import type { PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { buildHttpMulti } from '~/postgres/http/utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import type { Simplify } from '~/utils.ts';
+import {
+	type EffectPostgresHttpBatchOptions,
+	EffectPostgresHttpPreparedQuery,
+	type EffectPostgresHttpQueryEffectHKT,
+	type EffectPostgresHttpQueryResultHKT,
+	type EffectPostgresHttpSessionOptions,
+} from '../http/session.ts';
 
-export interface EffectPostgresHttpQueryEffectHKT extends QueryEffectHKTBase {
-	readonly error: EffectDrizzleQueryError;
-	readonly context: never;
-}
-
-export interface EffectPostgresHttpQueryResultHKT extends PgQueryResultHKT {
-	type: Simplify<Omit<QueryResult<PgRawRow<this['row']>>, 'metrics' | 'debug'>>;
-}
-
-/** Transaction settings of `batch`: `snapshot` needs `isolation: 'repeatable read' | 'serializable'` */
-export type EffectPostgresHttpBatchOptions = NonNullable<Parameters<Client.DrizzlePostgresHttpClient['batch']>[1]>;
-
-export interface EffectPostgresHttpSessionOptions {
-	logger: EffectLoggerShape;
-	paramsInErrors?: boolean;
-}
-
-export class EffectPostgresHttpPreparedQuery<
-	T extends PreparedQueryConfig,
-	TEffectHKT extends QueryEffectHKTBase = EffectPostgresHttpQueryEffectHKT,
-> extends PgEffectPreparedQuery<T, TEffectHKT> {
-	static override readonly [entityKind]: string = 'EffectPostgresHttpPreparedQuery';
-
-	constructor(
-		executor: (params?: unknown[]) => Effect.Effect<unknown, unknown, unknown>,
-		query: Query,
-		mapper: ((rows: any[]) => any) | undefined,
-		mode: 'arrays' | 'objects' | 'raw' | 'call',
-		logger: EffectLoggerShape,
-		/** The shape the client decodes the rows with, kept for the statements of `batch`, `pipeline` and `parallel` */
-		readonly shape: ShapeSpec | undefined,
-		paramsInErrors: boolean | undefined,
-	) {
-		super(executor, query, mapper, mode, logger, paramsInErrors);
-	}
-}
+export {
+	type EffectPostgresHttpBatchOptions,
+	EffectPostgresHttpPreparedQuery,
+	type EffectPostgresHttpQueryEffectHKT,
+	type EffectPostgresHttpQueryResultHKT,
+	type EffectPostgresHttpSessionOptions,
+	type EffectPostgresHttpSettledResponse,
+} from '../http/session.ts';
 
 const noTransactions =
-	'No interactive transactions support in postgres HTTP drivers. Use `db.batch(...)` for an atomic set of statements, or a wire-protocol driver (`effect-drizzle-postgres` over `DrizzlePostgresClient`) for interactive transactions';
+	'No interactive transactions support in postgres HTTP drivers. Use `db.batch(...)` for an atomic set of statements, or a wire-protocol driver (`drizzle-orm/postgres/effect` over `DrizzlePostgresClient`) for interactive transactions';
 
 /** The index of the statement a failed `batch` request names in it's error, when the backend reports one */
 const failedQueryIndex = (error: unknown): number | undefined => {
@@ -69,10 +45,10 @@ const failedQueryIndex = (error: unknown): number | undefined => {
 	return undefined;
 };
 
-export class EffectPostgresHttpSession<
+export class EffectPostgresNeonHttpSession<
 	TRelations extends AnyRelations,
 > extends PgEffectSession<EffectPostgresHttpQueryEffectHKT, EffectPostgresHttpQueryResultHKT, TRelations> {
-	static override readonly [entityKind]: string = 'EffectPostgresHttpSession';
+	static override readonly [entityKind]: string = 'EffectPostgresNeonHttpSession';
 
 	constructor(
 		private client: Client.DrizzlePostgresHttpClient,
@@ -134,28 +110,7 @@ export class EffectPostgresHttpSession<
 		);
 	}
 
-	/**
-	 * Non-atomic: pipelines all queries in a single request, each in it's own autocommit (Neon has no pipeline: it's
-	 * client runs this as one request per query, so only the gateway database exposes it)
-	 *
-	 * A failing query does not fail the others: each gives it's own `Result`, in input order
-	 */
-	pipeline(
-		queries: readonly BatchItem<'pg'>[],
-	): Effect.Effect<Result.Result<unknown, EffectDrizzleQueryError>[], SqlError> {
-		return Effect.suspend(() => {
-			const { prepared, built } = buildHttpMulti<EffectPostgresHttpPreparedQuery<any>>(queries);
-
-			return Effect.flatMap(
-				this.client.pipeline(built),
-				(outcomes) =>
-					Effect.forEach(outcomes, (outcome, i) =>
-						Result.isSuccess(outcome)
-							? Effect.result(this.mapResult(prepared[i]!, outcome.success))
-							: Effect.succeed(Result.fail(this.queryError(prepared[i]!, outcome.failure)))),
-			);
-		});
-	}
+	// No `pipeline`: Neon's multi-statement endpoint always wraps the set in a transaction (that is `batch`)
 
 	/**
 	 * Non-atomic: sends every query as it's own concurrent request, each in it's own autocommit

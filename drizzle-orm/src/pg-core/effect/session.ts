@@ -59,7 +59,7 @@ export class PgEffectPreparedQuery<
 	/**
 	 * Pairs this query with values for it's placeholders without running it: the lazy counterpart of
 	 * {@link execute}. Nothing is sent until the result is run as an item of `batch`, `pipeline` or `parallel`
-	 * of the `drizzle-orm/effect-drizzle-postgres` driver, which runs it under this query's statement name:
+	 * of the `drizzle-orm/postgres/effect` driver, which runs it under this query's statement name:
 	 *
 	 * ```ts
 	 * const [alice, bob] = yield* db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
@@ -80,7 +80,7 @@ export class PgEffectPreparedQuery<
  * const [alice, bob] = yield* db.batch([getUser.bind({ id: 1 }), getUser.bind({ id: 2 })]);
  * ```
  *
- * Accepted by `batch`, `pipeline` and `parallel` of the `drizzle-orm/effect-drizzle-postgres` driver, which run it
+ * Accepted by `batch`, `pipeline` and `parallel` of the `drizzle-orm/postgres/effect` driver, which run it
  * under the prepared statement's name. Created by {@link PgEffectPreparedQuery.bind}.
  */
 export class PgEffectBoundQuery<

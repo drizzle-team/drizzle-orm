@@ -1,6 +1,3 @@
-// drizzle-orm/effect-drizzle-postgres over the PGlite DrizzlePostgresClient (`drizzle-orm/postgres/client/effect/pglite`):
-// the same driver as over a server, on an in-process PGlite. PGlite runs one session, which the pool's one connection
-// keeps, so session settings stick as on a server connection.
 import type { BatchMetrics } from '@drizzle-team/postgres';
 import { createPool as createPglitePool } from '@drizzle-team/postgres/pglite';
 import { assert, expect, expectTypeOf } from '@effect/vitest';
@@ -17,8 +14,6 @@ import {
 	sql,
 } from 'drizzle-orm';
 import type { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
-import * as PostgresDrizzle from 'drizzle-orm/effect-drizzle-postgres';
-import { migrate } from 'drizzle-orm/effect-drizzle-postgres/migrator';
 import {
 	boolean,
 	getTableConfig,
@@ -32,6 +27,8 @@ import {
 	timestamp,
 } from 'drizzle-orm/pg-core';
 import { DrizzlePostgresClient } from 'drizzle-orm/postgres/client/effect/pglite';
+import * as PostgresDrizzle from 'drizzle-orm/postgres/effect';
+import { migrate } from 'drizzle-orm/postgres/effect/migrator';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';

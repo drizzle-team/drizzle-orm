@@ -17,8 +17,7 @@ import * as Stream from 'effect/Stream';
 import { AuroraClient, type AuroraConfig, type AuroraQueryOptions as PlainAuroraQueryOptions } from '../aurora.ts';
 import { addBrand } from '../brand.ts';
 import type { QueryResult } from '../types.ts';
-import { makeCompiler, toSqlError } from './DrizzlePostgresClient.ts';
-import { setTransaction, type TransactionOptions } from './shared.ts';
+import { makeCompiler, setTransaction, toSqlError, type TransactionOptions } from './shared.ts';
 
 export type { TransactionOptions };
 

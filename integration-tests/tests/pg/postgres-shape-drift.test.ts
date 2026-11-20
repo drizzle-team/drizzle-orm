@@ -1,12 +1,9 @@
-// drizzle-orm/postgres decodes results with a shape built from the schema in code. When the database disagrees, as
-// after a migration or with a schema that never matched, a query must return the right value or fail: never a value the
-// database never held. And a prepared query must keep working after a migration changes its result type.
 import { createPool, type Pool } from '@drizzle-team/postgres';
 import { sql } from 'drizzle-orm';
-import * as PostgresDrizzle from 'drizzle-orm/effect-drizzle-postgres';
 import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/postgres';
 import { DrizzlePostgresClient } from 'drizzle-orm/postgres/client/effect';
+import * as PostgresDrizzle from 'drizzle-orm/postgres/effect';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 

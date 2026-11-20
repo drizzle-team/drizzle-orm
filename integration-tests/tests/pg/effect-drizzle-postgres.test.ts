@@ -10,8 +10,6 @@ import {
 	sql,
 } from 'drizzle-orm';
 import type { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
-import * as PostgresDrizzle from 'drizzle-orm/effect-drizzle-postgres';
-import { migrate } from 'drizzle-orm/effect-drizzle-postgres/migrator';
 import {
 	boolean,
 	getTableConfig,
@@ -25,6 +23,8 @@ import {
 	timestamp,
 } from 'drizzle-orm/pg-core';
 import { DrizzlePostgresClient } from 'drizzle-orm/postgres/client/effect';
+import * as PostgresDrizzle from 'drizzle-orm/postgres/effect';
+import { migrate } from 'drizzle-orm/postgres/effect/migrator';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';

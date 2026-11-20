@@ -1,6 +1,3 @@
-// drizzle-orm/effect-drizzle-postgres/http over the httpostgres gateway. HTTP holds no session, so every statement is
-// a request of it's own: there are no interactive transactions, and session settings (`search_path`, `time zone`) do
-// not stick. The tests run in a database of their own, with `public` recreated before each test.
 import { client as createHttpClient, type HttpClient } from '@drizzle-team/postgres/http';
 import { assert, expect, expectTypeOf, it } from '@effect/vitest';
 import {
@@ -13,11 +10,11 @@ import {
 	sql,
 } from 'drizzle-orm';
 import type { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
-import * as PostgresHttpDrizzle from 'drizzle-orm/effect-drizzle-postgres/http';
-import { migrate } from 'drizzle-orm/effect-drizzle-postgres/http/migrator';
-import * as PostgresNeonHttpDrizzle from 'drizzle-orm/effect-drizzle-postgres/http/neon';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { DrizzlePostgresHttpClient } from 'drizzle-orm/postgres/client/effect/http';
+import * as PostgresHttpDrizzle from 'drizzle-orm/postgres/effect/http';
+import { migrate } from 'drizzle-orm/postgres/effect/http/migrator';
+import * as PostgresNeonHttpDrizzle from 'drizzle-orm/postgres/effect/neon-http';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
@@ -619,7 +616,7 @@ runCommonEffectPgTests<DBTag | DrizzlePostgresHttpClient.DrizzlePostgresHttpClie
 
 				assert(Exit.isFailure(exit));
 				expect(String(exit.cause)).toContain(
-					'`drizzle-orm/effect-drizzle-postgres/http/neon` needs a Neon HTTP `DrizzlePostgresHttpClient`, but got a gateway one',
+					'`drizzle-orm/postgres/effect/neon-http` needs a Neon HTTP `DrizzlePostgresHttpClient`, but got a gateway one',
 				);
 			}));
 

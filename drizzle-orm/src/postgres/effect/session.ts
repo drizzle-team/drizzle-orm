@@ -1,4 +1,4 @@
-import type { BatchMetrics, QueryResult, ShapeSpec } from '#postgres';
+import type { BatchMetrics, ShapeSpec } from '#postgres';
 import { DrizzlePostgresClient as Client } from '#postgres/effect/core';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
@@ -10,7 +10,6 @@ import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
-import { mapBatchResults, mapSettledResults } from '~/pg-core/async/session.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
@@ -19,35 +18,31 @@ import {
 	PgEffectSession,
 	PgEffectTransaction,
 } from '~/pg-core/effect/session.ts';
-import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { setTransactionSnapshotSQL } from '~/pg-core/session.ts';
+import type { PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import { mapBatchResults, mapSettledResults, setTransactionSnapshotSQL } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import {
-	batchItemParams,
-	buildBulkInsert,
-	buildBulkUpdate,
-	buildPoolQueries,
-	type PostgresBatchOptions,
-	type PostgresBulkInsertOptions,
-	type PostgresBulkInsertValue,
-	type PostgresBulkResult,
-	type PostgresBulkUpdateOptions,
-	type PostgresBulkUpdateValue,
-	type PostgresMultiPrepared,
+import type {
+	PostgresBatchOptions,
+	PostgresBulkInsertOptions,
+	PostgresBulkInsertValue,
+	PostgresBulkResult,
+	PostgresBulkUpdateOptions,
+	PostgresBulkUpdateValue,
+	PostgresMultiPrepared,
+	PostgresQueryResultHKT as EffectPostgresQueryResultHKT,
 } from '~/postgres/session.ts';
+import { batchItemParams, buildBulkInsert, buildBulkUpdate, buildPoolQueries } from '~/postgres/utils.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { effectQueryRuntime } from '~/runtime/effect.ts';
 import type { Query } from '~/sql/sql.ts';
-import type { Simplify } from '~/utils.ts';
+
+// The async driver's, with the Effect driver's names
+export type { EffectPostgresQueryResultHKT, PostgresBatchOptions as EffectPostgresBatchOptions };
 
 export interface EffectPostgresQueryEffectHKT extends QueryEffectHKTBase {
 	readonly error: EffectDrizzleQueryError;
 	readonly context: never;
-}
-
-export interface EffectPostgresQueryResultHKT extends PgQueryResultHKT {
-	type: Simplify<Omit<QueryResult<PgRawRow<this['row']>>, 'metrics' | 'debug'>>;
 }
 
 /** The async options without the ones that Effect replaces, with `onProgress` as an Effect that needs `R` */
@@ -92,9 +87,6 @@ export type EffectPostgresSettledBatchResponse<T extends readonly EffectPostgres
 
 export type EffectPostgresPipelineResponse<T extends readonly EffectPostgresBatchItem[]> =
 	EffectPostgresSettledBatchResponse<T>;
-
-/** The options of `batch`, the async driver's: `snapshot` needs `isolation: 'repeatable read' | 'serializable'` */
-export type EffectPostgresBatchOptions = PostgresBatchOptions;
 
 /** The Effect that runs an item of `parallel`, as it would run on it's own: under it's statement name, with it's bound values */
 function itemEffect(item: EffectPostgresBatchItem): Effect.Effect<unknown, EffectDrizzleQueryError> {

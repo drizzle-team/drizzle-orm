@@ -16,8 +16,8 @@ import type * as Redacted from 'effect/Redacted';
 import type * as Scope from 'effect/Scope';
 import * as Client from 'effect/sql/SqlClient';
 import type { Connection as SqlConnection } from 'effect/sql/SqlConnection';
-import { ConnectionError, SqlError, SqlSyntaxError, UnknownError } from 'effect/sql/SqlError';
-import type { Custom, Fragment } from 'effect/sql/Statement';
+import { SqlError } from 'effect/sql/SqlError';
+import type { Fragment } from 'effect/sql/Statement';
 import * as Statement from 'effect/sql/Statement';
 import * as Stream from 'effect/Stream';
 import { addBrand, isBrand } from '../brand.ts';
@@ -31,12 +31,15 @@ import {
 } from '../connection.ts';
 import type { CursorOptions } from '../cursor.ts';
 import type { RawParams } from '../encode.ts';
-import { isConnectionLost as isConnectionLostError, PgError } from '../errors.ts';
+import { PgError } from '../errors.ts';
 import { metricAttributes } from '../plugin.ts';
 import type { Pool } from '../pool.ts';
 import type { PgType } from '../spec.ts';
 import type { ConnectConfig, QueryOptions as PostgresQueryOptions, QueryResult } from '../types.ts';
-import { classifySqlState, type TransactionOptions } from './shared.ts';
+import { makeCompiler, PostgresJson, toSqlError, type TransactionOptions } from './shared.ts';
+
+// Shared with the Aurora and HTTP clients, which load them from ./shared.ts without this client's connection code
+export { makeCompiler, toSqlError } from './shared.ts';
 
 export const TypeId = '~@drizzle/postgres/DrizzlePostgresClient';
 export type TypeId = typeof TypeId;
@@ -793,27 +796,6 @@ addBrand(SourceFailure, 'SourceFailure');
 
 /** Maps a Drizzle Postgres failure to a SqlError. A failure that leaves the connection closed, or that the driver
  *  marks as one that lost its connection, is a ConnectionError. */
-export const toSqlError = (cause: unknown, operation: string, conn?: { readonly state: string }) => {
-	const isConnectionLost = (conn !== undefined && conn.state !== 'ready') || isConnectionLostError(cause);
-	const message = cause instanceof Error ? cause.message : String(cause);
-	if (cause instanceof PgError && !isConnectionLost) {
-		if (cause.code === '42601' && /multiple commands/.test(message)) {
-			return new SqlError({
-				reason: new SqlSyntaxError({
-					cause,
-					message:
-						'SQL with several statements is not supported: Drizzle Postgres sends each query as one statement. Run the statements one by one.',
-					operation,
-				}),
-			});
-		}
-		return new SqlError({ reason: classifySqlState(cause.code, cause.constraint, { cause, message, operation }) });
-	}
-	const props = { cause, message, operation };
-	if (isConnectionLost || conn === undefined) return new SqlError({ reason: new ConnectionError(props) });
-	return new SqlError({ reason: new UnknownError(props) });
-};
-
 export const layerFrom = <E, R>(
 	build: Effect.Effect<DrizzlePostgresClient & Client.SqlClient, E, R>,
 ) =>
@@ -828,30 +810,3 @@ export const layerFrom = <E, R>(
 /** A layer over a pool that the caller owns. Closing the layer's scope leaves the pool open. */
 export const layerFromPool = (pool: Pool, options?: FromPoolOptions) =>
 	layerFrom(fromPool({ ...options, acquire: Effect.succeed(pool) }));
-
-/** The Postgres statement compiler: $n placeholders, double-quoted identifiers, and json fragments as jsonb. */
-export const makeCompiler = (transform?: (_: string) => string, transformJson = true) => {
-	const transformValue = transformJson && transform ? Statement.defaultTransforms(transform).value : undefined;
-	return Statement.makeCompiler<PostgresJson>({
-		dialect: 'pg',
-		placeholder: (i) => `$${i}`,
-		onIdentifier: transform
-			? (value, withoutTransform) => escape(withoutTransform ? value : transform(value))
-			: escape,
-		onRecordUpdate(placeholders, valueAlias, valueColumns, values, returning) {
-			return [
-				`(values ${placeholders}) AS ${valueAlias}${valueColumns}${returning ? ` RETURNING ${returning[0]}` : ''}`,
-				returning ? values.flat().concat(returning[1]) : values.flat(),
-			];
-		},
-		onCustom(type, placeholder, withoutTransform) {
-			const value = withoutTransform || transformValue === undefined ? type.paramA : transformValue(type.paramA);
-			return [`${placeholder(undefined)}::jsonb`, [JSON.stringify(value)]];
-		},
-	});
-};
-
-const escape = Statement.defaultEscape('"');
-
-interface PostgresJson extends Custom<'PostgresJson', unknown> {}
-const PostgresJson = Statement.custom<PostgresJson>('PostgresJson');

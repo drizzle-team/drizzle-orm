@@ -1,6 +1,6 @@
 // Result types of the Drizzle Postgres connectors' own methods: batch and pipeline on the async connector
-// (drizzle-orm/postgres), batch, pipeline and the bulk writes on the Effect one (drizzle-orm/effect-drizzle-postgres), and
-// the Effect Aurora and HTTP branches (drizzle-orm/effect-drizzle-postgres/aurora, drizzle-orm/effect-drizzle-postgres/http).
+// (drizzle-orm/postgres), batch, pipeline and the bulk writes on the Effect one (drizzle-orm/postgres/effect), and
+// the Effect Aurora and HTTP branches (drizzle-orm/postgres/effect/aurora, drizzle-orm/postgres/effect/http, drizzle-orm/postgres/effect/neon-http).
 import type { BatchMetrics, Pool } from '#postgres';
 import { DrizzleAuroraClient } from '#postgres/effect/aurora';
 import type { DrizzlePostgresClient } from '#postgres/effect/core';
@@ -14,14 +14,14 @@ import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { SettledQueryResult } from '~/batch.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
-import * as PostgresAuroraDrizzle from '~/effect-drizzle-postgres/aurora/index.ts';
-import * as PostgresHttpDrizzle from '~/effect-drizzle-postgres/http/index.ts';
-import * as PostgresNeonHttpDrizzle from '~/effect-drizzle-postgres/http/neon.ts';
-import type { EffectPostgresDatabase } from '~/effect-drizzle-postgres/index.ts';
 import { drizzle as drizzleNeonHttp } from '~/neon-http/index.ts';
 import { integer, pgTable, text } from '~/pg-core/index.ts';
 import { drizzle as drizzlePostgresCf } from '~/postgres/cf.ts';
 import { drizzle as drizzlePostgresDeno } from '~/postgres/deno.ts';
+import * as PostgresAuroraDrizzle from '~/postgres/effect/aurora/index.ts';
+import * as PostgresHttpDrizzle from '~/postgres/effect/http/index.ts';
+import type { EffectPostgresDatabase } from '~/postgres/effect/index.ts';
+import * as PostgresNeonHttpDrizzle from '~/postgres/effect/neon-http/index.ts';
 import { drizzle, type PostgresBulkResult } from '~/postgres/index.ts';
 import { drizzle as drizzlePostgresNeonWs } from '~/postgres/neon-ws.ts';
 import { drizzle as drizzlePostgresPglite } from '~/postgres/pglite.ts';

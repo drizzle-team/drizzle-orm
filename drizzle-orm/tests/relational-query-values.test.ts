@@ -3,8 +3,6 @@
 // one query and used for the next (a cache of built queries, a reused chunk) shows up as a difference.
 import * as Effect from 'effect/Effect';
 import { describe, expect, test } from 'vitest';
-import { EffectPostgresDatabase } from '~/effect-drizzle-postgres/driver.ts';
-import { EffectPostgresSession } from '~/effect-drizzle-postgres/session.ts';
 import { defineRelations, sql } from '~/index.ts';
 import { drizzle as pgDrizzle } from '~/node-postgres/index.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
@@ -26,6 +24,8 @@ import {
 	varchar,
 } from '~/pg-core/index.ts';
 import { postgresCodecs } from '~/postgres/codecs.ts';
+import { EffectPostgresDatabase } from '~/postgres/effect/driver.ts';
+import { EffectPostgresSession } from '~/postgres/effect/session.ts';
 import { drizzle } from '~/postgres/index.ts';
 import { createShapeGenerator } from '~/postgres/shape.ts';
 import { operators } from '~/relations.ts';

@@ -7,14 +7,14 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { postgresCodecs } from '../codecs.ts';
 import type {
 	PostgresHttpBatchOptions,
 	PostgresHttpQueryResultHKT,
 	PostgresHttpRequestOptions,
 } from '../http/session.ts';
-import { createShapeGenerator } from '../shape.ts';
+import { postgresCodecs } from './codecs.ts';
 import { PostgresNeonHttpSession } from './session.ts';
+import { createShapeGenerator } from './shape.ts';
 
 export class PostgresNeonHttpDatabase<
 	TRelations extends AnyRelations = EmptyRelations,

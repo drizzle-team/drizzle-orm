@@ -1,11 +1,9 @@
-// The async and the Effect drizzle-orm/postgres drivers make the same calls on one Drizzle Postgres pool: the same pool
-// methods, and on a checked-out connection the same connection methods and SQL, in the same order.
 import { createPool, type Pool } from '@drizzle-team/postgres';
 import { sql } from 'drizzle-orm';
-import * as PostgresDrizzle from 'drizzle-orm/effect-drizzle-postgres';
 import { integer, pgTable, text } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/postgres';
 import { DrizzlePostgresClient } from 'drizzle-orm/postgres/client/effect';
+import * as PostgresDrizzle from 'drizzle-orm/postgres/effect';
 import * as Effect from 'effect/Effect';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';

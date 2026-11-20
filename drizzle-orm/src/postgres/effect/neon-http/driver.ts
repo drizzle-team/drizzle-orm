@@ -11,13 +11,14 @@ import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { EffectDrizzlePgConfig } from '~/pg-core/effect/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { wrongKind } from '../http/session.ts';
 import { postgresCodecs } from './codecs.ts';
-import { type EffectPostgresHttpSettledResponse, wrongKind } from './driver.ts';
 import {
 	type EffectPostgresHttpBatchOptions,
 	type EffectPostgresHttpQueryEffectHKT,
 	type EffectPostgresHttpQueryResultHKT,
-	EffectPostgresHttpSession,
+	type EffectPostgresHttpSettledResponse,
+	EffectPostgresNeonHttpSession,
 } from './session.ts';
 import { createShapeGenerator } from './shape.ts';
 export { DefaultServices } from '~/effect-core/defaults.ts';
@@ -28,7 +29,7 @@ export class EffectPostgresNeonHttpDatabase<TRelations extends AnyRelations = Em
 	static override readonly [entityKind]: string = 'EffectPostgresNeonHttpDatabase';
 
 	/** @internal */
-	declare session: EffectPostgresHttpSession<TRelations>;
+	declare session: EffectPostgresNeonHttpSession<TRelations>;
 
 	/**
 	 * Runs the queries in one transaction, in a single request
@@ -67,12 +68,11 @@ export class EffectPostgresNeonHttpDatabase<TRelations extends AnyRelations = Em
  *
  * @example
  * ```ts
- * import * as PostgresNeonHttpDrizzle from 'drizzle-orm/effect-drizzle-postgres/http/neon';
- * import { DrizzlePostgresHttpClient } from 'drizzle-orm/postgres/client/effect/neon-http';
+ * import * as PostgresNeonHttpDrizzle from 'drizzle-orm/postgres/effect/neon-http';
  *
  * const db = yield* PostgresNeonHttpDrizzle.make({ relations }).pipe(
  *   Effect.provide(PostgresNeonHttpDrizzle.DefaultServices),
- *   Effect.provide(DrizzlePostgresHttpClient.layer({ url: Redacted.make(process.env.DATABASE_URL!) })),
+ *   Effect.provide(PostgresNeonHttpDrizzle.DrizzlePostgresHttpClient.layer({ url: Redacted.make(process.env.DATABASE_URL!) })),
  * );
  * ```
  */
@@ -92,7 +92,7 @@ export const make = Effect.fn('PostgresNeonHttpDrizzle.make')(
 		});
 
 		const relations = config.relations ?? {} as TRelations;
-		const session = new EffectPostgresHttpSession(client, dialect, relations, {
+		const session = new EffectPostgresNeonHttpSession(client, dialect, relations, {
 			logger,
 			paramsInErrors: config.paramsInErrors,
 		});

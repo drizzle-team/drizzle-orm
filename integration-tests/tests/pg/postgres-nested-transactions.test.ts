@@ -1,13 +1,9 @@
-// Nested transactions started at the same time, in the async and the Effect drizzle-orm/postgres drivers. Each nested
-// transaction is a SAVEPOINT, and Postgres nests savepoints in the order they are created, not by caller: releasing or
-// rolling back to the first one also ends every savepoint made after it. So the result must not depend on how the
-// siblings interleave: each commits or rolls back only its own work.
 import { createPool, type Pool } from '@drizzle-team/postgres';
 import { sql } from 'drizzle-orm';
-import * as PostgresDrizzle from 'drizzle-orm/effect-drizzle-postgres';
 import { integer, pgTable } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/postgres';
 import { DrizzlePostgresClient } from 'drizzle-orm/postgres/client/effect';
+import * as PostgresDrizzle from 'drizzle-orm/postgres/effect';
 import * as Effect from 'effect/Effect';
 import * as Fiber from 'effect/Fiber';
 import * as ManagedRuntime from 'effect/ManagedRuntime';

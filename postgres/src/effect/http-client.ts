@@ -5,8 +5,8 @@ import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Redacted from 'effect/Redacted';
 import { HttpClient, type HttpConfig } from '../http.ts';
-import { toSqlError } from './DrizzlePostgresClient.ts';
 import * as Shared from './DrizzlePostgresHttpClient.ts';
+import { toSqlError } from './shared.ts';
 
 export * from './DrizzlePostgresHttpClient.ts';
 

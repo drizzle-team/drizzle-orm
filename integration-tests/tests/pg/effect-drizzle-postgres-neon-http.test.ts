@@ -1,7 +1,3 @@
-// drizzle-orm/effect-drizzle-postgres/http/neon over Neon's SQL-over-HTTP endpoint (NEON_CONNECTION_STRING: real Neon,
-// or the local proxy CI runs). HTTP holds no session, so every statement is a request of it's own: there are no
-// interactive transactions, and session settings do not stick. The tests run concurrently, each on a database of the
-// pool with `public` recreated (every schema is reset once, when the pool is prepared).
 import { createProvider } from '@drizzle/test-utils';
 import { assert, expect, expectTypeOf, it } from '@effect/vitest';
 import {
@@ -14,11 +10,11 @@ import {
 	sql,
 } from 'drizzle-orm';
 import type { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
-import * as PostgresHttpDrizzle from 'drizzle-orm/effect-drizzle-postgres/http';
-import { migrate } from 'drizzle-orm/effect-drizzle-postgres/http/migrator';
-import * as PostgresNeonHttpDrizzle from 'drizzle-orm/effect-drizzle-postgres/http/neon';
 import { integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { DrizzlePostgresHttpClient } from 'drizzle-orm/postgres/client/effect/neon-http';
+import * as PostgresHttpDrizzle from 'drizzle-orm/postgres/effect/http';
+import * as PostgresNeonHttpDrizzle from 'drizzle-orm/postgres/effect/neon-http';
+import { migrate } from 'drizzle-orm/postgres/effect/neon-http/migrator';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
@@ -249,7 +245,7 @@ runCommonEffectPgTests<DBTag | DrizzlePostgresHttpClient.DrizzlePostgresHttpClie
 
 				assert(Exit.isFailure(exit));
 				expect(String(exit.cause)).toContain(
-					'`drizzle-orm/effect-drizzle-postgres/http` needs a gateway `DrizzlePostgresHttpClient`, but got a Neon HTTP one',
+					'`drizzle-orm/postgres/effect/http` needs a gateway `DrizzlePostgresHttpClient`, but got a Neon HTTP one',
 				);
 			}));
 

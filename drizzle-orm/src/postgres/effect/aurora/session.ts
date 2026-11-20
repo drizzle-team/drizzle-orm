@@ -8,19 +8,17 @@ import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
-import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { setTransactionSnapshotSQL } from '~/pg-core/session.ts';
+import type { PostgresAuroraQueryResultHKT as EffectPostgresAuroraQueryResultHKT } from '~/postgres/aurora/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
-import type { Simplify } from '~/utils.ts';
+
+export type { EffectPostgresAuroraQueryResultHKT };
 
 export interface EffectPostgresAuroraQueryEffectHKT extends QueryEffectHKTBase {
 	readonly error: EffectDrizzleQueryError;
 	readonly context: never;
-}
-
-export interface EffectPostgresAuroraQueryResultHKT extends PgQueryResultHKT {
-	type: Simplify<Omit<QueryResult<PgRawRow<this['row']>>, 'metrics' | 'debug'>>;
 }
 
 export interface EffectPostgresAuroraSessionOptions {

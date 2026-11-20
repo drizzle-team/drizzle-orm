@@ -1,4 +1,4 @@
-// drizzle-orm/effect-drizzle-postgres/aurora over the Data API (local-data-api emulator). The Data API holds no
+// drizzle-orm/postgres/effect/aurora over the Data API (local-data-api emulator). The Data API holds no
 // session outside a transaction: every statement is a request of it's own, so session settings (`search_path`,
 // `time zone`) do not stick. The tests run in a database of their own, with `public` recreated before each test.
 import { createPool as createAuroraClient } from '@drizzle-team/postgres/aurora';
@@ -11,10 +11,10 @@ import {
 	type Schema,
 	sql,
 } from 'drizzle-orm';
-import * as PostgresAuroraDrizzle from 'drizzle-orm/effect-drizzle-postgres/aurora';
-import { migrate } from 'drizzle-orm/effect-drizzle-postgres/aurora/migrator';
 import { getTableConfig, integer, pgTable, serial, text, time, timestamp } from 'drizzle-orm/pg-core';
 import { DrizzleAuroraClient } from 'drizzle-orm/postgres/client/effect/aurora';
+import * as PostgresAuroraDrizzle from 'drizzle-orm/postgres/effect/aurora';
+import { migrate } from 'drizzle-orm/postgres/effect/aurora/migrator';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';

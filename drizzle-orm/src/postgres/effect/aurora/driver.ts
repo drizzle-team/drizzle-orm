@@ -7,7 +7,7 @@ import { entityKind } from '~/entity.ts';
 import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
 import type { EffectDrizzlePgConfig } from '~/pg-core/effect/utils.ts';
 import type { PgTransactionConfig } from '~/pg-core/session.ts';
-import { PostgresAuroraDialect } from '~/postgres/aurora/driver.ts';
+import { PostgresAuroraDialect } from '~/postgres/aurora/dialect.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { postgresAuroraCodecs } from './codecs.ts';
@@ -53,12 +53,11 @@ export class EffectPostgresAuroraDatabase<TRelations extends AnyRelations = Empt
  *
  * @example
  * ```ts
- * import * as PostgresAuroraDrizzle from 'drizzle-orm/effect-drizzle-postgres/aurora';
- * import { DrizzleAuroraClient } from 'drizzle-orm/postgres/client/effect/aurora';
+ * import * as PostgresAuroraDrizzle from 'drizzle-orm/postgres/effect/aurora';
  *
  * const db = yield* PostgresAuroraDrizzle.make({ relations }).pipe(
  *   Effect.provide(PostgresAuroraDrizzle.DefaultServices),
- *   Effect.provide(DrizzleAuroraClient.layer({ resourceArn, secretArn, database })),
+ *   Effect.provide(PostgresAuroraDrizzle.DrizzleAuroraClient.layer({ resourceArn, secretArn, database })),
  * );
  * ```
  */

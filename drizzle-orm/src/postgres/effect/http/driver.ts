@@ -1,6 +1,5 @@
 import { DrizzlePostgresHttpClient as Client } from '#postgres/effect/http';
 import * as Effect from 'effect/Effect';
-import type * as Result from 'effect/Result';
 import type { SqlError } from 'effect/sql/SqlError';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { DefaultServices } from '~/effect-core/defaults.ts';
@@ -18,30 +17,11 @@ import {
 	type EffectPostgresHttpQueryEffectHKT,
 	type EffectPostgresHttpQueryResultHKT,
 	EffectPostgresHttpSession,
+	type EffectPostgresHttpSettledResponse,
+	wrongKind,
 } from './session.ts';
 import { createShapeGenerator } from './shape.ts';
 export { DefaultServices } from '~/effect-core/defaults.ts';
-
-const kindLabel = { gateway: 'gateway', neon: 'Neon HTTP' } as const;
-const kindEntry = {
-	gateway: 'drizzle-orm/effect-drizzle-postgres/http',
-	neon: 'drizzle-orm/effect-drizzle-postgres/http/neon',
-};
-
-/**
- * The defect of a database given the other kind of HTTP client: both kinds are provided as one service
- *
- * @internal
- */
-export const wrongKind = (expected: 'gateway' | 'neon', actual: 'gateway' | 'neon') =>
-	`\`${kindEntry[expected]}\` needs a ${kindLabel[expected]} \`DrizzlePostgresHttpClient\`, but got a ${
-		kindLabel[actual]
-	} one: use \`${kindEntry[actual]}\` for it`;
-
-/** The response of `pipeline` and `parallel`: one `Result` per query, in input order */
-export type EffectPostgresHttpSettledResponse<T extends BatchItem[] | readonly BatchItem[]> = {
-	[K in keyof T]: Result.Result<T[K]['_']['result'], EffectDrizzleQueryError>;
-};
 
 export class EffectPostgresHttpDatabase<TRelations extends AnyRelations = EmptyRelations>
 	extends PgEffectDatabase<EffectPostgresHttpQueryEffectHKT, EffectPostgresHttpQueryResultHKT, TRelations>
@@ -93,7 +73,7 @@ export class EffectPostgresHttpDatabase<TRelations extends AnyRelations = EmptyR
 
 /**
  * Creates an EffectPostgresHttpDatabase instance on top of Drizzle Postgres over the httpostgres gateway. For Neon's
- * SQL-over-HTTP endpoint, use `drizzle-orm/effect-drizzle-postgres/http/neon`.
+ * SQL-over-HTTP endpoint, use `drizzle-orm/postgres/effect/neon-http`.
  *
  * Requires `DrizzlePostgresHttpClient` (a gateway one), and `EffectLogger` services to be provided.
  * Use `DefaultServices` to provide the default (no-op) logger implementation.
@@ -103,12 +83,11 @@ export class EffectPostgresHttpDatabase<TRelations extends AnyRelations = EmptyR
  *
  * @example
  * ```ts
- * import * as PostgresHttpDrizzle from 'drizzle-orm/effect-drizzle-postgres/http';
- * import { DrizzlePostgresHttpClient } from 'drizzle-orm/postgres/client/effect/http';
+ * import * as PostgresHttpDrizzle from 'drizzle-orm/postgres/effect/http';
  *
  * const db = yield* PostgresHttpDrizzle.make({ relations }).pipe(
  *   Effect.provide(PostgresHttpDrizzle.DefaultServices),
- *   Effect.provide(DrizzlePostgresHttpClient.layer({ url: process.env.DATABASE_HTTP_URL! })),
+ *   Effect.provide(PostgresHttpDrizzle.DrizzlePostgresHttpClient.layer({ url: process.env.DATABASE_HTTP_URL! })),
  * );
  * ```
  */

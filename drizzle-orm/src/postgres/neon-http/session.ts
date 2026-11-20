@@ -3,18 +3,17 @@ import type { NeonHttpClient } from '#postgres/neon-http';
 import type { BatchItem, SettledQueryResult } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
+import { PgAsyncSession, type PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
 	mapBatchResults,
 	mapSettledResults,
-	PgAsyncSession,
-	type PgAsyncTransaction,
-} from '~/pg-core/async/session.ts';
-import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+	type PgTransactionConfig,
+	type PreparedQueryConfig,
+} from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import {
-	buildHttpMulti,
 	httpQueryError,
 	type PostgresHttpBatchOptions,
 	PostgresHttpPreparedQuery,
@@ -22,6 +21,7 @@ import {
 	type PostgresHttpRequestOptions,
 	type PostgresHttpSessionOptions,
 } from '../http/session.ts';
+import { buildHttpMulti } from '../http/utils.ts';
 
 export class PostgresNeonHttpSession<
 	TRelations extends AnyRelations,

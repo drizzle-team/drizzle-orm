@@ -1,6 +1,5 @@
-import type { SettledQueryResult } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
-import { type DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
+import { TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import type { QueryRuntimeHKT } from '~/query-builders/runtime.ts';
@@ -34,54 +33,6 @@ export class PgAsyncBoundQuery<T extends PreparedQueryConfig> extends PgBoundQue
 	constructor(prepared: PgAsyncPreparedQuery<T>, placeholderValues: Record<string, unknown>) {
 		super(prepared, placeholderValues);
 	}
-}
-
-/** What a statement of `batch`, `pipeline` or `parallel` gives for the driver's result of it */
-function multiValue(prepared: PgAsyncPreparedQuery<any>, result: { rows: any[] }): unknown {
-	const { mapper, mode } = prepared;
-	return mapper ? mapper(result.rows) : mode === 'raw' ? result : result.rows;
-}
-
-/**
- * The response of `batch`: one value per statement, in input order
- *
- * @internal
- */
-export function mapBatchResults(
-	prepared: readonly PgAsyncPreparedQuery<any>[],
-	results: ArrayLike<{ rows: any[] }>,
-): any[] {
-	const response = new Array(results.length);
-	for (let i = 0; i < results.length; ++i) response[i] = multiValue(prepared[i]!, results[i]!);
-	return response;
-}
-
-/**
- * The response of `pipeline` and `parallel`: one settled result per statement, in input order. A statement the
- * driver rejected, and one whose rows could not be mapped, are both `rejected` with the error `queryError` builds
- *
- * @internal
- */
-export function mapSettledResults(
-	prepared: readonly PgAsyncPreparedQuery<any>[],
-	results: ArrayLike<PromiseSettledResult<{ rows: any[] }>>,
-	queryError: (index: number, cause: unknown) => DrizzleQueryError,
-): SettledQueryResult<any>[] {
-	const response: SettledQueryResult<any>[] = new Array(results.length);
-	for (let i = 0; i < results.length; ++i) {
-		const result = results[i]!;
-		if (result.status === 'rejected') {
-			response[i] = { status: 'rejected', reason: queryError(i, result.reason) };
-			continue;
-		}
-
-		try {
-			response[i] = { status: 'fulfilled', value: multiValue(prepared[i]!, result.value) };
-		} catch (e) {
-			response[i] = { status: 'rejected', reason: queryError(i, e) };
-		}
-	}
-	return response;
 }
 
 export interface PgAsyncPreparedQuery<T extends PreparedQueryConfig> {

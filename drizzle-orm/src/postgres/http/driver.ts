@@ -7,14 +7,14 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { postgresCodecs } from '../codecs.ts';
-import { createShapeGenerator } from '../shape.ts';
+import { postgresCodecs } from './codecs.ts';
 import {
 	type PostgresHttpBatchOptions,
 	type PostgresHttpQueryResultHKT,
 	type PostgresHttpRequestOptions,
 	PostgresHttpSession,
 } from './session.ts';
+import { createShapeGenerator } from './shape.ts';
 
 export class PostgresHttpDatabase<
 	TRelations extends AnyRelations = EmptyRelations,

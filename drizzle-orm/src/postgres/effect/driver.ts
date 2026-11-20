@@ -193,16 +193,85 @@ export class EffectPostgresDatabase<TRelations extends AnyRelations = EmptyRelat
  * Requires `DrizzlePostgresClient`, and `EffectLogger` services to be provided.
  * Use `DefaultServices` to provide the default (no-op) logger implementation.
  *
- * @example
+ * Every transport provides the same `DrizzlePostgresClient` service, so `make` is the same for all of them: only the
+ * client's layer differs. Each transport's layer is in an entry point of it's own, so importing this one loads no
+ * other transport, and no PGlite.
+ *
+ * @example Node, Bun, Deno, Cloudflare Workers: the client of this entry point dials with the runtime's sockets
  * ```ts
- * import * as PostgresDrizzle from 'drizzle-orm/effect-drizzle-postgres';
- * import { DrizzlePostgresClient } from 'drizzle-orm/postgres/client/effect';
+ * import * as PostgresDrizzle from 'drizzle-orm/postgres/effect';
  *
  * const db = yield* PostgresDrizzle.make({ relations }).pipe(
  *   Effect.provide(PostgresDrizzle.DefaultServices),
+ *   Effect.provide(PostgresDrizzle.DrizzlePostgresClient.layer({ url: Redacted.make(process.env.DATABASE_URL!) })),
+ * );
+ * ```
+ *
+ * @example A runtime's client by name, for bundlers that apply no runtime conditions: `node` (Node, Bun), `deno`, `cf`
+ * ```ts
+ * import * as PostgresDrizzle from 'drizzle-orm/postgres/effect';
+ * import { DrizzlePostgresClient } from 'drizzle-orm/postgres/client/effect/cf';
+ *
+ * const db = yield* PostgresDrizzle.make({ relations }).pipe(
+ *   Effect.provide(PostgresDrizzle.DefaultServices),
+ *   Effect.provide(DrizzlePostgresClient.layer({ url: Redacted.make(env.DATABASE_URL) })),
+ * );
+ * ```
+ *
+ * @example Neon over it's WebSocket proxy: prepared statements, pipelining and interactive transactions, as over TCP
+ * ```ts
+ * import * as PostgresDrizzle from 'drizzle-orm/postgres/effect';
+ * import { DrizzlePostgresClient } from 'drizzle-orm/postgres/client/effect/neon-ws';
+ *
+ * const db = yield* PostgresDrizzle.make({ relations }).pipe(
+ *   Effect.provide(PostgresDrizzle.DefaultServices),
+ *   // the global `WebSocket`: on Node < 22, pass `webSocketConstructor` (the `ws` package's)
  *   Effect.provide(DrizzlePostgresClient.layer({ url: Redacted.make(process.env.DATABASE_URL!) })),
  * );
  * ```
+ *
+ * @example PGlite: an in-process Postgres, which stays yours (closing the layer leaves it open)
+ * ```ts
+ * import { PGlite } from '@electric-sql/pglite';
+ * import * as PostgresDrizzle from 'drizzle-orm/postgres/effect';
+ * import { DrizzlePostgresClient } from 'drizzle-orm/postgres/client/effect/pglite';
+ *
+ * const db = yield* PostgresDrizzle.make({ relations }).pipe(
+ *   Effect.provide(PostgresDrizzle.DefaultServices),
+ *   Effect.provide(DrizzlePostgresClient.layer(new PGlite())), // or `new PGlite('./data')`
+ * );
+ * ```
+ *
+ * @example A transport of your own: the core client dials with the `DrizzlePostgresTransport` in context
+ * ```ts
+ * import * as Layer from 'effect/Layer';
+ * import * as PostgresDrizzle from 'drizzle-orm/postgres/effect';
+ * import { DrizzlePostgresClient, DrizzlePostgresTransport } from 'drizzle-orm/postgres/client/effect/core';
+ *
+ * const db = yield* PostgresDrizzle.make({ relations }).pipe(
+ *   Effect.provide(PostgresDrizzle.DefaultServices),
+ *   Effect.provide(
+ *     DrizzlePostgresClient.layer({ url: Redacted.make(process.env.DATABASE_URL!) }).pipe(
+ *       Layer.provide(Layer.succeed(DrizzlePostgresTransport.DrizzlePostgresTransport, { connect, cancel })),
+ *     ),
+ *   ),
+ * );
+ * ```
+ *
+ * @example A pool you already have, from any of the above: the layer uses it as it is, and leaves it open
+ * ```ts
+ * import * as PostgresDrizzle from 'drizzle-orm/postgres/effect';
+ * import { createPool } from 'drizzle-orm/postgres/client/node';
+ *
+ * const pool = createPool(process.env.DATABASE_URL!);
+ * const db = yield* PostgresDrizzle.make({ relations }).pipe(
+ *   Effect.provide(PostgresDrizzle.DefaultServices),
+ *   Effect.provide(PostgresDrizzle.DrizzlePostgresClient.layerFromPool(pool)),
+ * );
+ * ```
+ *
+ * Aurora's Data API, the HTTP gateway and Neon's HTTP endpoint have entry points of their own:
+ * `drizzle-orm/postgres/effect/aurora`, `drizzle-orm/postgres/effect/http` and `drizzle-orm/postgres/effect/neon-http`.
  */
 export const make = Effect.fn('PostgresDrizzle.make')(
 	function*<
