@@ -67,6 +67,7 @@ const rqbDb = mysql({ client: connect({}), relations: rqbRelations });
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
 describe('mysql to snake case', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/6082
 	it('unicode column names', ({ expect }) => {
 		const unicode = snakeCase.table('unicode', {
 			칼럼명: text(),
@@ -77,6 +78,7 @@ describe('mysql to snake case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5734
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = snakeCase.table('a', { id: int('id').primaryKey(), cId: int().notNull() });
 		const b = snakeCase.table('b', { id: int('id').primaryKey(), cId: int().notNull(), label: text() });
@@ -93,6 +95,7 @@ describe('mysql to snake case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/3096
 	it('qualifier preservation for subquery fields', ({ expect }) => {
 		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
 		const query = db
@@ -316,6 +319,7 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + orderBy + limit', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			orderBy: { firstName: 'asc' },
@@ -330,6 +334,7 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + limit + offset', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({ limit: 2, offset: 4, with: { developers: true } });
 
@@ -340,6 +345,7 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + where + limit + offset', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			where: { firstName: { like: 'A%' } },
@@ -355,6 +361,7 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + relation where + limit + offset', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			where: { developers: { usesDrizzleORM: true } },
@@ -370,6 +377,7 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + RAW where + limit + offset', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			where: { RAW: (t, { sql }) => sql`${t.id} > 1` },
@@ -385,6 +393,7 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - schema table, deeply nested + orderBy + limit on every level', ({ expect }) => {
 		const query = rqbDb.query.developers.findMany({
 			orderBy: { userId: 'desc' },
@@ -401,6 +410,7 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - subquery, nested + orderBy + limit', ({ expect }) => {
 		const query = rqbDb.query.staff.findMany({
 			orderBy: { role: 'asc' },
@@ -680,6 +690,8 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection)', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName', 'age')
@@ -691,6 +703,8 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, multiple rows)', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName')
@@ -702,6 +716,8 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, omitted optional column)', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName', 'age')
@@ -713,6 +729,8 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) with select', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName')
@@ -724,6 +742,8 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) emits columns in list order', ({ expect }) => {
 		const query = db
 			.insert(users, 'age', 'lastName', 'firstName')
@@ -735,6 +755,8 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) on duplicate key update', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName', 'age')

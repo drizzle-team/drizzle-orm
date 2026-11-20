@@ -344,7 +344,7 @@ describe('migrator', () => {
 	});
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/5972
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as MySql2Database;
 	const table = sql.identifier('raw_execute_types');
@@ -380,6 +380,7 @@ test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	await db.execute<never>(sql`drop table ${table}`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5972
 describe('driver init', () => {
 	const resolveConfig = (client: any) => {
 		const cfg = client.config ?? client.pool?.config ?? client.connection?.config;

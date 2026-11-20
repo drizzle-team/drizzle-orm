@@ -532,6 +532,7 @@ test('introspect unique constraint', async () => {
 	expect(generateSqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6237
 test('introspect expression and partial indexes', async () => {
 	const sqlite = new Database(':memory:');
 
@@ -556,6 +557,7 @@ test('introspect expression and partial indexes', async () => {
 	expect(generateSqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6237
 test('introspect index with a sort order and a collation', async () => {
 	const sqlite = new Database(':memory:');
 
@@ -590,6 +592,7 @@ test('introspect index with a sort order and a collation', async () => {
 	expect(afterPush).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6237
 test('introspect index without a predicate', async () => {
 	const sqlite = new Database(':memory:');
 	const db = dbFrom(sqlite);

@@ -159,6 +159,7 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6107
 {
 	const values = { homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' } as const;
 
@@ -398,6 +399,8 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	Expect<Equal<typeof d4, Expected>>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
+// https://github.com/drizzle-team/drizzle-orm/issues/6382
 {
 	interface UserInterface {
 		id: number;
@@ -415,6 +418,7 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	Expect<Equal<GetEffect, Effect.Effect<UserInterface | undefined, EffectDrizzleQueryError, never>>>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6382
 {
 	type Run<T> = Effect.Effect<T, EffectDrizzleQueryError, never>;
 

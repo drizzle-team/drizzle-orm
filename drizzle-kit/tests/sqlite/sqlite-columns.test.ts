@@ -2124,6 +2124,7 @@ test('Issue 6408', async () => {
 	);
 	expect(res).toStrictEqual([{ material_number: 1, material_name: 'steel', created: 1, deleted_timestamp: null }]);
 });
+// https://github.com/drizzle-team/drizzle-orm/issues/6408
 test('Issue 6408. add column with constant default in parentheses', async () => {
 	const schema1 = {
 		users: sqliteTable('users', {
@@ -2158,6 +2159,7 @@ test('Issue 6408. add column with constant default in parentheses', async () => 
 	const res = await db.query('select * from `users`;');
 	expect(res).toStrictEqual([{ id: 1, col1: 1, col2: 1, col3: -1, col4: 'abc' }]);
 });
+// https://github.com/drizzle-team/drizzle-orm/issues/6408
 test('Issue 6408. add column with function and CURRENT_TIMESTAMP default', async () => {
 	const schema1 = {
 		users: sqliteTable('users', {
@@ -2202,6 +2204,7 @@ test('Issue 6408. add column with function and CURRENT_TIMESTAMP default', async
 	);
 	expect(res).toStrictEqual([{ id: 1, name: 'a', created: 1, updated: 1 }]);
 });
+// https://github.com/drizzle-team/drizzle-orm/issues/6408
 test('Issue 6408. add column with non constant default', async () => {
 	const schema1 = {
 		users: sqliteTable('users', {

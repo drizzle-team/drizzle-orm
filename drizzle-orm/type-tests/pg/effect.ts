@@ -313,6 +313,8 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	Expect<Equal<typeof d4, Expected>>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
+// https://github.com/drizzle-team/drizzle-orm/issues/6382
 {
 	interface UserInterface {
 		id: number;
@@ -325,6 +327,8 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	Expect<Equal<ObjectsEffect, Effect.Effect<UserInterface[], EffectDrizzleQueryError, never>>>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
+// https://github.com/drizzle-team/drizzle-orm/issues/6382
 {
 	interface UserInterface {
 		id: number;

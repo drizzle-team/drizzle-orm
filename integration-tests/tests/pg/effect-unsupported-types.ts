@@ -2065,6 +2065,7 @@ export const nullTimestampTests = (
 			]);
 		}));
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6673
 	it.effect('select distinct ordered by cast columns (null timestamps)', () =>
 		Effect.gen(function*() {
 			const table = pgTable('distinct_cast_order', {

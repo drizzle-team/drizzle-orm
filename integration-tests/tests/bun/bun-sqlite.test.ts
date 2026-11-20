@@ -805,6 +805,8 @@ describe('common', () => {
 		}]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list', async () => {
 		const table = sqliteTable('column_selection', {
 			id: integer('id').primaryKey({ autoIncrement: true }),
@@ -833,6 +835,8 @@ describe('common', () => {
 		await db.run(sql`drop table ${table}`);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list - select', async () => {
 		const src = sqliteTable('column_selection_select_src', {
 			id: integer('id').primaryKey(),
@@ -865,6 +869,8 @@ describe('common', () => {
 		await db.run(sql`drop table ${dst}`);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list - on conflict', async () => {
 		const table = sqliteTable('column_selection_conflict', {
 			id: integer('id').primaryKey(),
@@ -3052,6 +3058,7 @@ describe('common', () => {
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5780
 	test('$onUpdateFn called only when needed', async () => {
 		let counter = 0;
 		const table = sqliteTable('on_update_call_test', {
@@ -4884,6 +4891,7 @@ test('Default value priority', async () => {
 	await db.run(sql`DROP TABLE no_default_override`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params', async () => {
 	await db.run(sql`drop table if exists params_in_errors`);
 	await db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);
@@ -4922,6 +4930,7 @@ test('Query error params', async () => {
 	await db.run(sql`drop table params_in_errors`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params - transaction', async () => {
 	await db.run(sql`drop table if exists params_in_errors`);
 	await db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);

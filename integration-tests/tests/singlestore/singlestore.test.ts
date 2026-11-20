@@ -13,6 +13,7 @@ import { floatReplacedSkips, floatReplacedTests } from './unsupported-types';
 tests(singleStoreTest, floatReplacedSkips);
 floatReplacedTests(singleStoreTest);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 singleStoreTest('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as SingleStoreDriverDatabase;
 	const table = sql.identifier('raw_execute_types');

@@ -2743,6 +2743,7 @@ export function tests(test: Test) {
 			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
 			const items = singlestoreTable('pagination_2', { id: int('id').primaryKey() });
 			await push({ items });
@@ -2762,6 +2763,7 @@ export function tests(test: Test) {
 			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		// SingleStore accepts `offset` only after `limit`, so an offset alone has to reach the database with a limit
 		test.concurrent('pagination: offset without limit', async ({ db, push }) => {
 			const items = singlestoreTable('pagination_5', { id: int('id').primaryKey() });
@@ -2774,6 +2776,7 @@ export function tests(test: Test) {
 			expect(await query().offset(5)).toStrictEqual([]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: set operations', async ({ db, push }) => {
 			const items = singlestoreTable('pagination_4', { id: int('id').primaryKey() });
 			await push({ items });
@@ -2841,6 +2844,7 @@ export function tests(test: Test) {
 			expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4464
 		test.concurrent('db.execute modes', async ({ db, push }) => {
 			const users = singlestoreTable('users_execute_modes', {
 				id: int('id').primaryKey(),
@@ -2875,6 +2879,7 @@ export function tests(test: Test) {
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		test.concurrent('Query error params', async ({ createDB }) => {
 			for (const paramsInErrors of [undefined, false, true]) {
 				const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -2890,6 +2895,7 @@ export function tests(test: Test) {
 			}
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		test.concurrent('Query error params - transaction', async ({ createDB }) => {
 			for (const paramsInErrors of [undefined, false, true]) {
 				const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -3548,6 +3554,7 @@ export function tests(test: Test) {
 			expect(parseStoredJson(stored)).toStrictEqual(output);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
 			let customCast = false;
 			let customMap = false;
@@ -3628,6 +3635,7 @@ export function tests(test: Test) {
 			expect(nested).toStrictEqual({ ...cols, self: cols });
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 			let customCast = false;
 			let customMap = false;

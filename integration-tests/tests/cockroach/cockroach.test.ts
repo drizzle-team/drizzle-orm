@@ -40,6 +40,7 @@ afterAll(async () => {
 	await client?.end();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async () => {
 	const table = sql.identifier('raw_execute_types');
 
@@ -82,6 +83,7 @@ test('raw db.execute type matches returned data', async () => {
 	await db.execute<never>(sql`drop table ${table}`);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6437
 test('transaction rejects when pooled connection is dropped', async () => {
 	const pool = new Pool({ connectionString: requireCockroachConnectionString() });
 	pool.on('error', () => {});
@@ -111,6 +113,11 @@ test('transaction rejects when pooled connection is dropped', async () => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6023
+// https://github.com/drizzle-team/drizzle-orm/issues/6114
+// https://github.com/drizzle-team/drizzle-orm/issues/6241
+// https://github.com/drizzle-team/drizzle-orm/issues/6341
+// https://github.com/drizzle-team/drizzle-orm/issues/6622
 test('failed begin on transaction does not return client to the pool', async () => {
 	const pool = new Pool({ connectionString: requireCockroachConnectionString(), max: 1, query_timeout: 1000 });
 	const poolDb = drizzle({ client: pool });

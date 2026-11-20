@@ -677,6 +677,7 @@ export function tests(
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		test.concurrent('select distinct ordered by cast columns', async ({ db }) => {
 			const table = sqliteTable('distinct_cast_order', {
 				id: integer('id').notNull(),
@@ -705,6 +706,7 @@ export function tests(
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		test.concurrent('order by aliased cast columns', async ({ db }) => {
 			const table = sqliteTable('alias_cast_order', {
 				id: integer('id').notNull(),
@@ -946,6 +948,8 @@ export function tests(
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent(
 			'insert with explicit column list',
 			async ({ db }) => {
@@ -980,6 +984,8 @@ export function tests(
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent(
 			'insert with explicit column list - select',
 			async ({ db }) => {
@@ -1015,6 +1021,8 @@ export function tests(
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent(
 			'insert with explicit column list - on conflict',
 			async ({ db }) => {
@@ -3078,6 +3086,7 @@ export function tests(
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6531
 		test.concurrent(
 			'insert with onConflict do nothing using partial index as target',
 			async ({ db }) => {
@@ -4433,6 +4442,7 @@ export function tests(
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5780
 		test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
 			let counter = 0;
 			const table = sqliteTable('on_update_call_test', {
@@ -5595,6 +5605,7 @@ export function tests(
 			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
 			const items = sqliteTable('pagination_2', { id: integer('id').primaryKey() });
 			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
@@ -5615,6 +5626,7 @@ export function tests(
 			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		// SQLite accepts `offset` only after `limit`, so an offset alone has to reach the database with a limit
 		test.skipIf(postponed).concurrent(
 			'pagination: offset without limit',
@@ -5646,6 +5658,7 @@ export function tests(
 			expect(await db.select({ name: items.name }).from(items).where(eq(rowId(), 2))).toStrictEqual([{ name: 'b' }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: placeholders', async ({ db, push }) => {
 			const items = sqliteTable('pagination_3', { id: integer('id').primaryKey() });
 			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
@@ -5664,6 +5677,7 @@ export function tests(
 			expect(await stmt.all({ limit: 2, offset: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: set operations', async ({ db, push }) => {
 			const items = sqliteTable('pagination_4', { id: integer('id').primaryKey() });
 			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
@@ -6451,6 +6465,7 @@ export function tests(
 		},
 	);
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/3608
 	test.concurrent('insert into ... select with generated column', async ({ db }) => {
 		const users1 = sqliteTable('users1_iswgc', {
 			id: integer('id').primaryKey({ autoIncrement: true }),
@@ -6817,6 +6832,7 @@ export function tests(
 		expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/1603
 	test.concurrent('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
 		const orgs = sqliteTable('issue1603_orgs_jit', (t) => ({
 			id: t.integer('id').primaryKey(),
@@ -8247,6 +8263,7 @@ export function tests(
 		]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;
@@ -8374,6 +8391,7 @@ export function tests(
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;
@@ -8508,6 +8526,7 @@ export function tests(
 			.rejects.toBeInstanceOf(DrizzleQueryError);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test('Query error params', async ({ createDB }) => {
 		const queries = [
 			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
@@ -8541,6 +8560,7 @@ export function tests(
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test('Query error params - transaction', async ({ createDB }) => {
 		const queries = [
 			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
@@ -8586,6 +8606,7 @@ export function tests(
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test('Query error params - sync transaction', async ({ createDB }) => {
 		const queries = [
 			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },

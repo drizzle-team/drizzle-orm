@@ -198,6 +198,8 @@ runCommonEffectPgTests<DBTag | DrizzlePostgresHttpClient.DrizzlePostgresHttpClie
 			return db;
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/661
+		// https://github.com/drizzle-team/drizzle-orm/issues/6382
 		it.effect('raw db.execute type matches returned data', () =>
 			Effect.gen(function*() {
 				const db = yield* DBTag;

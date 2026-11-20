@@ -313,6 +313,7 @@ export function tests(test: Test) {
 			expect(users).toEqual([{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		test.concurrent('select distinct ordered by cast columns', async ({ db }) => {
 			const table = singlestoreTable('distinct_cast_order', {
 				id: int('id').notNull(),
@@ -353,6 +354,7 @@ export function tests(test: Test) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		test.concurrent('order by aliased cast columns', async ({ db }) => {
 			const table = singlestoreTable('alias_cast_order', {
 				id: int('id').notNull(),
@@ -482,6 +484,8 @@ export function tests(test: Test) {
 			expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent('insert with explicit column list', async ({ db }) => {
 			const table = singlestoreTable('column_selection', {
 				id: int('id').primaryKey(),
@@ -512,6 +516,8 @@ export function tests(test: Test) {
 			}
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent('insert with explicit column list - on duplicate key update', async ({ db }) => {
 			const table = singlestoreTable('column_selection_conflict', {
 				id: int('id').primaryKey(),

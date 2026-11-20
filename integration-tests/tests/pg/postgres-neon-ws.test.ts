@@ -43,6 +43,7 @@ preparedNameTests(test);
 
 bulkTests(test, { name: 'neon_ws', drizzle: drizzleNeonWs as BulkDrizzle });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresDatabase;
 	const table = sql.identifier('raw_execute_types');

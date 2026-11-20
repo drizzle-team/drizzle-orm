@@ -1510,6 +1510,7 @@ describe('pull json envelopes', () => {
 		expect(serialized).not.toContain('query_error');
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6362
 	test('pull crashes with the cause', async () => {
 		const password = 'S3NT1NEL_pw_a9F2';
 		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-driver-error-'));

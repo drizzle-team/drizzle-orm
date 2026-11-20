@@ -10,6 +10,7 @@ test('loadModule resolves tsconfig paths', async () => {
 	expect(mod.user).toBeDefined();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6593
 test('loadModule resolves a catch-all "*" tsconfig paths mapping', async () => {
 	const modulePath = resolve('tests/fixtures/tsconfig-paths-catch-all/entry.ts');
 	const mod = await loadModule<{ config?: { url: string } }>(modulePath);
@@ -17,6 +18,7 @@ test('loadModule resolves a catch-all "*" tsconfig paths mapping', async () => {
 	expect(mod.config?.url).toBe('postgres://localhost/db');
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5712
 test('loadModule resolves tsconfig paths from an extended config in another directory', async () => {
 	const modulePath = resolve('tests/fixtures/tsconfig-paths-extends/packages/foo/src/schema/a.ts');
 	const mod = await loadModule<{ b?: string }>(modulePath);

@@ -1406,6 +1406,7 @@ export const createTemporalBounds = (tableName: string = TEMPORAL_TABLE) =>
 
 export const dropTemporalBounds = (tableName: string = TEMPORAL_TABLE) => `drop table if exists "${tableName}"`;
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6552
 /*
 	- the epoch and the millisecond before it (negative epoch offsets)
 	- years 1 and 99, which non-ISO date parsing reads as two-digit years (0099 -> 1999)

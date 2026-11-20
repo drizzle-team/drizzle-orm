@@ -121,6 +121,7 @@ test('custom codecs for client with custom types (changelog example)', async ({ 
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresJsDatabase;
 	const table = sql.identifier('raw_execute_types');
@@ -751,6 +752,8 @@ describe('postgresjs', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3171
+// https://github.com/drizzle-team/drizzle-orm/issues/5789
 describe('raw sql`` params', () => {
 	test('insert -> select roundtrip over json, jsonb and date columns', async ({ db }) => {
 		const table = pgTable('raw_sql_params', {
@@ -779,6 +782,7 @@ describe('raw sql`` params', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3171
 describe('json params', () => {
 	test.concurrent('Issue No1504 - postgres-js', async ({ push, db }) => {
 		type PropTypes = { [key: string]: any };

@@ -49,6 +49,9 @@ test('SDK hints is a raw Hint[], never a JSON string', () => {
 	expectTypeOf<PushOptions['hints']>().toEqualTypeOf<Hint[] | undefined>();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2995
+// https://github.com/drizzle-team/drizzle-orm/issues/3222
+// https://github.com/drizzle-team/drizzle-orm/issues/4476
 test('Config accepts a pglite client instead of dbCredentials', () => {
 	expectTypeOf<{
 		dialect: 'postgresql';

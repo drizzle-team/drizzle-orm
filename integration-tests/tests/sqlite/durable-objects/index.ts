@@ -3576,6 +3576,7 @@ export class MyDurableObject extends DurableObject {
 		}
 	}
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6550
 	async finishedStatements(): Promise<void> {
 		const table = sqliteTable('finished_statements', { id: integer().primaryKey(), name: text() });
 

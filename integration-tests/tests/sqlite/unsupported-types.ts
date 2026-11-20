@@ -99,6 +99,7 @@ export function unsafeNumericTests(test: Test) {
 		await assertAllTypesTemporalBounds(db as any, { rqb: true });
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs (safe integers)', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;
@@ -227,6 +228,7 @@ export function unsafeNumericTests(test: Test) {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs - Jit mappers (safe integers)', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;

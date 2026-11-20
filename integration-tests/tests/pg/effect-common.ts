@@ -1928,6 +1928,7 @@ export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgT
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		it.effect('select distinct ordered by cast columns', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -1967,6 +1968,7 @@ export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgT
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		it.effect('order by aliased cast columns', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4757,6 +4759,7 @@ export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgT
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		it.effect('Column as decoder applies codecs', () =>
 			Effect.gen(function*() {
 				let customCast = false;
@@ -4992,6 +4995,7 @@ export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgT
 				);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		it.effect('Column as decoder applies codecs - Jit mappers', () =>
 			Effect.gen(function*() {
 				let customCast = false;
@@ -5227,6 +5231,7 @@ export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgT
 				);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4464
 		it.effect('db.execute modes', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -5274,6 +5279,8 @@ export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgT
 				expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -5299,6 +5306,8 @@ export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgT
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list - select', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -5325,6 +5334,8 @@ export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgT
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list - on conflict', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -5447,6 +5458,7 @@ export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgT
 				});
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/1772
 		it.effect('transaction with an empty options object', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -5529,6 +5541,7 @@ export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgT
 				}]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params', () =>
 			Effect.gen(function*() {
 				for (const paramsInErrors of [undefined, false, true]) {
@@ -5546,6 +5559,7 @@ export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgT
 				}
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params - transaction', () =>
 			Effect.gen(function*() {
 				for (const paramsInErrors of [undefined, false, true]) {

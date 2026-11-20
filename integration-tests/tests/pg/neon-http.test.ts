@@ -64,6 +64,7 @@ const skips = [
 // COMMON
 tests(test, skips);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 // Multi-statement queries are rejected by Neon HTTP API
 test('raw db.execute type matches returned data', async ({ neonhttp }) => {
 	const db = neonhttp;

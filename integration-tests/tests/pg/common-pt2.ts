@@ -1721,6 +1721,7 @@ export function tests(test: Test) {
 			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: offset', async ({ db, push }) => {
 			const items = pgTable('pagination_2', { id: integer('id').primaryKey() });
 			await push({ items });
@@ -1738,6 +1739,7 @@ export function tests(test: Test) {
 			expect(await query().offset(10)).toStrictEqual([]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
 			const items = pgTable('pagination_3', { id: integer('id').primaryKey() });
 			await push({ items });
@@ -1758,6 +1760,7 @@ export function tests(test: Test) {
 			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: placeholders', async ({ db, push }) => {
 			const items = pgTable('pagination_4', { id: integer('id').primaryKey() });
 			await push({ items });
@@ -1787,6 +1790,7 @@ export function tests(test: Test) {
 			expect(await stmt.execute({ limit: 2, offset: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: set operations', async ({ db, push }) => {
 			const items = pgTable('pagination_5', { id: integer('id').primaryKey() });
 			await push({ items });
@@ -1818,6 +1822,7 @@ export function tests(test: Test) {
 			expect(await stmt.execute({ limit: 2, offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		test.concurrent('pagination: subquery fenced with offset 0', async ({ db, push }) => {
 			const items = pgTable('pagination_6', { id: integer('id').primaryKey(), kind: text('kind').notNull() });
 			await push({ items });
@@ -2377,6 +2382,7 @@ export function tests(test: Test) {
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/3608
 		test.concurrent('insert into ... select with generated column', async ({ db, push }) => {
 			const users1 = pgTable('users1_iswgc', {
 				id: integer().generatedAlwaysAsIdentity().primaryKey(),
@@ -4081,6 +4087,7 @@ export function tests(test: Test) {
 			await assertAllTypesTemporalBoundsInSessions(db, { rqb: true });
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6582
 		test.concurrent('all types ~json~', async ({ db, push }) => {
 			const table = pgTable('all_types_json', {
 				id: integer('id').primaryKey(),
@@ -4571,6 +4578,7 @@ export function tests(test: Test) {
 			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/1603
 		test.concurrent('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
 			const orgs = pgTable('issue1603_orgs_jit', (t) => ({
 				id: t.integer('id').primaryKey(),
@@ -6273,6 +6281,7 @@ export function tests(test: Test) {
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		test.concurrent('Query error params', async ({ createDB }) => {
 			for (const paramsInErrors of [undefined, false, true]) {
 				const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -6288,6 +6297,7 @@ export function tests(test: Test) {
 			}
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		test.concurrent('Query error params - transaction', async ({ createDB }) => {
 			for (const paramsInErrors of [undefined, false, true]) {
 				const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -6503,6 +6513,7 @@ export function tests(test: Test) {
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
 			let customCast = false;
 			let customMap = false;
@@ -6738,6 +6749,7 @@ export function tests(test: Test) {
 			);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 			let customCast = false;
 			let customMap = false;
@@ -6973,6 +6985,7 @@ export function tests(test: Test) {
 			);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5780
 		test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
 			let counter = 0;
 			const table = pgTable('on_update_call_test', (t) => ({
@@ -7013,6 +7026,7 @@ export function tests(test: Test) {
 			expect(res).toStrictEqual([{ id: 2, name: 'Second', inc: 2 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4464
 		test.concurrent('db.execute modes', async ({ db, push }) => {
 			const users = pgTable('users_execute_modes_1', (t) => ({
 				id: t.integer().primaryKey(),
@@ -7210,6 +7224,7 @@ export function tests(test: Test) {
 			});
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/1772
 		test('transaction with an empty options object', async ({ db, push }) => {
 			const users = pgTable('users_tx_cfg_empty', {
 				id: serial('id').primaryKey(),

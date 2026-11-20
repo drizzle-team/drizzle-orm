@@ -1614,6 +1614,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		it.effect('select distinct ordered by cast columns', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -1653,6 +1654,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
 		it.effect('order by aliased cast columns', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4277,6 +4279,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4464
 		it.effect('db.execute modes', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4324,6 +4327,8 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4349,6 +4354,8 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list - select', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4375,6 +4382,8 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		it.effect('insert with explicit column list - on duplicate key update', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
@@ -4430,6 +4439,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				}]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params', () =>
 			Effect.gen(function*() {
 				for (const paramsInErrors of [undefined, false, true]) {
@@ -4447,6 +4457,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				}
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params - transaction', () =>
 			Effect.gen(function*() {
 				for (const paramsInErrors of [undefined, false, true]) {

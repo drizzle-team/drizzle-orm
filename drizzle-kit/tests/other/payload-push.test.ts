@@ -22,6 +22,7 @@ const sqliteDb = (client: Database) => ({
 	},
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6053
 test('sqlite push of a renamed table asks for a hint and keeps the rows with a rename hint', async () => {
 	const client = new BetterSqlite3(':memory:');
 	client.exec('CREATE TABLE `a` (`id` integer PRIMARY KEY); INSERT INTO `a` VALUES (1);');
@@ -100,6 +101,7 @@ test('sqlite push with a table rename hint asks to confirm a dropped column of t
 	expect(client.prepare('SELECT * FROM `b`').all()).toEqual([{ id: 1 }]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6053
 test('postgres push of a renamed table asks for a hint and keeps the rows with a rename hint', async () => {
 	const client = await borrowPGlite();
 	await client.exec('CREATE TABLE "a" ("id" integer PRIMARY KEY); INSERT INTO "a" VALUES (1);');

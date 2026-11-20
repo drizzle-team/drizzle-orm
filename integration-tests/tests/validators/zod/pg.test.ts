@@ -542,6 +542,7 @@ test('all data types', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5659
 test('type coercion - all', (t) => {
 	const table = pgTable('test', ({
 		bigint,
@@ -572,6 +573,7 @@ test('type coercion - all', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5659
 test('type coercion - mixed', (t) => {
 	const table = pgTable('test', ({
 		timestamp,
@@ -595,6 +597,7 @@ test('type coercion - mixed', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5968
 test('refine table - select from factory without coercion', (t) => {
 	const table = pgTable('test', {
 		c1: integer(),

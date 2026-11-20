@@ -779,6 +779,8 @@ describe('common', () => {
 		}]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list', async () => {
 		const table = mysqlTable('column_selection', {
 			id: serial('id').primaryKey(),
@@ -807,6 +809,8 @@ describe('common', () => {
 		await db.execute(sql`drop table ${table}`);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list - select', async () => {
 		const src = mysqlTable('column_selection_select_src', {
 			id: int('id').primaryKey(),
@@ -839,6 +843,8 @@ describe('common', () => {
 		await db.execute(sql`drop table ${dst}`);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test('insert with explicit column list - on duplicate key update', async () => {
 		const table = mysqlTable('column_selection_conflict', {
 			id: int('id').primaryKey(),
@@ -1553,6 +1559,7 @@ describe('common', () => {
 		expect(result).toStrictEqual([{ id: 1, name: 'John' }]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/4464
 	test('db.execute modes', async () => {
 		const users = mysqlTable('users_execute_modes_1', {
 			id: int('id').primaryKey(),
@@ -3638,6 +3645,7 @@ describe('common', () => {
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5780
 	test('$onUpdateFn called only when needed', async () => {
 		let counter = 0;
 		const table = mysqlTable('on_update_call_test', {
@@ -7392,6 +7400,7 @@ test('Jit mappers: relational', async () => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs', async () => {
 	let customCast = false;
 	let customMap = false;
@@ -7586,6 +7595,7 @@ test('Column as decoder applies codecs', async () => {
 	);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5724
 test('Column as decoder applies codecs - Jit mappers', async () => {
 	let customCast = false;
 	let customMap = false;
@@ -8309,6 +8319,7 @@ test('Default value priority', async () => {
 });
 
 describe('raw execute', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/661
 	test('raw db.execute type matches returned data', async () => {
 		const table = sql.identifier('raw_execute_types');
 
@@ -8346,6 +8357,7 @@ describe('raw execute', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params', async () => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const paramsDb = drizzle({ client, paramsInErrors });
@@ -8361,6 +8373,7 @@ test('Query error params', async () => {
 	}
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5939
 test('Query error params - transaction', async () => {
 	for (const paramsInErrors of [undefined, false, true]) {
 		const paramsDb = drizzle({ client, paramsInErrors });

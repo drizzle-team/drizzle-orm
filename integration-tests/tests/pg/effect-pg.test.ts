@@ -174,6 +174,8 @@ runCommonEffectPgTests({
 				}).pipe(Effect.provide(PgClient.layer({ url: connectionStr, types })));
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/661
+		// https://github.com/drizzle-team/drizzle-orm/issues/6382
 		it.effect('raw db.execute type matches returned data', () =>
 			Effect.gen(function*() {
 				const db = yield* PgDrizzle.make().pipe(Effect.provide(PgDrizzle.DefaultServices));

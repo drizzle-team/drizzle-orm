@@ -13271,6 +13271,7 @@ test('Disallow unknown keys in filters', async () => {
 	);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5298
 // Type test
 (() => {
 	type Brand<T> = T & { readonly __brand: 'PROPERTY|OF|JONATHAN|D|RIZZLE' };

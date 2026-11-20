@@ -78,6 +78,7 @@ describe('aws-data-api/pg', () => {
 		arrbigintstr: ['1'],
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/661
 	test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 		const db = fixtureDb as unknown as AwsDataApiPgDatabase;
 		const table = sql.identifier('raw_execute_types');

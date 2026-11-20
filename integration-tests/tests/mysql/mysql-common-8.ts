@@ -232,6 +232,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		},
 	);
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test.concurrent('insert with explicit column list', async ({ db, push }) => {
 		const table = mysqlTable('column_selection', {
 			id: serial('id').primaryKey(),
@@ -255,6 +257,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test.concurrent('insert with explicit column list - select', async ({ db, push }) => {
 		const src = mysqlTable('column_selection_select_src', {
 			id: int('id').primaryKey(),
@@ -279,6 +283,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	test.concurrent('insert with explicit column list - on duplicate key update', async ({ db, push }) => {
 		const table = mysqlTable('column_selection_conflict', {
 			id: int('id').primaryKey(),
@@ -1568,6 +1574,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			.rejects.toBeInstanceOf(DrizzleQueryError);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test.concurrent('Query error params', async ({ createDB }) => {
 		for (const paramsInErrors of [undefined, false, true]) {
 			const db = createDB({ paramsInErrors });
@@ -1583,6 +1590,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test.concurrent('Query error params - transaction', async ({ createDB }) => {
 		for (const paramsInErrors of [undefined, false, true]) {
 			const db = createDB({ paramsInErrors });
@@ -1796,6 +1804,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(parseStoredJson(stored)).toStrictEqual(output);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;
@@ -1990,6 +1999,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;
@@ -2235,6 +2245,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/1603
 	test.concurrent('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
 		const orgs = mysqlTable('issue1603_orgs_jit', (t) => ({
 			id: t.int('id').primaryKey(),
