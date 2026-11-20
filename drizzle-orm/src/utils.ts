@@ -17,6 +17,7 @@ export function mapResultRow<TResult>(
 	row: unknown[],
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
+	const rowValues = row ?? [];
 	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
 	const nullifyMap: Record<string, string | false> = {};
 
@@ -40,8 +41,12 @@ export function mapResultRow<TResult>(
 					}
 					node = node[pathChunk];
 				} else {
-					const rawValue = row[columnIndex]!;
-					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+					const rawValue = rowValues[columnIndex];
+					const value = node[pathChunk] = rawValue === undefined
+						? undefined
+						: rawValue === null
+						? null
+						: decoder.mapFromDriverValue(rawValue);
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
