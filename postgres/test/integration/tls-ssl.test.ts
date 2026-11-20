@@ -578,6 +578,13 @@ describe('SCRAM channel binding (SCRAM-SHA-256-PLUS, tls-server-end-point)', () 
 					write(chunk, _e, cb) {
 						sec.write(chunk, cb);
 					},
+					// The driver destroys the socket it was given when it refuses at auth: without this the TLS
+					// session stays open, and the backend waits in authentication, blocking every DROP DATABASE
+					// (it can't absorb the ProcSignalBarrier) until authentication_timeout
+					destroy(err, cb) {
+						sec.destroy();
+						cb(err);
+					},
 				});
 				sec.on('data', (b) => d.push(b));
 				sec.on('close', () => d.push(null));
