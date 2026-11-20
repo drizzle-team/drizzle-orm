@@ -4450,7 +4450,7 @@ test('limit -1', async () => {
 	// A negative limit isn't dropped: it reaches the database, which rejects it
 	const query = db.select().from(usersTable).limit(-1);
 	expect(query.toSQL().params).toStrictEqual([-1]);
-	await expect(query).rejects.toThrow();
+	await expect(query.execute()).rejects.toThrow();
 });
 
 test('Object keys as column names', async () => {
