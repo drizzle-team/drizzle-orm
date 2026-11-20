@@ -1,6 +1,7 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import { push_array } from '../utils.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getMySqlColumnBuilders, type MySqlColumnBuilders } from './columns/all.ts';
 import type { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderBase } from './columns/common.ts';
@@ -92,7 +93,7 @@ export function mysqlTableWithSchema<
 			const colBuilder = colBuilderBase as MySqlColumnBuilder;
 			colBuilder.setName(name);
 			const column = colBuilder.build(rawTable);
-			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
+			push_array(rawTable[InlineForeignKeys], colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
 	) as unknown as BuildColumns<TTableName, TColumnsMap, 'mysql'>;
