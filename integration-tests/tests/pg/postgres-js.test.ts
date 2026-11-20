@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import { Name, param, sql } from 'drizzle-orm';
 import { refineCodecs } from 'drizzle-orm/codecs';
 import {
@@ -889,7 +890,7 @@ describe('json params', () => {
 	// A `json` column keeps the text it is given: the order of keys, and keys that repeat. `jsonb` sorts the keys.
 	// A value sent as a `jsonb` parameter is parsed as `jsonb` first and only then cast to `json`, so it reaches
 	// the `json` column with its keys already sorted
-	test.skipIf(Date.now() < +new Date('2026-11-21')).concurrent(
+	test.skipIf(postponed).concurrent(
 		'a json column keeps the order of keys - postgres-js',
 		async ({ db, push }) => {
 			const jsonOrderTable = pgTable('json_key_order_10', {

@@ -1849,7 +1849,7 @@ test('fetchPartitions finds a table with a quote in its name', async () => {
 // Postgres finds an unqualified operator through the search_path, so a schema listed there before pg_catalog can
 // replace `=` for every query of the connection. `a IN (...)` looks `=` up the same way, which is why the rule at
 // the top of introspect.ts asks for `a OPERATOR(pg_catalog.=) ANY (ARRAY[...])` instead
-test.skipIf(Date.now() < +new Date('2026-11-21'))(
+test.skipIf(postponed)(
 	'introspection does not run operators of the search_path',
 	async () => {
 		const client = await freshPGlite();

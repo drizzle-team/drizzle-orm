@@ -429,7 +429,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// An offset alone has to reach the database with a limit, for the same reason
-	test.skipIf(Date.now() < +new Date('2026-11-21')).concurrent(
+	test.skipIf(postponed).concurrent(
 		'pagination: offset without limit',
 		async ({ db, push }) => {
 			const items = mysqlTable('pagination_5', { id: int('id').primaryKey() });

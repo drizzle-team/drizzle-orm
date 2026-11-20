@@ -5616,7 +5616,7 @@ export function tests(
 		});
 
 		// SQLite accepts `offset` only after `limit`, so an offset alone has to reach the database with a limit
-		test.skipIf(Date.now() < +new Date('2026-11-21')).concurrent(
+		test.skipIf(postponed).concurrent(
 			'pagination: offset without limit',
 			async ({ db, push }) => {
 				const items = sqliteTable('pagination_5', { id: integer('id').primaryKey() });
