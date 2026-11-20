@@ -26,7 +26,9 @@ export class DrizzleQueryError extends Error {
 		public params: any[] | undefined,
 		public override cause?: Error,
 	) {
-		super(params ? `Failed query: ${query}\nparams: ${params}` : `Failed query: ${query}`);
+		super(
+			`Failed query: ${query}${params ? `\nparams: ${params}` : ''}${cause ? `\nerror: ${cause.message}` : ''}`,
+		);
 		this.name = 'DrizzleQueryError';
 		Error.captureStackTrace(this, DrizzleQueryError);
 
