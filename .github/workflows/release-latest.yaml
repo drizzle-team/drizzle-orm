@@ -139,6 +139,7 @@ jobs:
           - 26257:26257
     steps:
       - uses: actions/checkout@v7
+      - uses: ./.github/actions/checkout-docs
 
       - uses: actions/setup-node@v7
         with:
@@ -329,6 +330,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
+      - uses: ./.github/actions/checkout-docs
 
       - uses: actions/setup-node@v7
         with:
@@ -414,6 +416,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
+      - uses: ./.github/actions/checkout-docs
 
       - uses: actions/setup-node@v7
         with:
@@ -504,6 +507,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
+      - uses: ./.github/actions/checkout-docs
 
       - uses: actions/setup-node@v7
         with:
@@ -598,6 +602,7 @@ jobs:
           - 55433:5432
     steps:
       - uses: actions/checkout@v7
+      - uses: ./.github/actions/checkout-docs
 
       - uses: actions/setup-node@v7
         with:
@@ -701,6 +706,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
+      - uses: ./.github/actions/checkout-docs
 
       # don't specify registry url, so there's no .npmrc config file
       - uses: actions/setup-node@v7

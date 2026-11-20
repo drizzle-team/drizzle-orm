@@ -1,4 +1,4 @@
-import { boolean, command, type GenericBuilderInternals, number, string } from '@drizzle-team/brocli';
+import { boolean, command, type GenericBuilderInternals, number, positional, string } from '@drizzle-team/brocli';
 import chalk from 'chalk';
 import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
@@ -6,7 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dialects } from '../utils/schemaValidator';
+import { type Dialect, dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import { readFolder } from '../dialects/postgres/folder';
@@ -23,6 +23,7 @@ import { upSinglestoreHandler } from './commands/up-singlestore';
 import { upSqliteHandler } from './commands/up-sqlite';
 import {
 	type CheckConfig,
+	drizzleConfigFromFile,
 	prepareCheckParams,
 	prepareExportConfig,
 	prepareGenerateConfig,
@@ -31,7 +32,7 @@ import {
 	preparePushConfig,
 	prepareStudioConfig,
 } from './commands/utils';
-import { outputFormat, setCliContext } from './context';
+import { outputFormat, runWithCliContext, setCliContext } from './context';
 import type {
 	CheckOptionsInput,
 	ExportOptionsInput,
@@ -1328,6 +1329,61 @@ const skillsVersion = command({
 	},
 });
 
+// The export of the package itself gives its root, in the published layout and in this tree.
+const packageRoot = () => dirname(fileURLToPath(import.meta.resolve('drizzle-kit')));
+
+const dialectFromConfig = async (configPath: string | undefined): Promise<Dialect | undefined> => {
+	try {
+		// The JSON output mode stops the config loader from printing to stdout, which must hold only the result.
+		const config = await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() => drizzleConfigFromFile(configPath),
+		);
+		return config.dialect;
+	} catch {
+		return undefined;
+	}
+};
+
+export const docsSearch = command({
+	name: 'search',
+	desc: 'Search the Drizzle docs that ship with this drizzle-kit version',
+	options: {
+		query: positional('query').desc('Two to five words, for example "upsert on conflict"').required(),
+		dialect: optionDialect,
+		config: optionConfig,
+	},
+	transform: async ({ query, dialect, config }) => {
+		const { docsDialectOf } = await import('../docs/search');
+		const projectDialect = dialect ?? (await dialectFromConfig(config));
+		return { query, dialect: projectDialect && docsDialectOf(projectDialect) };
+	},
+	handler: async ({ query, dialect }) => {
+		const { formatDocsHits, loadDocsIndex, searchDocs } = await import('../docs/search');
+		const hits = await searchDocs(loadDocsIndex(resolve(packageRoot(), 'docs')), query, { dialect });
+		process.stdout.write(`${formatDocsHits(hits, query)}\n`);
+	},
+});
+
+const docsRetrieve = command({
+	name: 'retrieve',
+	desc: 'Print one docs page or section as Markdown',
+	options: {
+		id: positional('id').desc('A page id or a section id (page#section) from the search result').required(),
+		full: boolean().desc('Print a large page in full instead of its intro and section list').default(false),
+	},
+	handler: async ({ id, full }) => {
+		const { loadDocsIndex, retrieveDoc } = await import('../docs/search');
+		process.stdout.write(`${retrieveDoc(loadDocsIndex(resolve(packageRoot(), 'docs')), id, { full })}\n`);
+	},
+});
+
+export const docs = command({
+	name: 'docs',
+	desc: 'Search and read the Drizzle docs offline',
+	subcommands: [docsSearch, docsRetrieve],
+});
+
 export const mcp = command({
 	name: 'mcp',
 	options: {},
@@ -1342,9 +1398,7 @@ export const skills = command({
 	options: {},
 	subcommands: [skillsVersion],
 	handler: async () => {
-		// The export of the package itself gives its root, in the published layout and in this tree.
-		const packageRoot = dirname(fileURLToPath(import.meta.resolve('drizzle-kit')));
-		const skillsDir = resolve(packageRoot, 'skills');
+		const skillsDir = resolve(packageRoot(), 'skills');
 		if (!existsSync(skillsDir)) {
 			process.stderr.write('Could not locate bundled skills directory.\n');
 			process.exit(1);

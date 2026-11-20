@@ -1,0 +1,25 @@
+name: Check out the Drizzle docs
+description: >-
+  Checks out the docs pages of drizzle-team/drizzle-orm-docs at main, from which the drizzle-kit build makes the
+  docs index that it ships. Sets DRIZZLE_DOCS_DIR for the build. Also sets DRIZZLE_DOCS_COMMIT, which turbo.json
+  adds to the hash of the drizzle-kit build, so that a new docs commit does not get a cached build with older docs.
+  Needs a checkout of this repository.
+
+runs:
+  using: composite
+  steps:
+    - id: checkout
+      uses: actions/checkout@v7
+      with:
+        repository: drizzle-team/drizzle-orm-docs
+        ref: main
+        path: .drizzle-orm-docs
+        fetch-depth: 1
+        sparse-checkout: |
+          src/content/docs
+          src/mdx
+
+    - shell: bash
+      run: |
+        echo "DRIZZLE_DOCS_DIR=$GITHUB_WORKSPACE/.drizzle-orm-docs" >> "$GITHUB_ENV"
+        echo "DRIZZLE_DOCS_COMMIT=${{ steps.checkout.outputs.commit }}" >> "$GITHUB_ENV"

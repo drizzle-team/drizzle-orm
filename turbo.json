@@ -96,6 +96,13 @@
 				"dist/**",
 				"dist-dts/**"
 			],
+			"env": [
+				"DRIZZLE_DOCS_DIR",
+				"DRIZZLE_DOCS_COMMIT"
+			],
+			"passThroughEnv": [
+				"CI"
+			],
 			"outputLogs": "new-only"
 		},
 		"eslint-plugin-drizzle#build": {
@@ -235,6 +242,13 @@
 			"outputs": [
 				"dist/**",
 				"dist-dts/**"
+			],
+			"env": [
+				"DRIZZLE_DOCS_DIR",
+				"DRIZZLE_DOCS_COMMIT"
+			],
+			"passThroughEnv": [
+				"CI"
 			],
 			"outputLogs": "new-only"
 		},
