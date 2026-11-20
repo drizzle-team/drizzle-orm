@@ -39,7 +39,7 @@ export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
 		const migrationPath = `${migrationFolderTo}/${journalEntry.tag}.sql`;
 
 		try {
-			const query = fs.readFileSync(`${migrationFolderTo}/${journalEntry.tag}.sql`).toString();
+			const query = fs.readFileSync(`${migrationFolderTo}/${journalEntry.tag}.sql`).toString().replace(/\r\n/g, '\n'); // Normalize all line endings to LF;
 
 			const result = query.split('--> statement-breakpoint').map((it) => {
 				return it;
