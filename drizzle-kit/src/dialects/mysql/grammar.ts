@@ -579,7 +579,7 @@ export const Year: SqlType = {
 
 		if (!def) return { options, default: '' };
 
-		if (!new RegExp('^d{4}$').test(def)) return { options, default: `sql\`${escapeBacktickAndInterpolation(def)}\`` };
+		if (!/^\d{4}$/.test(def)) return { options, default: `sql\`${escapeBacktickAndInterpolation(def)}\`` };
 
 		return { options, default: `${def}` };
 	},

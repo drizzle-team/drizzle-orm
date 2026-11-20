@@ -59,9 +59,10 @@ import { canonicalParams, proceduresEnabled, type UnsupportedProcedure } from '.
 //
 // Has no operator form and needs nothing: IS NULL, IS TRUE/FALSE, AND/OR/NOT and CASE WHEN <condition>.
 // Has no operator form but still looks up an operator through the search_path: IN (...) and NOT IN use = / <>,
-// BETWEEN uses >= and <=, IS [NOT] DISTINCT FROM and CASE x WHEN y use =. They are safe only when both sides are
-// built-in types that a user operator cannot match better (oids, "char", int literals). Otherwise write them out,
-// e.g. a OPERATOR(pg_catalog.=) ANY (ARRAY[...]) instead of a IN (...).
+// BETWEEN uses >= and <=, IS [NOT] DISTINCT FROM and CASE x WHEN y use =. None of them is safe, even for built-in
+// types: when the search_path lists a schema before pg_catalog, an operator there with the same argument types wins.
+// So they are written out, a list as a typed array: a OPERATOR(pg_catalog.=) ANY ('{r,p}'::pg_catalog."char"[])
+// instead of a IN ('r', 'p'). The array is typed so pg_catalog.= matches it exactly, without an implicit cast.
 
 export const fromDatabase = async (
 	db: DB,
@@ -167,7 +168,10 @@ export const fromDatabase = async (
 		{ system: [], other: [] },
 	);
 
-	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name}'`).join(',');
+	// lists are compared with `OPERATOR(pg_catalog.=) ANY (<typed array>)` instead of `IN (...)`, see the top of the file
+	const filteredNamespacesArraySQL = filteredNamespaces.length > 0
+		? `ARRAY[${filteredNamespaces.map((ns) => `'${escapeSingleQuotes(ns.name)}'`).join(',')}]::pg_catalog.name[]`
+		: '';
 
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
 
@@ -189,7 +193,7 @@ export const fromDatabase = async (
 		partitionsCount: number; // number of direct partitions of a partitioned table
 	};
 	progressCallback('tables', 0, 'fetching');
-	const tablesList = filteredNamespacesStringForSQL
+	const tablesList = filteredNamespacesArraySQL
 		? await db
 			.query<TableListItem>(`
 			SELECT
@@ -223,10 +227,10 @@ export const fromDatabase = async (
 				pg_catalog.pg_class
 			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
 			WHERE
-				pg_class.relkind IN ('r', 'p', 'v', 'm')
+				pg_class.relkind OPERATOR(pg_catalog.=) ANY ('{r,p,v,m}'::pg_catalog."char"[])
 				-- partitions are fetched on demand
 				AND NOT pg_class.relispartition
-				AND pg_namespace.nspname IN (${filteredNamespacesStringForSQL})
+				AND pg_namespace.nspname OPERATOR(pg_catalog.=) ANY (${filteredNamespacesArraySQL})
 			ORDER BY pg_catalog.lower(pg_namespace.nspname), pg_catalog.lower(pg_class.relname);
 		`).then((rows) => {
 				queryCallback('tables', rows, null);
@@ -251,8 +255,10 @@ export const fromDatabase = async (
 	const viewsIds = viewsList.map((it) => it.oid);
 	const filteredViewsAndTableIds = [...filteredTableIds, ...viewsIds];
 
-	const filterByTableIds = filteredTableIds.length > 0 ? `(${filteredTableIds.join(',')})` : '';
-	const filterByTableAndViewIds = filteredViewsAndTableIds.length > 0 ? `(${filteredViewsAndTableIds.join(',')})` : '';
+	const filterByTableIds = filteredTableIds.length > 0 ? `'{${filteredTableIds.join(',')}}'::pg_catalog.oid[]` : '';
+	const filterByTableAndViewIds = filteredViewsAndTableIds.length > 0
+		? `'{${filteredViewsAndTableIds.join(',')}}'::pg_catalog.oid[]`
+		: '';
 
 	for (const table of filteredTables) {
 		tables.push({
@@ -275,7 +281,7 @@ export const fromDatabase = async (
 		value: string;
 	};
 	progressCallback('enums', 0, 'fetching');
-	const enumsQuery = filteredNamespacesStringForSQL
+	const enumsQuery = filteredNamespacesArraySQL
 		? db
 			.query<EnumListItem>(`SELECT
 				pg_type.oid as "oid",
@@ -290,7 +296,7 @@ export const fromDatabase = async (
 			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_type.typnamespace
 			WHERE
 				pg_type.typtype OPERATOR(pg_catalog.=) 'e'
-				AND nspname IN (${filteredNamespacesStringForSQL})
+				AND nspname OPERATOR(pg_catalog.=) ANY (${filteredNamespacesArraySQL})
 			ORDER BY pg_type.oid, pg_enum.enumsortorder
 		`).then((rows) => {
 				queryCallback('enums', rows, null);
@@ -313,7 +319,7 @@ export const fromDatabase = async (
 				pg_catalog.pg_get_expr(adbin, adrelid) as "expression"
 			FROM
 				pg_catalog.pg_attrdef
-			WHERE ${filterByTableIds ? ` adrelid IN ${filterByTableIds}` : 'false'}
+			WHERE ${filterByTableIds ? ` adrelid OPERATOR(pg_catalog.=) ANY (${filterByTableIds})` : 'false'}
 		`).then((rows) => {
 			queryCallback('defaults', rows, null);
 			return rows;
@@ -334,7 +340,7 @@ export const fromDatabase = async (
 		cacheSize: number;
 		isOwned: boolean; // true when a column owns the sequence: serial or identity
 	};
-	const sequencesQuery = filteredNamespacesStringForSQL
+	const sequencesQuery = filteredNamespacesArraySQL
 		? db.query<SequenceListItem>(`SELECT 
 			nspname as "schema",
 			relname as "name",
@@ -351,12 +357,12 @@ export const fromDatabase = async (
 					AND dep.objid OPERATOR(pg_catalog.=) seqrelid
 					AND dep.refclassid OPERATOR(pg_catalog.=) 'pg_catalog.pg_class'::pg_catalog.regclass
 					-- a - auto dependency of a serial, i - internal dependency of an identity column
-					AND dep.deptype IN ('a', 'i')
+					AND dep.deptype OPERATOR(pg_catalog.=) ANY ('{a,i}'::pg_catalog."char"[])
 			) as "isOwned"
 		FROM pg_catalog.pg_sequence
 		JOIN pg_catalog.pg_class ON pg_sequence.seqrelid OPERATOR(pg_catalog.=) pg_class.oid
 		JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
-		WHERE nspname IN (${filteredNamespacesStringForSQL})
+		WHERE nspname OPERATOR(pg_catalog.=) ANY (${filteredNamespacesArraySQL})
 		ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
 	`).then((rows) => {
 				queryCallback('sequences', rows, null);
@@ -447,7 +453,7 @@ export const fromDatabase = async (
 		type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'TRUNCATE' | 'REFERENCES' | 'TRIGGER';
 		isGrantable: boolean;
 	};
-	const privilegesQuery = filteredNamespacesStringForSQL
+	const privilegesQuery = filteredNamespacesArraySQL
 		? db.query<PrivilegeListItem>(`
 		SELECT
 			grantor,
@@ -455,11 +461,11 @@ export const fromDatabase = async (
 			table_schema AS "schema",
 			table_name AS "table",
 			privilege_type AS "type",
-			CASE is_grantable WHEN 'YES' THEN true ELSE false END AS "isGrantable"
+			is_grantable OPERATOR(pg_catalog.=) 'YES' AS "isGrantable"
 		FROM information_schema.role_table_grants
 		JOIN pg_catalog.pg_namespace ON nspname OPERATOR(pg_catalog.=) table_schema
 		JOIN pg_catalog.pg_class ON relnamespace OPERATOR(pg_catalog.=) pg_namespace.oid AND relname OPERATOR(pg_catalog.=) table_name
-		WHERE ${filterByTableIds ? ` pg_class.oid IN ${filterByTableIds}` : 'false'}
+		WHERE ${filterByTableIds ? ` pg_class.oid OPERATOR(pg_catalog.=) ANY (${filterByTableIds})` : 'false'}
 		ORDER BY
 			pg_catalog.lower(table_schema),
 			pg_catalog.lower(table_name),
@@ -496,8 +502,8 @@ export const fromDatabase = async (
 			conkey AS "columnsOrdinals"
 		FROM
 			pg_catalog.pg_constraint
-		WHERE ${filterByTableIds ? ` conrelid IN ${filterByTableIds}` : 'false'}
-			AND contype IN ('p', 'u', 'c')
+		WHERE ${filterByTableIds ? ` conrelid OPERATOR(pg_catalog.=) ANY (${filterByTableIds})` : 'false'}
+			AND contype OPERATOR(pg_catalog.=) ANY ('{p,u,c}'::pg_catalog."char"[])
 		ORDER BY conrelid, contype, pg_catalog.lower(conname);
   `).then((rows) => {
 		queryCallback('constraints', rows, null);
@@ -546,7 +552,7 @@ export const fromDatabase = async (
 		JOIN pg_catalog.pg_namespace nsp ON nsp.oid OPERATOR(pg_catalog.=) cls.relnamespace
 		JOIN pg_catalog.pg_class cls_to ON cls_to.oid OPERATOR(pg_catalog.=) con.confrelid
 		JOIN pg_catalog.pg_namespace nsp_to ON nsp_to.oid OPERATOR(pg_catalog.=) cls_to.relnamespace
-		WHERE ${filterByTableIds ? ` con.conrelid IN ${filterByTableIds}` : 'false'}
+		WHERE ${filterByTableIds ? ` con.conrelid OPERATOR(pg_catalog.=) ANY (${filterByTableIds})` : 'false'}
 			AND con.contype OPERATOR(pg_catalog.=) 'f'
 			-- a foreign key to a partitioned table also has a row for each partition, only the row of the parent is needed
 			AND NOT cls_to.relispartition
@@ -616,14 +622,14 @@ export const fromDatabase = async (
 				WHERE
 					d.classid OPERATOR(pg_catalog.=) 'pg_catalog.pg_class'::pg_catalog.regclass
 					AND d.refclassid OPERATOR(pg_catalog.=) 'pg_catalog.pg_class'::pg_catalog.regclass
-					AND d.deptype IN ('a', 'i')
-					AND ${filterByTableIds ? `d.refobjid IN ${filterByTableIds}` : 'false'}
+					AND d.deptype OPERATOR(pg_catalog.=) ANY ('{a,i}'::pg_catalog."char"[])
+					AND ${filterByTableIds ? `d.refobjid OPERATOR(pg_catalog.=) ANY (${filterByTableIds})` : 'false'}
 				ORDER BY d.refobjid, d.refobjsubid, (d.deptype OPERATOR(pg_catalog.=) 'i') DESC, d.objid
 			) seq
 			ON seq.refobjid OPERATOR(pg_catalog.=) attr.attrelid
 				AND seq.refobjsubid OPERATOR(pg_catalog.=) attr.attnum
 		WHERE
-			${filterByTableAndViewIds ? ` attrelid IN ${filterByTableAndViewIds}` : 'false'}
+			${filterByTableAndViewIds ? ` attrelid OPERATOR(pg_catalog.=) ANY (${filterByTableAndViewIds})` : 'false'}
 			AND attnum OPERATOR(pg_catalog.>) 0
 			AND attisdropped OPERATOR(pg_catalog.=) FALSE
 		ORDER BY attnum;
@@ -996,8 +1002,10 @@ export const fromDatabase = async (
           pg_index.indexrelid OPERATOR(pg_catalog.=) pg_class.oid
       ) metadata ON TRUE
       WHERE
-        relkind OPERATOR(pg_catalog.=) ANY (ARRAY['i', 'I'])
-		AND ${filterByTableIds ? `metadata."tableId" IN ${filterByTableIds}` : 'false'}
+        relkind OPERATOR(pg_catalog.=) ANY ('{i,I}'::pg_catalog."char"[])
+		AND ${
+		filterByTableIds ? `metadata."tableId"::pg_catalog.oid OPERATOR(pg_catalog.=) ANY (${filterByTableIds})` : 'false'
+	}
 	  ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
     `).then((rows) => {
 		queryCallback('indexes', rows, null);
@@ -1208,8 +1216,8 @@ export const fromDatabase = async (
 	progressCallback('views', views.length, 'done');
 
 	const { procedures, unsupportedProcedures, definitions: procedureDefinitions } =
-		proceduresEnabled && options.procedures !== false && filteredNamespacesStringForSQL
-			? await introspectProcedures(db, filteredNamespacesStringForSQL)
+		proceduresEnabled && options.procedures !== false && filteredNamespacesArraySQL
+			? await introspectProcedures(db, filteredNamespacesArraySQL)
 			: { procedures: [], unsupportedProcedures: [], definitions: {} };
 
 	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
@@ -1265,20 +1273,20 @@ export const fromDatabase = async (
  */
 const introspectProcedures = async (
 	db: DB,
-	namespacesSQL: string,
+	namespacesArraySQL: string,
 ): Promise<
 	{ procedures: Procedure[]; unsupportedProcedures: UnsupportedProcedure[]; definitions: Record<string, string> }
 > => {
 	const rows = await db.query<
 		{ schema: string; name: string; args: string; body: string; language: string; definition: string }
 	>(`
-		SELECT n.nspname AS "schema", p.proname AS "name", pg_get_function_arguments(p.oid) AS "args",
-			p.prosrc AS "body", l.lanname AS "language", pg_get_functiondef(p.oid) AS "definition"
+		SELECT n.nspname AS "schema", p.proname AS "name", pg_catalog.pg_get_function_arguments(p.oid) AS "args",
+			p.prosrc AS "body", l.lanname AS "language", pg_catalog.pg_get_functiondef(p.oid) AS "definition"
 		FROM pg_catalog.pg_proc p
-		JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-		JOIN pg_catalog.pg_language l ON l.oid = p.prolang
-		WHERE p.prokind = 'p' AND n.nspname IN (${namespacesSQL})
-		ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid);
+		JOIN pg_catalog.pg_namespace n ON n.oid OPERATOR(pg_catalog.=) p.pronamespace
+		JOIN pg_catalog.pg_language l ON l.oid OPERATOR(pg_catalog.=) p.prolang
+		WHERE p.prokind OPERATOR(pg_catalog.=) 'p' AND n.nspname OPERATOR(pg_catalog.=) ANY (${namespacesArraySQL})
+		ORDER BY n.nspname, p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid);
 	`);
 	const overloads = new Map<string, number>();
 	for (const r of rows) overloads.set(`${r.schema}.${r.name}`, (overloads.get(`${r.schema}.${r.name}`) ?? 0) + 1);

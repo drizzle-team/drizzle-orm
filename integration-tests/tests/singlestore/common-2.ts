@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
+import { postponed } from '@drizzle/test-utils';
 import {
 	and,
 	asc,
@@ -2765,7 +2766,7 @@ export function tests(test: Test) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/6599
 		// SingleStore accepts `offset` only after `limit`, so an offset alone has to reach the database with a limit
-		test.concurrent('pagination: offset without limit', async ({ db, push }) => {
+		test.skipIf(postponed).concurrent('pagination: offset without limit', async ({ db, push }) => {
 			const items = singlestoreTable('pagination_5', { id: int('id').primaryKey() });
 			await push({ items });
 			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);

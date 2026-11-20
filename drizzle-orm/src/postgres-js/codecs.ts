@@ -40,9 +40,15 @@ export const postgresJsCodecs = (client: Sql) => {
 	// `postgres.js` 4 serializes array params element by element, through the element type's serializer (JSON-encoding
 	// a prebuilt array literal), recursing into nested arrays unless an element is a typed parameter. 3 sends a prebuilt
 	// literal as is and infers the param type from typed elements - so each version gets its own form
-	const jsonParamArray = typeof (client as { batch?: unknown }).batch === 'function'
-		? arrayCompatNormalizeInput((v) => client.json(v as any))
-		: arrayCompatNormalizeInput((v) => JSON.stringify(v), true);
+	const isV4 = typeof (client as { batch?: unknown }).batch === 'function';
+	const jsonParamArray = (param: (value: unknown) => unknown) =>
+		isV4 ? arrayCompatNormalizeInput(param) : arrayCompatNormalizeInput((v) => JSON.stringify(v), true);
+
+	// `client.json` types the param as `jsonb` (oid 3802). Postgres parses such a param as `jsonb` before casting it to
+	// `json`, which sorts the keys and drops repeated ones, so `json` params are typed as `json` (oid 114) instead and
+	// the column keeps the text `JSON.stringify` makes
+	const jsonParam = (value: unknown) => client.typed(value, 114);
+	const jsonbParam = (value: unknown) => client.json(value as any);
 
 	return refineGenericPgCodecs({
 		interval: {
@@ -71,12 +77,12 @@ export const postgresJsCodecs = (client: Sql) => {
 		},
 		macaddr8: { normalizeParamArray: (v) => makePgArray(v) },
 		json: {
-			normalizeParam: (value) => client.json(value),
-			normalizeParamArray: jsonParamArray,
+			normalizeParam: jsonParam,
+			normalizeParamArray: jsonParamArray(jsonParam),
 		},
 		jsonb: {
-			normalizeParam: (value) => client.json(value),
-			normalizeParamArray: jsonParamArray,
+			normalizeParam: jsonbParam,
+			normalizeParamArray: jsonParamArray(jsonbParam),
 		},
 
 		bit: { normalizeParamArray: (v) => makePgArray(v) },
