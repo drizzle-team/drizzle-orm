@@ -252,6 +252,7 @@ describe('[selectDistinct] read replicas postgres', () => {
 });
 
 describe('[with] read replicas postgres', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/4185
 	it('primary with', () => {
 		const primaryDb = drizzle.mock();
 		const read1 = drizzle.mock();

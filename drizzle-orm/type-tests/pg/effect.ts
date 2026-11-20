@@ -185,6 +185,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6403
 {
 	const txResult = db.transaction((tx) => tx.select().from(users));
 	type TxResultType = typeof txResult;

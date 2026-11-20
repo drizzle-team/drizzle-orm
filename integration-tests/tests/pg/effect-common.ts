@@ -5541,6 +5541,7 @@ export const runCommonEffectPgTests = <TClient = never>(opts: RunCommonEffectPgT
 				}]);
 			}));
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6162
 		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		it.effect('Query error params', () =>
 			Effect.gen(function*() {

@@ -414,6 +414,7 @@ test('refine view - select', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6412
 test('all data types', (t) => {
 	enum Letters {
 		A = 'a',

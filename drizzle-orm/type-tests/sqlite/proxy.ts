@@ -10,6 +10,8 @@ interface ProxyRunResult {
 	lastInsertRowid: bigint;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3394
+// https://github.com/drizzle-team/drizzle-orm/issues/5461
 const db = drizzle({
 	all: async () => [],
 	get: async () => undefined,

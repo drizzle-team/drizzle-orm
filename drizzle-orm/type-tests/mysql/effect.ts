@@ -171,6 +171,7 @@ declare const db: EffectMysql2Database<Record<string, never>>;
 	Expect<Equal<DeleteAllEffect, Effect.Effect<ResultSetHeader, EffectDrizzleQueryError, never>>>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6403
 {
 	const txResult = db.transaction((tx) => tx.select().from(users));
 	type TxResultType = typeof txResult;

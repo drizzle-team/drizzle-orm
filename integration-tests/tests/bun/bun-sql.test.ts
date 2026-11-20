@@ -542,6 +542,7 @@ test('table config: primary keys name', async () => {
 	expect(tableConfig.primaryKeys[0]!.getName()).toBe('custom_pk');
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/5779
 test('select all fields', async () => {
 	const now = Date.now();
 
