@@ -469,7 +469,7 @@ export class AuroraClient {
 	}
 
 	/** The column plan for a result set: the declared `shape` when given, else the Data API's own
-	 *  columnMetadata. Mirrors http/neon-http — a shape's 'unknown' (oid 0) columns resolve positionally
+	 *  columnMetadata. Mirrors http and neon-http — a shape's 'unknown' (oid 0) columns resolve positionally
 	 *  against the reported types first, then arrays get tagged and `temporal` is applied. The Data API
 	 *  always sends TEXT-shaped values, so a shape's binary format request is downgraded. */
 	private resolveCols(cols: CodegenCol[]): CodegenCol[] {

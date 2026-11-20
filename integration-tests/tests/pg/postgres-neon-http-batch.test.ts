@@ -2,7 +2,7 @@ import { defineRelations, DrizzleQueryError, eq, inArray, sql } from 'drizzle-or
 import { relations as oldRels } from 'drizzle-orm/_relations';
 import { type AnyPgColumn, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import type { PostgresHttpQueryResult } from 'drizzle-orm/postgres/http';
-import { drizzle, type PostgresNeonHttpDatabase } from 'drizzle-orm/postgres/http/neon';
+import { drizzle, type PostgresNeonHttpDatabase } from 'drizzle-orm/postgres/neon-http';
 import { describe, expect, expectTypeOf, test as base } from 'vitest';
 import { _push, preparePostgresNeonHttpClient } from './instrumentation';
 

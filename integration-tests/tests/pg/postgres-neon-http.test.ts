@@ -1,8 +1,8 @@
 import { createPool as createNeonHttpClient } from '@drizzle-team/postgres/neon-http';
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { migrate } from 'drizzle-orm/postgres/http/migrator';
-import { drizzle as drizzleNeonHttp, type PostgresNeonHttpDatabase } from 'drizzle-orm/postgres/http/neon';
+import { drizzle as drizzleNeonHttp, type PostgresNeonHttpDatabase } from 'drizzle-orm/postgres/neon-http';
+import { migrate } from 'drizzle-orm/postgres/neon-http/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';

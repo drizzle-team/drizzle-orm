@@ -42,7 +42,7 @@ import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres';
 import { drizzle as drizzlePostgresjs } from 'drizzle-orm/postgres-js';
 import { drizzle as drizzleAurora } from 'drizzle-orm/postgres/aurora';
 import { drizzle as drizzleHttp } from 'drizzle-orm/postgres/http';
-import { drizzle as drizzlePostgresNeonHttp } from 'drizzle-orm/postgres/http/neon';
+import { drizzle as drizzlePostgresNeonHttp } from 'drizzle-orm/postgres/neon-http';
 import { drizzle as drizzlePostgresNeonWs } from 'drizzle-orm/postgres/neon-ws';
 import { drizzle as drizzlePostgresPglite } from 'drizzle-orm/postgres/pglite';
 import { Client as ClientNodePostgres } from 'pg';

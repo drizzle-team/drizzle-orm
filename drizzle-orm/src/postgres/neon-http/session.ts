@@ -21,7 +21,7 @@ import {
 	type PostgresHttpQueryResultHKT,
 	type PostgresHttpRequestOptions,
 	type PostgresHttpSessionOptions,
-} from './session.ts';
+} from '../http/session.ts';
 
 export class PostgresNeonHttpSession<
 	TRelations extends AnyRelations,
