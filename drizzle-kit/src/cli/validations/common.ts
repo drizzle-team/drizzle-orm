@@ -30,16 +30,19 @@ export type UniqueArrayOfUnion<TUnion, TArray extends TUnion[]> = Exclude<
 export const assertCollisions = <
 	T extends Record<string, unknown>,
 	TKeys extends (keyof T)[],
-	TRemainingKeys extends Exclude<keyof T, TKeys[number] | 'config'>[],
+	TRemainingKeys extends Exclude<keyof T, TKeys[number] | 'config' | 'envFile'>[],
 	Exhaustive extends TRemainingKeys,
 	UNIQ extends UniqueArrayOfUnion<TRemainingKeys[number], Exhaustive>,
 >(
 	command: Commands,
 	options: T,
-	whitelist: Exclude<TKeys, 'config'>,
+	whitelist: Exclude<TKeys, 'config' | 'envFile'>,
 	remainingKeys: UniqueArrayOfUnion<TRemainingKeys[number], Exhaustive>,
 ): IsUnion<LastTupleElement<UNIQ>> extends false ? 'cli' | 'config' : TKeys => {
-	const { config, ...rest } = options;
+	// envFile is intercepted by ./env-loader before brocli parses, so it is
+	// always undefined here and is excluded from the collision check the same
+	// way config is.
+	const { config, envFile, ...rest } = options;
 
 	let atLeastOneParam = false;
 	for (const key of Object.keys(rest)) {
