@@ -430,7 +430,7 @@ const column = (
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		let out = `${casing(name)}: smallint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue
+		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
 		return out;
@@ -441,7 +441,7 @@ const column = (
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		let out = `${casing(name)}: mediumint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue
+		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
 		return out;
@@ -453,7 +453,7 @@ const column = (
 			isUnsigned ? ', unsigned: true' : ''
 		} })`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue
+		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
 			: '';
 		return out;
