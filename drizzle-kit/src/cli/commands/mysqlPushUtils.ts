@@ -168,25 +168,36 @@ export const logSuggestionsAndReturn = async (
 				shouldAskForApprove = true;
 			}
 		} else if (statement.type === 'alter_table_alter_column_set_type') {
-			const res = await db.query(
-				`select count(*) as count from \`${statement.tableName}\``,
-			);
-			const count = Number(res[0].count);
-			if (count > 0) {
-				infoToPrint.push(
-					`· You're about to change ${
-						chalk.underline(
-							statement.columnName,
-						)
-					} column type from ${
-						chalk.underline(
-							statement.oldDataType,
-						)
-					} to ${chalk.underline(statement.newDataType)} with ${count} items`,
+			if (
+				statement.oldDataType.startsWith('enum(')
+				&& statement.newDataType.startsWith('enum(')
+			) {
+				// Enum-to-enum changes are handled safely by ALTER TABLE MODIFY COLUMN.
+				// MySQL will update the enum definition in place without data loss for
+				// added or reordered values. If values were removed, MySQL will reject
+				// the change in strict mode or convert affected rows to '' in non-strict
+				// mode — either way, truncation is not appropriate here.
+			} else {
+				const res = await db.query(
+					`select count(*) as count from \`${statement.tableName}\``,
 				);
-				statementsToExecute.push(`truncate table ${statement.tableName};`);
-				tablesToTruncate.push(statement.tableName);
-				shouldAskForApprove = true;
+				const count = Number(res[0].count);
+				if (count > 0) {
+					infoToPrint.push(
+						`· You're about to change ${
+							chalk.underline(
+								statement.columnName,
+							)
+						} column type from ${
+							chalk.underline(
+								statement.oldDataType,
+							)
+						} to ${chalk.underline(statement.newDataType)} with ${count} items`,
+					);
+					statementsToExecute.push(`truncate table ${statement.tableName};`);
+					tablesToTruncate.push(statement.tableName);
+					shouldAskForApprove = true;
+				}
 			}
 		} else if (statement.type === 'alter_table_alter_column_drop_default') {
 			if (statement.columnNotNull) {
