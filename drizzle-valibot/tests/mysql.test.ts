@@ -25,11 +25,12 @@ const textSchema = v.pipe(v.string(), v.maxLength(CONSTANTS.INT16_UNSIGNED_MAX a
 test('table - select', (t) => {
 	const table = mysqlTable('test', {
 		id: serial().primaryKey(),
+		generated: int().generatedAlwaysAs(1).notNull(),
 		name: text().notNull(),
 	});
 
 	const result = createSelectSchema(table);
-	const expected = v.object({ id: serialNumberModeSchema, name: textSchema });
+	const expected = v.object({ id: serialNumberModeSchema, generated: intSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
