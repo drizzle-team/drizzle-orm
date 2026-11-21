@@ -78,6 +78,11 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 			: isChunk(subquery, sourceKind, chunkKinds.view)
 			? subquery[ViewBaseConfig].selectedFields
 			: subquery;
+
+		if (!columns.hasOwnProperty(prop)) {
+			return subquery[prop as keyof typeof subquery];
+		}
+
 		const value: unknown = columns[prop as keyof typeof columns];
 
 		// value === undefined check must stay for actual selection fields named `getSQL`
