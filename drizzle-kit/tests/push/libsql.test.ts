@@ -185,7 +185,7 @@ test('added, dropped index', async (t) => {
 
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements[0]).toBe(
-		`DROP INDEX \`customers_address_unique\`;`,
+		`DROP INDEX IF EXISTS \`customers_address_unique\`;`,
 	);
 	expect(sqlStatements[1]).toBe(
 		`CREATE UNIQUE INDEX \`customers_is_confirmed_unique\` ON \`customers\` (\`is_confirmed\`);`,
@@ -963,13 +963,13 @@ test('set not null with index', async (t) => {
 
 	expect(sqlStatements.length).toBe(3);
 	expect(sqlStatements[0]).toBe(
-		`DROP INDEX "users_name_index";`,
+		`DROP INDEX IF EXISTS "users_name_index";`,
 	);
 	expect(sqlStatements[1]).toBe(
 		`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text NOT NULL;`,
 	);
 	expect(sqlStatements[2]).toBe(
-		`CREATE INDEX \`users_name_index\` ON \`users\` (\`name\`);`,
+		`CREATE INDEX IF NOT EXISTS \`users_name_index\` ON \`users\` (\`name\`);`,
 	);
 	expect(columnsToRemove!.length).toBe(0), expect(infoToPrint!.length).toBe(0);
 	expect(shouldAskForApprove).toBe(false);
@@ -1035,21 +1035,88 @@ test('drop not null with two indexes', async (t) => {
 
 	expect(sqlStatements.length).toBe(5);
 	expect(sqlStatements[0]).toBe(
-		`DROP INDEX "users_name_unique";`,
+		`DROP INDEX IF EXISTS "users_name_unique";`,
 	);
 	expect(sqlStatements[1]).toBe(
-		`DROP INDEX "users_age_index";`,
+		`DROP INDEX IF EXISTS "users_age_index";`,
 	);
 	expect(sqlStatements[2]).toBe(
 		`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text;`,
 	);
 	expect(sqlStatements[3]).toBe(
-		`CREATE UNIQUE INDEX \`users_name_unique\` ON \`users\` (\`name\`);`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS \`users_name_unique\` ON \`users\` (\`name\`);`,
 	);
 	expect(sqlStatements[4]).toBe(
-		`CREATE INDEX \`users_age_index\` ON \`users\` (\`age\`);`,
+		`CREATE INDEX IF NOT EXISTS \`users_age_index\` ON \`users\` (\`age\`);`,
 	);
 	expect(columnsToRemove!.length).toBe(0), expect(infoToPrint!.length).toBe(0);
+	expect(shouldAskForApprove).toBe(false);
+	expect(tablesToRemove!.length).toBe(0);
+	expect(tablesToTruncate!.length).toBe(0);
+});
+
+test('set not null on two tables with indexes in one push (#5564)', async (t) => {
+	const turso = createClient({
+		url: ':memory:',
+	});
+
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: text('id').primaryKey(),
+			email: text('email').notNull(),
+			name: text('name'),
+		}, (table) => ({
+			emailIdx: uniqueIndex('users_email_idx').on(table.email),
+		})),
+		projects: sqliteTable('projects', {
+			id: text('id').primaryKey(),
+			ownerId: text('owner_id').notNull(),
+			title: text('title'),
+		}, (table) => ({
+			ownerIdx: index('projects_owner_idx').on(table.ownerId),
+		})),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: text('id').primaryKey(),
+			email: text('email').notNull(),
+			name: text('name').notNull(),
+		}, (table) => ({
+			emailIdx: uniqueIndex('users_email_idx').on(table.email),
+		})),
+		projects: sqliteTable('projects', {
+			id: text('id').primaryKey(),
+			ownerId: text('owner_id').notNull(),
+			title: text('title').notNull(),
+		}, (table) => ({
+			ownerIdx: index('projects_owner_idx').on(table.ownerId),
+		})),
+	};
+
+	const {
+		statements,
+		sqlStatements,
+		columnsToRemove,
+		infoToPrint,
+		shouldAskForApprove,
+		tablesToRemove,
+		tablesToTruncate,
+	} = await diffTestSchemasPushLibSQL(
+		turso,
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements!.length).toBe(2);
+	expect(statements!.every((s) => s.type === 'alter_table_alter_column_set_notnull')).toBe(true);
+
+	const dropLines = sqlStatements.filter((s) => s.startsWith('DROP INDEX'));
+	expect(dropLines.every((s) => s.includes('IF EXISTS'))).toBe(true);
+
+	expect(columnsToRemove!.length).toBe(0);
+	expect(infoToPrint!.length).toBe(0);
 	expect(shouldAskForApprove).toBe(false);
 	expect(tablesToRemove!.length).toBe(0);
 	expect(tablesToTruncate!.length).toBe(0);
