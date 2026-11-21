@@ -28,6 +28,7 @@ import {
 	defaultForColumn,
 	isSerialExpression,
 	isSystemNamespace,
+	parseCheckDefinition,
 	parseOnType,
 	parseViewDefinition,
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
@@ -936,7 +937,7 @@ export const fromDatabase = async (
 			schema: table.schema,
 			table: table.name,
 			name: check.name,
-			value: check.definition.startsWith('CHECK (') ? check.definition.slice(7, -1) : check.definition,
+			value: parseCheckDefinition(check.definition),
 		});
 	}
 	progressCallback('checks', checks.length, 'done');
