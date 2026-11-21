@@ -196,6 +196,38 @@ export function tests() {
 			expect(spyInvalidate).toHaveBeenCalledTimes(1);
 		});
 
+		test('write: db query resolves before onMutate (no concurrent cache race)', async (ctx) => {
+			const { db } = ctx.cachedPg;
+
+			// Track invocation order to verify the DB write commits before cache invalidation.
+			const callOrder: string[] = [];
+
+			// @ts-expect-error
+			vi.spyOn(db.$cache, 'onMutate').mockImplementation(async () => {
+				callOrder.push('onMutate');
+			});
+
+			// Patch the underlying session.query to record when the DB write resolves.
+			const session = (db as any).session;
+			const originalQuery = session?.query?.bind(session);
+			if (originalQuery) {
+				vi.spyOn(session, 'query').mockImplementation(async (...args: any[]) => {
+					callOrder.push('query:start');
+					const result = await originalQuery(...args);
+					callOrder.push('query:end');
+					return result;
+				});
+			}
+
+			await db.insert(usersTable).values({ name: 'Jane' });
+
+			const queryEndIdx = callOrder.indexOf('query:end');
+			const onMutateIdx = callOrder.indexOf('onMutate');
+			expect(queryEndIdx).toBeGreaterThanOrEqual(0);
+			expect(onMutateIdx).toBeGreaterThanOrEqual(0);
+			expect(queryEndIdx).toBeLessThan(onMutateIdx);
+		});
+
 		test('default global config + enable cache on select + disable invalidate: get, put', async (ctx) => {
 			const { db } = ctx.cachedPg;
 
