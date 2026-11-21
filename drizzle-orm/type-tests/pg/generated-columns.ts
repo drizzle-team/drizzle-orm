@@ -220,3 +220,161 @@ const usersSeq = pgTable(
 		>
 	>();
 }
+
+const usersWithVirtual = pgTable(
+	'users',
+	{
+		id: serial('id').primaryKey(),
+		firstName: varchar('first_name', { length: 255 }),
+		lastName: varchar('last_name', { length: 255 }),
+		email: text('email').notNull(),
+		fullName: text('full_name').generatedAlwaysAs(
+			sql`concat_ws(first_name, ' ', last_name)`,
+			{ mode: 'virtual' },
+		).notNull(),
+		upperName: text('upper_name').generatedAlwaysAs(
+			sql` case when first_name is null then null else upper(first_name) end `,
+			{ mode: 'virtual' },
+		),
+	},
+);
+
+{
+	type User = typeof usersWithVirtual.$inferSelect;
+	type NewUser = typeof usersWithVirtual.$inferInsert;
+
+	Expect<
+		Equal<
+			{
+				id: number;
+				firstName: string | null;
+				lastName: string | null;
+				email: string;
+				fullName: string;
+				upperName: string | null;
+			},
+			User
+		>
+	>();
+
+	Expect<
+		Equal<
+			{
+				email: string;
+				id?: number | undefined;
+				firstName?: string | null | undefined;
+				lastName?: string | null | undefined;
+			},
+			NewUser
+		>
+	>();
+}
+
+{
+	type User = InferSelectModel<typeof usersWithVirtual>;
+	type NewUser = InferInsertModel<typeof usersWithVirtual>;
+
+	Expect<
+		Equal<
+			{
+				id: number;
+				firstName: string | null;
+				lastName: string | null;
+				email: string;
+				fullName: string;
+				upperName: string | null;
+			},
+			User
+		>
+	>();
+
+	Expect<
+		Equal<
+			{
+				email: string;
+				id?: number | undefined;
+				firstName?: string | null | undefined;
+				lastName?: string | null | undefined;
+			},
+			NewUser
+		>
+	>();
+}
+
+{
+	const dbUsers = await db.select().from(usersWithVirtual);
+
+	Expect<
+		Equal<
+			{
+				id: number;
+				firstName: string | null;
+				lastName: string | null;
+				email: string;
+				fullName: string;
+				upperName: string | null;
+			}[],
+			typeof dbUsers
+		>
+	>();
+}
+
+{
+	const db = drizzle({} as any, { schema: { users: usersWithVirtual } });
+
+	const dbUser = await db.query.users.findFirst();
+
+	Expect<
+		Equal<
+			{
+				id: number;
+				firstName: string | null;
+				lastName: string | null;
+				email: string;
+				fullName: string;
+				upperName: string | null;
+			} | undefined,
+			typeof dbUser
+		>
+	>();
+}
+
+{
+	const db = drizzle({} as any, { schema: { users: usersWithVirtual } });
+
+	const dbUser = await db.query.users.findMany();
+
+	Expect<
+		Equal<
+			{
+				id: number;
+				firstName: string | null;
+				lastName: string | null;
+				email: string;
+				fullName: string;
+				upperName: string | null;
+			}[],
+			typeof dbUser
+		>
+	>();
+}
+
+{
+	// @ts-expect-error - Can't use the fullName because it's a generated column
+	await db.insert(usersWithVirtual).values({
+		firstName: 'test',
+		lastName: 'test',
+		email: 'test',
+		fullName: 'test',
+	});
+}
+
+{
+	await db.update(usersWithVirtual).set({
+		firstName: 'test',
+		lastName: 'test',
+		email: 'test',
+		// @ts-expect-error - Can't use the fullName because it's a generated column
+		fullName: 'test',
+	});
+}
