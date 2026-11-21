@@ -63,6 +63,7 @@ export class QueryBuilder {
 				fields: fields ?? undefined,
 				session: undefined,
 				dialect: self.getDialect(),
+				withList: queries,
 				distinct: true,
 			});
 		}
@@ -80,6 +81,7 @@ export class QueryBuilder {
 				fields: fields ?? undefined,
 				session: undefined,
 				dialect: self.getDialect(),
+				withList: queries,
 				distinct: { on },
 			});
 		}
