@@ -2307,6 +2307,7 @@ export const introspectPgToFile = async (
 	schemas: string[] = ['public'],
 	entities?: Entities,
 	casing?: CasingType | undefined,
+	omitSuffixForSchema?: string,
 ) => {
 	// put in db
 	const { sqlStatements } = await applyPgDiffs(initSchema, casing);
@@ -2341,7 +2342,7 @@ export const introspectPgToFile = async (
 	const validatedCur = pgSchema.parse(initSch);
 
 	// write to ts file
-	const file = schemaToTypeScript(introspectedSchema, 'camel');
+	const file = schemaToTypeScript(introspectedSchema, 'camel', omitSuffixForSchema);
 
 	fs.writeFileSync(`tests/introspect/postgres/${testName}.ts`, file.file);
 
@@ -2408,6 +2409,7 @@ export const introspectGelToFile = async (
 	schemas: string[] = ['public'],
 	entities?: Entities,
 	casing?: CasingType | undefined,
+	omitSuffixForSchema?: string
 ) => {
 	// introspect to schema
 	const introspectedSchema = await fromGelDatabase(
@@ -2423,7 +2425,7 @@ export const introspectGelToFile = async (
 	);
 
 	// write to ts file
-	const file = schemaToTypeScriptGel(introspectedSchema, 'camel');
+	const file = schemaToTypeScriptGel(introspectedSchema, 'camel', omitSuffixForSchema);
 
 	const path = `tests/introspect/gel/${testName}.ts`;
 	fs.writeFileSync(path, file.file);
