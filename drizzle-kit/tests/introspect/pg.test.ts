@@ -408,6 +408,30 @@ test('introspect enum from different schema', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('introspect enum referenced from non-filtered schema', async () => {
+	const client = new PGlite();
+
+	const schema2 = pgSchema('schema2');
+	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
+	const schema = {
+		schema2,
+		myEnum,
+		providers: schema2.table('providers', {
+			authType: myEnum('auth_type'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-enum-referenced-from-non-filtered-schema',
+		['schema2'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('introspect enum with same names across different schema', async () => {
 	const client = new PGlite();
 

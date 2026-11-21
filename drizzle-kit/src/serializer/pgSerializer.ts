@@ -1069,6 +1069,7 @@ WHERE
 	}
 
 	const whereEnums = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
+	const whereReferencedEnums = schemaFilters.map((t) => `ns.nspname = '${t}'`).join(' or ');
 
 	const allEnums = await db.query(
 		`select n.nspname as enum_schema,
@@ -1078,7 +1079,18 @@ WHERE
   from pg_type t
   join pg_enum e on t.oid = e.enumtypid
   join pg_catalog.pg_namespace n ON n.oid = t.typnamespace
-  ${whereEnums === '' ? '' : ` WHERE ${whereEnums}`}
+  ${
+			whereEnums === '' ? '' : ` WHERE (${whereEnums}) OR t.oid IN (
+    SELECT a.atttypid
+    FROM pg_attribute a
+    JOIN pg_class cls ON cls.oid = a.attrelid
+    JOIN pg_namespace ns ON ns.oid = cls.relnamespace
+    WHERE cls.relkind IN ('r', 'v', 'm')
+      AND a.attnum > 0
+      AND NOT a.attisdropped
+      AND (${whereReferencedEnums})
+  )`
+		}
   order by enum_schema, enum_name, sort_order;`,
 	);
 
