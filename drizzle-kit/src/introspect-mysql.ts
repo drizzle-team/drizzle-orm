@@ -175,6 +175,7 @@ export const schemaToTypeScript = (
 					patched = patched.startsWith('datetime(') ? 'datetime' : patched;
 					patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
 					patched = patched.startsWith('int(') ? 'int' : patched;
+					patched = patched.startsWith('tinyint(') ? 'tinyint' : patched;
 					patched = patched.startsWith('double(') ? 'double' : patched;
 					patched = patched.startsWith('float(') ? 'float' : patched;
 					patched = patched.startsWith('int unsigned') ? 'int' : patched;
@@ -209,6 +210,7 @@ export const schemaToTypeScript = (
 				patched = patched.startsWith('datetime(') ? 'datetime' : patched;
 				patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
 				patched = patched.startsWith('int(') ? 'int' : patched;
+				patched = patched.startsWith('tinyint(') ? 'tinyint' : patched;
 				patched = patched.startsWith('double(') ? 'double' : patched;
 				patched = patched.startsWith('float(') ? 'float' : patched;
 				patched = patched.startsWith('int unsigned') ? 'int' : patched;
@@ -667,9 +669,13 @@ const column = (
 		} })`;
 
 		const mappedDefaultValue = mapColumnDefault(defaultValue, isExpression);
-		out += defaultValue
-			? `.default(${isExpression ? mappedDefaultValue : unescapeSingleQuotes(mappedDefaultValue, true)})`
-			: '';
+        if (defaultValue === "''") {
+            out += ".default('')";
+        } else {
+            out += defaultValue
+                ? `.default(${isExpression ? mappedDefaultValue : unescapeSingleQuotes(mappedDefaultValue, true)})`
+                : '';
+        }
 		return out;
 	}
 
