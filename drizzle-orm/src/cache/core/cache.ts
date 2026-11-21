@@ -5,6 +5,9 @@ import type { CacheConfig } from './types.ts';
 export abstract class Cache {
 	static readonly [entityKind]: string = 'Cache';
 
+	/** @internal */
+	inFlightQueries: Map<string, Promise<unknown>> = new Map();
+
 	abstract strategy(): 'explicit' | 'all';
 
 	/**
