@@ -143,6 +143,7 @@ import { SingleStoreSchema, SingleStoreSchemaSquashed, SingleStoreSquasher } fro
 import { SQLiteSchema, SQLiteSchemaSquashed, SQLiteSquasher, View as SqliteView } from './serializer/sqliteSchema';
 import { libSQLCombineStatements, singleStoreCombineStatements, sqliteCombineStatements } from './statementCombiner';
 import { copy, prepareMigrationMeta } from './utils';
+import { sortCreateViewStatements, sortDropViewStatements } from './viewDeps';
 
 const makeChanged = <T extends ZodTypeAny>(schema: T) => {
 	return object({
@@ -1966,7 +1967,7 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonEnableRLSStatements);
 	jsonStatements.push(...jsonDisableRLSStatements);
-	jsonStatements.push(...dropViews);
+	jsonStatements.push(...sortDropViewStatements(dropViews, json1.views, 'pg'));
 	jsonStatements.push(...renameViews);
 	jsonStatements.push(...alterViews);
 
@@ -2005,7 +2006,7 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
-	jsonStatements.push(...createViews);
+	jsonStatements.push(...sortCreateViewStatements(createViews, 'pg'));
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonDropPoliciesStatements);
@@ -2663,7 +2664,7 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...jsonRenameTables);
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
-	jsonStatements.push(...dropViews);
+	jsonStatements.push(...sortDropViewStatements(dropViews, json1.views, 'mysql'));
 	jsonStatements.push(...renameViews);
 	jsonStatements.push(...alterViews);
 
@@ -2697,7 +2698,7 @@ export const applyMysqlSnapshotsDiff = async (
 	// jsonStatements.push(...jsonAddedCompositePKs);
 	jsonStatements.push(...jsonAlteredCompositePKs);
 
-	jsonStatements.push(...createViews);
+	jsonStatements.push(...sortCreateViewStatements(createViews, 'mysql'));
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
@@ -3765,8 +3766,8 @@ export const applySqliteSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
-	jsonStatements.push(...dropViews);
-	jsonStatements.push(...createViews);
+	jsonStatements.push(...sortDropViewStatements(dropViews, json1.views, 'sqlite'));
+	jsonStatements.push(...sortCreateViewStatements(createViews, 'sqlite'));
 
 	const combinedJsonStatements = sqliteCombineStatements(jsonStatements, json2, action);
 	const sqlStatements = fromJson(combinedJsonStatements, 'sqlite');
@@ -4293,8 +4294,8 @@ export const applyLibSQLSnapshotsDiff = async (
 	jsonStatements.push(...jsonCreateIndexesForAllAlteredTables);
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 
-	jsonStatements.push(...dropViews);
-	jsonStatements.push(...createViews);
+	jsonStatements.push(...sortDropViewStatements(dropViews, json1.views, 'sqlite'));
+	jsonStatements.push(...sortCreateViewStatements(createViews, 'sqlite'));
 
 	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
 
