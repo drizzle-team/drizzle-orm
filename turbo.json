@@ -70,6 +70,27 @@
 			],
 			"outputLogs": "new-only"
 		},
+		"drizzle-vine#build": {
+			"dependsOn": [
+				"drizzle-orm#build"
+			],
+			"inputs": [
+				"src/**/*.ts",
+				"package.json",
+				"README.md",
+				"../README.md",
+				"tsconfig.json",
+				"tsconfig.*.json",
+				"rollup.config.ts",
+				"scripts/build.ts",
+				"scripts/fix-imports.ts",
+				"../tsconfig.json"
+			],
+			"outputs": [
+				"dist/**"
+			],
+			"outputLogs": "new-only"
+		},
 		"drizzle-zod#build": {
 			"dependsOn": [
 				"drizzle-orm#build"
