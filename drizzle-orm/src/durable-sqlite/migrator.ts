@@ -7,6 +7,7 @@ interface MigrationConfig {
 		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
 	};
 	migrations: Record<string, string>;
+	migrationsTable?: string;
 }
 
 function readMigrationFiles({ journal, migrations }: MigrationConfig): MigrationMeta[] {
@@ -48,7 +49,7 @@ export async function migrate<
 
 	db.transaction((tx) => {
 		try {
-			const migrationsTable = '__drizzle_migrations';
+			const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
 			const migrationTableCreate = sql`
 				CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
