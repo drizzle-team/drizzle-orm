@@ -160,6 +160,13 @@ export function pgEnum(
 		: pgEnumObjectWithSchema(enumName, input, undefined);
 }
 
+export function pgEnumCreator(customizeTableName: (name: string) => string): typeof pgEnum {
+	// @ts-ignore
+	return (_enumName: string, input: any) => {
+		return pgEnum(customizeTableName(_enumName), input);
+	};
+}
+
 /** @internal */
 export function pgEnumWithSchema<U extends string, T extends Readonly<[U, ...U[]]>>(
 	enumName: string,
