@@ -4,20 +4,50 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
-import { PgDialect } from '~/pg-core/dialect.ts';
+import { PgDialect, type PgDialectConfig } from '~/pg-core/dialect.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import type { QueryWithTypings, SQL } from '~/sql/sql.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
-import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
-import { PgliteSession } from './session.ts';
+import type { PgliteClient, PgliteQueryOptions, PgliteQueryResultHKT } from './session.ts';
+import { mapPgliteParam, PgliteSession } from './session.ts';
+
+export interface PgliteDrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>>
+	extends DrizzleConfig<TSchema>
+{
+	queryOptions?: PgliteQueryOptions;
+}
 
 export interface PgDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	queryOptions?: PgliteQueryOptions;
+}
+
+class PgliteDialect extends PgDialect {
+	constructor(
+		private readonly config: PgDialectConfig & {
+			queryOptions?: PgliteQueryOptions;
+		} = {},
+	) {
+		super(config);
+	}
+
+	override sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
+		return sql.toQuery({
+			casing: this.casing,
+			escapeName: this.escapeName,
+			escapeParam: this.escapeParam,
+			escapeString: this.escapeString,
+			prepareTyping: this.prepareTyping,
+			mapParam: (value, encoder) => mapPgliteParam(value, encoder, this.config.queryOptions),
+			invokeSource,
+		});
+	}
 }
 
 export class PgliteDriver {
@@ -36,6 +66,7 @@ export class PgliteDriver {
 		return new PgliteSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			queryOptions: this.options.queryOptions,
 		});
 	}
 }
@@ -48,11 +79,11 @@ export class PgliteDatabase<
 
 function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: PgliteClient,
-	config: DrizzleConfig<TSchema> = {},
+	config: PgliteDrizzleConfig<TSchema> = {},
 ): PgliteDatabase<TSchema> & {
 	$client: PgliteClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgliteDialect({ casing: config.casing, queryOptions: config.queryOptions });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -73,7 +104,7 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache, queryOptions: config.queryOptions });
 	const session = driver.createSession(schema);
 	const db = new PgliteDatabase(dialect, session, schema as any) as PgliteDatabase<TSchema>;
 	(<any> db).$client = client;
@@ -106,11 +137,11 @@ export function drizzle<
 		]
 		| [
 			TClient | string,
-			DrizzleConfig<TSchema>,
+			PgliteDrizzleConfig<TSchema>,
 		]
 		| [
 			(
-				& DrizzleConfig<TSchema>
+				& PgliteDrizzleConfig<TSchema>
 				& ({
 					connection?: (PGliteOptions & { dataDir?: string }) | string;
 				} | {
@@ -126,11 +157,11 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	if (isConfig(params[0])) {
+	if (isConfig(params[0]) || isPgliteConfig(params[0])) {
 		const { connection, client, ...drizzleConfig } = params[0] as {
 			connection?: PGliteOptions & { dataDir: string };
 			client?: TClient;
-		} & DrizzleConfig<TSchema>;
+		} & PgliteDrizzleConfig<TSchema>;
 
 		if (client) return construct(client, drizzleConfig) as any;
 
@@ -147,15 +178,27 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(params[0] as TClient, params[1] as PgliteDrizzleConfig<TSchema> | undefined) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: PgliteDrizzleConfig<TSchema>,
 	): PgliteDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;
 	}
+}
+
+function isPgliteConfig(data: unknown): boolean {
+	if (typeof data !== 'object' || data === null) return false;
+
+	if (data.constructor.name !== 'Object') return false;
+
+	if (!('queryOptions' in data)) return false;
+
+	const queryOptions = (data as { queryOptions?: unknown }).queryOptions;
+	return queryOptions === undefined
+		|| (typeof queryOptions === 'object' && queryOptions !== null && queryOptions.constructor.name === 'Object');
 }

@@ -35,6 +35,8 @@ export interface BuildQueryConfig {
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
 	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
+	/** @internal */
+	mapParam?: (value: unknown, encoder: DriverValueEncoder<unknown, unknown>) => unknown | SQL;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
 	invokeSource?: 'indexes' | undefined;
@@ -84,6 +86,10 @@ function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
 		}
 	}
 	return result;
+}
+
+function stringifyQueryParams(params: unknown[]): string {
+	return JSON.stringify(params, (_, value) => typeof value === 'bigint' ? String(value) : value);
 }
 
 export class StringChunk implements SQLWrapper {
@@ -139,7 +145,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 			const query = this.buildQueryFromSourceParams(this.queryChunks, config);
 			span?.setAttributes({
 				'drizzle.query.text': query.sql,
-				'drizzle.query.params': JSON.stringify(query.params),
+				'drizzle.query.params': stringifyQueryParams(query.params),
 			});
 			return query;
 		});
@@ -155,6 +161,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 			casing,
 			escapeName,
 			escapeParam,
+			mapParam,
 			prepareTyping,
 			inlineParams,
 			paramStartIndex,
@@ -235,7 +242,11 @@ export class SQL<T = unknown> implements SQLWrapper {
 					return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
 				}
 
-				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
+				const mappedValue = chunk.value === null
+					? null
+					: mapParam
+					? mapParam(chunk.value, chunk.encoder)
+					: chunk.encoder.mapToDriverValue(chunk.value);
 
 				if (is(mappedValue, SQL)) {
 					return this.buildQueryFromSourceParams([mappedValue], config);
@@ -609,7 +620,11 @@ export function placeholder<TName extends string>(name: TName): Placeholder<TNam
 	return new Placeholder(name);
 }
 
-export function fillPlaceholders(params: unknown[], values: Record<string, unknown>): unknown[] {
+export function fillPlaceholders(
+	params: unknown[],
+	values: Record<string, unknown>,
+	mapParam?: (value: unknown, encoder: DriverValueEncoder<unknown, unknown>) => unknown | SQL,
+): unknown[] {
 	return params.map((p) => {
 		if (is(p, Placeholder)) {
 			if (!(p.name in values)) {
@@ -624,7 +639,8 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 				throw new Error(`No value for placeholder "${p.value.name}" was provided`);
 			}
 
-			return p.encoder.mapToDriverValue(values[p.value.name]);
+			const value = values[p.value.name];
+			return mapParam ? mapParam(value, p.encoder) : p.encoder.mapToDriverValue(value);
 		}
 
 		return p;
