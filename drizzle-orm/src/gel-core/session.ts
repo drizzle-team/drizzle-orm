@@ -69,10 +69,8 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 			) && this.queryMetadata.tables.length > 0
 		) {
 			try {
-				const [res] = await Promise.all([
-					query(),
-					this.cache.onMutate({ tables: this.queryMetadata.tables }),
-				]);
+				const res = await query();
+				await this.cache.onMutate({ tables: this.queryMetadata.tables });
 				return res;
 			} catch (e) {
 				throw new DrizzleQueryError(queryString, params, e as Error);
