@@ -10,7 +10,9 @@ import type { GelColumn, GelColumnBuilderBase } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import { gelTable } from './table.ts';
 import { GelViewBase } from './view-base.ts';
-import { GelViewConfig } from './view-common.ts';
+import { GelMaterializedViewConfig, GelViewConfig } from './view-common.ts';
+
+export { GelMaterializedViewConfig } from './view-common.ts';
 
 export type ViewWithConfig = RequireAtLeastOne<{
 	checkOption: 'local' | 'cascaded';
@@ -334,8 +336,6 @@ export type GelViewWithSelection<
 	TExisting extends boolean = boolean,
 	TSelectedFields extends ColumnsSelection = ColumnsSelection,
 > = GelView<TName, TExisting, TSelectedFields> & TSelectedFields;
-
-export const GelMaterializedViewConfig = Symbol.for('drizzle:GelMaterializedViewConfig');
 
 export class GelMaterializedView<
 	TName extends string = string,
