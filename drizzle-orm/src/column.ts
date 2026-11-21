@@ -8,6 +8,7 @@ import type {
 import { entityKind } from './entity.ts';
 import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
+import { TableName } from './table.utils.ts';
 import type { Update } from './utils.ts';
 
 export interface ColumnBaseConfig<
@@ -69,6 +70,7 @@ export abstract class Column<
 
 	declare readonly _: ColumnTypeConfig<T, TTypeConfig>;
 
+	readonly tableName: T['tableName'];
 	readonly name: string;
 	readonly keyAsName: boolean;
 	readonly primary: boolean;
@@ -93,6 +95,7 @@ export abstract class Column<
 		config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>,
 	) {
 		this.config = config;
+		this.tableName = table[TableName] as T['tableName'];
 		this.name = config.name;
 		this.keyAsName = config.keyAsName;
 		this.notNull = config.notNull;
