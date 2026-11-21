@@ -491,7 +491,7 @@ const createTablePKs = (pks: PrimaryKey[], casing: Casing): string => {
 				})
 				.join(', ')
 		}]${it.name ? `, name: "${it.name}"` : ''}}`;
-		statement += ')';
+		statement += '),';
 	});
 
 	return statement;
