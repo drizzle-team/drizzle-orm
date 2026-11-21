@@ -479,6 +479,27 @@ test('instrospect strings with single quotes', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('introspect empty string defaults', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		t: pgTable('t', {
+			a: text('a').default(''),
+			b: varchar('b', { length: 10 }).default(''),
+			c: char('c', { length: 1 }).default(''),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-empty-string-defaults',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('introspect checks', async () => {
 	const client = new PGlite();
 
