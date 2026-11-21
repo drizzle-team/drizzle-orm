@@ -33,6 +33,7 @@ const foreignClass = singlestoreTable('users', { id: int('id') }, () => [new Unr
 // @ts-expect-error
 const foreignDialect = singlestoreTable('users', { id: int('id') }, () => [pgIndex]);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6140
 describe('singlestore extra config', () => {
 	test('Expected form', () => {
 		const config = getTableConfig(users);

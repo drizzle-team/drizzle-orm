@@ -1,18 +1,9 @@
 import type { Connection as CallbackConnection } from 'mysql2';
-import type {
-	Connection,
-	FieldPacket,
-	Pool,
-	PoolConnection,
-	ResultSetHeader,
-	RowDataPacket,
-	TypeCast,
-} from 'mysql2/promise';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
+import type { Connection, FieldPacket, Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import { makeMySql2RawTextTypeCast, type TypeCastFunction } from '~/mysql2/type-cast.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import {
@@ -30,6 +21,9 @@ import type { Query } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
+/** SingleStore is reached through the `mysql2` client, and its results are decoded the same way as MySQL's */
+export const makeSingleStoreRawTextTypeCast: (client?: unknown) => TypeCastFunction = makeMySql2RawTextTypeCast;
+
 export type SingleStoreDriverClient = Pool | Connection;
 
 export type SingleStoreRawQueryResult = [ResultSetHeader, undefined];
@@ -40,16 +34,8 @@ export type SingleStoreRawExecuteResult =
 
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
-
-const typeCast: TypeCast = function(field, next) {
-	if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-		return field.string();
-	}
-	return next();
-};
 
 export class SingleStoreDriverSession<
 	TRelations extends AnyRelations,
@@ -61,7 +47,7 @@ export class SingleStoreDriverSession<
 	static override readonly [entityKind]: string = 'SingleStoreDriverSession';
 
 	private logger: Logger;
-	private cache: Cache;
+	private rawTextTypeCast: TypeCastFunction;
 
 	constructor(
 		private client: SingleStoreDriverClient,
@@ -71,23 +57,22 @@ export class SingleStoreDriverSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
+		this.rawTextTypeCast = makeSingleStoreRawTextTypeCast(client);
 	}
 
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: AnySingleStoreMapper,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T> {
 		const { client } = this;
+		const rawTextTypeCast = mapper ? this.rawTextTypeCast : undefined;
 
 		const executor = async (params: unknown[] = []) => {
 			const raw = client.query<any[]>({
 				sql: query.sql,
-				typeCast,
 				rowsAsArray: mode === 'arrays',
+				...(rawTextTypeCast ? { typeCast: rawTextTypeCast } : undefined),
 			}, params);
 			if (mode !== 'raw') return raw.then((data) => data[0]);
 			if (!mapper) return raw;
@@ -104,8 +89,8 @@ export class SingleStoreDriverSession<
 			}).connection;
 			const driverQuery = conn.query({
 				sql: query.sql,
-				typeCast,
 				rowsAsArray: mode === 'arrays',
+				...(rawTextTypeCast ? { typeCast: rawTextTypeCast } : undefined),
 			}, params);
 			const stream = driverQuery.stream();
 			// mysql2 reports a connection lost mid-stream on the connection only, stream would never end
@@ -140,9 +125,6 @@ export class SingleStoreDriverSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		) as PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T>;
 	}

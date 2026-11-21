@@ -26,7 +26,7 @@ export class BetterSQLite3Database<TRelations extends AnyRelations = EmptyRelati
 
 function construct<TRelations extends AnyRelations = EmptyRelations>(
 	client: Database,
-	config: Omit<DrizzleSQLiteConfig<TRelations>, 'cache'> = {},
+	config: DrizzleSQLiteConfig<TRelations> = {},
 ): BetterSQLite3Database<TRelations> & {
 	$client: Database;
 } {
@@ -53,10 +53,6 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	);
 	const db = new BetterSQLite3Database('sync', dialect, session, relations);
 	(<any> db).$client = client;
-	// (<any> db).$cache = config.cache;
-	// if ((<any> db).$cache) {
-	// 	(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	// }
 
 	return db as any;
 }

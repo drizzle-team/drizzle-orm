@@ -1,7 +1,5 @@
-import type { Connection as CallbackConnection, TypeCast } from 'mysql2';
+import type { Connection as CallbackConnection } from 'mysql2';
 import type { Connection, FieldPacket, Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -16,7 +14,10 @@ import type {
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import type { Query } from '~/sql/sql.ts';
+import { makeMySql2RawTextTypeCast, type TypeCastFunction } from './type-cast.ts';
 export type MySql2Client = Pool | Connection;
+
+export { makeMySql2RawTextTypeCast };
 
 export type MySqlRawQueryResult = [ResultSetHeader, undefined];
 export type MySql2RawExecuteResult =
@@ -26,16 +27,8 @@ export type MySql2RawExecuteResult =
 
 export interface MySql2SessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
-
-const typeCast: TypeCast = function(field, next) {
-	if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-		return field.string();
-	}
-	return next();
-};
 
 export class MySql2Session<
 	TRelations extends AnyRelations,
@@ -43,7 +36,7 @@ export class MySql2Session<
 	static override readonly [entityKind]: string = 'MySql2Session';
 
 	private logger: Logger;
-	private cache: Cache;
+	private rawTextTypeCast: TypeCastFunction;
 
 	constructor(
 		private client: MySql2Client,
@@ -53,23 +46,22 @@ export class MySql2Session<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
+		this.rawTextTypeCast = makeMySql2RawTextTypeCast(client);
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: AnyMySqlMapper,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;
+		const rawTextTypeCast = mapper ? this.rawTextTypeCast : undefined;
 
 		const executor = async (params: any[] = []) => {
 			const raw = client.query<any[]>({
 				sql: query.sql,
-				typeCast,
 				rowsAsArray: mode === 'arrays',
+				...(rawTextTypeCast ? { typeCast: rawTextTypeCast } : undefined),
 			}, params);
 			if (mode !== 'raw') return raw.then((data) => data[0]);
 			if (!mapper) return raw;
@@ -86,8 +78,8 @@ export class MySql2Session<
 			}).connection;
 			const driverQuery = conn.query({
 				sql: query.sql,
-				typeCast,
 				rowsAsArray: mode === 'arrays',
+				...(rawTextTypeCast ? { typeCast: rawTextTypeCast } : undefined),
 			}, params);
 			const stream = driverQuery.stream();
 			// mysql2 reports a connection lost mid-stream on the connection only, stream would never end
@@ -122,9 +114,6 @@ export class MySql2Session<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

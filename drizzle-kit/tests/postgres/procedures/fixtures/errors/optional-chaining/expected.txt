@@ -1,0 +1,9 @@
+input.ts:7:7 error TSPG001: optional chaining (?.) is not supported
+    if (r?.found) {
+        ^^^^^^^^
+  hint: DSL values are never nullish — use plain `.`; use isNull()/coalesce() for NULL handling
+
+input.ts:11:10 error TSPG001: optional chaining (?.) is not supported
+    notice(row?.balance)
+           ^^^^^^^^^^^^
+  hint: DSL values are never nullish — use plain `.`; use isNull()/coalesce() for NULL handling

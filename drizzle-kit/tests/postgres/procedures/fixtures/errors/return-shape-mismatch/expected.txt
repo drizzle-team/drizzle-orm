@@ -1,0 +1,9 @@
+input.ts:8:10 error TSPG014: return shape mismatch: expected { total }, got { count }
+    return { count: qty }
+           ^^^^^^^^^^^^^^
+  hint: every return site must produce the same fields
+
+input.ts:3:11 error TSPG014: not every code path in 'inconsistent' returns a value
+  procedure('inconsistent', { qty: 'int' }, (ctx) => {
+            ^^^^^^^^^^^^^^
+  hint: end every branch with return { ... } or throw new PgError(...)

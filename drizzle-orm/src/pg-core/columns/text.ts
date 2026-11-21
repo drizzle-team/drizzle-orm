@@ -27,9 +27,7 @@ export class PgTextBuilder<TEnum extends [string, ...string[]] = [string, ...str
 	}
 }
 
-export class PgText<TEnum extends [string, ...string[]] = [string, ...string[]]> extends PgColumn<
-	Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum'
-> {
+export class PgText extends PgColumn<'string' | 'string enum'> {
 	static override readonly [entityKind]: string = 'PgText';
 	override readonly enumValues;
 
@@ -56,6 +54,9 @@ export interface PgTextConfig<
 }
 
 // Original function overloads style
+/** Procedure annotation type (SQL text) — see `procedure`. */
+export type text = string;
+
 export function text(): PgTextBuilder;
 export function text(name: string): PgTextBuilder;
 export function text<U extends string, T extends Readonly<[U, ...U[]]>>(

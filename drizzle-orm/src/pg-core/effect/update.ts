@@ -7,11 +7,11 @@ import type { JoinNullability } from '~/query-builders/select.types.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { usedTablesOf } from '~/used-tables.ts';
-import { type Assume, resolveNullableObjectPaths } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import type { PgViewBase } from '../view-base.ts';
-import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
+import type { PgEffectPreparedQuery, PgEffectRuntimeHKT, PgEffectSession } from './session.ts';
 
 export type PgEffectUpdatePrepare<
 	T extends AnyPgEffectUpdate,
@@ -27,11 +27,11 @@ export type PgEffectUpdatePrepare<
 export type PgEffectUpdate<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = PgTable | Subquery | PgViewBase | SQL | undefined,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
-	TJoins extends Join[] = [],
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+	TJoins extends Join[] = Join[],
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > = PgEffectUpdateBase<
 	TTable,
@@ -47,6 +47,7 @@ export type PgEffectUpdate<
 >;
 
 export interface PgEffectUpdateHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgUpdateHKTBase {
+	runtime: PgEffectRuntimeHKT<TEffectHKT>;
 	_type: PgEffectUpdateBase<
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
@@ -86,7 +87,8 @@ export interface PgEffectUpdateBase<
 		TEffectHKT['error'],
 		TEffectHKT['context']
 	>
-{}
+{
+}
 
 export class PgEffectUpdateBase<
 	TTable extends PgTable,
@@ -114,35 +116,7 @@ export class PgEffectUpdateBase<
 	static override readonly [entityKind]: string = 'PgEffectUpdate';
 
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
-
-	/** @internal */
-	_prepare(name?: string, generateName = false): PgEffectUpdatePrepare<this, TEffectHKT> {
-		const { session, config, dialect, joinsNotNullableMap } = this;
-		const { returning: fields } = config;
-
-		const query = dialect.sqlToQuery(this.getSQL(true));
-		const mapper = fields
-			? this.dialect.mapperGenerators.rows(fields, resolveNullableObjectPaths(fields, joinsNotNullableMap))
-			: undefined;
-
-		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
-			query,
-			fields ? 'arrays' : 'raw',
-			name ?? generateName,
-			mapper,
-			{ type: 'update', tables: () => usedTablesOf(this.config.table) },
-		);
-
-		return preparedQuery;
-	}
-
-	prepare(name?: string): PgEffectUpdatePrepare<this, TEffectHKT> {
-		return this._prepare(name, true);
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues: Record<string, unknown> = {}) => {
-		return this._prepare().execute(placeholderValues);
-	};
 }
 
+applyMixins(PgEffectUpdateBase, [PgRunnableQuery]);
 applyEffectWrapper(PgEffectUpdateBase);

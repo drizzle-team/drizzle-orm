@@ -1,7 +1,9 @@
 import 'dotenv/config';
 import { desc, DrizzleError, eq, exists, gt, gte, or, sql, TransactionRollbackError } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/mssql-core';
+import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { expect, expectTypeOf } from 'vitest';
+import { fixtureReset } from './fixture-reset';
 import { test } from './instrumentation';
 import * as schema from './mssql.schema';
 
@@ -23,7 +25,8 @@ const {
 	studentGrades,
 } = schema;
 
-test.beforeEach(async ({ db }) => {
+// Built once and reset between tests (fixtureReset); built again only when a test changed it.
+const createFixture = async (db: NodeMsSqlDatabase<any>) => {
 	await db.execute(sql`drop view if exists [rqb_users_view]`);
 	await db.execute(sql`drop view if exists [rqb_test_schema].[users_sch_view]`);
 	await db.execute(sql`drop table if exists [rqb_test_schema].[users_to_groups]`);
@@ -180,6 +183,16 @@ test.beforeEach(async ({ db }) => {
 			CREATE VIEW [rqb_test_schema].[users_sch_view] AS (select [rqb_test_schema].[users].[id], [rqb_test_schema].[users].[name], [rqb_test_schema].[users].[verified], [rqb_test_schema].[users].[invited_by], [rqb_test_schema].[posts].[content], [rqb_test_schema].[posts].[created_at], (select count(*) from [rqb_test_schema].[users] as [count_source] where [rqb_test_schema].[users].[id] <> 2) as [count] from [rqb_test_schema].[users] left join [rqb_test_schema].[posts] on [rqb_test_schema].[users].[id] = [rqb_test_schema].[posts].[owner_id]);
 		`,
 	);
+};
+
+let resetFixture: () => Promise<void>;
+
+test.beforeEach(async ({ db, client }) => {
+	resetFixture ??= fixtureReset(
+		async (query) => (await client.query(query)).recordset ?? [],
+		() => createFixture(db),
+	);
+	await resetFixture();
 });
 
 test('[Find Many] Get users with posts', async ({ db }) => {
@@ -1559,6 +1572,29 @@ test('[Find Many] Get users with posts + prepared limit', async ({ db }) => {
 		invitedBy: null,
 		posts: [{ id: 6, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }],
 	});
+});
+
+test('[Find Many] Get users with posts + zero and negative limits', async ({ db }) => {
+	await db.insert(usersTable).values([{ id: 1, name: 'Dan' }, { id: 2, name: 'Andrew' }]);
+	await db.insert(postsTable).values([{ ownerId: 1, content: 'Post1' }, { ownerId: 2, content: 'Post2' }]);
+
+	// Pagination values aren't skipped: they reach the database exactly as given
+	// `top (0)` is allowed, `fetch next 0 rows only` isn't
+	expect(await db.query.usersTable.findMany({ orderBy: { id: 'asc' }, limit: 0 })).toStrictEqual([]);
+	const zeroFetch = db.query.usersTable.findMany({ orderBy: { id: 'asc' }, limit: 0, offset: 0 });
+	expect(zeroFetch.toSQL().params).toStrictEqual([0, 0]);
+	await expect(zeroFetch).rejects.toThrow();
+	expect(
+		await db.query.usersTable.findMany({
+			columns: { id: true },
+			orderBy: { id: 'asc' },
+			with: { posts: { columns: { id: true }, limit: 0 } },
+		}),
+	).toStrictEqual([{ id: 1, posts: [] }, { id: 2, posts: [] }]);
+
+	const negative = db.query.usersTable.findMany({ limit: -1 });
+	expect(negative.toSQL().params).toStrictEqual([-1]);
+	await expect(negative).rejects.toThrow();
 });
 
 test('[Find Many] Get users with posts + prepared limit + offset', async ({ db }) => {
@@ -12136,8 +12172,9 @@ test('alltypes', async ({ db }) => {
 			cInt: 621,
 			cBigint: 5044565289845416380n,
 			cBigintNum: 9007199254740991,
-			cDecimal: '123456789.987654321',
-			cNumeric: '987654321.123456789',
+			// `mssql` decodes `decimal`, `numeric` to numbers: string modes throw an unsupported column type error
+			cDecimal: null,
+			cNumeric: null,
 			cFloat: 15.35325689124218,
 			cReal: 1.5,
 			cBit: true,
@@ -12205,8 +12242,8 @@ test('alltypes', async ({ db }) => {
 				cInt: 621,
 				cBigint: 5044565289845416380n,
 				cBigintNum: 9007199254740991,
-				cDecimal: '123456789.987654321',
-				cNumeric: '987654321.123456789',
+				cDecimal: null,
+				cNumeric: null,
 				cFloat: 15.35325689124218,
 				cReal: 1.5,
 				cBit: true,

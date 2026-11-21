@@ -28,7 +28,7 @@ describe('[select] read replicas mysql', () => {
 		const query = db.select().from(users);
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
-		expect(query.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
+		expect(query.toSQL().sql).toEqual('select `id` from `users`');
 
 		expect(spyRead1).toHaveBeenCalledTimes(0);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
@@ -60,7 +60,7 @@ describe('[select] read replicas mysql', () => {
 		const query2 = db.$replica.select().from(users);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
-		expect(query2.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
+		expect(query2.toSQL().sql).toEqual('select `id` from `users`');
 	});
 
 	it('single read replica select', () => {
@@ -76,11 +76,11 @@ describe('[select] read replicas mysql', () => {
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
-		expect(query1.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
+		expect(query1.toSQL().sql).toEqual('select `id` from `users`');
 
 		const query2 = db.$replica.select().from(users);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
-		expect(query2.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
+		expect(query2.toSQL().sql).toEqual('select `id` from `users`');
 	});
 
 	it('single read replica select + primary select', () => {
@@ -96,12 +96,12 @@ describe('[select] read replicas mysql', () => {
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
-		expect(query1.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
+		expect(query1.toSQL().sql).toEqual('select `id` from `users`');
 
 		const query2 = db.select().from(users);
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
-		expect(query2.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
+		expect(query2.toSQL().sql).toEqual('select `id` from `users`');
 	});
 
 	it('always first read select', () => {
@@ -122,13 +122,13 @@ describe('[select] read replicas mysql', () => {
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
-		expect(query1.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
+		expect(query1.toSQL().sql).toEqual('select `id` from `users`');
 
 		const query2 = db.$replica.select().from(users);
 
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
-		expect(query2.toSQL().sql).toEqual('select cast(`id` as char) from `users`');
+		expect(query2.toSQL().sql).toEqual('select `id` from `users`');
 	});
 });
 
@@ -149,7 +149,7 @@ describe('[selectDistinct] read replicas mysql', () => {
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
-		expect(query.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
+		expect(query.toSQL().sql).toEqual('select distinct `id` from `users`');
 	});
 
 	it('random replica selectDistinct', () => {
@@ -172,12 +172,12 @@ describe('[selectDistinct] read replicas mysql', () => {
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
-		expect(query1.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
+		expect(query1.toSQL().sql).toEqual('select distinct `id` from `users`');
 
 		const query2 = db.$replica.selectDistinct().from(users);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
-		expect(query2.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
+		expect(query2.toSQL().sql).toEqual('select distinct `id` from `users`');
 	});
 
 	it('single read replica selectDistinct', () => {
@@ -193,11 +193,11 @@ describe('[selectDistinct] read replicas mysql', () => {
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
-		expect(query1.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
+		expect(query1.toSQL().sql).toEqual('select distinct `id` from `users`');
 
 		const query2 = db.$replica.selectDistinct().from(users);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
-		expect(query2.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
+		expect(query2.toSQL().sql).toEqual('select distinct `id` from `users`');
 	});
 
 	it('single read replica selectDistinct + primary selectDistinct', () => {
@@ -213,12 +213,12 @@ describe('[selectDistinct] read replicas mysql', () => {
 
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
-		expect(query1.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
+		expect(query1.toSQL().sql).toEqual('select distinct `id` from `users`');
 
 		const query2 = db.selectDistinct().from(users);
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
-		expect(query2.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
+		expect(query2.toSQL().sql).toEqual('select distinct `id` from `users`');
 	});
 
 	it('always first read selectDistinct', () => {
@@ -239,16 +239,17 @@ describe('[selectDistinct] read replicas mysql', () => {
 		expect(spyPrimary).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
-		expect(query1.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
+		expect(query1.toSQL().sql).toEqual('select distinct `id` from `users`');
 
 		const query2 = db.$replica.selectDistinct().from(users);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
-		expect(query2.toSQL().sql).toEqual('select distinct cast(`id` as char) from `users`');
+		expect(query2.toSQL().sql).toEqual('select distinct `id` from `users`');
 	});
 });
 
 describe('[with] read replicas mysql', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/4185
 	it('primary with', () => {
 		const primaryDb = drizzle.mock();
 		const read1 = drizzle.mock();
@@ -604,7 +605,7 @@ describe('[findFirst] read replicas mysql', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
 		expect(query.toSQL().sql).toEqual(
-			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0` limit ?',
+			'select `d0`.`id` as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0` limit ?',
 		);
 	});
 
@@ -690,7 +691,7 @@ describe('[findMany] read replicas mysql', () => {
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyPrimary).toHaveBeenCalledWith(obj);
 		expect(query.toSQL().sql).toEqual(
-			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
+			'select `d0`.`id` as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
 		);
 	});
 
@@ -717,7 +718,7 @@ describe('[findMany] read replicas mysql', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(query1.toSQL().sql).toEqual(
-			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
+			'select `d0`.`id` as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
 		);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 
@@ -726,7 +727,7 @@ describe('[findMany] read replicas mysql', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
 		expect(query2.toSQL().sql).toEqual(
-			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
+			'select `d0`.`id` as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
 		);
 		expect(spyRead2).toHaveBeenCalledWith(obj2);
 	});
@@ -748,14 +749,14 @@ describe('[findMany] read replicas mysql', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 		expect(query1.toSQL().sql).toEqual(
-			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
+			'select `d0`.`id` as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
 		);
 
 		const query2 = db.$replica.query.usersTable.findMany(obj2);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead1).toHaveBeenNthCalledWith(2, obj2);
 		expect(query2.toSQL().sql).toEqual(
-			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
+			'select `d0`.`id` as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
 		);
 	});
 
@@ -776,7 +777,7 @@ describe('[findMany] read replicas mysql', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 		expect(query1.toSQL().sql).toEqual(
-			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
+			'select `d0`.`id` as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
 		);
 
 		const query2 = db.query.usersTable.findMany(obj2);
@@ -785,7 +786,7 @@ describe('[findMany] read replicas mysql', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyPrimary).toHaveBeenNthCalledWith(1, obj2);
 		expect(query2.toSQL().sql).toEqual(
-			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
+			'select `d0`.`id` as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
 		);
 	});
 
@@ -811,7 +812,7 @@ describe('[findMany] read replicas mysql', () => {
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 		expect(query1.toSQL().sql).toEqual(
-			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
+			'select `d0`.`id` as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
 		);
 
 		const query2 = db.$replica.query.usersTable.findMany(obj2);
@@ -819,7 +820,7 @@ describe('[findMany] read replicas mysql', () => {
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenNthCalledWith(2, obj2);
 		expect(query2.toSQL().sql).toEqual(
-			'select cast(`d0`.`id` as char) as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
+			'select `d0`.`id` as `id`, `d0`.`name` as `name`, `d0`.`verified` as `verified` from `users` as `d0`',
 		);
 	});
 });

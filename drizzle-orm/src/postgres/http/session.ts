@@ -1,44 +1,59 @@
-import type { QueryResult, ShapeSpec } from '@drizzle-team/minipg';
-import type { BatchItem } from '~/batch.ts';
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryResult, ShapeSpec } from '#postgres';
+import type { HttpClient } from '#postgres/http';
+import type { BatchItem, SettledQueryResult } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, type PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import {
+	mapBatchResults,
+	mapSettledResults,
+	type PgBasePreparedQuery,
+	type PgQueryResultHKT,
+	type PgRawRow,
+	type PgTransactionConfig,
+	type PreparedQueryConfig,
+} from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
+import { buildHttpMulti } from './utils.ts';
 
-export interface PostgresHttpClient {
-	query(sql: string, params: unknown[], opts: { mode: 'array'; shape?: ShapeSpec }): Promise<QueryResult<any>>;
-	query(sql: string, params: unknown[], opts: { mode: 'object'; shape?: ShapeSpec }): Promise<QueryResult<any>>;
-}
-
-export interface PostgresHttpBatchQuery {
-	sql: string;
-	params?: unknown[];
-	mode?: 'array' | 'object';
-	shape?: ShapeSpec;
-}
-
-export interface PostgresHttpBatchOptions {
-	isolation?: 'serializable' | 'repeatable read' | 'read committed' | 'read uncommitted';
-	readOnly?: boolean;
-	deferrable?: boolean;
+export interface PostgresHttpRequestOptions {
+	/**
+	 * Aborts a request that takes longer than this many milliseconds,
+	 * rejecting it with a `QUERY_TIMEOUT` error
+	 *
+	 * Applies to each request on it's own: when queries are sent as separate requests, every one gets the full timeout
+	 */
 	timeout?: number;
+	/** Aborts the in-flight request(s) when signalled */
 	signal?: AbortSignal;
 }
 
-export type PostgresHttpBatchRunner = (
-	queries: PostgresHttpBatchQuery[],
-	options?: PostgresHttpBatchOptions,
-) => Promise<QueryResult<any>[]>;
+export type PostgresHttpBatchOptions =
+	& PostgresHttpRequestOptions
+	& (
+		| {
+			/** `snapshot` cannot be used with `isolation: 'read uncommitted' | 'read committed'` */
+			isolation?: 'serializable' | 'repeatable read' | 'read committed' | 'read uncommitted';
+			readOnly?: boolean;
+			deferrable?: boolean;
+			snapshot?: undefined;
+		}
+		| {
+			/** `snapshot` needs `isolation: 'repeatable read' | 'serializable'` */
+			isolation: 'serializable' | 'repeatable read';
+			readOnly?: boolean;
+			deferrable?: boolean;
+			/** Run the transaction on a snapshot exported by another transaction (`pg_export_snapshot()`) */
+			snapshot: string;
+		}
+	);
 
 export interface PostgresHttpSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -48,27 +63,22 @@ export class PostgresHttpSession<
 	static override readonly [entityKind]: string = 'PostgresHttpSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
-		private client: PostgresHttpClient,
-		private runBatch: PostgresHttpBatchRunner,
+		private client: HttpClient,
 		dialect: PgDialect,
 		_relations: TRelations,
 		private options: PostgresHttpSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 		shape?: ShapeSpec,
 	) {
 		const executor = async (params?: unknown[]) => {
@@ -94,47 +104,61 @@ export class PostgresHttpSession<
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			shape,
 			this.options.paramsInErrors,
 		);
 	}
 
+	/** Atomic: runs all queries in one transaction, in a single request */
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
 		queries: T,
 		options?: PostgresHttpBatchOptions,
-	) {
-		const preparedQueries: PostgresHttpPreparedQuery<any>[] = new Array(queries.length);
-		const builtQueries: PostgresHttpBatchQuery[] = new Array(queries.length);
+	): Promise<any[]> {
+		const { prepared, built } = buildHttpMulti(queries);
+		return this.client.batch(built, options).catch((e) => {
+			const index = (e as { failedQueryIndex?: unknown } | null)?.failedQueryIndex;
+			const query = typeof index === 'number' ? prepared[index] : undefined;
+			if (!query) throw e;
+			throw httpQueryError(query, e, this.options.paramsInErrors);
+		}).then((results) => mapBatchResults(prepared, results));
+	}
 
-		for (let i = 0; i < queries.length; ++i) {
-			const preparedQuery = queries[i]!._prepare() as PostgresHttpPreparedQuery<any>;
-			const builtQuery = preparedQuery.getQuery();
-			preparedQueries[i] = preparedQuery;
-			builtQueries[i] = {
-				sql: builtQuery.sql,
-				params: builtQuery.params,
-				mode: preparedQuery.mode === 'arrays' ? 'array' : 'object',
-				shape: preparedQuery.shape,
-			};
-		}
+	/**
+	 * Non-atomic: pipelines all queries in a single request, each in it's own autocommit
+	 *
+	 * Never throws on a query failure: resolves with one `PromiseSettledResult` per query, in input order
+	 */
+	async pipeline<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+		queries: T,
+		options?: PostgresHttpRequestOptions,
+	): Promise<SettledQueryResult<any>[]> {
+		const { prepared, built } = buildHttpMulti(queries);
+		return this.client.pipeline(built, options).then((results) =>
+			mapSettledResults(
+				prepared,
+				results,
+				(i, cause) => httpQueryError(prepared[i]!, cause, this.options.paramsInErrors),
+			)
+		);
+	}
 
-		const batchResults = await this.runBatch(builtQueries, options);
-		const response = new Array(batchResults.length);
-		for (let i = 0; i < batchResults.length; ++i) {
-			const { mapper, mode } = preparedQueries[i]!;
-			const result = batchResults[i]!;
-
-			response[i] = mapper
-				? mapper(result.rows)
-				: mode === 'raw'
-				? result
-				: result.rows;
-		}
-
-		return response;
+	/**
+	 * Non-atomic: sends every query as it's own concurrent request
+	 *
+	 * Never throws on a query failure: resolves with one `PromiseSettledResult` per query, in input order
+	 */
+	async parallel<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+		queries: T,
+		options?: PostgresHttpRequestOptions,
+	): Promise<SettledQueryResult<any>[]> {
+		const { prepared, built } = buildHttpMulti(queries);
+		return this.client.parallel(built, options).then((results) =>
+			mapSettledResults(
+				prepared,
+				results,
+				(i, cause) => httpQueryError(prepared[i]!, cause, this.options.paramsInErrors),
+			)
+		);
 	}
 
 	override async transaction<T>(
@@ -145,6 +169,21 @@ export class PostgresHttpSession<
 			'No interactive transactions support in postgres HTTP drivers. Use `db.batch(...)` for an atomic set of statements, or a wire-protocol driver (`postgres`, `postgres/neon-ws`, `postgres/cf`, `postgres/deno`) for interactive transactions',
 		);
 	}
+}
+
+/** A prepared query of either runtime of the `drizzle-orm/postgres` HTTP drivers, with what the client needs from it */
+export interface PostgresHttpMultiPrepared extends PgBasePreparedQuery {
+	readonly shape?: ShapeSpec;
+}
+
+/** @internal */
+export function httpQueryError(
+	prepared: PostgresHttpPreparedQuery<any>,
+	cause: unknown,
+	paramsInErrors: boolean | undefined,
+): DrizzleQueryError {
+	const { sql, params } = prepared.getQuery();
+	return new DrizzleQueryError(sql, paramsInErrors ? params : undefined, cause as Error);
 }
 
 export type PostgresHttpQueryResult<T> = Omit<QueryResult<T>, 'metrics' | 'debug'>;
@@ -160,17 +199,11 @@ export class PostgresHttpPreparedQuery<T extends PreparedQueryConfig> extends Pg
 		executor: (params?: unknown[]) => Promise<any>,
 		query: Query,
 		mapper: ((rows: any[]) => any) | undefined,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		logger: Logger,
-		// cache instance
-		cache: Cache | undefined,
-		// per query related metadata
-		queryMetadata: QueryMetadata | undefined,
-		// config that was passed through $withCache
-		cacheConfig: WithCacheConfig | undefined,
 		readonly shape?: ShapeSpec,
 		paramsInErrors?: boolean,
 	) {
-		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig, paramsInErrors);
+		super(executor, query, mapper, mode, logger, paramsInErrors);
 	}
 }

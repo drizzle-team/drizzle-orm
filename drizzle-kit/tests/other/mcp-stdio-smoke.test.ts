@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeAll, describe, expect, test } from 'vitest';
 
-const binPath = resolve(process.cwd(), 'dist', 'bin.cjs');
+const binPath = resolve(process.cwd(), 'dist', 'bin.js');
 const skipDistTests = process.env.DRIZZLE_KIT_SKIP_DIST_TESTS === '1';
 const missingDist = !existsSync(binPath);
 const skipForMissingDist = !skipDistTests && missingDist;
@@ -12,7 +12,7 @@ const skipForMissingDist = !skipDistTests && missingDist;
 if (skipForMissingDist && !process.env.CI) {
 	// eslint-disable-next-line no-console
 	console.warn(
-		`[stdio-smoke] skipping: dist/bin.cjs is not built. `
+		`[stdio-smoke] skipping: dist/bin.js is not built. `
 			+ `Run \`pnpm --filter drizzle-kit build\` to enable this smoke test, `
 			+ `or set DRIZZLE_KIT_SKIP_DIST_TESTS=1 to silence this warning.`,
 	);
@@ -22,7 +22,7 @@ describe('drizzle-kit mcp stdio smoke', () => {
 	beforeAll(() => {
 		if (skipForMissingDist && process.env.CI) {
 			throw new Error(
-				`stdio-smoke requires a built dist/bin.cjs. Run \`pnpm --filter drizzle-kit build\` first.`,
+				`stdio-smoke requires a built dist/bin.js. Run \`pnpm --filter drizzle-kit build\` first.`,
 			);
 		}
 	});

@@ -3,6 +3,10 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { construct, type LibSQLDatabase } from '../driver-core.ts';
 
+/**
+ * Driver quirks:
+ * - With `intMode: 'number'` (the default), the client throws on integers past the safe integer range
+ */
 export function drizzle<TRelations extends AnyRelations = EmptyRelations, TClient extends Client = Client>(
 	...params: [
 		string,

@@ -62,7 +62,7 @@ export class MySqlStringBlob<T extends ColumnBaseConfig<'string'>>
 
 export class MySqlBufferBlobBuilder extends MySqlColumnBuilder<
 	{
-		dataType: 'string';
+		dataType: 'object buffer';
 		data: Buffer;
 		driverParam: string;
 	},
@@ -71,7 +71,7 @@ export class MySqlBufferBlobBuilder extends MySqlColumnBuilder<
 	static override readonly [entityKind]: string = 'MySqlBlobBuilder';
 
 	constructor(name: string, blobType: MySqlBlobColumnType) {
-		super(name, 'string', 'MySqlBlob');
+		super(name, 'object buffer', 'MySqlBlob');
 		this.config.blobType = blobType;
 		switch (blobType) {
 			case 'tinyblob': {

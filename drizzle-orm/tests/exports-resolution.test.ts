@@ -3,10 +3,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as ts from 'typescript';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { checkPackage } from '../../attw-fork/src/checkPackage.ts';
 import { getExitCode } from '../../attw-fork/src/cli/getExitCode.ts';
 import { createPackageFromTarballData, type Package } from '../../attw-fork/src/createPackage.ts';
+import { createCompilerHosts } from '../../attw-fork/src/internal/multiCompilerHost.ts';
 import type { CheckResult, Problem } from '../../attw-fork/src/types.ts';
 import { emitDirIndexShims } from '../scripts/emit-dir-index-shims.ts';
 
@@ -27,11 +29,20 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const tarballPath = join(root, 'package.tgz');
 
-const RESOLUTION_MODES = ['node16-cjs', 'node16-esm', 'bundler'] as const;
+// The package is ESM only. CommonJS callers load it through require(esm), which
+// attw reports under node16-cjs as `CJSResolvesToESM`, so that mode is not checked.
+const RESOLUTION_MODES = ['node16-esm', 'bundler'] as const;
 const ALL_RESOLUTION_KINDS = ['node10', 'node16-cjs', 'node16-esm', 'bundler'] as const;
 
-// Root / flat-leaf / directory-index / deep-leaf — one of each shape.
-const REPRESENTATIVE_SUBPATHS = ['.', './alias', './pg-core', './pg-core/columns/all'];
+// Root / flat-leaf / directory-index / deep-leaf / bundled Drizzle Postgres root and subpath — one of each shape.
+const REPRESENTATIVE_SUBPATHS = [
+	'.',
+	'./alias',
+	'./pg-core',
+	'./pg-core/columns/all',
+	'./postgres/client',
+	'./postgres/client/geometry',
+];
 
 const BUILD_PACK_HINT =
 	`Missing built/packed artifact. Run \`bun --bun run scripts/build.ts && npm run pack\` in drizzle-orm/ first.`;
@@ -95,23 +106,28 @@ describe.skipIf(!ARTIFACTS_PRESENT)('driven attw probe across entry shapes', () 
 			expect(failing, failing.map((p) => `${p.kind}@${isEntrypointProblem(p) ? p.entrypoint : '?'}`).join(', '))
 				.toEqual([]);
 			expect(exitCodeForMode(analysis, mode)).toBe(0);
-		});
+		}, 60_000);
 	}
 });
 
 describe.skipIf(!ARTIFACTS_PRESENT)('no public subpath is dropped', () => {
-	// The full ~700-entrypoint sweep is the slow part of the suite; one mode is a
-	// sufficient coverage gate (every subpath must have a resolution), and the
-	// per-shape multi-mode behaviour is already covered by the representative probe.
-	test('every glob-derived entrypoint resolves under node16-cjs', async () => {
-		const mode = 'node16-cjs';
-		const analysis = await checkPackage(pkg, { entrypoints: intendedSubpaths(), modes: modesFor(mode) });
-		const unresolved = problemsOf(analysis)
-			.filter((p): p is Extract<Problem, { kind: 'NoResolution' }> => p.kind === 'NoResolution')
-			.filter((p) => p.resolutionKind === mode)
-			.map((p) => p.entrypoint);
+	// One mode is a sufficient coverage gate (every subpath must have a resolution), and the per-shape multi-mode
+	// behaviour is already covered by the representative probe. This is attw's own resolution step for the ~700
+	// subpaths — what its `NoResolution` problem reports — without the rest of `checkPackage`, which builds a
+	// TypeScript program per entrypoint (~75 ms each, 73 s on CI) for checks the probe above already runs.
+	test('every glob-derived entrypoint resolves under node16-esm', () => {
+		const hosts = createCompilerHosts(pkg);
+		const unresolved = intendedSubpaths().filter((subpath) => {
+			// As attw-fork's getEntrypointResolution resolves a node16-esm entrypoint.
+			const { resolution } = hosts.node16.resolveModuleName(
+				pkg.packageName + subpath.slice(1),
+				'/index.mts',
+				ts.ModuleKind.ESNext,
+			);
+			return !resolution.resolvedModule;
+		});
 		expect(unresolved, `unresolved: ${unresolved.slice(0, 20).join(', ')}`).toEqual([]);
-	}, 120_000);
+	});
 });
 
 describe('directory-index shim emitter refuses to shadow a source artifact', () => {

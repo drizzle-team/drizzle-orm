@@ -28,7 +28,6 @@ import {
 	sum,
 	sumDistinct,
 } from 'drizzle-orm';
-import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
 import * as SQLiteDrizzle from 'drizzle-orm/effect-sqlite-do';
 import { migrate } from 'drizzle-orm/effect-sqlite-do/migrator';
 import {
@@ -343,11 +342,10 @@ const setupAggregateFunctionsTest = (db: Db) =>
 		]);
 	});
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 export class MyDurableObject extends DurableObject {
 	private db!: Db;
 	private runtime!: ManagedRuntime.ManagedRuntime<
-		EffectCache | SQLiteDrizzle.EffectLogger | SqliteClient.SqliteClient | SqlClient,
+		SQLiteDrizzle.EffectLogger | SqliteClient.SqliteClient | SqlClient,
 		never
 	>;
 
@@ -3211,6 +3209,25 @@ export class MyDurableObject extends DurableObject {
 		}));
 	}
 
+	runResult(): Promise<void> {
+		return this.exec(Effect.gen(function*() {
+			const db = yield* SQLiteDrizzle.make({});
+
+			yield* db.run(sql`drop table if exists run_result`);
+			yield* db.run(sql`create table run_result (id integer primary key, name text)`);
+
+			const plain: readonly Record<string, unknown>[] = yield* db.run(
+				sql`insert into run_result (name) values ('a')`,
+			);
+			const returning: readonly Record<string, unknown>[] = yield* db.run(
+				sql`insert into run_result (name) values ('b'), ('c') returning id`,
+			);
+
+			expect(plain).deep.equal([]);
+			expect(returning).deep.equal([{ id: 2 }, { id: 3 }]);
+		}));
+	}
+
 	queryErrorParams(): Promise<void> {
 		return this.exec(Effect.gen(function*() {
 			const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;
@@ -3256,7 +3273,7 @@ export class MyDurableObject extends DurableObject {
 				const queryRaw = yield* db.all<Record<string, unknown>>(
 					db.select(
 						Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
-					).from(allTypesTable).getSQL(true),
+					).from(allTypesTable).getSQL(),
 				);
 				expect(normalizeDataWithDbCodecs({ db: db as any, columns, data: queryRaw, mode: 'query' })[0])
 					.deep.equal(allTypesData);
@@ -4039,6 +4056,7 @@ const TESTS = [
 	'deleteWithLimitAndOrderBy',
 	'allTypes',
 	'allTypesCodecs',
+	'runResult',
 	'queryErrorParams',
 	'testRqbV2SimpleFindFirstNoRows',
 	'testRqbV2SimpleFindFirstMultipleRows',

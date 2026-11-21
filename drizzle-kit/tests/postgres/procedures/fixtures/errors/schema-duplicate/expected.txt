@@ -1,0 +1,4 @@
+input.ts:9:19 error TSPG013: procedure name 'Close_Period' collides with 'close_period' — unquoted PostgreSQL identifiers fold to lowercase
+  billing.procedure('Close_Period', { period: 'int' }, ({ sql }) => {
+                    ^^^^^^^^^^^^^^
+  hint: the later CREATE OR REPLACE would silently replace the earlier procedure; rename one of them

@@ -1,0 +1,9 @@
+input.ts:5:3 error TSPG010: 'Math.abs' does not resolve to a DSL primitive — arbitrary calls are not supported
+    Math.abs(x)
+    ^^^^^^^^^^^
+  hint: the DSL lives on the ctx parameter: ctx.sql`...`, ctx.lockRowsOrdered(), ctx.notice(), ctx.warning(), ctx.commit(), ctx.rollback(), ctx.try(), ctx.isNull(), ctx.coalesce() (destructure it: const { sql } = ctx); plus throw new PgError()
+
+input.ts:6:3 error TSPG010: 'helper' does not resolve to a DSL primitive — arbitrary calls are not supported
+    helper()
+    ^^^^^^^^
+  hint: the DSL lives on the ctx parameter: ctx.sql`...`, ctx.lockRowsOrdered(), ctx.notice(), ctx.warning(), ctx.commit(), ctx.rollback(), ctx.try(), ctx.isNull(), ctx.coalesce() (destructure it: const { sql } = ctx); plus throw new PgError()

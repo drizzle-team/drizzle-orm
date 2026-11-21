@@ -1,17 +1,18 @@
-import * as Effect from 'effect/Effect';
+import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { usedTablesOf } from '~/used-tables.ts';
-import type { Assume } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
-import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
+import type { PgEffectPreparedQuery, PgEffectRuntimeHKT, PgEffectSession } from './session.ts';
 
 export interface PgEffectInsertHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgInsertHKTBase {
+	runtime: PgEffectRuntimeHKT<TEffectHKT>;
 	_type: PgEffectInsertBase<
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
@@ -86,37 +87,7 @@ export class PgEffectInsertBase<
 	static override readonly [entityKind]: string = 'PgEffectInsert';
 
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
-
-	/** @internal */
-	_prepare(name?: string, generateName = false): PgInsertPrepare<this, TEffectHKT> {
-		const { session, config, dialect } = this;
-		const { returning: fields } = config;
-
-		const query = dialect.sqlToQuery(this.getSQL(true));
-		const mapper = fields
-			? this.dialect.mapperGenerators.rows(fields, undefined)
-			: undefined;
-
-		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
-			query,
-			fields ? 'arrays' : 'raw',
-			name ?? generateName,
-			mapper,
-			{ type: 'insert', tables: () => usedTablesOf(this.config.table) },
-		);
-
-		return preparedQuery;
-	}
-
-	prepare(name?: string): PgInsertPrepare<this, TEffectHKT> {
-		return this._prepare(name, true);
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues).pipe(
-			Effect.withSpan('drizzle.operation'),
-		);
-	};
 }
 
+applyMixins(PgEffectInsertBase, [PgRunnableQuery]);
 applyEffectWrapper(PgEffectInsertBase);

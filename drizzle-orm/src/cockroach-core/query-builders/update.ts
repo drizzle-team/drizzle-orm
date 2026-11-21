@@ -27,7 +27,6 @@ import { type ColumnsSelection, type Placeholder, type Query, SQL, type SQLWrapp
 import { Subquery } from '~/subquery.ts';
 import { getTableName, type InferInsertModel, Table } from '~/table.ts';
 import {
-	type Assume,
 	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
@@ -47,7 +46,6 @@ import type {
 } from './select.types.ts';
 
 export interface CockroachUpdateConfig {
-	useSelectionCastCodecs?: boolean;
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: CockroachTable;
@@ -207,7 +205,7 @@ type AccumulateToResult<
 			TSelectedFields,
 			TJoin['name'],
 			TJoin['table'] extends Table ? TJoin['table']['_']['columns']
-				: TJoin['table'] extends Subquery ? Assume<TJoin['table']['_']['selectedFields'], SelectedFields>
+				: TJoin['table'] extends Subquery ? TJoin['table']['_']['selectedFields']
 				: never,
 			TSelectMode extends 'partial' ? TSelectMode : 'multiple'
 		>
@@ -286,18 +284,25 @@ export type CockroachUpdateDynamic<T extends AnyCockroachUpdate> = CockroachUpda
 	T['_']['table'],
 	T['_']['queryResult'],
 	T['_']['from'],
+	T['_']['selectedFields'],
 	T['_']['returning'],
-	T['_']['nullabilityMap']
+	T['_']['nullabilityMap'],
+	T['_']['joins']
 >;
 
 export type CockroachUpdate<
 	TTable extends CockroachTable = CockroachTable,
 	TQueryResult extends CockroachQueryResultHKT = CockroachQueryResultHKT,
-	TFrom extends CockroachTable | Subquery | CockroachViewBase | SQL | undefined = undefined,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TFrom extends CockroachTable | Subquery | CockroachViewBase | SQL | undefined =
+		| CockroachTable
+		| Subquery
+		| CockroachViewBase
+		| SQL
+		| undefined,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
-	TJoins extends Join[] = [],
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+	TJoins extends Join[] = Join[],
 > = CockroachUpdateBase<
 	TTable,
 	TQueryResult,
@@ -580,20 +585,18 @@ export class CockroachUpdateBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildUpdateQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): CockroachUpdatePrepare<this> {
 		const { returning: fields } = this.config;
-		const query = this.dialect.sqlToQuery(this.getSQL(true));
+		const query = this.dialect.sqlToQuery(this.getSQL());
 		const nullableObjectPaths = fields ? resolveNullableObjectPaths(fields, this.joinsNotNullableMap) : undefined;
 
 		return this.session.prepareQuery<

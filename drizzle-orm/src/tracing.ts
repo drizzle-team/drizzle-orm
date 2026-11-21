@@ -12,7 +12,7 @@ let rawTracer: Tracer | undefined;
 // 	}
 // }
 
-type SpanName =
+export type SpanName =
 	| 'drizzle.operation'
 	| 'drizzle.prepareQuery'
 	| 'drizzle.buildSQL'

@@ -1,42 +1,36 @@
 {
 	"name": "drizzle-orm",
-	"version": "1.0.0-rc.5",
+	"version": "1.0.0-rc.6",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
 		"build": "bun --bun run scripts/build.ts",
 		"build:artifact": "pnpm build",
 		"b": "pnpm build",
-		"test:types": "cd type-tests && tsc",
+		"test:types": "cd type-tests && tsc7",
 		"test": "vitest run",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz"
 	},
-	"main": "./index.cjs",
-	"module": "./index.js",
+	"main": "./index.js",
 	"types": "./index.d.ts",
 	"exports": {
 		".": {
-			"import": {
-				"types": "./index.d.ts",
-				"default": "./index.js"
-			},
-			"require": {
-				"types": "./index.d.cts",
-				"default": "./index.cjs"
-			}
+			"types": "./index.d.ts",
+			"default": "./index.js"
 		},
 		"./*": {
-			"import": {
-				"types": "./*.d.ts",
-				"default": "./*.js"
-			},
-			"require": {
-				"types": "./*.d.cts",
-				"default": "./*.cjs"
-			}
+			"types": "./*.d.ts",
+			"default": "./*.js"
 		}
+	},
+	"imports": {
+		"#postgres": "@drizzle-team/postgres",
+		"#postgres/*": "@drizzle-team/postgres/*"
+	},
+	"engines": {
+		"node": "^20.19.0 || >=22.12.0"
 	},
 	"sideEffects": false,
 	"publishConfig": {
@@ -72,7 +66,6 @@
 		"@aws/aurora-dsql-postgresjs-connector": ">=0.3.0",
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=4",
-		"@drizzle-team/minipg": ">=0.4.2",
 		"@effect/sql-d1": ">=4.0.0",
 		"@effect/sql-libsql": ">=4.0.0",
 		"@effect/sql-mysql2": ">=4.0.0",
@@ -98,10 +91,9 @@
 		"@tursodatabase/serverless": ">=1.4.0",
 		"@tursodatabase/sync": ">=0.7.1",
 		"@types/better-sqlite3": "*",
-		"@types/mssql": "^9.1.4",
+		"@types/mssql": ">=9.1.11",
 		"@types/pg": "*",
 		"@types/sql.js": "*",
-		"@upstash/redis": ">=1.34.7",
 		"@vercel/postgres": ">=0.8.0",
 		"@xata.io/client": "*",
 		"arktype": ">=2.0.0",
@@ -109,7 +101,7 @@
 		"bun-types": "*",
 		"effect": ">=4.0.0",
 		"expo-sqlite": ">=14.0.0",
-		"mssql": "^11.0.1",
+		"mssql": ">=11.0.1",
 		"mysql2": ">=2",
 		"pg": ">=8",
 		"postgres": ">=3",
@@ -225,9 +217,6 @@
 		"@tursodatabase/serverless": {
 			"optional": true
 		},
-		"@upstash/redis": {
-			"optional": true
-		},
 		"effect": {
 			"optional": true
 		},
@@ -266,9 +255,6 @@
 		},
 		"zod": {
 			"optional": true
-		},
-		"@drizzle-team/minipg": {
-			"optional": true
 		}
 	},
 	"devDependencies": {
@@ -277,17 +263,18 @@
 		"@aws/aurora-dsql-node-postgres-connector": "^0.1.9",
 		"@aws/aurora-dsql-postgresjs-connector": "^0.3.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
-		"@drizzle-team/minipg": "0.4.2",
-		"@effect/sql-d1": "4.0.0",
-		"@effect/sql-libsql": "4.0.0",
-		"@effect/sql-mysql2": "4.0.0",
-		"@effect/sql-pg": "4.0.0",
-		"@effect/sql-pglite": "4.0.0",
-		"@effect/sql-sqlite-bun": "4.0.0",
-		"@effect/sql-sqlite-do": "4.0.0",
-		"@effect/sql-sqlite-node": "4.0.0",
-		"@effect/sql-sqlite-wasm": "4.0.0",
-		"@electric-sql/pglite": "^0.5.8",
+		"@drizzle-team/postgres": "workspace:*",
+		"@drizzle/test-utils": "workspace:*",
+		"@effect/sql-d1": "4.1.4",
+		"@effect/sql-libsql": "4.1.4",
+		"@effect/sql-mysql2": "4.1.4",
+		"@effect/sql-pg": "4.1.4",
+		"@effect/sql-pglite": "4.1.4",
+		"@effect/sql-sqlite-bun": "4.1.4",
+		"@effect/sql-sqlite-do": "4.1.4",
+		"@effect/sql-sqlite-node": "4.1.4",
+		"@effect/sql-sqlite-wasm": "4.1.4",
+		"@electric-sql/pglite": "^0.5.15",
 		"@libsql/client": "^0.10.0",
 		"@libsql/client-wasm": "^0.10.0",
 		"@miniflare/d1": "^2.14.4",
@@ -305,23 +292,24 @@
 		"@tursodatabase/serverless": "1.4.0",
 		"@tursodatabase/sync": "0.7.1",
 		"@types/better-sqlite3": "^9.6.0",
+		"@types/mssql": "^9.1.11",
 		"@types/node": "^25.4.0",
 		"@types/pg": "^8.10.1",
 		"@types/react": "^18.2.45",
 		"@types/sql.js": "^1.4.4",
-		"@upstash/redis": "^1.34.3",
 		"@vercel/postgres": "^0.8.0",
 		"@xata.io/client": "^0.29.3",
 		"arktype": "^2.1.10",
 		"better-sqlite3": "^13.0.3",
-		"bun-types": "^1.4.0",
+		"bun-types": "^1.4.4",
 		"cpy": "^10.1.0",
-		"effect": "4.0.0",
+		"effect": "4.1.4",
 		"expo-sqlite": "^14.0.0",
 		"glob": "^11.0.1",
+		"mssql": "^11.0.1",
 		"mysql2": "^3.14.1",
 		"pg": "^8.11.0",
-		"postgres": "^3.3.5",
+		"postgres": "^4.1.1",
 		"react": "^18.2.0",
 		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.2",

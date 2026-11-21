@@ -1,0 +1,19 @@
+input.ts:7:3 error TSPG018: transaction command COMMIT is not allowed in sql`...`
+    sql`COMMIT`
+    ^^^^^^^^^^^
+  hint: use ctx.commit()
+
+input.ts:8:3 error TSPG018: transaction command SAVEPOINT is not allowed in sql`...`
+    sql`SAVEPOINT before_fee`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  hint: savepoints are not available in PL/pgSQL (subtransactions come from EXCEPTION blocks)
+
+input.ts:9:3 error TSPG018: transaction command ROLLBACK is not allowed in sql`...`
+    sql`ROLLBACK TO SAVEPOINT before_fee`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  hint: savepoints are not available in PL/pgSQL (subtransactions come from EXCEPTION blocks)
+
+input.ts:10:3 error TSPG018: transaction command BEGIN is not allowed in sql`...`
+    sql`BEGIN`
+    ^^^^^^^^^^
+  hint: a procedure already runs inside a transaction; use ctx.commit() / ctx.rollback() to end it — the next one starts automatically

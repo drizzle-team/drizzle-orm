@@ -985,8 +985,8 @@ await db
 			{
 				id: number;
 				class: 'A' | 'C';
-				cityCount: number;
-				lastCityId: number;
+				cityCount: number | null;
+				lastCityId: number | null;
 			}[],
 			typeof result
 		>
@@ -1000,7 +1000,7 @@ await db
 	Expect<
 		Equal<
 			{
-				cityCount: number;
+				cityCount: number | null;
 			}[],
 			typeof result
 		>
@@ -1013,7 +1013,7 @@ await db
 		Equal<
 			{
 				id: number;
-				cityCount: number;
+				cityCount: number | null;
 			}[],
 			typeof result
 		>
@@ -1501,6 +1501,7 @@ await db
 		.crossJoinLateral(view);
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/571
 // Dialect-agnostic test - do not duplicate
 {
 	const res = await db.select({
@@ -1542,6 +1543,7 @@ await db
 	>;
 }
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4232
 {
 	const tripTable = pgTable('tripTable', {
 		id: integer(),

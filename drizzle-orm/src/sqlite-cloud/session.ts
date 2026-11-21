@@ -1,6 +1,4 @@
 import type { Database, SQLiteCloudRow, SQLiteCloudRowset } from '@sqlitecloud/drivers';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
@@ -20,7 +18,6 @@ import type { SQLiteCloudRunResult } from './driver.ts';
 
 export interface SQLiteCloudSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -32,7 +29,6 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 	static override readonly [entityKind]: string = 'SQLiteCloudSession';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: Database,
@@ -42,7 +38,6 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 	) {
 		super(dialect, 'async');
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -51,8 +46,6 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<T & { run: SQLiteCloudRunResult }> {
 		let stmt: ReturnType<typeof this.client.prepare>;
 		try {
@@ -117,9 +110,6 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

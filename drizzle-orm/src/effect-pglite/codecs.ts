@@ -1,9 +1,8 @@
+import { unsupportedCodec } from '~/codecs.ts';
 import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
-	castToText,
-	castToTextArr,
 	genericPgCodecs,
 	makeBoxArray,
 	makeGeometryArray,
@@ -13,37 +12,45 @@ import {
 	parseLineABC,
 	parseLineTuple,
 	parsePgArrayAndNormalize,
+	parsePgArrayOfStrings,
 	parsePgVector,
 	parsePointTuple,
 	parsePointXY,
+	pgDateTextFromUtcDate,
 	refineGenericPgCodecs,
-	textToDate,
-	textToDateWithTz,
 } from '~/pg-core/codecs.ts';
 import { pgHexToUint8Array } from '~/utils.ts';
+
+const driver = '@effect/sql-pglite';
+const localTimeReason = 'the driver decodes `timestamp` values in process-local time, '
+	+ 'and its `Effect` client accepts no per-query parsers';
+const timeZoneReason = 'the driver decodes `timestamptz` values to `Date`s, dropping the offset the server formats in '
+	+ "the session's time zone, and its `Effect` client accepts no per-query parsers";
 
 export const effectPgliteCodecs = refineGenericPgCodecs({
 	bigint: {
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
-	bigserial: { normalize: BigInt },
+	bigserial: {
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
 	'bigint:string': {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalize: String,
+		normalizeArray: arrayCompatNormalize(String),
 	},
 	'bigint:number': {
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
-	'bigserial:number': { normalize: Number },
-	date: {
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+	'bigserial:number': {
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
 	},
 	'date:string': {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalize: pgDateTextFromUtcDate,
+		normalizeArray: arrayCompatNormalize(pgDateTextFromUtcDate),
 	},
 	'geometry(point)': {
 		normalize: parseGeometryXY,
@@ -72,22 +79,16 @@ export const effectPgliteCodecs = refineGenericPgCodecs({
 		normalizeArray: arrayCompatNormalize(parsePointTuple),
 	},
 	timestamp: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: textToDateWithTz,
-		normalizeArray: arrayCompatNormalize(textToDateWithTz),
-	},
-	timestamptz: {
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		normalize: unsupportedCodec('timestamp', driver, localTimeReason),
+		normalizeArray: unsupportedCodec('timestamp', driver, localTimeReason),
 	},
 	'timestamp:string': {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalize: unsupportedCodec('timestamp', driver, localTimeReason),
+		normalizeArray: unsupportedCodec('timestamp', driver, localTimeReason),
 	},
 	'timestamptz:string': {
-		cast: castToText,
-		castArray: castToTextArr,
+		normalize: unsupportedCodec('timestamp with time zone', driver, timeZoneReason),
+		normalizeArray: unsupportedCodec('timestamp with time zone', driver, timeZoneReason),
 	},
 	json: {
 		normalizeParam: (v) => JSON.stringify(v),
@@ -127,7 +128,9 @@ export const effectPgliteCodecs = refineGenericPgCodecs({
 	regprocedure: { normalizeParamArray: (v) => makePgArray(v) },
 	regrole: { normalizeParamArray: (v) => makePgArray(v) },
 	regtype: { normalizeParamArray: (v) => makePgArray(v) },
-	timetz: { normalizeParamArray: (v) => makePgArray(v) },
+	timetz: {
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	tsmultirange: { normalizeParamArray: (v) => makePgArray(v) },
 	tsquery: { normalizeParamArray: (v) => makePgArray(v) },
 	tsrange: { normalizeParamArray: (v) => makePgArray(v) },
@@ -149,8 +152,8 @@ export const effectPgliteCodecs = refineGenericPgCodecs({
 			: arrayCompatNormalize((v: Uint8Array) => Buffer.from(v)),
 	},
 	enum: {
-		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalizeArray: parsePgArrayOfStrings,
 	},
 	'numeric:number': {
 		normalize: Number,

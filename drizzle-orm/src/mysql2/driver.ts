@@ -1,6 +1,5 @@
 import type { Connection as CallbackConnection, Pool as CallbackPool } from 'mysql2';
 import { type Connection, createPool, type Pool, type PoolOptions } from 'mysql2/promise';
-import type { Cache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -15,7 +14,6 @@ import { MySql2Session } from './session.ts';
 
 export interface MySqlDriverOptions {
 	logger?: Logger;
-	cache?: Cache;
 	useJitMappers?: boolean;
 }
 export { MySqlAsyncDatabase as MySqlDatabase } from '~/mysql-core/async/db.ts';
@@ -50,7 +48,6 @@ function construct<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new MySql2Session(clientForInstance as MySql2Client, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new MySql2Database(
@@ -59,10 +56,6 @@ function construct<
 		relations,
 	) as MySql2Database<TRelations>;
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }
@@ -77,6 +70,10 @@ function isCallbackClient(client: any): client is CallbackClient {
 
 export type AnyMySql2Connection = Pool | Connection | CallbackPool | CallbackConnection;
 
+/**
+ * Driver quirks:
+ * - `float` values are rounded to 6 significant digits by MySQL's text protocol
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AnyMySql2Connection = Pool,

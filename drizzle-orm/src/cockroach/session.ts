@@ -10,35 +10,21 @@ import type {
 import { CockroachPreparedQuery, CockroachSession } from '~/cockroach-core/session.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
+import { pgRawTextTypeParser } from '~/pg-core/codecs.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
+export const nodeCockroachRawTextTypes: CustomTypesConfig = {
+	getTypeParser: <CustomTypesConfig['getTypeParser']> pgRawTextTypeParser((typeId, format) =>
+		types.getTypeParser(typeId, format)
+	),
+};
+
 const { Pool, types } = pg;
 
 export type NodeCockroachClient = pg.Pool | PoolClient | Client;
-
-const noop = (val: any) => val;
-
-const typeConfig: CustomTypesConfig = {
-	getTypeParser: <CustomTypesConfig['getTypeParser']> ((typeId, format) => {
-		switch (typeId as number) {
-			case types.builtins.TIMESTAMPTZ:
-			case types.builtins.TIMESTAMP:
-			case types.builtins.DATE:
-			case types.builtins.INTERVAL:
-			case 1231: // numeric[]
-			case 1115: // timestamp[]
-			case 1185: // timestamp with timezone[]
-			case 1187: // interval[]
-			case 1182: // date[]
-				return noop;
-			default:
-				return types.getTypeParser(typeId, format);
-		}
-	}),
-};
 
 export interface NodeCockroachSessionOptions {
 	logger?: Logger;
@@ -79,7 +65,7 @@ export class NodeCockroachSession<
 				name: queryName,
 				rowMode: mode === 'arrays' ? 'array' : undefined as any,
 				text: query.sql,
-				types: typeConfig,
+				types: mapper ? nodeCockroachRawTextTypes : undefined,
 			}, params).then((r) => mode === 'raw' ? r : r.rows);
 		};
 
@@ -107,11 +93,11 @@ export class NodeCockroachSession<
 			connectionError ??= e;
 		};
 		poolClient?.on('error', onConnectionError);
-		const release = () => {
+		const release = (failure?: Error) => {
 			if (!poolClient) return;
 			// broken client is destroyed by the pool, listener stays to absorb any trailing errors
 			if (!connectionError) poolClient.off('error', onConnectionError);
-			poolClient.release(connectionError ?? rollbackError);
+			poolClient.release(connectionError ?? rollbackError ?? failure);
 		};
 		const session = poolClient
 			? new NodeCockroachSession(poolClient, this.dialect, this.relations, this.options)
@@ -121,7 +107,8 @@ export class NodeCockroachSession<
 		try {
 			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 		} catch (e) {
-			release();
+			// `begin` may still reach the server after failing on the client, session state is unknown so the client must not be reused
+			release(e as Error);
 			throw e;
 		}
 

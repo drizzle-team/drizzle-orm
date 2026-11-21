@@ -1,5 +1,6 @@
 import type { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
+import { DrizzleError } from './errors.ts';
 import type { SQLChunk } from './sql/sql.ts';
 import type { Writable } from './utils.ts';
 
@@ -11,8 +12,6 @@ export type CastParamCodec = (name: string, column: Column) => string;
 export type CastArrayParamCodec = (name: string, column: Column, arrayDimensions: number) => string;
 
 export interface Codec {
-	readonly cast?: CastCodec | undefined;
-	readonly castArray?: CastArrayCodec | undefined;
 	readonly castInJson?: CastCodec | undefined;
 	readonly castArrayInJson?: CastArrayCodec | undefined;
 	readonly castParam?: CastParamCodec | undefined;
@@ -31,9 +30,32 @@ export type Codecs<TTypeSet extends string = string> = {
 
 export const noopCodecs: Codecs = {};
 
+export const unsupportedColumnTypeError = (type: string, driver: string, reason: string) =>
+	new DrizzleError({ message: `Column type "${type}" is not supported with the ${driver} driver: ${reason}` });
+
+/**
+ * Normalizer for a column type that a driver can't return without losing data, and that can't be requested from it
+ * in a lossless form per query - throws on every non-null value
+ */
+export const unsupportedCodec = (type: string, driver: string, reason: string): NormalizeCodec => () => {
+	throw unsupportedColumnTypeError(type, driver, reason);
+};
+
+const unsafeIntegerReason = 'the driver returned an integer outside of the safe integer range as a number, '
+	+ 'which has already lost precision; configure the client to return such values as strings or bigints';
+
+/** `bigint` from a driver value that is a `bigint`, integer text or, depending on client options, a `number` */
+export const bigintFromIntegerValue =
+	(type: string, driver: string): NormalizeCodec => (value: bigint | string | number) => {
+		if (typeof value === 'number') {
+			if (Number.isSafeInteger(value)) return BigInt(value);
+			throw unsupportedColumnTypeError(type, driver, unsafeIntegerReason);
+		}
+		return BigInt(value);
+	};
+
 /** Holds array-type codecs for array columns */
 export interface ResolvedCodecs {
-	readonly cast: CastCodec | CastArrayCodec | undefined;
 	readonly castInJson: CastCodec | CastArrayCodec | undefined;
 	readonly castParam: CastParamCodec | CastArrayParamCodec | undefined;
 	readonly normalize: NormalizeCodec | NormalizeArrayCodec | undefined;
@@ -42,7 +64,6 @@ export interface ResolvedCodecs {
 }
 
 const noCodecs: ResolvedCodecs = {
-	cast: undefined,
 	castInJson: undefined,
 	castParam: undefined,
 	normalize: undefined,
@@ -51,8 +72,6 @@ const noCodecs: ResolvedCodecs = {
 };
 
 const arrayToItemTypeCodecNameMap = {
-	cast: 'cast',
-	castArray: 'cast',
 	castInJson: 'castInJson',
 	castArrayInJson: 'castInJson',
 	castParam: 'castParam',
@@ -66,8 +85,6 @@ const arrayToItemTypeCodecNameMap = {
 } as const satisfies Record<keyof Codec, keyof Codec>;
 
 export type ItemToArrayTypeCodecNameMap = {
-	cast: 'castArray';
-	castArray: 'castArray';
 	castInJson: 'castArrayInJson';
 	castArrayInJson: 'castArrayInJson';
 	castParam: 'castArrayParam';
@@ -104,7 +121,6 @@ export class CodecsCollection<TTypeSet extends string = string> {
 			resolved = codec
 				? isArray
 					? {
-						cast: codec.castArray,
 						castInJson: codec.castArrayInJson,
 						castParam: codec.castArrayParam,
 						normalize: codec.normalizeArray,
@@ -112,7 +128,6 @@ export class CodecsCollection<TTypeSet extends string = string> {
 						normalizeParam: codec.normalizeParamArray,
 					}
 					: {
-						cast: codec.cast,
 						castInJson: codec.castInJson,
 						castParam: codec.castParam,
 						normalize: codec.normalize,

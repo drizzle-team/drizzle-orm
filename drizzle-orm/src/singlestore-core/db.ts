@@ -1,9 +1,7 @@
-import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { SingleStoreDriverDatabase } from '~/singlestore/driver.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
@@ -83,8 +81,6 @@ export class SingleStoreDatabase<
 				session,
 			);
 		}
-
-		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -574,8 +570,6 @@ export class SingleStoreDatabase<
 		).execute();
 	}
 
-	$cache: { invalidate: Cache['onMutate'] };
-
 	transaction<T>(
 		transaction: (
 			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TRelations>,
@@ -599,7 +593,10 @@ export type SingleStoreWithReplicas<Q> = Q & {
 };
 
 export const withReplicas = <
-	Q extends SingleStoreDriverDatabase,
+	HKT extends SingleStoreQueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TRelations extends AnyRelations,
+	Q extends SingleStoreDatabase<HKT, TPreparedQueryHKT, TRelations>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],

@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import {
 	and,
 	asc,
@@ -11,6 +12,7 @@ import {
 	exists,
 	getColumns,
 	getTableColumns,
+	getTableName,
 	gt,
 	gte,
 	inArray,
@@ -54,7 +56,9 @@ import {
 	unique,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
+import { concat, rowId, substring } from 'drizzle-orm/sqlite-core/expressions';
 import { describe, expect, expectTypeOf } from 'vitest';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import type { Equal } from '~/utils';
 import { Expect } from '~/utils';
 import type { AllTypes } from './all-types';
@@ -64,13 +68,16 @@ import {
 	allTypesRelations,
 	allTypesTable as allTypesCodecsTable,
 	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	dropAllTypes,
 	makeAllTypes,
 } from './all-types';
 import { Test } from './instrumentation';
 import { clear, init, rqbPost, rqbUser } from './schema';
-import { normalizeDataWithDbCodecs } from './utils';
+import { fetchDecodedQueryRows, normalizeDataWithDbCodecs } from './utils';
 
 const allTypesTable = makeAllTypes('all_types');
 
@@ -275,7 +282,13 @@ async function runDeepNullification(db: SQLiteAsyncDatabase<'async' | 'sync', an
 	]);
 }
 
-export function tests(test: Test, exclude: string[] = []) {
+export function tests(
+	test: Test,
+	exclude: string[] = [],
+	/** How the client returns integers of rows that aren't decoded (no selection, no `.mapWith()`) */
+	{ rawIntegers = 'number' }: { rawIntegers?: 'number' | 'bigint' } = {},
+) {
+	const rawInt = (value: number) => rawIntegers === 'bigint' ? BigInt(value) : value;
 	test.beforeEach(({ task, skip }) => {
 		if (exclude.includes(task.name)) skip();
 	});
@@ -664,6 +677,73 @@ export function tests(test: Test, exclude: string[] = []) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
+		test.concurrent('select distinct ordered by cast columns', async ({ db }) => {
+			const table = sqliteTable('distinct_cast_order', {
+				id: integer('id').notNull(),
+				amount: numeric('amount', { mode: 'bigint' }).notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer not null, amount numeric not null)`);
+
+			await db.insert(table).values([
+				{ id: 1, amount: 9n },
+				{ id: 2, amount: 100n },
+				{ id: 2, amount: 100n },
+				{ id: 3, amount: 10n },
+			]);
+
+			const byAmount = await db
+				.selectDistinct({ id: table.id, amount: table.amount })
+				.from(table)
+				.orderBy(desc(table.amount));
+
+			expect(byAmount).toEqual([
+				{ id: 2, amount: 100n },
+				{ id: 3, amount: 10n },
+				{ id: 1, amount: 9n },
+			]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
+		test.concurrent('order by aliased cast columns', async ({ db }) => {
+			const table = sqliteTable('alias_cast_order', {
+				id: integer('id').notNull(),
+				amount: numeric('amount', { mode: 'bigint' }).notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer not null, amount numeric not null)`);
+
+			await db.insert(table).values([
+				{ id: 1, amount: 9n },
+				{ id: 2, amount: 100n },
+				{ id: 3, amount: 10n },
+			]);
+
+			const amountAlias = table.amount.as('amount_alias');
+			const amountSql = sql<bigint>`${table.amount}`.mapWith(table.amount).as('amount_sql');
+
+			const byColumnAlias = await db.select({ id: table.id, amount: amountAlias }).from(table).orderBy(
+				desc(amountAlias),
+			);
+			const bySqlAlias = await db.select({ id: table.id, amount: amountSql }).from(table).orderBy(desc(amountSql));
+			const byDistinctAlias = await db
+				.selectDistinct({ id: table.id, amount: amountAlias })
+				.from(table)
+				.orderBy(desc(amountAlias));
+
+			const expected = [
+				{ id: 2, amount: 100n },
+				{ id: 3, amount: 10n },
+				{ id: 1, amount: 9n },
+			];
+			expect(byColumnAlias).toEqual(expected);
+			expect(bySqlAlias).toEqual(expected);
+			expect(byDistinctAlias).toEqual(expected);
+		});
+
 		test.concurrent('insert returning sql', async ({ db }) => {
 			const users = await db
 				.insert(usersTable)
@@ -868,6 +948,8 @@ export function tests(test: Test, exclude: string[] = []) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent(
 			'insert with explicit column list',
 			async ({ db }) => {
@@ -902,6 +984,8 @@ export function tests(test: Test, exclude: string[] = []) {
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent(
 			'insert with explicit column list - select',
 			async ({ db }) => {
@@ -937,6 +1021,8 @@ export function tests(test: Test, exclude: string[] = []) {
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent(
 			'insert with explicit column list - on conflict',
 			async ({ db }) => {
@@ -1454,7 +1540,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
 		test
-			.skipIf(Date.now() < +new Date('2026-11-24'))
+			.skipIf(postponed)
 			.concurrent(
 				'prepared statement with placeholder in .inArray',
 				async ({ db, push }) => {
@@ -1735,13 +1821,13 @@ export function tests(test: Test, exclude: string[] = []) {
 			const query = sql`select id, name from "users"`;
 
 			const result = await db.all<{ id: number; name: string }>(query);
-			expect(result).toEqual([{ id: 1, name: 'John' }]);
+			expect(result).toEqual([{ id: rawInt(1), name: 'John' }]);
 
 			const objects = await db.all<{ id: number; name: string }>(query, 'objects');
-			expect(objects).toEqual([{ id: 1, name: 'John' }]);
+			expect(objects).toEqual([{ id: rawInt(1), name: 'John' }]);
 
 			const arrays = await db.all<[number, string]>(query, 'arrays');
-			expect(arrays).toEqual([[1, 'John']]);
+			expect(arrays).toEqual([[rawInt(1), 'John']]);
 		});
 
 		test.concurrent('insert via db.get', async ({ db }) => {
@@ -1750,7 +1836,7 @@ export function tests(test: Test, exclude: string[] = []) {
 					usersTable.name.name,
 				)}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 			);
-			expect(inserted).toEqual({ id: 1, name: 'John' });
+			expect(inserted).toEqual({ id: rawInt(1), name: 'John' });
 		});
 
 		test.concurrent('insert via db.run + select via db.get', async ({ db }) => {
@@ -1761,13 +1847,13 @@ export function tests(test: Test, exclude: string[] = []) {
 			const query = sql`select ${usersTable.id}, ${usersTable.name} from ${usersTable}`;
 
 			const result = await db.get<{ id: number; name: string }>(query);
-			expect(result).toEqual({ id: 1, name: 'John' });
+			expect(result).toEqual({ id: rawInt(1), name: 'John' });
 
 			const object = await db.get<{ id: number; name: string }>(query, 'objects');
-			expect(object).toEqual({ id: 1, name: 'John' });
+			expect(object).toEqual({ id: rawInt(1), name: 'John' });
 
 			const array = await db.get<[number, string]>(query, 'arrays');
-			expect(array).toEqual([1, 'John']);
+			expect(array).toEqual([rawInt(1), 'John']);
 		});
 
 		test.concurrent('insert via db.get w/ query builder', async ({ db }) => {
@@ -1779,7 +1865,7 @@ export function tests(test: Test, exclude: string[] = []) {
 					.values({ name: 'John' })
 					.returning({ id: usersTable.id, name: usersTable.name }),
 			);
-			expect(inserted).toEqual({ id: 1, name: 'John' });
+			expect(inserted).toEqual({ id: rawInt(1), name: 'John' });
 		});
 
 		test.concurrent('select from a many subquery', async ({ db }) => {
@@ -1806,7 +1892,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					population: number;
+					population: number | null;
 					name: string;
 				}[]
 			>();
@@ -1847,7 +1933,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					cityName: string;
+					cityName: string | null;
 					name: string;
 				}[]
 			>();
@@ -1936,7 +2022,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				db
 					.select({
 						region: orders.region,
-						totalSales: sql<number>`sum(${orders.amount})`.as('total_sales'),
+						totalSales: sql<number>`sum(${orders.amount})`.mapWith(Number).as('total_sales'),
 					})
 					.from(orders)
 					.groupBy(orders.region),
@@ -1963,8 +2049,8 @@ export function tests(test: Test, exclude: string[] = []) {
 				.select({
 					region: orders.region,
 					product: orders.product,
-					productUnits: sql<number>`cast(sum(${orders.quantity}) as int)`,
-					productSales: sql<number>`cast(sum(${orders.amount}) as int)`,
+					productUnits: sql<number>`cast(sum(${orders.quantity}) as int)`.mapWith(Number),
+					productSales: sql<number>`cast(sum(${orders.amount}) as int)`.mapWith(Number),
 				})
 				.from(orders)
 				.where(
@@ -2217,7 +2303,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				.run();
 
 			const res = await db
-				.select({ count: sql`count(*)` })
+				.select({ count: sql`count(*)`.mapWith(Number) })
 				.from(usersTable)
 				.all();
 
@@ -2243,7 +2329,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				.select({
 					id: citiesTable.id,
 					name: sql<string>`upper(${citiesTable.name})`.as('upper_name'),
-					usersCount: sql<number>`count(${users2Table.id})`.as('users_count'),
+					usersCount: sql<number>`count(${users2Table.id})`.mapWith(Number).as('users_count'),
 				})
 				.from(citiesTable)
 				.leftJoin(users2Table, eq(users2Table.cityId, citiesTable.id))
@@ -2356,7 +2442,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		test.concurrent('select from raw sql', async ({ db }) => {
 			const result = await db
 				.select({
-					id: sql<number>`id`,
+					id: sql<number>`id`.mapWith(Number),
 					name: sql<string>`name`,
 				})
 				.from(sql`(select 1 as id, 'John' as name) as users`)
@@ -2370,7 +2456,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		test.concurrent('select from raw sql with joins', async ({ db }) => {
 			const result = await db
 				.select({
-					id: sql<number>`users.id`,
+					id: sql<number>`users.id`.mapWith(Number),
 					name: sql<string>`users.name`.as('userName'),
 					userCity: sql<string>`users.city`,
 					cityName: sql<string>`cities.name`.as('cityName'),
@@ -2399,10 +2485,10 @@ export function tests(test: Test, exclude: string[] = []) {
 		test.concurrent('join on aliased sql from select', async ({ db }) => {
 			const result = await db
 				.select({
-					userId: sql<number>`users.id`.as('userId'),
+					userId: sql<number>`users.id`.mapWith(Number).as('userId'),
 					name: sql<string>`users.name`.as('userName'),
 					userCity: sql<string>`users.city`,
-					cityId: sql<number>`cities.id`.as('cityId'),
+					cityId: sql<number>`cities.id`.mapWith(Number).as('cityId'),
 					cityName: sql<string>`cities.name`.as('cityName'),
 				})
 				.from(
@@ -2439,7 +2525,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			const users = db.$with('users').as(
 				db
 					.select({
-						id: sql<number>`id`.as('userId'),
+						id: sql<number>`id`.mapWith(Number).as('userId'),
 						name: sql<string>`name`.as('userName'),
 						city: sql<string>`city`.as('city'),
 					})
@@ -2451,7 +2537,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			const cities = db.$with('cities').as(
 				db
 					.select({
-						id: sql<number>`id`.as('cityId'),
+						id: sql<number>`id`.mapWith(Number).as('cityId'),
 						name: sql<string>`name`.as('cityName'),
 					})
 					.from(sql`(select 1 as id, 'Paris' as name) as cities`),
@@ -2999,6 +3085,167 @@ export function tests(test: Test, exclude: string[] = []) {
 				]);
 			},
 		);
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6531
+		test.concurrent(
+			'insert with onConflict do nothing using partial index as target',
+			async ({ db }) => {
+				const users = sqliteTable('users_on_conflict_do_nothing_where', {
+					id: integer('id').primaryKey(),
+					email: text('email').notNull(),
+					deletedAt: integer('deleted_at'),
+				});
+
+				await db.run(sql`drop table if exists ${users}`);
+				await db.run(sql`
+					create table ${users} (
+						id integer primary key,
+						email text not null,
+						deleted_at integer
+					)
+				`);
+				await db.run(
+					sql`create unique index users_on_conflict_do_nothing_where_email_idx on ${users} (email) where deleted_at is null`,
+				);
+
+				await db.insert(users).values({ id: 1, email: 'john@example.com', deletedAt: 1 }).run();
+				await db.insert(users).values({ id: 2, email: 'john@example.com' }).run();
+
+				await db
+					.insert(users)
+					.values({ id: 3, email: 'john@example.com' })
+					.onConflictDoNothing({ target: users.email, where: isNull(users.deletedAt) })
+					.run();
+
+				const res = await db.select({ id: users.id }).from(users).orderBy(users.id).all();
+
+				expect(res).toEqual([{ id: 1 }, { id: 2 }]);
+			},
+		);
+
+		test.concurrent('insert with onConflict do update + targetWhere', async ({ db }) => {
+			const table = sqliteTable('on_conflict_target_where', {
+				id: integer('id').primaryKey(),
+				email: text('email').notNull(),
+				note: text('note'),
+				deletedAt: integer('deleted_at'),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(
+				sql`create table ${table} (id integer primary key, email text not null, note text, deleted_at integer)`,
+			);
+			await db.run(
+				sql`create unique index ${
+					sql.identifier(`${getTableName(table)}_email_idx`)
+				} on ${table} (email) where deleted_at is null`,
+			);
+
+			await db.insert(table).values({ id: 1, email: 'john@example.com', deletedAt: 1 }).run();
+			await db.insert(table).values({ id: 2, email: 'john@example.com' }).run();
+
+			await db.insert(table).values({ id: 3, email: 'john@example.com' }).onConflictDoUpdate({
+				target: table.email,
+				targetWhere: isNull(table.deletedAt),
+				set: { note: 'Updated' },
+			}).run();
+
+			expect(await db.select({ id: table.id, note: table.note }).from(table).orderBy(table.id).all()).toEqual([
+				{ id: 1, note: null },
+				{ id: 2, note: 'Updated' },
+			]);
+		});
+
+		test.concurrent('insert with onConflict do update + setWhere', async ({ db }) => {
+			const table = sqliteTable('on_conflict_set_where', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer primary key, name text not null, version integer not null)`);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]).run();
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 2, name: 'Jane1', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' }, setWhere: eq(table.version, 1) }).run();
+
+			expect(await db.select().from(table).orderBy(table.id).all()).toEqual([
+				{ id: 1, name: 'Updated', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+			]);
+		});
+
+		test.concurrent('insert with onConflict do update + where and targetWhere/setWhere throws', async ({ db }) => {
+			const table = sqliteTable('on_conflict_throws', { id: integer('id').primaryKey(), name: text('name').notNull() });
+			const message = 'You cannot use both "where" and "targetWhere"/"setWhere" at the same time';
+			const insert = () => db.insert(table).values({ id: 1, name: 'John' });
+			const where = eq(table.id, 1);
+
+			expect(() => insert().onConflictDoUpdate({ target: table.id, set: { name: 'Jane' }, where, targetWhere: where }))
+				.toThrowError(message);
+			expect(() => insert().onConflictDoUpdate({ target: table.id, set: { name: 'Jane' }, where, setWhere: where }))
+				.toThrowError(message);
+		});
+
+		test.concurrent('insert with onConflict returning', async ({ db }) => {
+			const table = sqliteTable('on_conflict_returning', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer primary key, name text not null, version integer not null)`);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]).run();
+
+			expect(
+				await db.insert(table).values({ id: 1, name: 'Skipped', version: 3 }).onConflictDoNothing().returning().all(),
+			).toEqual([]);
+			expect(
+				await db.insert(table).values({ id: 1, name: 'Updated', version: 3 }).onConflictDoUpdate({
+					target: table.id,
+					set: { name: 'Updated' },
+				}).returning({ id: table.id, name: table.name }).all(),
+			).toEqual([{ id: 1, name: 'Updated' }]);
+			expect(
+				await db.insert(table).values({ id: 2, name: 'Filtered', version: 3 }).onConflictDoUpdate({
+					target: table.id,
+					set: { name: 'Filtered' },
+					setWhere: eq(table.version, 1),
+				}).returning().all(),
+			).toEqual([]);
+			expect(
+				await db.insert(table).values({ id: 3, name: 'Inserted', version: 3 }).onConflictDoNothing().returning({
+					id: table.id,
+				}).all(),
+			).toEqual([{ id: 3 }]);
+		});
+
+		test.concurrent('insert with onConflict do update + excluded', async ({ db }) => {
+			const table = sqliteTable('on_conflict_excluded', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer primary key, name text not null, version integer not null)`);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]).run();
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 3, name: 'Bruce', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: sql`excluded.${sql.identifier(table.name.name)}` } })
+				.run();
+
+			expect(await db.select().from(table).orderBy(table.id).all()).toEqual([
+				{ id: 1, name: 'John1', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+				{ id: 3, name: 'Bruce', version: 3 },
+			]);
+		});
 
 		test.concurrent('insert with onConflict do update', async ({ db }) => {
 			await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
@@ -4175,10 +4422,12 @@ export function tests(test: Test, exclude: string[] = []) {
 					.returning({
 						updatedAt: users.updatedAt,
 					});
-				await new Promise((resolve) => setTimeout(resolve, 1000));
+				// The SQL value has millisecond precision. 100 ms rather than less leaves room for a database server whose
+				// clock is a few milliseconds off this process's (Docker on macOS runs it in a VM).
+				await new Promise((resolve) => setTimeout(resolve, 100));
 
 				const now = Date.now();
-				await new Promise((resolve) => setTimeout(resolve, 1000));
+				await new Promise((resolve) => setTimeout(resolve, 100));
 				const updateResp = await db
 					.update(users)
 					.set({
@@ -4193,6 +4442,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5780
 		test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
 			let counter = 0;
 			const table = sqliteTable('on_update_call_test', {
@@ -5337,6 +5587,124 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(users.length).toBeGreaterThan(0);
 		});
 
+		// SQLite only accepts `offset` after `limit`, so every offset here comes with a limit
+		test.concurrent('pagination: limit', async ({ db, push }) => {
+			const items = sqliteTable('pagination_1', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(0).toSQL()).toStrictEqual({
+				sql: 'select "id" from "pagination_1" order by "pagination_1"."id" limit ?',
+				params: [0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(5)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
+		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
+			const items = sqliteTable('pagination_2', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
+				sql: 'select "id" from "pagination_2" order by "pagination_2"."id" limit ? offset ?',
+				params: [2, 0],
+			});
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(0).offset(2)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+			expect(await query().limit(2).offset(4)).toStrictEqual([{ id: 5 }]);
+			expect(await query().limit(2).offset(5)).toStrictEqual([]);
+			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
+		// SQLite accepts `offset` only after `limit`, so an offset alone has to reach the database with a limit
+		test.skipIf(postponed).concurrent(
+			'pagination: offset without limit',
+			async ({ db, push }) => {
+				const items = sqliteTable('pagination_5', { id: integer('id').primaryKey() });
+				await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+				await push({ items });
+				await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+				const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+				expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+				expect(await query().offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+				expect(await query().offset(5)).toStrictEqual([]);
+			},
+		);
+
+		test.concurrent('rowId: a number, rowId.big: a bigint', async ({ db, push }) => {
+			const items = sqliteTable('row_id_1', { name: text('name').notNull() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+			await push({ items });
+			await db.insert(items).values([{ name: 'a' }, { name: 'b' }]);
+
+			const rows = await db.select({ id: rowId(), big: rowId.big(), name: items.name }).from(items).orderBy(rowId());
+			expect(rows).toStrictEqual([{ id: 1, big: 1n, name: 'a' }, { id: 2, big: 2n, name: 'b' }]);
+			expectTypeOf(rows).toEqualTypeOf<{ id: number; big: bigint; name: string }[]>();
+			// what a `number` is for: both of these throw on a bigint
+			expect(JSON.stringify(rows.map((row) => row.id + 1))).toBe('[2,3]');
+
+			expect(await db.select({ name: items.name }).from(items).where(eq(rowId(), 2))).toStrictEqual([{ name: 'b' }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
+		test.concurrent('pagination: placeholders', async ({ db, push }) => {
+			const items = sqliteTable('pagination_3', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			const limitStmt = query().limit(sql.placeholder('limit')).prepare();
+			expect(await limitStmt.all({ limit: 0 })).toStrictEqual([]);
+			expect(await limitStmt.all({ limit: 2 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+			const stmt = query().limit(sql.placeholder('limit')).offset(sql.placeholder('offset')).prepare();
+			expect(await stmt.all({ limit: 0, offset: 0 })).toStrictEqual([]);
+			expect(await stmt.all({ limit: 0, offset: 2 })).toStrictEqual([]);
+			expect(await stmt.all({ limit: 2, offset: 0 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await stmt.all({ limit: 2, offset: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6599
+		test.concurrent('pagination: set operations', async ({ db, push }) => {
+			const items = sqliteTable('pagination_4', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () =>
+				db.select({ id: items.id }).from(items).where(lt(items.id, 4)).union(
+					db.select({ id: items.id }).from(items).where(gte(items.id, 3)),
+				).orderBy(items.id);
+
+			expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
+				sql:
+					'select "id" from "pagination_4" where "pagination_4"."id" < ? union select "id" from "pagination_4" where "pagination_4"."id" >= ? order by "id" limit ? offset ?',
+				params: [4, 3, 2, 0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+
+			const stmt = query().limit(sql.placeholder('limit')).offset(sql.placeholder('offset')).prepare();
+			expect(await stmt.all({ limit: 0, offset: 0 })).toStrictEqual([]);
+			expect(await stmt.all({ limit: 2, offset: 0 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await stmt.all({ limit: 2, offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
 		test.concurrent('column.as', async ({ db }) => {
 			const users = sqliteTable('users_column_as', {
 				id: int('id').primaryKey(),
@@ -5558,11 +5926,15 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			await assertAllTypesUnions(db, allTypesTable);
 			await assertAllTypesBounds(db);
+			await assertAllTypesTemporalBounds(db);
 		});
 
 		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
 			const allTypesTable = allTypesCodecsTable;
-			const db = createDB({ allTypesTable }, allTypesRelations);
+			const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+				...allTypesRelations(r),
+				...boundsRelations(r),
+			}));
 
 			await db.run(sql.raw(dropAllTypes('all_types_cdcs')));
 			await push({ allTypesTable });
@@ -5571,14 +5943,16 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			const columns = getColumns(allTypesTable);
 
-			const queryRaw = await db.all<Record<string, unknown>>(
+			const queryRaw = await fetchDecodedQueryRows<Record<string, unknown>>(
+				db as any,
 				db.select(
 					Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
-				).from(allTypesTable).getSQL(true),
+				).from(allTypesTable).getSQL(),
 			);
 			const queryRes = normalizeDataWithDbCodecs({ db, columns, data: queryRaw, mode: 'query' })[0];
 
-			const rqbRaw = await db.all<Record<string, unknown> & { self: string }>(
+			const rqbRaw = await fetchDecodedQueryRows<Record<string, unknown> & { self: string }>(
+				db as any,
 				db.query.allTypesTable.findFirst({
 					with: {
 						self: true,
@@ -5595,7 +5969,119 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(rootRes).toStrictEqual(allTypesData);
 
 			await assertAllTypesUnions(db as any);
-			await assertAllTypesBounds(db as any);
+			await assertAllTypesBounds(db as any, { rqb: true });
+			await assertAllTypesTemporalBounds(db as any, { rqb: true });
+		});
+
+		test.concurrent('all types ~json~', async ({ db, push }) => {
+			const table = sqliteTable('all_types_json', {
+				id: integer('id').primaryKey(),
+				jsonText: text('jsonText', { mode: 'json' }),
+				jsonBlob: blob('jsonBlob', { mode: 'json' }),
+			});
+			await db.run(sql`drop table if exists ${table}`);
+			await push({ table });
+
+			const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
+
+			await db.insert(table).values(input);
+
+			// json text as the database stores it, read without decoding
+			const stored = await db.select({
+				id: table.id,
+				jsonText: sql<string>`cast(${table.jsonText} as text)`,
+				jsonBlob: sql<string>`cast(${table.jsonBlob} as text)`,
+			}).from(table).orderBy(table.id);
+
+			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+			expect(parseStoredJson(stored)).toStrictEqual(output);
+		});
+
+		test.concurrent('concat, substring expressions', async ({ db, push }) => {
+			const users = sqliteTable('expr_concat_substring', {
+				id: integer('id').primaryKey(),
+				first: text('first').notNull(),
+				last: text('last').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${users}`);
+			await push({ users });
+
+			await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, {
+				id: 2,
+				first: 'Jane',
+				last: 'Roe',
+			}]);
+
+			const res = await db.select({
+				withString: concat(users.first, '!'),
+				withColumn: concat(users.first, users.last),
+				withSql: concat(users.first, sql`'.'`),
+				from: substring(users.first, 3),
+				for: substring(users.first, 1, 2),
+				fromFor: substring(users.first, 2, 3),
+				fromSql: substring(users.first, sql`${users.id} + 1`),
+				fromForSql: substring(users.first, sql`${users.id} + 1`, users.id),
+				bigFrom: substring(users.first, 9223372036854775807n),
+				bigFor: substring(users.first, 2, 9223372036854775807n),
+			}).from(users).orderBy(users.id);
+
+			expect(res).toStrictEqual([
+				{
+					withString: 'Johnathan!',
+					withColumn: 'JohnathanDoe',
+					withSql: 'Johnathan.',
+					from: 'hnathan',
+					for: 'Jo',
+					fromFor: 'ohn',
+					fromSql: 'ohnathan',
+					fromForSql: 'o',
+					bigFrom: '',
+					bigFor: 'ohnathan',
+				},
+				{
+					withString: 'Jane!',
+					withColumn: 'JaneRoe',
+					withSql: 'Jane.',
+					from: 'ne',
+					for: 'Ja',
+					fromFor: 'ane',
+					fromSql: 'ne',
+					fromForSql: 'ne',
+					bigFrom: '',
+					bigFor: 'ane',
+				},
+			]);
+
+			const filtered = await db.select({ id: users.id }).from(users).where(
+				and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, 1, 4), 'John')),
+			);
+
+			expect(filtered).toStrictEqual([{ id: 1 }]);
+
+			const prepared = db.select({
+				withString: concat(users.first, sql.placeholder('suffix')),
+				from: substring(users.first, sql.placeholder('from')),
+				fromFor: substring(users.first, sql.placeholder('from'), sql.placeholder('for')),
+				bigFrom: substring(users.first, sql.placeholder('bigFrom')),
+				bigFor: substring(users.first, sql.placeholder('from'), sql.placeholder('bigFor')),
+			}).from(users).where(eq(users.id, 1)).prepare();
+
+			expect(
+				await prepared.execute({
+					suffix: '!',
+					from: 2,
+					for: 3,
+					bigFrom: 9223372036854775807n,
+					bigFor: 9223372036854775807n,
+				}),
+			).toStrictEqual([{
+				withString: 'Johnathan!',
+				from: 'ohnathan',
+				fromFor: 'ohn',
+				bigFrom: '',
+				bigFor: 'ohnathan',
+			}]);
 		});
 	});
 
@@ -5979,6 +6465,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		},
 	);
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/3608
 	test.concurrent('insert into ... select with generated column', async ({ db }) => {
 		const users1 = sqliteTable('users1_iswgc', {
 			id: integer('id').primaryKey({ autoIncrement: true }),
@@ -6345,6 +6832,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/1603
 	test.concurrent('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
 		const orgs = sqliteTable('issue1603_orgs_jit', (t) => ({
 			id: t.integer('id').primaryKey(),
@@ -7775,6 +8263,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		]);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;
@@ -7902,6 +8391,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5724
 	test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 		let customCast = false;
 		let customMap = false;
@@ -8036,6 +8526,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			.rejects.toBeInstanceOf(DrizzleQueryError);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test('Query error params', async ({ createDB }) => {
 		const queries = [
 			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
@@ -8069,6 +8560,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test('Query error params - transaction', async ({ createDB }) => {
 		const queries = [
 			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
@@ -8114,6 +8606,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5939
 	test('Query error params - sync transaction', async ({ createDB }) => {
 		const queries = [
 			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
@@ -8723,5 +9216,95 @@ export function tests(test: Test, exclude: string[] = []) {
 			sql:
 				'select "d0"."id" as "id", "d0"."message" as "message", "d0"."created_at" as "createdAt" from "log" as "d0" limit ? offset ?',
 		});
+	});
+}
+
+// libsql's SQLite 3.45.1 truncates `substr` arguments to 32 bits, so int64-range cases are commented out
+export function libsqlConcatSubstringTest(test: Test) {
+	test.concurrent('concat, substring expressions - libsql', async ({ db, push }) => {
+		const users = sqliteTable('expr_concat_substring_libsql', {
+			id: integer('id').primaryKey(),
+			first: text('first').notNull(),
+			last: text('last').notNull(),
+		});
+
+		await db.run(sql`drop table if exists ${users}`);
+		await push({ users });
+
+		await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, {
+			id: 2,
+			first: 'Jane',
+			last: 'Roe',
+		}]);
+
+		const res = await db.select({
+			withString: concat(users.first, '!'),
+			withColumn: concat(users.first, users.last),
+			withSql: concat(users.first, sql`'.'`),
+			from: substring(users.first, 3),
+			for: substring(users.first, 1, 2),
+			fromFor: substring(users.first, 2, 3),
+			fromSql: substring(users.first, sql`${users.id} + 1`),
+			fromForSql: substring(users.first, sql`${users.id} + 1`, users.id),
+			// bigFrom: substring(users.first, 9223372036854775807n),
+			// bigFor: substring(users.first, 2, 9223372036854775807n),
+		}).from(users).orderBy(users.id);
+
+		expect(res).toStrictEqual([
+			{
+				withString: 'Johnathan!',
+				withColumn: 'JohnathanDoe',
+				withSql: 'Johnathan.',
+				from: 'hnathan',
+				for: 'Jo',
+				fromFor: 'ohn',
+				fromSql: 'ohnathan',
+				fromForSql: 'o',
+				// bigFrom: '',
+				// bigFor: 'ohnathan',
+			},
+			{
+				withString: 'Jane!',
+				withColumn: 'JaneRoe',
+				withSql: 'Jane.',
+				from: 'ne',
+				for: 'Ja',
+				fromFor: 'ane',
+				fromSql: 'ne',
+				fromForSql: 'ne',
+				// bigFrom: '',
+				// bigFor: 'ane',
+			},
+		]);
+
+		const filtered = await db.select({ id: users.id }).from(users).where(
+			and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, 1, 4), 'John')),
+		);
+
+		expect(filtered).toStrictEqual([{ id: 1 }]);
+
+		const prepared = db.select({
+			withString: concat(users.first, sql.placeholder('suffix')),
+			from: substring(users.first, sql.placeholder('from')),
+			fromFor: substring(users.first, sql.placeholder('from'), sql.placeholder('for')),
+			// bigFrom: substring(users.first, sql.placeholder('bigFrom')),
+			// bigFor: substring(users.first, sql.placeholder('from'), sql.placeholder('bigFor')),
+		}).from(users).where(eq(users.id, 1)).prepare();
+
+		expect(
+			await prepared.execute({
+				suffix: '!',
+				from: 2,
+				for: 3,
+				// bigFrom: 9223372036854775807n,
+				// bigFor: 9223372036854775807n,
+			}),
+		).toStrictEqual([{
+			withString: 'Johnathan!',
+			from: 'ohnathan',
+			fromFor: 'ohn',
+			// bigFrom: '',
+			// bigFor: 'ohnathan',
+		}]);
 	});
 }

@@ -1,8 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import type { BatchItem } from '~/batch.ts';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
@@ -22,7 +20,6 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -36,7 +33,6 @@ export class SQLiteD1Session<TRelations extends AnyRelations>
 	static override readonly [entityKind]: string = 'SQLiteD1Session';
 
 	private logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		private client: D1Database | D1DatabaseSession,
@@ -46,7 +42,6 @@ export class SQLiteD1Session<TRelations extends AnyRelations>
 	) {
 		super(dialect, 'async');
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery(
@@ -55,8 +50,6 @@ export class SQLiteD1Session<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): D1PreparedQuery {
 		let stmt: D1PreparedStatement;
 		try {
@@ -86,9 +79,6 @@ export class SQLiteD1Session<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}
@@ -217,9 +207,6 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		mapper: ((rows: any[]) => any) | undefined,
 		mode: 'arrays' | 'objects' | 'raw',
 		logger: Logger,
-		cache: Cache | undefined,
-		queryMetadata: QueryMetadata | undefined,
-		cacheConfig: WithCacheConfig | undefined,
 		paramsInErrors: boolean | undefined,
 	) {
 		super(
@@ -230,9 +217,6 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			mapper,
 			mode,
 			logger,
-			cache,
-			queryMetadata,
-			cacheConfig,
 			paramsInErrors,
 		);
 

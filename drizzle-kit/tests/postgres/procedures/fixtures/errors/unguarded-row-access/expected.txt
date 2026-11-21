@@ -1,0 +1,4 @@
+input.ts:7:10 error TSPG008: 'hold.row' is only readable inside if (hold.found)
+    notice(hold.row.amount)
+           ^^^^^^^^^^^^^^^
+  hint: when no row matched, the record is NULL — guard the access

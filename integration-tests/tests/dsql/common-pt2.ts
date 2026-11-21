@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import {
 	and,
 	arrayContains,
@@ -58,6 +59,7 @@ import {
 import type { DsqlAsyncSession } from 'drizzle-orm/pg-core/async/dsql';
 import { PostgresJsDsqlDatabase } from 'drizzle-orm/postgres-js/dsql';
 import { describe, expect, expectTypeOf } from 'vitest';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import { normalizeDataWithDbCodecs } from '../pg/utils';
 import {
 	type AllTypes,
@@ -65,7 +67,10 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
 } from './all-types';
 import type { Test } from './instrumentation';
@@ -1553,10 +1558,10 @@ export function tests(test: Test) {
 
 			await push({ users });
 
-			await db.insert(users).values({ id: 1, name: 'John' });
-			const result = await db.select().from(users).limit(-1);
-
-			expect(result.length).toBeGreaterThan(0);
+			// A negative limit isn't dropped: it reaches the database, which rejects it
+			const query = db.select().from(users).limit(-1);
+			expect(query.toSQL().params).toStrictEqual([-1]);
+			await expect(query).rejects.toThrow();
 		});
 
 		test.concurrent('Object keys as column names', async ({ db, push }) => {
@@ -3135,7 +3140,7 @@ export function tests(test: Test) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					population: number;
+					population: number | null;
 					name: string;
 				}[]
 			>();
@@ -3190,7 +3195,7 @@ export function tests(test: Test) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					cityName: string;
+					cityName: string | null;
 					name: string;
 				}[]
 			>();
@@ -3460,14 +3465,23 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
-			const db = createDB({ allTypesTable }, allTypesRelations);
+			const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+				...allTypesRelations(r),
+				...boundsRelations(r),
+			}));
 			await push({ allTypesTable });
 
 			await db.insert(allTypesTable).values(allTypesData);
 
 			const session = (<any> db).session as DsqlAsyncSession;
 
-			const queryRes = await session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true)).then((
+			// query-path raw values come from a mapped prepared query, so that per-query parser overrides apply as for regular selects
+			const queryRes = await session.prepareQuery<any>(
+				(<any> db).dialect.sqlToQuery(db.select().from(allTypesTable).getSQL()),
+				'arrays',
+				false,
+				(rows: unknown[][]) => rows,
+			).execute().then((
 				e,
 			) =>
 				normalizeDataWithDbCodecs({
@@ -3508,7 +3522,31 @@ export function tests(test: Test) {
 			expect(rootRes).toStrictEqual(allTypesData);
 
 			await assertAllTypesUnions(db);
-			await assertAllTypesBounds(db);
+			await assertAllTypesBounds(db, { rqb: true });
+			await assertAllTypesTemporalBounds(db, { rqb: true });
+		});
+
+		test.concurrent('all types ~json~', async ({ db, push }) => {
+			const table = pgTable('all_types_json', {
+				id: integer('id').primaryKey(),
+				json: json('json'),
+				jsonb: jsonb('jsonb'),
+			});
+			await push({ table });
+
+			const { input, output } = jsonRows(['json', 'jsonb']);
+
+			await db.insert(table).values(input);
+
+			// json text as the database stores it, read without decoding
+			const stored = await db.select({
+				id: table.id,
+				json: sql<string>`${table.json}::text`,
+				jsonb: sql<string>`${table.jsonb}::text`,
+			}).from(table).orderBy(table.id);
+
+			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+			expect(parseStoredJson(stored)).toStrictEqual(output);
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
@@ -3569,7 +3607,7 @@ export function tests(test: Test) {
 		});
 
 		// TODO: Need to implement per-column inliner
-		test.skipIf(Date.now() < +new Date('2026-11-24'))('insert with inline params in sql', async ({ db }) => {
+		test.skipIf(postponed)('insert with inline params in sql', async ({ db }) => {
 			const arrays = pgTable('arrays', {
 				id: integer('id').primaryKey(),
 				names: text('names').array().notNull(),
@@ -3622,7 +3660,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-11-24'))(
+		test.skipIf(postponed)(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -3710,7 +3748,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-11-24'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(postponed)('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }
@@ -5581,6 +5619,7 @@ export function tests(test: Test) {
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		test.concurrent('Query error params', async ({ createDB }) => {
 			for (const paramsInErrors of [undefined, false, true]) {
 				const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -5596,6 +5635,7 @@ export function tests(test: Test) {
 			}
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5939
 		test.concurrent('Query error params - transaction', async ({ createDB }) => {
 			for (const paramsInErrors of [undefined, false, true]) {
 				const db = createDB({}, () => ({}), undefined, paramsInErrors);
@@ -5813,6 +5853,7 @@ export function tests(test: Test) {
 			},
 		);
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
 			let customCast = false;
 			let customMap = false;
@@ -6004,6 +6045,7 @@ export function tests(test: Test) {
 			);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5724
 		test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
 			let customCast = false;
 			let customMap = false;
@@ -6195,6 +6237,7 @@ export function tests(test: Test) {
 			);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5780
 		test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
 			let counter = 0;
 			const table = pgTable('on_update_call_test', (t) => ({
@@ -6235,6 +6278,7 @@ export function tests(test: Test) {
 			expect(res).toStrictEqual([{ id: 2, name: 'Second', inc: 2 }]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/4464
 		test.concurrent('db.execute modes', async ({ db, push }) => {
 			const users = pgTable('users_execute_modes_1', (t) => ({
 				id: t.integer().primaryKey(),
@@ -6279,7 +6323,7 @@ export function tests(test: Test) {
 			expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-11-24')).concurrent(
+		test.skipIf(postponed).concurrent(
 			'Same table name joined between schemas',
 			async ({ db }) => {
 				const users1 = pgTable('users_cs_join_1', (t) => ({
@@ -6309,7 +6353,7 @@ export function tests(test: Test) {
 					u2: users2,
 				}).from(users1).leftJoin(users2, eq(users1.id, users2.id));
 
-				// @ts-ignore skipIf(Date.now() < +new Date('2026-11-09')) - just to make it searchable
+				// @ts-ignore postponed (see @drizzle/test-utils) - just to make it searchable
 				expectTypeOf(res).toEqualTypeOf<{
 					u1: {
 						id: number;
@@ -6434,6 +6478,7 @@ export function tests(test: Test) {
 			).rejects.toThrowError(/Aurora DSQL does not support nested transactions/);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/1772
 		test('transaction with an empty options object', async ({ db, push }) => {
 			const users = pgTable('users_tx_cfg_empty', {
 				id: integer('id').primaryKey(),

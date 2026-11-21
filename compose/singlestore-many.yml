@@ -1,11 +1,13 @@
 services:
   singlestore0:
     image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
+    platform: linux/amd64 # no arm64 build: ARM hosts (Apple silicon, OrbStack runners) run it emulated
+    network_mode: bridge
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC
     ports:
-      - "3308:3306"
+      - "${DRIZZLE_PORT_SINGLESTORE_MANY0:-3308}:3306"
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 3306"]
       interval: 2s
@@ -14,11 +16,13 @@ services:
 
   singlestore1:
     image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
+    platform: linux/amd64 # no arm64 build: ARM hosts (Apple silicon, OrbStack runners) run it emulated
+    network_mode: bridge
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC
     ports:
-      - "3309:3306"
+      - "${DRIZZLE_PORT_SINGLESTORE_MANY1:-3309}:3306"
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 3306"]
       interval: 2s
@@ -27,11 +31,13 @@ services:
 
   singlestore2:
     image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
+    platform: linux/amd64 # no arm64 build: ARM hosts (Apple silicon, OrbStack runners) run it emulated
+    network_mode: bridge
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC
     ports:
-      - "3310:3306"
+      - "${DRIZZLE_PORT_SINGLESTORE_MANY2:-3310}:3306"
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 3306"]
       interval: 2s
@@ -40,11 +46,13 @@ services:
 
   singlestore3:
     image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
+    platform: linux/amd64 # no arm64 build: ARM hosts (Apple silicon, OrbStack runners) run it emulated
+    network_mode: bridge
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC
     ports:
-      - "3311:3306"
+      - "${DRIZZLE_PORT_SINGLESTORE_MANY3:-3311}:3306"
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 3306"]
       interval: 2s

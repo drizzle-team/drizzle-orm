@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import type { NonArray, Writable } from '~/utils.ts';
+import type { EnumObjectValues, NonArray, Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 // Enum as ts enum
@@ -8,7 +8,7 @@ export interface PgEnumObject<TValues extends object> {
 	(name?: string): PgEnumObjectColumnBuilder<TValues>;
 
 	readonly enumName: string;
-	readonly enumValues: string[];
+	readonly enumValues: [string, ...string[]];
 	readonly schema: string | undefined;
 	/** @internal */
 	[isPgEnumSym]: true;
@@ -19,7 +19,7 @@ export class PgEnumObjectColumnBuilder<
 > extends PgColumnBuilder<{
 	dataType: 'string enum';
 	data: TValues[keyof TValues];
-	enumValues: string[];
+	enumValues: EnumObjectValues<TValues>;
 	driverParam: string;
 }, { enum: PgEnumObject<any> }> {
 	static override readonly [entityKind]: string = 'PgEnumObjectColumnBuilder';
@@ -45,7 +45,7 @@ export class PgEnumObjectColumn<TValues extends object> extends PgColumn<'string
 	override readonly codec = 'enum';
 
 	readonly enum: PgEnumObject<TValues>;
-	override readonly enumValues: string[];
+	override readonly enumValues: [string, ...string[]];
 
 	constructor(
 		table: PgTable<any>,
@@ -173,7 +173,7 @@ export function pgEnumObjectWithSchema<T extends object>(
 		(name?: string): PgEnumObjectColumnBuilder<T> => new PgEnumObjectColumnBuilder(name ?? '', enumInstance),
 		{
 			enumName,
-			enumValues: Object.values(values),
+			enumValues: Object.values(values) as [string, ...string[]],
 			schema,
 			[isPgEnumSym]: true,
 		} as const,

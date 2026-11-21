@@ -1,9 +1,16 @@
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { IndexColumn } from '~/pg-core/indexes.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
+import type {
+	PgBasePreparedQuery,
+	PgQueryResultHKT,
+	PgQueryResultKind,
+	PgRunnableQueryMethods,
+	PgSession,
+} from '~/pg-core/session.ts';
 import type { PgTable, TableConfig } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { QueryRuntimeHKT } from '~/query-builders/runtime.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
@@ -13,6 +20,7 @@ import type { InferInsertModel } from '~/table.ts';
 import { getTableName, Table } from '~/table.ts';
 import { type Assume, type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
+import { prepareMutation } from './prepare.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
@@ -29,7 +37,6 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	columnList?: string[];
 	overridingSystemValue_?: boolean;
 	comment?: SQL;
-	useSelectionCastCodecs?: boolean;
 }
 
 export type PgInsertValue<
@@ -227,6 +234,8 @@ export class PgInsertBuilder<
 }
 
 export interface PgInsertHKTBase {
+	/** How the builder's runtime wraps it's results */
+	runtime: QueryRuntimeHKT;
 	table: unknown;
 	queryResult: unknown;
 	selectedFields: unknown;
@@ -357,7 +366,11 @@ export interface PgInsertBase<
 		TSelectedFields,
 		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
 	>,
-	SQLWrapper
+	SQLWrapper,
+	PgRunnableQueryMethods<
+		THKT['runtime'],
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+	>
 {
 	readonly _: {
 		readonly dialect: 'pg';
@@ -450,7 +463,7 @@ export class PgInsertBase<
 	/**
 	 * Adds an `on conflict do nothing` clause to the query.
 	 *
-	 * Calling this method simply avoids inserting a row as its alternative action.
+	 * Calling this method simply avoids inserting a row as it's alternative action.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#on-conflict-do-nothing}
 	 *
@@ -489,7 +502,7 @@ export class PgInsertBase<
 	/**
 	 * Adds an `on conflict do update` clause to the query.
 	 *
-	 * Calling this method will update the existing row that conflicts with the row proposed for insertion as its alternative action.
+	 * Calling this method will update the existing row that conflicts with the row proposed for insertion as it's alternative action.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/insert#upserts-and-conflicts}
 	 *
@@ -545,14 +558,12 @@ export class PgInsertBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildInsertQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
@@ -573,5 +584,22 @@ export class PgInsertBase<
 
 	$dynamic(): PgInsertDynamic<this> {
 		return this as any;
+	}
+
+	/**
+	 * Prepares the query on the session, for both runtimes. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
+		const { session, dialect, config } = this;
+		return prepareMutation(
+			session,
+			dialect,
+			config,
+			() => this.getSQL(),
+			undefined,
+			name ?? generateName,
+		);
 	}
 }

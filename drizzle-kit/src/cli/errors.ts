@@ -1,3 +1,4 @@
+import { inspect } from 'node:util';
 import type { MissingHint } from './hints';
 import { QueryError } from './utils';
 import { error, errText, info } from './views';
@@ -164,12 +165,12 @@ export class ConfigConnectionCliError extends DrizzleCliError {
 }
 
 export class DatabaseDriverCliError extends DrizzleCliError {
-	constructor(database: string, packages: string[], humanMessage: string, note?: string) {
+	constructor(database: string, packages: string[], humanMessage: string, note?: string, options?: ErrorOptions) {
 		super('database_driver_error', humanMessage, {
 			database,
 			packages,
 			...(note ? { note } : {}),
-		});
+		}, options);
 	}
 }
 
@@ -269,7 +270,13 @@ export class UnsupportedSchemaChangeError extends DrizzleCliError {
 
 export const errorToEnvelope = (e: unknown) => {
 	if (e instanceof DrizzleCliError) {
-		return { status: 'error' as const, error: { code: e.code, ...e.meta } };
+		// `inspect` gives the same text `console.error` prints in text mode; JSON.stringify would drop
+		// an Error's message, stack and cause. Default depth (2) on purpose: errors can hold live sockets
+		// (neon's ErrorEvent), so `depth: null` can add hundreds of lines. Deeper levels print as `[Array]`.
+		return {
+			status: 'error' as const,
+			error: { code: e.code, ...e.meta, ...(e.cause ? { cause: inspect(e.cause) } : {}) },
+		};
 	}
 	if (e instanceof QueryError) {
 		return {

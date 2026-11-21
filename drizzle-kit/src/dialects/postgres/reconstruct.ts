@@ -1,7 +1,7 @@
 import { originUUID } from '../../utils';
 import { type DDL, type Delta, findRow, isEqual, parseEntityKey, type Row } from '../dialect';
 import { fromEntities, type PostgresDDL } from './ddl';
-import type { PostgresDiffSnapshot, PostgresSnapshot } from './snapshot';
+import type { AnyDeltaPostgresSnapshot, AnyPostgresDiffSnapshot } from './snapshot';
 
 type State = Pick<DDL, 'entities' | 'key' | '_'>;
 
@@ -51,10 +51,12 @@ export const applyDeltas = <T extends State>(state: T, deltas: Delta[]): T => {
 	return state;
 };
 
-// Every snapshot of a migrations folder by id. The map must iterate in folder-name order.
-type Snapshots = ReadonlyMap<string, PostgresSnapshot>;
+// Every snapshot of a migrations folder by id. The map must iterate in folder-name order. The snapshots can be of
+// any format from 9 on: `upToV9` reconstructs the parents of format 8 snapshots of a merged folder, and the
+// current DDL ignores the fields that a newer format dropped.
+type Snapshots = ReadonlyMap<string, AnyDeltaPostgresSnapshot>;
 
-const lookup = (snapshots: Snapshots, id: string): PostgresSnapshot => {
+const lookup = (snapshots: Snapshots, id: string): AnyDeltaPostgresSnapshot => {
 	const snapshot = snapshots.get(id);
 	if (snapshot) return snapshot;
 	throw new Error(
@@ -77,7 +79,7 @@ const historyOf = (snapshots: Snapshots, ids: string[], known = new Set<string>(
 
 // Applies the deltas of `snapshot`. A `KeyCollisionError` gets the snapshot id, so that a command can name the
 // migration folder.
-const applySnapshot = (state: PostgresDDL, snapshot: PostgresDiffSnapshot) => {
+const applySnapshot = (state: PostgresDDL, snapshot: AnyPostgresDiffSnapshot) => {
 	try {
 		applyDeltas(state, snapshot.deltas);
 	} catch (e) {
@@ -101,7 +103,7 @@ const applyOtherParents = (state: PostgresDDL, snapshots: Snapshots, prevIds: st
 // the snapshots of its other branches in that order.
 export const reconstruct = (snapshots: Snapshots, id: string): PostgresDDL => {
 	// `diffs` collects the diff snapshots on the path of first parents from `id` back to the base snapshot.
-	const diffs: PostgresDiffSnapshot[] = [];
+	const diffs: AnyPostgresDiffSnapshot[] = [];
 	let snapshot = lookup(snapshots, id);
 	while (snapshot.type === 'diff') {
 		diffs.push(snapshot);

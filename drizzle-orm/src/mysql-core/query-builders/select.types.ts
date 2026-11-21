@@ -1,4 +1,5 @@
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
+import type { MySqlRuntimeHKT } from '~/mysql-core/session.ts';
 import type { MySqlTable, MySqlTableWithColumns } from '~/mysql-core/table.ts';
 import type {
 	SelectedFields as SelectedFieldsBase,
@@ -87,7 +88,6 @@ export interface MySqlSelectConfig {
 	forceIndex?: string[];
 	ignoreIndex?: string[];
 	comment?: SQL;
-	useSelectionCastCodecs?: boolean;
 }
 
 export type MySqlJoin<
@@ -105,7 +105,7 @@ export type MySqlJoin<
 				T['_']['selection'],
 				TJoinedName,
 				TJoinedTable extends MySqlTable ? TJoinedTable['_']['columns']
-					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+					: TJoinedTable extends Subquery | View ? TJoinedTable['_']['selectedFields']
 					: never,
 				T['_']['selectMode']
 			>,
@@ -171,6 +171,8 @@ export type LockConfig = {
 };
 
 export interface MySqlSelectHKTBase {
+	/** How the builder's runtime wraps it's results */
+	runtime: MySqlRuntimeHKT;
 	tableName: string | undefined;
 	selection: unknown;
 	selectMode: SelectMode;

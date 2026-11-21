@@ -33,6 +33,7 @@ const foreignClass = pgTable('users', { id: integer('id') }, () => [new Unrelate
 // @ts-expect-error
 const foreignDialect = pgTable('users', { id: integer('id') }, () => [sqliteIndex]);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6140
 describe('pg extra config', () => {
 	test('Expected form', () => {
 		const config = getTableConfig(users);

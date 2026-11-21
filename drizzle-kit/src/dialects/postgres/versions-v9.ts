@@ -8,7 +8,7 @@ import { createDDL, fromEntities, type PostgresDDL, type PostgresEntities, type 
 import { ddlDiff } from './diff';
 import { defaultNameForPK } from './grammar';
 import { applyDeltas, KeyCollisionError, startingState } from './reconstruct';
-import type { PostgresSnapshot, PostgresSnapshotV8 } from './snapshot';
+import type { AnyDeltaPostgresSnapshot, PostgresSnapshotV8 } from './snapshot';
 
 const nameOf = (row: { schema?: string; table?: string; name?: string }) =>
 	[row.schema, row.table, row.name].filter(Boolean).join('.');
@@ -98,16 +98,18 @@ export class UnsupportedMergeError extends Error {
 	}
 }
 
-// Converts the snapshots of a migrations folder to format 9 for `up`. `files` must be in folder-name order.
+// Converts the format 8 snapshots of a migrations folder to format 9 for `up`. `files` must be in folder-name
+// order. A snapshot of format 9 or later already is a base or a diff snapshot, so it stays as it is: a merged
+// folder can hold such snapshots next to format 8 ones. `upToLatest` converts the result further.
 // The function is not in versions.ts, because it loads diff.ts. The programmatic API imports versions.ts at
 // module load, and the API must load diff.ts only inside its functions.
 export const upToV9 = async (
-	files: { folder: string; snapshot: PostgresSnapshotV8 | PostgresSnapshot }[],
-): Promise<PostgresSnapshot[]> => {
+	files: { folder: string; snapshot: PostgresSnapshotV8 | AnyDeltaPostgresSnapshot }[],
+): Promise<AnyDeltaPostgresSnapshot[]> => {
 	const folderOf = new Map(files.map((it) => [it.snapshot.id, it.folder]));
-	const converted = new Map<string, PostgresSnapshot>();
+	const converted = new Map<string, AnyDeltaPostgresSnapshot>();
 	for (const { snapshot } of files) {
-		if (snapshot.version === '9') {
+		if (snapshot.version !== '8') {
 			converted.set(snapshot.id, snapshot);
 			continue;
 		}

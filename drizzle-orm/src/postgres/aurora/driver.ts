@@ -1,23 +1,15 @@
-import { type AuroraClient, type AuroraConfig, createPool } from '@drizzle-team/minipg/aurora';
+import { type AuroraClient, type AuroraConfig, createPool } from '#postgres/aurora';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { buildShape } from '../shape.ts';
-import { minipgAuroraShapeCodecs } from './codecs.ts';
+import { postgresAuroraCodecs } from './codecs.ts';
+import { PostgresAuroraDialect } from './dialect.ts';
 import type { PostgresAuroraClient, PostgresAuroraQueryResultHKT } from './session.ts';
 import { PostgresAuroraSession } from './session.ts';
-
-export class PostgresAuroraDialect extends PgDialect {
-	static override readonly [entityKind]: string = 'PostgresAuroraDialect';
-
-	override escapeParam(num: number): string {
-		return `:p${num + 1}`;
-	}
-}
+import { createShapeGenerator } from './shape.ts';
 
 export class PostgresAuroraDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
@@ -34,10 +26,11 @@ function construct<
 ): PostgresAuroraDatabase<TRelations> & {
 	$client: PostgresAuroraClient extends TClient ? AuroraClient : TClient;
 } {
+	const codecs = config.codecs ?? postgresAuroraCodecs;
 	const dialect = new PostgresAuroraDialect({
-		codecs: config.codecs ?? minipgAuroraShapeCodecs,
+		codecs,
 		useJitMappers: jitCompatCheck(config.jit),
-		shapeGenerator: config.codecs ? undefined : buildShape,
+		shapeGenerator: createShapeGenerator(codecs),
 	});
 	let logger;
 	if (config.logger === true) {
@@ -49,7 +42,6 @@ function construct<
 	const relations = config.relations ?? {};
 	const session = new PostgresAuroraSession(client, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 
@@ -59,14 +51,20 @@ function construct<
 		relations,
 	) as PostgresAuroraDatabase<TRelations>;
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }
 
+/**
+ * Driver quirks:
+ * - `time` values are cut to milliseconds
+ * - `timestamp` values with fractional seconds lose `BC`
+ * - `null` elements of arrays are dropped (`[1, null, 3]` is returned as `[1, 3]`)
+ *
+ * Unsupported column types (throw on non-null values):
+ * - `timetz`, `timestamptz` in `string` mode (converted to UTC, offset dropped)
+ * - `bytea[]` (returned empty)
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends PostgresAuroraClient = AuroraClient,

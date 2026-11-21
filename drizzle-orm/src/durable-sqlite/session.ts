@@ -1,4 +1,3 @@
-import type { QueryMetadata } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -22,7 +21,10 @@ export interface SQLiteDOSessionOptions {
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export type DurableSQLiteRunResult = SqlStorageCursor<Record<string, SqlStorageValue>>;
+export type DurableSQLiteRunResult = Pick<
+	SqlStorageCursor<Record<string, SqlStorageValue>>,
+	'columnNames' | 'rowsRead' | 'rowsWritten'
+>;
 
 export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyncSession<
 	'sync',
@@ -49,31 +51,28 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
 	): SQLiteAsyncPreparedQuery<T & { run: DurableSQLiteRunResult }> {
+		const exec = (params: unknown[]) =>
+			params.length > 0
+				? this.client.sql.exec(query.sql, ...params)
+				: this.client.sql.exec(query.sql);
+
+		const all = (params: unknown[]) => {
+			const res = exec(params);
+
+			if (mode === 'objects') return res.toArray();
+			// @ts-ignore .raw().toArray() exists
+			return res.raw().toArray();
+		};
+
 		const executors: SQLiteQueryExecutors<'sync'> = {
-			all: (params) => {
-				const res = params.length > 0
-					? this.client.sql.exec(query.sql, ...params)
-					: this.client.sql.exec(query.sql);
-
-				if (mode === 'objects') return res.toArray();
-				// @ts-ignore .raw().toArray() exists
-				return res.raw().toArray();
-			},
-			get: (params) => {
-				const res = params.length > 0
-					? this.client.sql.exec(query.sql, ...params)
-					: this.client.sql.exec(query.sql);
-
-				if (mode === 'objects') return res.next().value;
-
-				return res.raw().next().value;
-			},
+			all,
+			get: (params) => all(params)[0],
 			run: (params) => {
-				return params.length > 0
-					? this.client.sql.exec(query.sql, ...params)
-					: this.client.sql.exec(query.sql);
+				const res = exec(params);
+				res.toArray();
+
+				return res;
 			},
 		};
 
@@ -85,9 +84,6 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 			mapper,
 			mode,
 			this.logger,
-			undefined,
-			queryMetadata,
-			undefined,
 			this.options.paramsInErrors,
 		);
 	}

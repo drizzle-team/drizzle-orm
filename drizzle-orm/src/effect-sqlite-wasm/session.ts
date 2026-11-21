@@ -1,8 +1,6 @@
 import type { SqliteClient } from '@effect/sql-sqlite-wasm/SqliteClient';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
-import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
@@ -23,11 +21,10 @@ export interface EffectSQLiteWasmQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectSQLiteWasmRunResult = [];
+export type EffectSQLiteWasmRunResult = readonly Record<string, unknown>[];
 
 export interface EffectSQLiteWasmSessionOptions {
 	logger: EffectLoggerShape;
-	cache: EffectCacheShape;
 	paramsInErrors?: boolean;
 }
 
@@ -51,8 +48,6 @@ export class EffectSQLiteWasmSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): SQLiteEffectPreparedQuery<T, EffectSQLiteWasmQueryEffectHKT> {
 		const executors: SQLiteEffectQueryExecutors = {
 			all: (params) => {
@@ -77,9 +72,6 @@ export class EffectSQLiteWasmSession<TRelations extends AnyRelations>
 			mapper,
 			mode,
 			this.options.logger,
-			this.options.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

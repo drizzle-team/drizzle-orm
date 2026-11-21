@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { composeHint, requireEnv, retry } from '@drizzle/test-utils';
 import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import { alias, bigint, int, singlestoreTable } from 'drizzle-orm/singlestore-core';
@@ -35,38 +36,17 @@ let db: SingleStoreDriverDatabase<typeof relations>;
 let client: mysql.Connection;
 
 beforeAll(async () => {
-	const connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'SINGLESTORE_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up singlestore` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('SINGLESTORE_CONNECTION_STRING', composeHint('singlestore'));
 
-	const sleep = 1000;
-	let timeLeft = 30000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await mysql.createConnection({
-				uri: connectionString,
-				supportBigNumbers: true,
-				bigNumberStrings: true,
-			});
-			await client.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MySQL');
-		await client?.end().catch(console.error);
-		throw lastError;
-	}
+	client = await retry(async () => {
+		const connection = await mysql.createConnection({
+			uri: connectionString,
+			supportBigNumbers: true,
+			bigNumberStrings: true,
+		});
+		await connection.connect();
+		return connection;
+	}, { interval: 1000, timeout: 30000 });
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle_rqb;`);
 	await client.changeUser({ database: 'drizzle_rqb' });
 	db = drizzle({ client, relations, logger: ENABLE_LOGGING });
@@ -1695,6 +1675,25 @@ test('[Find Many] Get users with posts + prepared limit', async () => {
 		invitedBy: null,
 		posts: [{ id: 6, ownerId: 3, content: 'Post3', createdAt: usersWithPosts[2]?.posts[0]?.createdAt }],
 	});
+});
+
+test('[Find Many] Get users with posts + zero and negative limits', async () => {
+	await db.insert(usersTable).values([{ id: 1, name: 'Dan' }, { id: 2, name: 'Andrew' }]);
+	await db.insert(postsTable).values([{ ownerId: 1, content: 'Post1' }, { ownerId: 2, content: 'Post2' }]);
+
+	// Pagination values aren't skipped: they reach the database exactly as given
+	expect(await db.query.usersTable.findMany({ orderBy: { id: 'asc' }, limit: 0, offset: 0 })).toStrictEqual([]);
+	// SingleStore can't transform `limit 0` of a lateral join's derived table
+	const zeroNested = db.query.usersTable.findMany({
+		columns: { id: true },
+		with: { posts: { columns: { id: true }, limit: 0 } },
+	});
+	expect(zeroNested.toSQL().params).toStrictEqual([0]);
+	await expect(zeroNested).rejects.toThrow();
+
+	const negative = db.query.usersTable.findMany({ limit: -1 });
+	expect(negative.toSQL().params).toStrictEqual([-1]);
+	await expect(negative).rejects.toThrow();
 });
 
 test('[Find Many] Get users with posts + prepared limit + offset', async () => {
@@ -11204,7 +11203,12 @@ test('alltypes', async () => {
 	expectTypeOf(relationRootRes).toEqualTypeOf(rawRes);
 	expectTypeOf(nestedRelationRes).toEqualTypeOf(rawRes);
 
-	expect(nestedRelationRes).toStrictEqual(rawRes);
+	// SingleStore's text protocol rounds `float` to 6 significant digits (a driver quirk), nested relations are decoded
+	// from JSON, which keeps it
+	const withRoundedFloat = <T extends { float: number | null }>(rows: T[]) =>
+		rows.map((row) => ({ ...row, float: 1.0486 }));
+	expect(withRoundedFloat(nestedRelationRes)).toStrictEqual(rawRes);
+	expect(nestedRelationRes[0]!.float).toStrictEqual(1.048596);
 	expect(relationRootRes).toStrictEqual(rawRes);
 
 	type ExpectedType = {
@@ -11301,7 +11305,7 @@ test('alltypes', async () => {
 		},
 	];
 
-	expect(rawRes).toStrictEqual(expectedRes);
+	expect(rawRes).toStrictEqual(withRoundedFloat(expectedRes));
 });
 
 test('custom types', async () => {

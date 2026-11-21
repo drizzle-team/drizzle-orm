@@ -21,14 +21,9 @@ tests/**/tmp/
 !package.json
 !tsconfig.json
 !tsconfig.typetest.json
-!tsconfig.cli-types.json
 !tsconfig.build.json
 !pnpm-lock.yaml
 !.github
-!build.ts
-!build.dev.ts
-!build.ext.ts
-!build.cli.ts
 
 tests/test.ts
 

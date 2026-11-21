@@ -130,6 +130,7 @@ db.insert(test).values({
 	title: 'title',
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/571
 // Dialect-agnostic test - do not duplicate
 {
 	const res = await db.select({

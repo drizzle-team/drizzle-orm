@@ -2,7 +2,7 @@ import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn } from './common.ts';
-import { PgDateColumnBuilder } from './date.common.ts';
+import { dateToTimestampText, PgDateColumnBuilder } from './date.common.ts';
 
 export class PgTimestampBuilder extends PgDateColumnBuilder<
 	{
@@ -53,7 +53,7 @@ export class PgTimestamp extends PgColumn<'object date'> {
 
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
-		return value.toISOString();
+		return dateToTimestampText(value);
 	};
 }
 
@@ -109,7 +109,7 @@ export class PgTimestampString extends PgColumn<'string timestamp'> {
 
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
-		return value.toISOString();
+		return dateToTimestampText(value);
 	};
 }
 

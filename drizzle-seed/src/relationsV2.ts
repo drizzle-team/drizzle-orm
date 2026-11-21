@@ -1,4 +1,3 @@
-/* eslint-disable drizzle-internal/require-entity-kind */
 import { Column, getTableName, is, Table as DrizzleTableEntity } from 'drizzle-orm';
 import type { RelationsBuilderColumnBase } from 'drizzle-orm/relations';
 import { Relation } from 'drizzle-orm/relations';

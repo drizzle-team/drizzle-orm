@@ -1,0 +1,4 @@
+input.ts:5:3 error TSPG002: console.log is not supported
+    console.log('hello', name)
+    ^^^^^^^^^^^
+  hint: use notice() → RAISE NOTICE

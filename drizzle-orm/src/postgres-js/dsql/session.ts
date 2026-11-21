@@ -1,6 +1,4 @@
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -15,6 +13,7 @@ import { PgAsyncPreparedQuery } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT } from '~/pg-core/session.ts';
 import type { PreparedQueryConfig } from '~/pg-core/session.ts';
+import { decodePostgresJsRawRows } from '~/postgres-js/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -52,17 +51,15 @@ export interface PostgresJsDsqlTransactionConfig extends DsqlTransactionConfig {
 
 export interface PostgresJsDsqlSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
-export class PostgresJsDsqlSession<TSQL extends Sql, TRelations extends AnyRelations>
+export class PostgresJsDsqlSession<TSQL extends Sql | TransactionSql, TRelations extends AnyRelations>
 	extends DsqlAsyncSession<PostgresJsDsqlQueryResultHKT, TRelations>
 {
 	static override readonly [entityKind]: string = 'PostgresJsDsqlSession';
 
 	logger: Logger;
-	private cache: Cache;
 
 	constructor(
 		public client: TSQL,
@@ -73,19 +70,21 @@ export class PostgresJsDsqlSession<TSQL extends Sql, TRelations extends AnyRelat
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
-		mode: 'arrays' | 'objects' | 'raw',
+		mode: 'arrays' | 'objects' | 'raw' | 'call',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	) {
 		const executor = async (params?: unknown[]) => {
-			if (mode === 'objects') {
+			if (mapper && mode !== 'call') {
+				return this.client.unsafe(query.sql, params ?? [] as any[], {
+					prepare: name !== false,
+				}).raw().then((rows) => decodePostgresJsRawRows(this.client, rows, mode === 'objects' ? 'objects' : 'arrays'));
+			}
+			if (mode === 'objects' || mode === 'call') {
 				return this.client.unsafe(query.sql, params ?? [] as any[], {
 					prepare: name !== false,
 				}).then((rows) => Object.values(rows));
@@ -106,9 +105,6 @@ export class PostgresJsDsqlSession<TSQL extends Sql, TRelations extends AnyRelat
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

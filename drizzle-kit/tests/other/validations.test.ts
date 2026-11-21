@@ -304,6 +304,9 @@ test('PGlite #3', () => {
 	}).toThrowError();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2995
+// https://github.com/drizzle-team/drizzle-orm/issues/3222
+// https://github.com/drizzle-team/drizzle-orm/issues/4476
 test('PGlite #4', () => {
 	const client = { waitReady: Promise.resolve(), query: () => {} };
 	expect(
@@ -318,6 +321,8 @@ test('PGlite #4', () => {
 	});
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3222
+// https://github.com/drizzle-team/drizzle-orm/issues/4476
 test('PGlite #5', () => {
 	expect(() => {
 		postgresCredentials.parse({
@@ -328,6 +333,8 @@ test('PGlite #5', () => {
 	}).toThrowError();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3222
+// https://github.com/drizzle-team/drizzle-orm/issues/4476
 test('PGlite #6', () => {
 	expect(() => {
 		postgresCredentials.parse({
@@ -338,6 +345,8 @@ test('PGlite #6', () => {
 	}).toThrowError();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3222
+// https://github.com/drizzle-team/drizzle-orm/issues/4476
 test('PGlite #7', () => {
 	const client = { waitReady: Promise.resolve(), query: () => {} };
 	expect(
@@ -351,6 +360,46 @@ test('PGlite #7', () => {
 		driver: 'pglite',
 		url: './my.db',
 	});
+});
+
+test('Drizzle Postgres client #1', () => {
+	const client = { query: () => {} };
+	expect(
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			client,
+		}),
+	).toStrictEqual({ client });
+});
+
+test('Drizzle Postgres client #2', () => {
+	expect(() => {
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			url: 'postgres://localhost:5432/db',
+			client: { query: () => {} },
+		});
+	}).toThrowError();
+});
+
+test('Drizzle Postgres client #3', () => {
+	expect(() => {
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			host: 'host',
+			database: 'database',
+			client: { query: () => {} },
+		});
+	}).toThrowError();
+});
+
+test('Drizzle Postgres client #4', () => {
+	expect(() => {
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			client: 'postgres://localhost:5432/db',
+		});
+	}).toThrowError();
 });
 
 test('postgres #1', () => {

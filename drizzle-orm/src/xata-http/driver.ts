@@ -18,6 +18,10 @@ export class XataHttpDatabase<TRelations extends AnyRelations = EmptyRelations>
 	declare readonly session: XataHttpSession<TRelations>;
 }
 
+/**
+ * Requirements:
+ * - Sessions must use the ISO `DateStyle` (the default): temporal values of other `DateStyle`s throw
+ */
 export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	client: XataHttpClient,
 	config: DrizzlePgConfig<TRelations> = {},
@@ -38,7 +42,6 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	const relations = config.relations ?? {} as TRelations;
 	const session = new XataHttpSession(client, dialect, relations ?? {} as EmptyRelations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 
@@ -48,10 +51,6 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 		relations,
 	);
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }

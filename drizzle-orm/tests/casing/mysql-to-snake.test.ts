@@ -67,6 +67,7 @@ const rqbDb = mysql({ client: connect({}), relations: rqbRelations });
 const fullName = sql`${users.firstName} || ' ' || ${users.lastName}`.as('name');
 
 describe('mysql to snake case', () => {
+	// https://github.com/drizzle-team/drizzle-orm/issues/6082
 	it('unicode column names', ({ expect }) => {
 		const unicode = snakeCase.table('unicode', {
 			칼럼명: text(),
@@ -77,6 +78,7 @@ describe('mysql to snake case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5734
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = snakeCase.table('a', { id: int('id').primaryKey(), cId: int().notNull() });
 		const b = snakeCase.table('b', { id: int('id').primaryKey(), cId: int().notNull(), label: text() });
@@ -93,6 +95,7 @@ describe('mysql to snake case', () => {
 		);
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/3096
 	it('qualifier preservation for subquery fields', ({ expect }) => {
 		const sq = db.select({ id: users.id, name: fullName }).from(users).as('sq');
 		const query = db
@@ -102,7 +105,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`sq`.`id` as char), `sq`.`name` from `users` left join (select `id`, `first_name` || ' ' || `last_name` as `name` from `users`) `sq` on `users`.`id` = `sq`.`id`",
+				"select `sq`.`id`, `sq`.`name` from `users` left join (select `id`, `first_name` || ' ' || `last_name` as `name` from `users`) `sq` on `users`.`id` = `sq`.`id`",
 			params: [],
 		});
 	});
@@ -117,7 +120,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true where `d0`.`user_role` like ? order by `d0`.`first_name` asc",
+				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true where `d0`.`user_role` like ? order by `d0`.`first_name` asc",
 			params: ['A%'],
 		});
 	});
@@ -127,7 +130,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`user_id` as char) as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `member`.`r` as `member` from `test`.`developers` as `d0` left join lateral(select json_object('id', `id`, 'firstName', `firstName`, 'role', `role`) as `r` from (select `d1`.`id` as `id`, `d1`.`first_name` as `firstName`, `d1`.`user_role` as `role` from `staff_members` as `d1` where `d0`.`user_id` = `d1`.`user_role` limit ?) as `t`) as `member` on true",
+				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`user_id` as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `member`.`r` as `member` from `test`.`developers` as `d0` left join lateral(select json_object('id', `id`, 'firstName', `firstName`, 'role', `role`) as `r` from (select `d1`.`id` as `id`, `d1`.`first_name` as `firstName`, `d1`.`user_role` as `role` from `staff_members` as `d1` where `d0`.`user_id` = `d1`.`user_role` limit ?) as `t`) as `member` on true",
 			params: [1],
 		});
 	});
@@ -137,7 +140,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age` from `users` as `d0`',
+				'select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age` from `users` as `d0`',
 			params: [],
 		});
 	});
@@ -147,7 +150,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age` from `users` as `d0` limit ?',
+				'select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age` from `users` as `d0` limit ?',
 			params: [1],
 		});
 	});
@@ -157,7 +160,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true",
+				"select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true",
 			params: [1],
 		});
 	});
@@ -167,7 +170,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true limit ?",
+				"select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true limit ?",
 			params: [1, 1],
 		});
 	});
@@ -177,7 +180,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`, 'projects', `projects`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d1` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d2`.`id` as `id`, `d2`.`developer_id` as `developerId`, `d2`.`project_name` as `projectName` from `projects` as `d2` where `d1`.`user_id` = `d2`.`developer_id`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true",
+				"select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`, 'projects', `projects`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d1` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d2`.`id` as `id`, `d2`.`developer_id` as `developerId`, `d2`.`project_name` as `projectName` from `projects` as `d2` where `d1`.`user_id` = `d2`.`developer_id`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true",
 			params: [1],
 		});
 	});
@@ -187,7 +190,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`, 'projects', `projects`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d1` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d2`.`id` as `id`, `d2`.`developer_id` as `developerId`, `d2`.`project_name` as `projectName` from `projects` as `d2` where `d1`.`user_id` = `d2`.`developer_id`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true limit ?",
+				"select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`, 'projects', `projects`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d1` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d2`.`id` as `id`, `d2`.`developer_id` as `developerId`, `d2`.`project_name` as `projectName` from `projects` as `d2` where `d1`.`user_id` = `d2`.`developer_id`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true limit ?",
 			params: [1, 1],
 		});
 	});
@@ -197,7 +200,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName` from `users_view` as `d0` limit ?',
+				'select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName` from `users_view` as `d0` limit ?',
 			params: [1],
 		});
 	});
@@ -207,7 +210,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `developers`.`r` as `developers` from `users_view` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true",
+				"select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `developers`.`r` as `developers` from `users_view` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true",
 			params: [],
 		});
 	});
@@ -229,7 +232,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `developers`.`r` as `developers` from `users_view` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`, 'projects', `projects`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d1` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d2`.`id` as `id`, `d2`.`developer_id` as `developerId`, `d2`.`project_name` as `projectName` from `projects` as `d2` where `d1`.`user_id` = `d2`.`developer_id`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true limit ?",
+				"select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `developers`.`r` as `developers` from `users_view` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`, 'projects', `projects`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d1` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d2`.`id` as `id`, `d2`.`developer_id` as `developerId`, `d2`.`project_name` as `projectName` from `projects` as `d2` where `d1`.`user_id` = `d2`.`developer_id`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true limit ?",
 			params: [1],
 		});
 	});
@@ -239,7 +242,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role` from `staff_members` as `d0`',
+				'with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role` from `staff_members` as `d0`',
 			params: [],
 		});
 	});
@@ -249,7 +252,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role` from `staff_members` as `d0` limit ?',
+				'with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role` from `staff_members` as `d0` limit ?',
 			params: [1],
 		});
 	});
@@ -259,7 +262,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true",
+				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true",
 			params: [],
 		});
 	});
@@ -269,7 +272,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true limit ?",
+				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true limit ?",
 			params: [1],
 		});
 	});
@@ -279,7 +282,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`, 'projects', `projects`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d1` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d2`.`id` as `id`, `d2`.`developer_id` as `developerId`, `d2`.`project_name` as `projectName` from `projects` as `d2` where `d1`.`user_id` = `d2`.`developer_id`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true",
+				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`, 'projects', `projects`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d1` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d2`.`id` as `id`, `d2`.`developer_id` as `developerId`, `d2`.`project_name` as `projectName` from `projects` as `d2` where `d1`.`user_id` = `d2`.`developer_id`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true",
 			params: [],
 		});
 	});
@@ -289,7 +292,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`, 'projects', `projects`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d1` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d2`.`id` as `id`, `d2`.`developer_id` as `developerId`, `d2`.`project_name` as `projectName` from `projects` as `d2` where `d1`.`user_id` = `d2`.`developer_id`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true limit ?",
+				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`, 'projects', `projects`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d1` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d2`.`id` as `id`, `d2`.`developer_id` as `developerId`, `d2`.`project_name` as `projectName` from `projects` as `d2` where `d1`.`user_id` = `d2`.`developer_id`) as `t`) as `projects` on true where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true limit ?",
 			params: [1],
 		});
 	});
@@ -299,7 +302,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`user_id` as char) as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `member`.`r` as `member` from `test`.`developers` as `d0` left join lateral(select json_object('id', `id`, 'firstName', `firstName`, 'role', `role`, 'developers', `developers`) as `r` from (select `d1`.`id` as `id`, `d1`.`first_name` as `firstName`, `d1`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d1` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`)), json_array()) as `r` from (select `d2`.`user_id` as `userId`, `d2`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d2` where `d1`.`id` = `d2`.`user_id`) as `t`) as `developers` on true where `d0`.`user_id` = `d1`.`user_role` limit ?) as `t`) as `member` on true",
+				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`user_id` as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `member`.`r` as `member` from `test`.`developers` as `d0` left join lateral(select json_object('id', `id`, 'firstName', `firstName`, 'role', `role`, 'developers', `developers`) as `r` from (select `d1`.`id` as `id`, `d1`.`first_name` as `firstName`, `d1`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d1` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`)), json_array()) as `r` from (select `d2`.`user_id` as `userId`, `d2`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d2` where `d1`.`id` = `d2`.`user_id`) as `t`) as `developers` on true where `d0`.`user_id` = `d1`.`user_role` limit ?) as `t`) as `member` on true",
 			params: [1],
 		});
 	});
@@ -311,11 +314,12 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`, 'viewUser', `viewUser`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM`, `viewUser`.`r` as `viewUser` from `test`.`developers` as `d1` left join lateral(select json_object('id', `id`, 'firstName', `firstName`, 'lastName', `lastName`) as `r` from (select `d2`.`id` as `id`, `d2`.`first_name` as `firstName`, `d2`.`last_name` as `lastName` from `users_view` as `d2` where `d1`.`user_id` = `d2`.`id` limit ?) as `t`) as `viewUser` on true where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true limit ?",
+				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from `staff_members` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`, 'viewUser', `viewUser`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM`, `viewUser`.`r` as `viewUser` from `test`.`developers` as `d1` left join lateral(select json_object('id', `id`, 'firstName', `firstName`, 'lastName', `lastName`) as `r` from (select `d2`.`id` as `id`, `d2`.`first_name` as `firstName`, `d2`.`last_name` as `lastName` from `users_view` as `d2` where `d1`.`user_id` = `d2`.`id` limit ?) as `t`) as `viewUser` on true where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true limit ?",
 			params: [1, 1],
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + orderBy + limit', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			orderBy: { firstName: 'asc' },
@@ -325,21 +329,23 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from (select `d0`.* from `users` as `d0` order by `d0`.`first_name` asc limit ?) as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true order by `d0`.`first_name` asc",
+				"select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from (select `d0`.* from `users` as `d0` order by `d0`.`first_name` asc limit ?) as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true order by `d0`.`first_name` asc",
 			params: [2, 1],
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + limit + offset', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({ limit: 2, offset: 4, with: { developers: true } });
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from (select `d0`.* from `users` as `d0` limit ? offset ?) as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true",
+				"select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from (select `d0`.* from `users` as `d0` limit ? offset ?) as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true",
 			params: [2, 4, 1],
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + where + limit + offset', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			where: { firstName: { like: 'A%' } },
@@ -350,11 +356,12 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from (select `d0`.* from `users` as `d0` where `d0`.`first_name` like ? limit ? offset ?) as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true",
+				"select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from (select `d0`.* from `users` as `d0` where `d0`.`first_name` like ? limit ? offset ?) as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true",
 			params: ['A%', 2, 4, 1],
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + relation where + limit + offset', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			where: { developers: { usesDrizzleORM: true } },
@@ -365,11 +372,12 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true where exists (select * from `test`.`developers` as `f0` where ((`d0`.`id` = `f0`.`user_id`) and (`f0`.`uses_drizzle_orm` = ?))) limit ? offset ?",
+				"select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true where exists (select * from `test`.`developers` as `f0` where ((`d0`.`id` = `f0`.`user_id`) and (`f0`.`uses_drizzle_orm` = ?))) limit ? offset ?",
 			params: [1, true, 2, 4],
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - table, nested + RAW where + limit + offset', ({ expect }) => {
 		const query = rqbDb.query.users.findMany({
 			where: { RAW: (t, { sql }) => sql`${t.id} > 1` },
@@ -380,11 +388,12 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true where `d0`.`id` > 1 limit ? offset ?",
+				"select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true where `d0`.`id` > 1 limit ? offset ?",
 			params: [1, 2, 4],
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - schema table, deeply nested + orderBy + limit on every level', ({ expect }) => {
 		const query = rqbDb.query.developers.findMany({
 			orderBy: { userId: 'desc' },
@@ -396,11 +405,12 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`user_id` as char) as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from (select `d0`.* from `test`.`developers` as `d0` order by `d0`.`user_id` desc limit ?) as `d0` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`, 'developer', `developer`)), json_array()) as `r` from (select `d1`.`id` as `id`, `d1`.`developer_id` as `developerId`, `d1`.`project_name` as `projectName`, `developer`.`r` as `developer`, row_number() over (order by `d1`.`project_name` asc) from (select `d1`.* from `projects` as `d1` where `d0`.`user_id` = `d1`.`developer_id` order by `d1`.`project_name` asc limit ?) as `d1` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d2`.`user_id` as `userId`, `d2`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d2` where `d1`.`developer_id` = `d2`.`user_id` limit ?) as `t`) as `developer` on true order by `d1`.`project_name` asc) as `t`) as `projects` on true order by `d0`.`user_id` desc",
+				"select `d0`.`user_id` as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from (select `d0`.* from `test`.`developers` as `d0` order by `d0`.`user_id` desc limit ?) as `d0` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`, 'developer', `developer`)), json_array()) as `r` from (select `d1`.`id` as `id`, `d1`.`developer_id` as `developerId`, `d1`.`project_name` as `projectName`, `developer`.`r` as `developer`, row_number() over (order by `d1`.`project_name` asc) from (select `d1`.* from `projects` as `d1` where `d0`.`user_id` = `d1`.`developer_id` order by `d1`.`project_name` asc limit ?) as `d1` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d2`.`user_id` as `userId`, `d2`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d2` where `d1`.`developer_id` = `d2`.`user_id` limit ?) as `t`) as `developer` on true order by `d1`.`project_name` asc) as `t`) as `projects` on true order by `d0`.`user_id` desc",
 			params: [3, 2, 1],
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5245
 	it('relational query - subquery, nested + orderBy + limit', ({ expect }) => {
 		const query = rqbDb.query.staff.findMany({
 			orderBy: { role: 'asc' },
@@ -410,7 +420,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from (select `d0`.* from `staff_members` as `d0` order by `d0`.`user_role` asc limit ?) as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true order by `d0`.`user_role` asc",
+				"with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role`, `developers`.`r` as `developers` from (select `d0`.* from `staff_members` as `d0` order by `d0`.`user_role` asc limit ?) as `d0` left join lateral(select coalesce(json_arrayagg(json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`)), json_array()) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id`) as `t`) as `developers` on true order by `d0`.`user_role` asc",
 			params: [2],
 		});
 	});
@@ -427,7 +437,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true where ((`d0`.`first_name` like ?) and (exists (select * from `test`.`developers` as `f0` where ((`d0`.`id` = `f0`.`user_id`) and (`f0`.`uses_drizzle_orm` = ?))))) order by `d0`.`first_name` asc limit ? offset ?",
+				"select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age`, `developers`.`r` as `developers` from `users` as `d0` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d1`.`user_id` as `userId`, `d1`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d1` where `d0`.`id` = `d1`.`user_id` limit ?) as `t`) as `developers` on true where ((`d0`.`first_name` like ?) and (exists (select * from `test`.`developers` as `f0` where ((`d0`.`id` = `f0`.`user_id`) and (`f0`.`uses_drizzle_orm` = ?))))) order by `d0`.`first_name` asc limit ? offset ?",
 			params: [1, 'A%', true, 2, 4],
 		});
 	});
@@ -445,7 +455,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`user_id` as char) as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`, 'developer', `developer`)), json_array()) as `r` from (select `d1`.`id` as `id`, `d1`.`developer_id` as `developerId`, `d1`.`project_name` as `projectName`, `developer`.`r` as `developer`, row_number() over (order by `d1`.`project_name` asc) from `projects` as `d1` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d2`.`user_id` as `userId`, `d2`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d2` where `d1`.`developer_id` = `d2`.`user_id` limit ?) as `t`) as `developer` on true where `d0`.`user_id` = `d1`.`developer_id` order by `d1`.`project_name` asc limit ? offset ?) as `t`) as `projects` on true order by `d0`.`user_id` desc limit ? offset ?",
+				"select `d0`.`user_id` as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`, 'developer', `developer`)), json_array()) as `r` from (select `d1`.`id` as `id`, `d1`.`developer_id` as `developerId`, `d1`.`project_name` as `projectName`, `developer`.`r` as `developer`, row_number() over (order by `d1`.`project_name` asc) from `projects` as `d1` left join lateral(select json_object('userId', `userId`, 'usesDrizzleORM', `usesDrizzleORM`) as `r` from (select `d2`.`user_id` as `userId`, `d2`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d2` where `d1`.`developer_id` = `d2`.`user_id` limit ?) as `t`) as `developer` on true where `d0`.`user_id` = `d1`.`developer_id` order by `d1`.`project_name` asc limit ? offset ?) as `t`) as `projects` on true order by `d0`.`user_id` desc limit ? offset ?",
 			params: [1, 2, 1, 3, 1],
 		});
 	});
@@ -460,7 +470,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`user_id` as char) as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d1`.`id` as `id`, `d1`.`developer_id` as `developerId`, `d1`.`project_name` as `projectName` from `projects` as `d1` where `d0`.`user_id` = `d1`.`developer_id`) as `t`) as `projects` on true order by (select count(`o0`.`id`) from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id`) desc, `d0`.`user_id` asc limit ? offset ?",
+				"select `d0`.`user_id` as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d1`.`id` as `id`, `d1`.`developer_id` as `developerId`, `d1`.`project_name` as `projectName` from `projects` as `d1` where `d0`.`user_id` = `d1`.`developer_id`) as `t`) as `projects` on true order by (select count(`o0`.`id`) from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id`) desc, `d0`.`user_id` asc limit ? offset ?",
 			params: [1, 1],
 		});
 	});
@@ -472,7 +482,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age` from `users` as `d0` order by (select `o0`.`uses_drizzle_orm` from `test`.`developers` as `o0` where `d0`.`id` = `o0`.`user_id` limit 1) desc, `d0`.`first_name` asc',
+				'select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`last_name` as `lastName`, `d0`.`AGE` as `age` from `users` as `d0` order by (select `o0`.`uses_drizzle_orm` from `test`.`developers` as `o0` where `d0`.`id` = `o0`.`user_id` limit 1) desc, `d0`.`first_name` asc',
 			params: [],
 		});
 	});
@@ -487,7 +497,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`user_id` as char) as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from (select `d0`.* from `test`.`developers` as `d0` order by (select min(`o0`.`project_name`) from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id`) asc, (select count(`o0`.`id`) from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id`) desc, `d0`.`user_id` asc limit ? offset ?) as `d0` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d1`.`id` as `id`, `d1`.`developer_id` as `developerId`, `d1`.`project_name` as `projectName` from `projects` as `d1` where `d0`.`user_id` = `d1`.`developer_id`) as `t`) as `projects` on true order by (select min(`o0`.`project_name`) from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id`) asc, (select count(`o0`.`id`) from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id`) desc, `d0`.`user_id` asc",
+				"select `d0`.`user_id` as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from (select `d0`.* from `test`.`developers` as `d0` order by (select min(`o0`.`project_name`) from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id`) asc, (select count(`o0`.`id`) from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id`) desc, `d0`.`user_id` asc limit ? offset ?) as `d0` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d1`.`id` as `id`, `d1`.`developer_id` as `developerId`, `d1`.`project_name` as `projectName` from `projects` as `d1` where `d0`.`user_id` = `d1`.`developer_id`) as `t`) as `projects` on true order by (select min(`o0`.`project_name`) from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id`) asc, (select count(`o0`.`id`) from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id`) desc, `d0`.`user_id` asc",
 			params: [3, 1],
 		});
 	});
@@ -499,7 +509,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select cast(`d0`.`user_id` as char) as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d0` order by (select `o0`.`project_name` from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id` limit 1) desc, (select `o2`.`first_name` from `projects` as `o0` cross join `test`.`developers` as `o1` cross join `users` as `o2` where ((`d0`.`user_id` = `o0`.`developer_id`) and (`o0`.`developer_id` = `o1`.`user_id`) and (`o1`.`user_id` = `o2`.`id`)) limit 1) asc',
+				'select `d0`.`user_id` as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d0` order by (select `o0`.`project_name` from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id` limit 1) desc, (select `o2`.`first_name` from `projects` as `o0` cross join `test`.`developers` as `o1` cross join `users` as `o2` where ((`d0`.`user_id` = `o0`.`developer_id`) and (`o0`.`developer_id` = `o1`.`user_id`) and (`o1`.`user_id` = `o2`.`id`)) limit 1) asc',
 			params: [],
 		});
 	});
@@ -511,7 +521,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`user_id` as char) as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d0` order by (select count(*) from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id`) desc, (select count(*) from `staff_members` as `o0` cross join `test`.`developers` as `o1` where ((`d0`.`user_id` = `o0`.`user_role`) and (`o0`.`id` = `o1`.`user_id`))) asc, `d0`.`user_id` asc',
+				'with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`user_id` as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d0` order by (select count(*) from `projects` as `o0` where `d0`.`user_id` = `o0`.`developer_id`) desc, (select count(*) from `staff_members` as `o0` cross join `test`.`developers` as `o1` where ((`d0`.`user_id` = `o0`.`user_role`) and (`o0`.`id` = `o1`.`user_id`))) asc, `d0`.`user_id` asc',
 			params: [],
 		});
 	});
@@ -535,7 +545,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`user_id` as char) as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d0` order by (select `o0`.`user_role` from `staff_members` as `o0` where `d0`.`user_id` = `o0`.`user_role` limit 1) asc, (select `o0`.`first_name` from `staff_members` as `o0` where `d0`.`user_id` = `o0`.`user_role` limit 1) desc',
+				'with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`user_id` as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM` from `test`.`developers` as `d0` order by (select `o0`.`user_role` from `staff_members` as `o0` where `d0`.`user_id` = `o0`.`user_role` limit 1) asc, (select `o0`.`first_name` from `staff_members` as `o0` where `d0`.`user_id` = `o0`.`user_role` limit 1) desc',
 			params: [],
 		});
 	});
@@ -547,7 +557,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select cast(`d0`.`id` as char) as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role` from `staff_members` as `d0` order by (select max(`o0`.`uses_drizzle_orm`) from `test`.`developers` as `o0` where `d0`.`id` = `o0`.`user_id`) desc, (select min(`o1`.`first_name`) from `test`.`developers` as `o0` cross join `users` as `o1` where ((`d0`.`id` = `o0`.`user_id`) and (`o0`.`user_id` = `o1`.`id`))) asc, `d0`.`user_role` desc',
+				'with `staff_members` as (select `id`, `first_name`, upper(`last_name`) as `user_role` from `users`) select `d0`.`id` as `id`, `d0`.`first_name` as `firstName`, `d0`.`user_role` as `role` from `staff_members` as `d0` order by (select max(`o0`.`uses_drizzle_orm`) from `test`.`developers` as `o0` where `d0`.`id` = `o0`.`user_id`) desc, (select min(`o1`.`first_name`) from `test`.`developers` as `o0` cross join `users` as `o1` where ((`d0`.`id` = `o0`.`user_id`) and (`o0`.`user_id` = `o1`.`id`))) asc, `d0`.`user_role` desc',
 			params: [],
 		});
 	});
@@ -563,7 +573,7 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select cast(`d0`.`user_id` as char) as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d1`.`id` as `id`, `d1`.`developer_id` as `developerId`, `d1`.`project_name` as `projectName`, row_number() over (order by (select `o1`.`first_name` from `test`.`developers` as `o0` cross join `users` as `o1` where ((`d1`.`developer_id` = `o0`.`user_id`) and (`o0`.`user_id` = `o1`.`id`)) limit 1) desc, (select count(`o1`.`id`) from `test`.`developers` as `o0` cross join `projects` as `o1` where ((`d1`.`developer_id` = `o0`.`user_id`) and (`o0`.`user_id` = `o1`.`developer_id`))) asc, `d1`.`id` asc) from `projects` as `d1` where `d0`.`user_id` = `d1`.`developer_id` order by (select `o1`.`first_name` from `test`.`developers` as `o0` cross join `users` as `o1` where ((`d1`.`developer_id` = `o0`.`user_id`) and (`o0`.`user_id` = `o1`.`id`)) limit 1) desc, (select count(`o1`.`id`) from `test`.`developers` as `o0` cross join `projects` as `o1` where ((`d1`.`developer_id` = `o0`.`user_id`) and (`o0`.`user_id` = `o1`.`developer_id`))) asc, `d1`.`id` asc) as `t`) as `projects` on true",
+				"select `d0`.`user_id` as `userId`, `d0`.`uses_drizzle_orm` as `usesDrizzleORM`, `projects`.`r` as `projects` from `test`.`developers` as `d0` left join lateral(select coalesce(json_arrayagg(json_object('id', `id`, 'developerId', `developerId`, 'projectName', `projectName`)), json_array()) as `r` from (select `d1`.`id` as `id`, `d1`.`developer_id` as `developerId`, `d1`.`project_name` as `projectName`, row_number() over (order by (select `o1`.`first_name` from `test`.`developers` as `o0` cross join `users` as `o1` where ((`d1`.`developer_id` = `o0`.`user_id`) and (`o0`.`user_id` = `o1`.`id`)) limit 1) desc, (select count(`o1`.`id`) from `test`.`developers` as `o0` cross join `projects` as `o1` where ((`d1`.`developer_id` = `o0`.`user_id`) and (`o0`.`user_id` = `o1`.`developer_id`))) asc, `d1`.`id` asc) from `projects` as `d1` where `d0`.`user_id` = `d1`.`developer_id` order by (select `o1`.`first_name` from `test`.`developers` as `o0` cross join `users` as `o1` where ((`d1`.`developer_id` = `o0`.`user_id`) and (`o0`.`user_id` = `o1`.`id`)) limit 1) desc, (select count(`o1`.`id`) from `test`.`developers` as `o0` cross join `projects` as `o1` where ((`d1`.`developer_id` = `o0`.`user_id`) and (`o0`.`user_id` = `o1`.`developer_id`))) asc, `d1`.`id` asc) as `t`) as `projects` on true",
 			params: [],
 		});
 	});
@@ -622,8 +632,7 @@ describe('mysql to snake case', () => {
 			.union(db.select({ firstName: users.firstName }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql:
-				'select `first_name` from ((select `first_name` from `users`) union (select `first_name` from `users`)) `drizzle_union`',
+			sql: '(select `first_name` from `users`) union (select `first_name` from `users`)',
 			params: [],
 		});
 	});
@@ -635,8 +644,7 @@ describe('mysql to snake case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql:
-				'select `first_name` from ((select `first_name` from `users`) union (select `first_name` from `users`)) `drizzle_union`',
+			sql: '(select `first_name` from `users`) union (select `first_name` from `users`)',
 			params: [],
 		});
 	});
@@ -650,7 +658,7 @@ describe('mysql to snake case', () => {
 			.orderBy(order);
 
 		expect(query.toSQL().sql).toBe(
-			'select `first_name` from ((select `first_name` from `users`) union (select `first_name` from `users`) order by `first_name` desc) `drizzle_union`',
+			'(select `first_name` from `users`) union (select `first_name` from `users`) order by `first_name` desc',
 		);
 		// Same SQL objects keep their qualifiers in other queries
 		expect(db.select({ firstName: users.firstName }).from(users).orderBy(order).toSQL().sql).toBe(
@@ -682,6 +690,8 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection)', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName', 'age')
@@ -693,6 +703,8 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, multiple rows)', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName')
@@ -704,6 +716,8 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection, omitted optional column)', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName', 'age')
@@ -715,6 +729,8 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) with select', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName')
@@ -726,6 +742,8 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) emits columns in list order', ({ expect }) => {
 		const query = db
 			.insert(users, 'age', 'lastName', 'firstName')
@@ -737,6 +755,8 @@ describe('mysql to snake case', () => {
 		});
 	});
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/5001
+	// https://github.com/drizzle-team/drizzle-orm/issues/5309
 	it('insert (column selection) on duplicate key update', ({ expect }) => {
 		const query = db
 			.insert(users, 'firstName', 'lastName', 'age')
@@ -779,7 +799,7 @@ describe('mysql to snake case', () => {
 			.orderBy(asc(users.id.as('userId')));
 
 		expect(query.toSQL()).toEqual({
-			sql: 'select `AGE` as `ageOfUser`, cast(`id` as char) as `userId` from `users` order by `userId` asc',
+			sql: 'select `AGE` as `ageOfUser`, `id` as `userId` from `users` order by `userId` asc',
 			params: [],
 		});
 	});
@@ -793,85 +813,8 @@ describe('mysql to snake case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select `users`.`first_name` || ' ' || `users`.`last_name` as `name`, `users`.`AGE` as `ageOfUser`, cast(`users`.`id` as char) as `userId` from `users` left join `test`.`developers` on `userId` = `test`.`developers`.`user_id` order by `users`.`first_name` asc",
+				"select `users`.`first_name` || ' ' || `users`.`last_name` as `name`, `users`.`AGE` as `ageOfUser`, `users`.`id` as `userId` from `users` left join `test`.`developers` on `userId` = `test`.`developers`.`user_id` order by `users`.`first_name` asc",
 			params: [],
-		});
-	});
-
-	describe('selection casts', () => {
-		const castCodecs = { ...tidbCodecs, int: { ...tidbCodecs.int, cast: castToText } };
-		const castDb = mysql({ client: connect({}), codecs: castCodecs });
-		const casts = snakeCase.table('casts', { castValue: int() });
-		const castTargets = snakeCase.table('cast_targets', { targetId: text() });
-		const castSubquery = () => castDb.select({ castValue: casts.castValue }).from(casts).as('sq');
-
-		it(`Cast respects alias config`, ({ expect }) => {
-			expect(castDb.select({ c: casts.castValue }).from(casts).toSQL().sql).toEqual(
-				'select cast(`cast_value` as char) from `casts`',
-			);
-			expect(castDb.select({ c: casts.castValue.as('alias') }).from(casts).toSQL().sql).toEqual(
-				'select cast(`cast_value` as char) as `alias` from `casts`',
-			);
-		});
-
-		it(`Cast applied to selected subquery depending on it's selection`, ({ expect }) => {
-			expect(castDb.select({ x: castSubquery() }).from(castTargets).toSQL().sql).toEqual(
-				'select cast((select `cast_value` from `casts`) as char) `sq` from `cast_targets`',
-			);
-		});
-
-		it('Nested queries ignore casts', ({ expect }) => {
-			const outer = castDb.select({ x: castSubquery() }).from(castTargets).as('outer');
-
-			expect(castDb.select().from(outer).toSQL().sql).toEqual(
-				'select cast((select `cast_value` from `casts`) as char) `sq` from (select (select `cast_value` from `casts`) `sq` from `cast_targets`) `outer`',
-			);
-		});
-
-		it('Queries in operators ignore casts', ({ expect }) => {
-			const inner = () => castDb.select({ castValue: casts.castValue }).from(casts);
-
-			expect(castDb.select({ x: casts.castValue }).from(casts).where(eq(casts.castValue, inner())).toSQL().sql)
-				.toEqual(
-					'select cast(`cast_value` as char) from `casts` where `casts`.`cast_value` = (select `cast_value` from `casts`)',
-				);
-			expect(castDb.select({ x: casts.castValue }).from(casts).where(inArray(casts.castValue, inner())).toSQL().sql)
-				.toEqual(
-					'select cast(`cast_value` as char) from `casts` where `casts`.`cast_value` in (select `cast_value` from `casts`)',
-				);
-			expect(castDb.select({ x: casts.castValue }).from(casts).where(exists(inner())).toSQL().sql)
-				.toEqual('select cast(`cast_value` as char) from `casts` where exists (select `cast_value` from `casts`)');
-		});
-
-		it(`Column as decoder applies cast`, ({ expect }) => {
-			expect(
-				castDb.select({
-					x: sql`${casts.castValue}`.mapWith(casts.castValue),
-					y: sql`${casts.castValue}`.mapWith(casts.castValue).as('y'),
-				}).from(casts).toSQL().sql,
-			)
-				.toEqual('select cast(`cast_value` as char), cast(`cast_value` as char) as `y` from `casts`');
-		});
-
-		it(`Cast doesn't bleed params into selection`, ({ expect }) => {
-			// Regression test for pre-existing issue
-			const query = castDb.select({ x: castSubquery() }).from(castTargets).toSQL();
-
-			expect(query.params).toEqual([]);
-			expect(query.sql).not.toMatch(/\$\d|\?|@par/);
-		});
-
-		it(`No double spaces in union's 'order by' `, ({ expect }) => {
-			const branch = () => castDb.select({ x: casts.castValue }).from(casts);
-			const query = branch()
-				.unionAll(branch())
-				.orderBy(sql`1`)
-				.limit(3);
-
-			expect(query.toSQL().sql).toEqual(
-				'select cast(`cast_value` as char) from ((select `cast_value` from `casts`) union all (select `cast_value` from `casts`) order by 1 limit ?) `drizzle_union`',
-			);
-			expect(query.toSQL().sql).not.toContain('order by 1  ');
 		});
 	});
 

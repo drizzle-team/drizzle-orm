@@ -531,14 +531,16 @@ function _diff(
 	type: string | undefined,
 	mode: 'all' | 'create' | 'drop' | 'createdrop' | 'alter',
 ): Row[] {
-	const where = type ? { entityType: type } : undefined;
+	// The rows of one type come from its own collection, because filtering `entities` by type scans every entity
+	const rowsOf = (ddl: AnyDDL) =>
+		type ? (ddl as unknown as Record<string, AnyDDL['entities']>)[type].list() : ddl.entities.list();
 	const keyBy = (ddl: AnyDDL, rows: Row[]) => {
 		const m: Record<string, Row> = {};
 		for (const r of rows) m[qualifiedKey(r.entityType, ddl.key(r.entityType, r))] = r;
 		return m;
 	};
-	const left = keyBy(a, a.entities.list(where));
-	const right = keyBy(b, b.entities.list(where));
+	const left = keyBy(a, rowsOf(a));
+	const right = keyBy(b, rowsOf(b));
 
 	const created: Row[] = [];
 	const dropped: Row[] = [];

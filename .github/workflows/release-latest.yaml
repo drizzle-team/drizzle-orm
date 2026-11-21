@@ -23,12 +23,20 @@ on:
         required: true
       TURSODATABASE_REMOTE_TOKEN:
         required: true
-      SQLITE_CLOUD_CONNECTION_STRING:
-        required: true
-      SQLITE_MANY_CLOUD_CONNECTION_STRING:
-        required: true
       TURBO_TOKEN: 
         required: true
+      PLANETSCALE_ORG:
+        required: false
+      PLANETSCALE_SERVICE_TOKEN_ID:
+        required: false
+      PLANETSCALE_SERVICE_TOKEN:
+        required: false
+      TURSO_ORG:
+        required: false
+      TURSO_API_TOKEN:
+        required: false
+      TURSO_GROUP:
+        required: false
 
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -40,10 +48,6 @@ jobs:
       matrix:
         shard:
           - planetscale
-          - singlestore-core
-          - singlestore-proxy
-          - singlestore-prefixed
-          - singlestore-custom
           - neon-http
           - neon-serverless
           - cockroach
@@ -122,12 +126,6 @@ jobs:
           --health-retries 5
         ports:
           - 33306:3306
-      singlestore:
-        image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
-        env:
-          ROOT_PASSWORD: singlestore
-        ports:
-          - 33307:3306
       mssql:
         image: mcr.microsoft.com/azure-sql-edge
         env:
@@ -140,18 +138,17 @@ jobs:
         ports:
           - 26257:26257
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '20.19'
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         id: pnpm-install
         with:
-          version: latest
           run_install: false
 
       - name: Get pnpm store directory
@@ -160,7 +157,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Setup pnpm cache
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -168,7 +165,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Cache node_modules
         with:
           path: node_modules
@@ -176,6 +173,28 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      - name: Create this job's hosted databases
+        id: hosted-databases
+        if: ${{ contains(fromJSON('["planetscale", "neon-http", "neon-serverless", "other"]'), matrix.shard) }}
+        working-directory: integration-tests
+        env:
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
+          PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
+          PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSO_ORG: ${{ secrets.TURSO_ORG }}
+          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+          TURSO_GROUP: ${{ secrets.TURSO_GROUP }}
+        run: |
+          case "${{ matrix.shard }}" in
+            planetscale) providers=planetscale ;;
+            neon-http|neon-serverless) providers=neon ;;
+            other) providers=turso ;;
+          esac
+          pnpm exec tsx scripts/ci-databases.ts create --job "${{ matrix.shard }}" "$providers"
 
       - name: Build
         run: pnpm build
@@ -206,13 +225,14 @@ jobs:
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
           TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
           TURSODATABASE_REMOTE_TOKEN: ${{ secrets.TURSODATABASE_REMOTE_TOKEN }}
-          SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
           MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
-          SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
         working-directory: integration-tests
         run: |
+          if [[ -f "$RUNNER_TEMP/ci-databases.env" ]]; then
+            source "$RUNNER_TEMP/ci-databases.env"
+          fi
           case ${{ matrix.shard }} in
 
             planetscale)
@@ -220,22 +240,6 @@ jobs:
                 tests/mysql/mysql-planetscale.test.ts \
                 tests/relational/mysql.planetscale-v1.test.ts \
                 tests/relational/mysql.planetscale.test.ts
-            ;;
-
-            singlestore-core)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore.test.ts
-            ;;
-
-            singlestore-proxy)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-proxy.test.ts
-            ;;
-
-            singlestore-prefixed)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-prefixed.test.ts
-            ;;
-
-            singlestore-custom)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-custom.test.ts
             ;;
 
             neon-http)
@@ -287,10 +291,6 @@ jobs:
                 --exclude tests/mysql/mysql-planetscale.test.ts \
                 --exclude tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude tests/relational/mysql.planetscale.test.ts \
-                --exclude tests/singlestore/singlestore.test.ts \
-                --exclude tests/singlestore/singlestore-proxy.test.ts \
-                --exclude tests/singlestore/singlestore-prefixed.test.ts \
-                --exclude tests/singlestore/singlestore-custom.test.ts \
                 --exclude tests/pg/neon-http.test.ts \
                 --exclude tests/pg/neon-http-batch.test.ts \
                 --exclude tests/pg/neon-serverless.test.ts \
@@ -299,33 +299,46 @@ jobs:
                 --exclude tests/pg/postgres-neon-http-batch.test.ts \
                 --exclude tests/cockroach \
                 --exclude tests/mssql \
-                --exclude tests/validators
+                --exclude tests/validators \
+                --exclude tests/packed
             ;;
 
           esac
+
+      - name: Drop this job's hosted databases
+        if: ${{ always() && steps.hosted-databases.outcome != 'skipped' }}
+        working-directory: integration-tests
+        env:
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
+          PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
+          PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSO_ORG: ${{ secrets.TURSO_ORG }}
+          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+        run: pnpm exec tsx scripts/ci-databases.ts drop
 
   attw:
     strategy:
       matrix:
         package:
-          - drizzle-kit
           - drizzle-seed
           - drizzle-typebox
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '18.18'
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         id: pnpm-install
         with:
-          version: latest
           run_install: false
 
       - name: Get pnpm store directory
@@ -334,7 +347,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Setup pnpm cache
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -342,7 +355,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Cache node_modules
         with:
           path: node_modules
@@ -353,6 +366,7 @@ jobs:
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.4 }
 
       - name: Check preconditions
         id: checks
@@ -388,27 +402,28 @@ jobs:
           ATTW_FORMAT: concise
 
 
-  attw-orm:
+  attw-esm:
     strategy:
       matrix:
-        shard:
-          - node16-cjs
+        package:
+          - drizzle-orm
+          - drizzle-kit
+        mode:
           - node16-esm
           - bundler
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         id: pnpm-install
         with:
-          version: latest
           run_install: false
 
       - name: Get pnpm store directory
@@ -417,7 +432,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Setup pnpm cache
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -425,7 +440,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Cache node_modules
         with:
           path: node_modules
@@ -436,9 +451,10 @@ jobs:
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.4 }
 
-      - name: Check preconditions
-        id: checks
+      - name: Check drizzle-orm preconditions
+        if: matrix.package == 'drizzle-orm'
         shell: bash
         working-directory: drizzle-orm
         run: |
@@ -452,44 +468,52 @@ jobs:
             echo "\`drizzle-orm$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
             npm dist-tag add drizzle-orm@$version $tag
           else
-            {
-              echo "version=$version"
-              echo "tag=$tag"
-              echo "has_new_release=true"
-            } >> $GITHUB_OUTPUT
+            echo "HAS_NEW_RELEASE=true" >> $GITHUB_ENV
+          fi
+
+      - name: Check drizzle-kit preconditions
+        if: matrix.package == 'drizzle-kit'
+        shell: bash
+        working-directory: drizzle-kit
+        run: |
+          latest="$(npm view --json drizzle-kit dist-tags.latest | jq -r)"
+          version="$(jq -r .version package.json)"
+          is_version_published="$(npm view drizzle-kit versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+
+          if [[ "$is_version_published" == "false" && "$latest" != "$version" ]]; then
+            echo "HAS_NEW_RELEASE=true" >> $GITHUB_ENV
           fi
 
       - name: Build
-        if: steps.checks.outputs.has_new_release == 'true'
+        if: env.HAS_NEW_RELEASE == 'true'
         run: pnpm build
-      
+
       - name: Pack
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
+        if: env.HAS_NEW_RELEASE == 'true'
+        working-directory: ${{ matrix.package }}
         run: npm run pack
-  
+
       - name: Run @arethetypeswrong/cli
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
-        run: bun --bun run ../attw-fork/src/run.ts package.tgz ${{ matrix.shard }}
+        if: env.HAS_NEW_RELEASE == 'true'
+        working-directory: ${{ matrix.package }}
+        run: bun --bun run ../attw-fork/src/run.ts package.tgz ${{ matrix.mode }}
         env:
           ATTW_FORMAT: concise
 
   publint-orm:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         id: pnpm-install
         with:
-          version: latest
           run_install: false
 
       - name: Get pnpm store directory
@@ -498,7 +522,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Setup pnpm cache
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -506,7 +530,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Cache node_modules
         with:
           path: node_modules
@@ -551,6 +575,111 @@ jobs:
         working-directory: drizzle-orm
         run: npx -y publint@0.3.21 package.tgz
 
+  packed-orm:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        # The consumer projects run on each of these versions. 20.19.0 and 22.12.0 are the oldest versions in the
+        # engines range, where require() of ESM works without a flag. vitest needs a newer Node, so it runs on Node 22.
+        node-version: ['20.19.0', '22.12.0', 'lts/*', 'latest']
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drizzle
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 55433:5432
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '${{ matrix.node-version }}'
+      - run: echo "CONSUMER_NODE=$(which node)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v6
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v6
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - uses: actions/cache@v6
+        name: Cache node_modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.4 }
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check preconditions
+        id: checks
+        shell: bash
+        working-directory: drizzle-orm
+        run: |
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          npm version $version
+          tag="${{ github.ref_name }}"
+          is_version_published="$(npm view drizzle-orm versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+
+          if [[ "$is_version_published" == "true" ]]; then
+            echo "\`drizzle-orm$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
+            npm dist-tag add drizzle-orm@$version $tag
+          else
+            {
+              echo "version=$version"
+              echo "tag=$tag"
+              echo "has_new_release=true"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build
+        if: steps.checks.outputs.has_new_release == 'true'
+        run: pnpm build
+
+      - name: Run packed package test
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: integration-tests
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+        run: pnpm --stream test:packed
+
   release:
     permissions:
       contents: write # for creating GitHub releases
@@ -558,8 +687,9 @@ jobs:
     needs:
       - test
       - attw
-      - attw-orm
+      - attw-esm
       - publint-orm
+      - packed-orm
     strategy:
       fail-fast: false
       matrix:
@@ -570,17 +700,16 @@ jobs:
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # don't specify registry url, so there's no .npmrc config file
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24' }
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         id: pnpm-install
         with:
-          version: latest
           run_install: false
 
       - name: Get pnpm store directory
@@ -589,7 +718,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Setup pnpm cache
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -597,7 +726,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Cache node_modules
         with:
           path: node_modules
@@ -663,7 +792,7 @@ jobs:
           # curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
 
       - name: Create GitHub release for ORM package
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         if: matrix.package == 'drizzle-orm' && steps.checks.outputs.has_new_release == 'true'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -695,7 +824,7 @@ jobs:
             }
 
       - name: Create GitHub release for KIT package
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         if: matrix.package == 'drizzle-kit' && steps.checks.outputs.has_new_release == 'true'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}

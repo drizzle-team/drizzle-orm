@@ -19,7 +19,7 @@ export type CockroachDBQueryConfigRoot<
 	TRelationType extends 'one' | 'many' = 'one' | 'many',
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
-> = Omit<DBQueryConfigRoot<TRelationType, TSchema, TTableConfig>, 'comment' | 'withCache'>;
+> = Omit<DBQueryConfigRoot<TRelationType, TSchema, TTableConfig>, 'comment'>;
 
 export class RelationalQueryBuilder<
 	TSchema extends TablesRelationalConfig,

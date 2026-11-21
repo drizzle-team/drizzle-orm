@@ -26,7 +26,6 @@ function construct<
 ): BunMySqlDatabase<TRelations> & {
 	$client: SQL;
 } {
-	client.options.bigint = true;
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
 		codecs: config.codecs ?? bunSqlMySqlCodecs,
@@ -41,21 +40,22 @@ function construct<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new BunMySqlSession(client, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new BunMySqlDatabase(dialect, session, relations) as BunMySqlDatabase<
 		TRelations
 	>;
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }
 
+/**
+ * Driver quirks:
+ * - `float` values are rounded to 6 significant digits in queries without bound parameters, which Bun sends through
+ *   MySQL's text protocol; queries with parameters use prepared statements, which keep the full value
+ * - `datetime`, `timestamp` in `string` mode lose microseconds
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends SQL = SQL,
@@ -110,11 +110,6 @@ export namespace drizzle {
 	): BunMySqlDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({
-			options: {
-				parsers: {},
-				serializers: {},
-			},
-		} as any, config) as any;
+		return construct({} as any, config) as any;
 	}
 }

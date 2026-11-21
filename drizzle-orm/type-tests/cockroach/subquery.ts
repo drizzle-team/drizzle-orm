@@ -124,13 +124,13 @@ Expect<
 	Expect<Equal<{ id: number }[], typeof joinOfDynamic>>;
 
 	const scalarDynamic = await db.select({ id: names.id, sub: dynamicSq.as('scalar_sq') }).from(names);
-	Expect<Equal<{ id: number; sub: number }[], typeof scalarDynamic>>;
+	Expect<Equal<{ id: number; sub: number | null }[], typeof scalarDynamic>>;
 
 	const scalarGeneric = async <T extends CockroachSelect>(qb: T) =>
 		db.select({ id: names.id, sub: qb.as('scalar_sq') }).from(names);
 
 	const scalarOfDynamic = await scalarGeneric(dynamicSq);
-	Expect<Equal<{ id: number; sub: number }[], typeof scalarOfDynamic>>;
+	Expect<Equal<{ id: number; sub: number | null }[], typeof scalarOfDynamic>>;
 }
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4069 - cases from comments

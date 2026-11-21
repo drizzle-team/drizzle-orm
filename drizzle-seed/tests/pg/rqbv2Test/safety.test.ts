@@ -1,3 +1,4 @@
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import type { SQL } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
@@ -13,7 +14,7 @@ import { mapPgColumns } from '../../../src/pg-core/index.ts';
 const clients: PGlite[] = [];
 
 const createDb = async (ddl: SQL[]) => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	clients.push(client);
 
 	const db = drizzle({ client });

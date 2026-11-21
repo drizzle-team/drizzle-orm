@@ -1,0 +1,4 @@
+input.ts:5:49 error TSPG005: only in-scope identifiers may be interpolated into sql`...`
+    sql`UPDATE accounts SET balance = balance + ${args.amount * 2}`
+                                                  ^^^^^^^^^^^^^^^
+  hint: bind the expression to a const first — interpolations lower to bare identifiers, never string concatenation

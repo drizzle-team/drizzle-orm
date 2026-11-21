@@ -4,6 +4,7 @@ import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
 import { expect, expectTypeOf } from 'vitest';
 import { tests } from './common';
 import { proxyTest } from './instrumentation';
+import { floatReplacedSkips, floatReplacedTests } from './unsupported-types';
 
 const exclude = [
 	'select iterator w/ prepared statement',
@@ -25,8 +26,12 @@ const exclude = [
 	'RQB v2 transaction find many - placeholders',
 ];
 
-tests(proxyTest, exclude);
+// SingleStore rounds `float` to 6 significant digits in the text protocol the driver uses, with no per-query
+// alternative (a driver quirk): all-types tests are redefined with a `float` value that rounds to itself
+tests(proxyTest, [...exclude, ...floatReplacedSkips]);
+floatReplacedTests(proxyTest);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/661
 proxyTest('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as SingleStoreRemoteDatabase;
 	const table = sql.identifier('raw_execute_types');

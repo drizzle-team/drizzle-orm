@@ -6,9 +6,10 @@ import type { SQLiteUpdateBuilder, SQLiteUpdateHKTBase } from '~/sqlite-core/que
 import { SQLiteUpdateBase } from '~/sqlite-core/query-builders/update.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
-import { usedTablesOf } from '~/used-tables.ts';
 import { applyMixins, type Assume, type DrizzleTypeError } from '~/utils.ts';
+import { type SQLiteRunnableMethods, SQLiteRunnableQuery } from '../query-builders/runnable.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
+import { SQLiteAsyncRunnableQuery } from './runnable.ts';
 import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig, SQLiteAsyncSession } from './session.ts';
 
 export interface SQLiteAsyncUpdateHKT extends SQLiteUpdateHKTBase {
@@ -29,7 +30,12 @@ export type SQLiteAsyncUpdate<
 	TTable extends SQLiteTable = SQLiteTable,
 	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = any,
-	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined = undefined,
+	TFrom extends SQLiteTable | Subquery | SQLiteViewBase | SQL | undefined =
+		| SQLiteTable
+		| Subquery
+		| SQLiteViewBase
+		| SQL
+		| undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = SQLiteAsyncUpdateBase<TTable, TResultType, TRunResult, TFrom, TReturning, true, never>;
 
@@ -80,7 +86,8 @@ export interface SQLiteAsyncUpdateBase<
 		TDynamic,
 		TExcludedMethods
 	>,
-	QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>
+	QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>,
+	SQLiteRunnableMethods
 {
 	readonly _:
 		& SQLiteUpdateBase<
@@ -93,6 +100,11 @@ export interface SQLiteAsyncUpdateBase<
 			TExcludedMethods
 		>['_']
 		& { readonly resultType: TResultType };
+
+	/** @internal */
+	_prepare(prepare?: boolean): SQLiteAsyncUpdatePrepare<this>;
+
+	prepare(): SQLiteAsyncUpdatePrepare<this>;
 }
 
 export class SQLiteAsyncUpdateBase<
@@ -118,45 +130,6 @@ export class SQLiteAsyncUpdateBase<
 	static override readonly [entityKind]: string = 'SQLiteAsyncUpdate';
 
 	declare protected session: SQLiteAsyncSession<TResultType, TRunResult, any>;
-
-	/** @internal */
-	_prepare(prepare = false): SQLiteAsyncUpdatePrepare<this> {
-		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL(true)),
-			'arrays',
-			prepare,
-			this.config.returning ? 'all' : 'run',
-			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
-			{
-				type: 'update',
-				tables: () => usedTablesOf(this.config.table),
-			},
-		) as SQLiteAsyncUpdatePrepare<this>;
-	}
-
-	prepare(): SQLiteAsyncUpdatePrepare<this> {
-		return this._prepare(true);
-	}
-
-	run: ReturnType<this['prepare']>['run'] = (placeholderValues) => {
-		return this._prepare().run(placeholderValues);
-	};
-
-	all: ReturnType<this['prepare']>['all'] = (placeholderValues) => {
-		return this._prepare().all(placeholderValues);
-	};
-
-	get: ReturnType<this['prepare']>['get'] = (placeholderValues) => {
-		return this._prepare().get(placeholderValues);
-	};
-
-	values: ReturnType<this['prepare']>['values'] = (placeholderValues) => {
-		return this._prepare().values(placeholderValues);
-	};
-
-	async execute(): Promise<SQLiteAsyncUpdateExecute<this>> {
-		return (this.config.returning ? this.all() : this.run()) as SQLiteAsyncUpdateExecute<this>;
-	}
 }
 
-applyMixins(SQLiteAsyncUpdateBase, [QueryPromise]);
+applyMixins(SQLiteAsyncUpdateBase, [QueryPromise, SQLiteRunnableQuery, SQLiteAsyncRunnableQuery]);

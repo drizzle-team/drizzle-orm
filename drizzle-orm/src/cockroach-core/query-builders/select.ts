@@ -1044,15 +1044,13 @@ export abstract class CockroachSelectQueryBuilderBase<
 		return config.setFieldsFlat ?? fieldsFlat;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
+	getSQL(): SQL {
 		this._resolveSelection();
-		return this.dialect.buildSelectQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	as<TAlias extends string>(
@@ -1133,7 +1131,7 @@ export class CockroachSelectBase<
 		}
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			// Build query before accessing `fieldsFlat` - build mutates it
-			const query = dialect.sqlToQuery(this.getSQL(true));
+			const query = dialect.sqlToQuery(this.getSQL());
 			const fieldsList = this.config.fieldsFlat!;
 			const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, joinsNotNullableMap);
 

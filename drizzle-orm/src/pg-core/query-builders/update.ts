@@ -1,9 +1,16 @@
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
+import type {
+	PgBasePreparedQuery,
+	PgQueryResultHKT,
+	PgQueryResultKind,
+	PgRunnableQueryMethods,
+	PgSession,
+} from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { QueryRuntimeHKT } from '~/query-builders/runtime.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -32,12 +39,14 @@ import {
 	getTableLikeName,
 	mapUpdateSet,
 	orderSelectedFields,
+	resolveNullableObjectPaths,
 	type Simplify,
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { PgViewBase } from '../view-base.ts';
+import { prepareMutation } from './prepare.ts';
 import type {
 	CheckTableLikeSelection,
 	PgSelectJoinConfig,
@@ -56,7 +65,6 @@ export interface PgUpdateConfig {
 	shape?: any;
 	withList?: Subquery[];
 	comment?: SQL;
-	useSelectionCastCodecs?: boolean;
 }
 
 export type PgUpdateSetSource<
@@ -236,7 +244,7 @@ type AccumulateToResult<
 			TSelectedFields,
 			TJoin['name'],
 			TJoin['table'] extends Table ? TJoin['table']['_']['columns']
-				: TJoin['table'] extends Subquery ? Assume<TJoin['table']['_']['selectedFields'], SelectedFields>
+				: TJoin['table'] extends Subquery ? TJoin['table']['_']['selectedFields']
 				: never,
 			TSelectMode extends 'partial' ? TSelectMode : 'multiple'
 		>
@@ -323,11 +331,11 @@ export type PgUpdateDynamic<T extends AnyPgUpdate> = PgUpdateKind<
 export type PgUpdate<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = PgTable | Subquery | PgViewBase | SQL | undefined,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
-	TJoins extends Join[] = [],
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+	TJoins extends Join[] = Join[],
 > = PgUpdateBase<
 	PgUpdateHKT,
 	TTable,
@@ -342,6 +350,8 @@ export type PgUpdate<
 >;
 
 export interface PgUpdateHKTBase {
+	/** How the builder's runtime wraps it's results */
+	runtime: QueryRuntimeHKT;
 	table: unknown;
 	joins: unknown;
 	nullabilityMap: unknown;
@@ -411,7 +421,11 @@ export interface PgUpdateBase<
 		TSelectedFields,
 		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
 	>,
-	SQLWrapper
+	SQLWrapper,
+	PgRunnableQueryMethods<
+		THKT['runtime'],
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+	>
 {
 	readonly _: {
 		readonly dialect: 'pg';
@@ -670,14 +684,12 @@ export class PgUpdateBase<
 		return this as any;
 	}
 
-	getSQL(withCastCodecs = false): SQL {
-		return this.dialect.buildUpdateQuery(
-			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
-		);
+	getSQL(): SQL {
+		return this.dialect.buildUpdateQuery(this.config);
 	}
 
-	toSQL(withCastCodecs = true): Query {
-		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
@@ -698,5 +710,25 @@ export class PgUpdateBase<
 
 	$dynamic(): PgUpdateDynamic<this> {
 		return this as any;
+	}
+
+	/**
+	 * Prepares the query on the session, for both runtimes. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
+		const { session, dialect, config, joinsNotNullableMap } = this;
+		const nullableObjectPaths = config.returning
+			? resolveNullableObjectPaths(config.returning, joinsNotNullableMap)
+			: undefined;
+		return prepareMutation(
+			session,
+			dialect,
+			config,
+			() => this.getSQL(),
+			nullableObjectPaths,
+			name ?? generateName,
+		);
 	}
 }

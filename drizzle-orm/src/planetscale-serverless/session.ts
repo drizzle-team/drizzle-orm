@@ -1,6 +1,11 @@
-import type { Client, Connection, ExecutedQuery, Transaction } from '@planetscale/database';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
+import {
+	type Cast,
+	cast,
+	type Client,
+	type Connection,
+	type ExecutedQuery,
+	type Transaction,
+} from '@planetscale/database';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -10,9 +15,26 @@ import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT } from '~/mysql-core
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 
+const rawTextFieldTypes: ReadonlySet<string> = new Set([
+	'INT64',
+	'UINT64',
+	'DECIMAL',
+	'DATE',
+	'DATETIME',
+	'TIMESTAMP',
+	'TIME',
+]);
+
+/**
+ * Per-query `cast` returning `rawTextFieldTypes` as text for codecs to decode, other fields through the given `cast`.
+ * Applied to queries decoded by codecs (queries with a mapper), proxy servers apply it to such queries as well
+ * @param clientCast - the client's own `cast`, the driver's default `cast` if omitted
+ */
+export const makePlanetscaleRawTextCast = (clientCast: Cast = cast): Cast => (field, value) =>
+	rawTextFieldTypes.has(field.type) ? value : clientCast(field, value);
+
 export interface PlanetscaleSessionOptions {
 	logger?: Logger;
-	cache?: Cache;
 	paramsInErrors?: boolean;
 }
 
@@ -24,7 +46,7 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAs
 
 	private logger: Logger;
 	private client: Client | Transaction | Connection;
-	private cache: Cache;
+	private rawTextCast: Cast;
 
 	constructor(
 		private baseClient: Client | Connection,
@@ -36,19 +58,18 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAs
 		super(dialect);
 		this.client = tx ?? baseClient;
 		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
+		this.rawTextCast = makePlanetscaleRawTextCast(baseClient.config.cast ?? cast);
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (response: Record<string, unknown>[] | unknown[][] | { insertId: number; affectedRows: number }) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;
 		const queryConfig = {
 			as: mode === 'arrays' ? 'array' : 'object' as any,
+			...(mapper ? { cast: this.rawTextCast } : undefined),
 		};
 
 		const executor = async (params: any[] = []) => {
@@ -70,9 +91,6 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAs
 			mapper,
 			mode,
 			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
 			this.options.paramsInErrors,
 		);
 	}

@@ -1,21 +1,17 @@
-import { castToText, floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
-import { sql } from '~/sql/sql.ts';
+import { refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
 
 export const mysql2Codecs = refineGenericMySqlCodecs({
 	serial: {
-		cast: castToText,
 		normalize: Number,
 	},
 	bigint: {
-		cast: castToText,
 		normalize: BigInt,
 	},
 	'bigint:number': {
-		cast: castToText,
 		normalize: Number,
 	},
 	'bigint:string': {
-		cast: castToText,
+		normalize: String,
 	},
 	boolean: {
 		normalize: (value: number) => value === 1,
@@ -34,10 +30,6 @@ export const mysql2Codecs = refineGenericMySqlCodecs({
 	},
 	'decimal:bigint': {
 		normalize: BigInt,
-	},
-	float: {
-		cast: (name) => sql`cast(${name} as double)`,
-		normalize: floatFromDouble,
 	},
 	binary: {
 		normalize: (value: Buffer) => value.toString(),

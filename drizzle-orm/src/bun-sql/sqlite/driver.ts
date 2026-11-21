@@ -2,6 +2,7 @@
 
 import { SQL } from 'bun';
 import { entityKind } from '~/entity.ts';
+import { DrizzleError } from '~/errors.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
@@ -26,6 +27,14 @@ function construct<
 ): BunSQLiteDatabase<TRelations> & {
 	$client: SQL;
 } {
+	const options = (client as { options?: { safeIntegers?: boolean } }).options;
+	if (options && options.safeIntegers !== true) {
+		throw new DrizzleError({
+			message: "`bun`'s `SQL` client for SQLite must be created with `safeIntegers: true` (or `bigint: true`): "
+				+ 'without it, integers past the safe integer range are returned as numbers, which have already lost precision',
+		});
+	}
+
 	const dialect = new SQLiteDialect({
 		codecs: config.codecs ?? bunSqlSQLiteCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
@@ -40,19 +49,19 @@ function construct<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new BunSQLiteSession(client, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new BunSQLiteDatabase('async', dialect, session, relations);
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }
 
+/**
+ * Requirements:
+ * - The client must be created with `safeIntegers: true` (clients created from connection strings are), throws
+ *   otherwise
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends SQL = SQL,
@@ -76,7 +85,7 @@ export function drizzle<
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
-		const instance = new SQL(params[0]);
+		const instance = new SQL(params[0], { safeIntegers: true } as SQL.Options);
 
 		return construct(instance, params[1]) as any;
 	}
@@ -91,11 +100,13 @@ export function drizzle<
 	if (typeof connection === 'object' && connection.url !== undefined) {
 		const { url, ...config } = connection;
 
-		const instance = new SQL({ url, ...config });
+		const instance = new SQL({ url, safeIntegers: true, ...config } as SQL.Options);
 		return construct(instance, DrizzleSQLiteConfig) as any;
 	}
 
-	const instance = new SQL(connection);
+	const instance = typeof connection === 'string'
+		? new SQL(connection, { safeIntegers: true } as SQL.Options)
+		: new SQL({ safeIntegers: true, ...connection } as SQL.Options);
 	return construct(instance, DrizzleSQLiteConfig) as any;
 }
 
@@ -107,11 +118,6 @@ export namespace drizzle {
 	): BunSQLiteDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({
-			options: {
-				parsers: {},
-				serializers: {},
-			},
-		} as any, config) as any;
+		return construct({} as any, config) as any;
 	}
 }

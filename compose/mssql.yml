@@ -1,12 +1,33 @@
 services:
   mssql:
     image: mcr.microsoft.com/azure-sql-edge:latest
+    network_mode: bridge
+    mem_limit: 10g
+    # Its extensibility service logs a line every second or so; a self-hosted machine's shared server runs for days.
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: '2'
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit; the size is a ceiling, used only as data is written. SQL Server opens
+    # its files with O_DIRECT, which tmpfs supports since Linux 6.6.
+    tmpfs:
+      - /var/opt/mssql:size=8g
+      # The image's other volumes: its extensibility service (launchpadd) logs here every second. Each declared
+      # volume path needs a mount of its own, or Docker puts a volume on disk there.
+      - /var/opt/mssql-extensibility:size=256m
+      - /var/opt/mssql-extensibility/data:size=256m
+      - /var/opt/mssql-extensibility/log:size=256m
     environment:
       ACCEPT_EULA: "1"
       MSSQL_SA_PASSWORD: "drizzle123PASSWORD!"
+      # SQL Server otherwise grows its buffer pool towards most of the host RAM; mem_limit leaves it headroom. 4 GB: on a
+      # self-hosted machine every job's databases share this server.
+      MSSQL_MEMORY_LIMIT_MB: "4096"
       TZ: UTC
     ports:
-      - "1433:1433"
+      - "${DRIZZLE_PORT_MSSQL:-1433}:1433"
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 1433"]
       interval: 2s

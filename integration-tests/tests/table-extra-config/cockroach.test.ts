@@ -33,6 +33,7 @@ const foreignClass = cockroachTable('users', { id: int4('id') }, () => [new Unre
 // @ts-expect-error
 const foreignDialect = cockroachTable('users', { id: int4('id') }, () => [sqliteIndex]);
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6140
 describe('cockroach extra config', () => {
 	test('Expected form', () => {
 		const config = getTableConfig(users);

@@ -24,23 +24,16 @@ function construct<
 ): PostgresJsDatabase<TRelations> & {
 	$client: Sql;
 } {
-	const transparentParser = (val: any) => val;
+	// postgres.js' own date serializer is `new Date(x).toISOString()`: it reads offset-less strings in local time
+	// and drops microseconds - strings pass through as is, the server parses them instead
 	const dateSerializer = (val: any) => (val instanceof Date ? val.toISOString() : val);
-
-	// Override postgres.js default timestamptz, timestamp, date, time parsers: https://github.com/porsager/postgres/discussions/761
-	// `new Date(x)` parse is lossy - not suitable for string-mode columns
-	for (const type of ['1184', '1082', '1083', '1114']) {
-		client.options.parsers[type as any] = transparentParser;
-	}
-
-	// Transparent serializer breaks `Date` instance encoding for the entire driver
 	for (const type of ['1184', '1114', '1082', '1083']) {
 		client.options.serializers[type as any] = dateSerializer;
 	}
 
 	const dialect = new PgDialect({
 		useJitMappers: jitCompatCheck(config.jit),
-		codecs: config.codecs ?? postgresJsCodecs,
+		codecs: config.codecs ?? postgresJsCodecs(client),
 	});
 	let logger;
 	if (config.logger === true) {
@@ -52,19 +45,22 @@ function construct<
 	const relations = config.relations ?? {} as TRelations;
 	const session = new PostgresJsSession(client, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new PostgresJsDatabase(dialect, session, relations);
 	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
 
 	return db as any;
 }
 
+/**
+ * Requirements:
+ * - Sessions must use the ISO `DateStyle` (the default): temporal values of other `DateStyle`s throw
+ *
+ * Driver quirks:
+ * - Before `postgres` 4.0.0, `null` elements of arrays are decoded as `NaN` (numbers), `'NULL'` (text), `false`
+ *   (`boolean`) or throw (`json`, `jsonb`)
+ */
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends Sql = Sql,
@@ -121,9 +117,9 @@ export namespace drizzle {
 	} {
 		return construct({
 			options: {
-				parsers: {},
 				serializers: {},
 			},
+			json: (value: unknown) => value,
 		} as any, config) as any;
 	}
 }

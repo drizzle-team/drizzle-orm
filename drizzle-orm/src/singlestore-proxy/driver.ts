@@ -41,7 +41,6 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	const relations = config.relations ?? {} as TRelations;
 	const session = new SingleStoreRemoteSession(callback, dialect, relations, {
 		logger,
-		cache: config.cache,
 		paramsInErrors: config.paramsInErrors,
 	});
 	return new SingleStoreRemoteDatabase(dialect, session, relations);

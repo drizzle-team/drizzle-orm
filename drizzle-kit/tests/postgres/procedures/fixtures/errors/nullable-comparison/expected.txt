@@ -1,0 +1,4 @@
+input.ts:8:9 error TSPG007: cannot compare a nullable value
+      if (hold.row.amount > 100) {
+          ^^^^^^^^^^^^^^^
+  hint: NULL comparisons yield NULL, not false — wrap with coalesce(...) or branch on isNull(...) first

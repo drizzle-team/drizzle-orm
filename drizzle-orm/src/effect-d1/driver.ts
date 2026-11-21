@@ -1,6 +1,6 @@
 import { D1Client } from '@effect/sql-d1/D1Client';
+import type * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
-import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
@@ -26,8 +26,8 @@ export class EffectSQLiteD1Database<TRelations extends AnyRelations = EmptyRelat
 /**
  * Creates an EffectSQLiteD1Database instance.
  *
- * Requires `D1Client`, `EffectLogger`, and `EffectCache` services to be provided.
- * Use `DefaultServices` to provide default (no-op) logger and cache implementations.
+ * Requires `D1Client`, and `EffectLogger` services to be provided.
+ * Use `DefaultServices` to provide the default (no-op) logger implementation.
  *
  * @example
  * ```ts
@@ -48,13 +48,15 @@ export class EffectSQLiteD1Database<TRelations extends AnyRelations = EmptyRelat
  *   Effect.provide(SQLiteD1Drizzle.DefaultServices),
  * );
  * ```
+ *
+ * Driver quirks:
+ * - Integers past the safe integer range are read as numbers: `numeric` columns throw on them
  */
 export const make = Effect.fn('SQLiteD1Drizzle.make')(
 	function*<
 		TRelations extends AnyRelations = EmptyRelations,
 	>(config: EffectDrizzleSQLiteD1Config<TRelations>) {
 		const client = yield* D1Client;
-		const cache = yield* EffectCache;
 		const logger = yield* EffectLogger;
 
 		const dialect = new SQLiteDialect({
@@ -64,18 +66,13 @@ export const make = Effect.fn('SQLiteD1Drizzle.make')(
 		const relations = config.relations ?? {} as TRelations;
 		const session = new EffectSQLiteD1Session(client, dialect, relations, {
 			logger,
-			cache,
 			paramsInErrors: config.paramsInErrors,
 		});
 		const db = new EffectSQLiteD1Database(dialect, session, relations, true);
 		(<any> db).$client = client;
-		(<any> db).$cache = cache;
-		if ((<any> db).$cache) {
-			(<any> db).$cache['invalidate'] = cache.onMutate;
-		}
 
 		return db as EffectSQLiteD1Database<TRelations> & {
-			$client: D1Client;
+			$client: Context.Service.Shape<typeof D1Client>;
 		};
 	},
 );

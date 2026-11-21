@@ -1,26 +1,21 @@
-import {
-	Collect,
-	CollectNullable,
-	type CustomMarker,
-	Json,
-	JsonArray,
-	type JsonMarker,
-	type JsonSpec,
-	Nullable,
-	type ShapeEntries,
-	type ShapeSpec,
-	type ShapeValue,
-	type TableShape,
-	Transform,
-	type TransformMarker,
-	type TypeSpec,
-} from '@drizzle-team/minipg';
-import { geometry as pgGeometry } from '@drizzle-team/minipg/geometry';
+import type {
+	CustomMarker,
+	JsonMarker,
+	JsonSpec,
+	ShapeEntries,
+	ShapeSpec,
+	ShapeValue,
+	TableShape,
+	TransformMarker,
+	TypeSpec,
+} from '#postgres';
+import { geometry as pgGeometry } from '#postgres/geometry';
+import { Collect, CollectNullable, Json, JsonArray, Nullable, Transform } from '#postgres/json';
 import { getOriginalColumnFromAlias } from '~/alias.ts';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
 import type { SelectedFieldsOrdered } from '~/operations.ts';
-import type { PostgresType } from '~/pg-core/codecs.ts';
+import type { PgCodecs, PostgresType } from '~/pg-core/codecs.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PreparedQuerySelection } from '~/pg-core/dialect.ts';
 import { type DriverValueDecoder, noopDecoder } from '~/sql/sql.ts';
@@ -76,7 +71,7 @@ const SHAPE_TYPES: Partial<Record<PostgresType, ShapeType>> = {
 	sparsevec: ['sparsevec', 'string'],
 };
 
-/** Types minipg decodes only through a registry marker, which carries no spec string to name it by. */
+/** Types Drizzle Postgres decodes only through a registry marker, which carries no spec string to name it by. */
 const CUSTOM_MARKERS: Partial<Record<PostgresType, { scalar: CustomMarker; array: CustomMarker }>> = {
 	'geometry(point)': {
 		scalar: pgGeometry('xy'),
@@ -189,21 +184,47 @@ function memoizedTransform(
 	return marker;
 }
 
+function codecNormalizer(
+	codecs: PgCodecs | undefined,
+	codecType: PostgresType | undefined,
+	arrayDimensions: number | undefined,
+): ((value: any) => unknown) | undefined {
+	const codec = codecType ? codecs?.[codecType] : undefined;
+	if (!codec) return;
+
+	if (arrayDimensions) {
+		const { normalizeArray } = codec;
+		return normalizeArray ? (value: any) => normalizeArray(value, arrayDimensions) : undefined;
+	}
+
+	return codec.normalize;
+}
+
 function wireLeaf(
 	decoder: DriverValueDecoder<any, any>,
 	column: Column | undefined,
 	codecOverride: string | undefined,
 	arrayDimensions: number | undefined,
+	codecs: PgCodecs | undefined,
 ): WireSpec | TransformMarker {
 	const codecType = column ? (codecOverride ?? column.codec) as PostgresType | undefined : undefined;
-	const spec: WireSpec = codecType ? wireSpecFor(codecType, arrayDimensions) : 'unknown';
+	const normalize = codecNormalizer(codecs, codecType, arrayDimensions);
+	const spec: WireSpec = !normalize && codecType ? wireSpecFor(codecType, arrayDimensions) : 'unknown';
+	const isNoop = decoder.mapFromDriverValue.isNoop;
 
-	if (decoder.mapFromDriverValue.isNoop) return spec;
+	if (isNoop && !normalize) return spec;
 
 	const key = is(decoder, Column) ? getOriginalColumnFromAlias(decoder) : decoder.mapFromDriverValue;
 	const decode = decoder.mapFromDriverValue.bind(decoder);
+	const fn = isNoop ? normalize! : normalize ? (value: any) => decode(normalize(value)) : decode;
 
-	return memoizedTransform(key, spec, undefined, arrayDimensions, () => Transform(spec as TypeSpec, decode));
+	return memoizedTransform(
+		key,
+		spec,
+		normalize ? codecs : undefined,
+		arrayDimensions,
+		() => Transform(spec as TypeSpec, fn),
+	);
 }
 
 type ShapeEntry = ShapeValue;
@@ -306,7 +327,7 @@ function jsonMarkerFor(item: RelationalItem): JsonMarker {
 	return item.isArray ? JsonArray(spec) : Json(spec);
 }
 
-function relationalShape(selection: RelationalSelection): ShapeEntries {
+function relationalShape(selection: RelationalSelection, codecs: PgCodecs | undefined): ShapeEntries {
 	const root: [string, ShapeEntry][] = new Array(selection.length);
 
 	for (let i = 0; i < selection.length; ++i) {
@@ -315,7 +336,7 @@ function relationalShape(selection: RelationalSelection): ShapeEntries {
 			item.key,
 			item.selection
 				? jsonMarkerFor(item)
-				: wireLeaf(getRqbDecoder(item), getRqbColumn(item), undefined, item.arrayDimensions),
+				: wireLeaf(getRqbDecoder(item), getRqbColumn(item), undefined, item.arrayDimensions, codecs),
 		];
 	}
 
@@ -325,10 +346,25 @@ function relationalShape(selection: RelationalSelection): ShapeEntries {
 export function buildShape(
 	selection: PreparedQuerySelection,
 	nullableObjectPaths?: string[],
+	codecs?: PgCodecs,
 ): ShapeSpec {
-	if (selection.type === 'relational') return relationalShape(selection.fields);
+	if (selection.type === 'relational') return relationalShape(selection.fields, codecs);
 
 	const { fields } = selection;
+	const leaves = new Array<WireSpec | TransformMarker>(fields.length);
+	for (let i = 0; i < fields.length; ++i) leaves[i] = plainLeaf(fields[i]!, codecs);
+	return plainShape(fields, leaves, nullableObjectPaths);
+}
+
+function plainLeaf(item: PlainItem, codecs: PgCodecs | undefined): WireSpec | TransformMarker {
+	return wireLeaf(getDecoder(item), item.column, item.codecOverride, item.arrayDimensions, codecs);
+}
+
+function plainShape(
+	fields: readonly PlainItem[],
+	leaves: readonly (WireSpec | TransformMarker)[],
+	nullableObjectPaths: string[] | undefined,
+): ShapeSpec {
 	const nullableKeys = new Set(nullableObjectPaths ?? []);
 
 	const order: string[] = [];
@@ -336,9 +372,8 @@ export function buildShape(
 	const groups = new Map<string, PlainLeaf[]>();
 
 	for (let i = 0; i < fields.length; ++i) {
-		const item = fields[i]!;
-		const { path, column, codecOverride, arrayDimensions } = item;
-		const leaf = wireLeaf(getDecoder(item), column, codecOverride, arrayDimensions);
+		const { path } = fields[i]!;
+		const leaf = leaves[i]!;
 
 		const key = path[0]!;
 		if (path.length === 1) {
@@ -370,6 +405,72 @@ export function buildShape(
 
 	return root;
 }
+
+// Shape memo for plain selections, one per generator (= per drizzle instance, since leaves depend on its
+// codecs). The driver caches its decode plan by the shape object's identity, so handing back the SAME
+// object for the same selection lets a query builder created per call skip that work too.
+//
+// A shape is fully determined by, per field in order, its output path and its leaf, plus the nullable
+// join paths. Leaves are stable values: spec strings, constant markers, or Transform markers memoized by
+// memoizedTransform. The memo is a trie walked by those values: each path segment through `segs`, then the
+// field's leaf through `leaves` (separate maps, so a segment can never be mistaken for a leaf), and the
+// nullable paths select the shape at the end.
+interface ShapeNode {
+	segs?: Map<string, ShapeNode>;
+	leaves?: Map<WireSpec | TransformMarker, ShapeNode>;
+	shapes?: Map<string, ShapeSpec>;
+}
+
+// Bound on memoized shapes per generator. Selections are normally a fixed set; dynamically built ones
+// (column lists from user input) could otherwise grow it forever. Past the bound it starts over.
+const MAX_MEMOIZED_SHAPES = 2048;
+
+export const createShapeGenerator = (codecs: PgCodecs) => {
+	// A column's leaf depends only on the column and the codecs (its arrayDimensions is column.dimensions).
+	const columnLeaves = new WeakMap<Column, WireSpec | TransformMarker>();
+	let root: ShapeNode = {};
+	let memoized = 0;
+
+	const leafOf = (item: PlainItem): WireSpec | TransformMarker => {
+		if (item.fieldType !== 'Column' || item.codecOverride !== undefined) return plainLeaf(item, codecs);
+		let leaf = columnLeaves.get(item.field);
+		if (leaf === undefined) columnLeaves.set(item.field, leaf = plainLeaf(item, codecs));
+		return leaf;
+	};
+
+	return (selection: PreparedQuerySelection, nullableObjectPaths: string[] | undefined): ShapeSpec => {
+		if (selection.type === 'relational') return buildShape(selection, nullableObjectPaths, codecs);
+
+		if (memoized >= MAX_MEMOIZED_SHAPES) {
+			root = {};
+			memoized = 0;
+		}
+		const { fields } = selection;
+		const leaves = new Array<WireSpec | TransformMarker>(fields.length);
+		let node = root;
+		for (let i = 0; i < fields.length; ++i) {
+			const item = fields[i]!;
+			for (const seg of item.path) {
+				let next = (node.segs ??= new Map()).get(seg);
+				if (next === undefined) node.segs.set(seg, next = {});
+				node = next;
+			}
+			const leaf = leaves[i] = leafOf(item);
+			let next = (node.leaves ??= new Map()).get(leaf);
+			if (next === undefined) node.leaves.set(leaf, next = {});
+			node = next;
+		}
+
+		const nullableKey = nullableObjectPaths?.length ? nullableObjectPaths.join('\u0000') : '';
+		let shape = node.shapes?.get(nullableKey);
+		if (shape === undefined) {
+			shape = plainShape(fields, leaves, nullableObjectPaths);
+			(node.shapes ??= new Map()).set(nullableKey, shape);
+			memoized++;
+		}
+		return shape;
+	};
+};
 
 export namespace buildShape {
 	export function fromTableOrView(source: Table): TableShape;

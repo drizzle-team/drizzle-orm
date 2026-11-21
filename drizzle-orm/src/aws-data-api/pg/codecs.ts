@@ -1,9 +1,8 @@
+import { unsupportedCodec } from '~/codecs.ts';
 import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
-	byteaFromPgHex,
-	castToText,
 	castToTextArr,
 	makeBoxArray,
 	makeGeometryArray,
@@ -26,9 +25,16 @@ const byteaFromBlob = (v: Uint8Array | Buffer): Buffer => Buffer.from(v);
 const inetFromText = (v: string): string =>
 	v.endsWith(v.includes(':') ? '/128' : '/32') ? v.slice(0, v.lastIndexOf('/')) : v;
 
+const driver = 'aws-data-api';
+const timestamptzTextReason =
+	'Data API converts `timestamptz` values to UTC, dropping the offset the server formats in '
+	+ "the session's time zone, and accepts no per-query result formats";
+const timeTzReason =
+	'Data API converts `timetz` values to UTC dropping their offset and accepts no per-query result formats';
+const byteaArrayReason = 'Data API has no array type for binary values and returns `bytea[]` empty';
+
 export const awsDataApiPgCodecs = refineGenericPgCodecs({
 	json: {
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::json`,
 		castArrayParam: (name, _column, dim) => `${name}::json${'[]'.repeat(dim)}`,
 		normalize: (v) => JSON.parse(v),
@@ -37,7 +43,6 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::jsonb`,
 		castArrayParam: (name, _column, dim) => `${name}::jsonb${'[]'.repeat(dim)}`,
 		normalize: (v) => JSON.parse(v),
@@ -46,16 +51,13 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	bytea: {
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::bytea`,
 		castArrayParam: (name, _column, dim) => `${name}::bytea${'[]'.repeat(dim)}`,
 		normalize: byteaFromBlob,
-		normalizeArray: arrayCompatNormalize(byteaFromPgHex),
 		normalizeParamArray: (v) => makePgArray(v),
+		normalizeArray: unsupportedCodec('bytea[]', driver, byteaArrayReason),
 	},
 	bit: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name, column) => `${name}::bit(${column.length})`,
 		castArrayParam: (name, column, dim) => `${name}::bit(${column.length})${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
@@ -75,15 +77,11 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makeGeometryArray,
 	},
 	interval: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::interval`,
 		castArrayParam: (name, _column, dim) => `${name}::interval${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	line: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::line`,
 		castArrayParam: (name, _column, dim) => `${name}::line${'[]'.repeat(dim)}`,
 		normalize: parseLineABC,
@@ -91,8 +89,6 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'line:tuple': {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::line`,
 		castArrayParam: (name, _column, dim) => `${name}::line${'[]'.repeat(dim)}`,
 		normalize: parseLineTuple,
@@ -100,30 +96,22 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	macaddr: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::macaddr`,
 		castArrayParam: (name, _column, dim) => `${name}::macaddr${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	macaddr8: {
-		cast: castToText,
 		castArrayInJson: castToTextArr,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::macaddr8`,
 		castArrayParam: (name, _column, dim) => `${name}::macaddr8${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	cidr: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::cidr`,
 		castArrayParam: (name, _column, dim) => `${name}::cidr${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	inet: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::inet`,
 		castArrayParam: (name, _column, dim) => `${name}::inet${'[]'.repeat(dim)}`,
 		normalize: inetFromText,
@@ -131,8 +119,6 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	point: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::point`,
 		castArrayParam: (name, _column, dim) => `${name}::point${'[]'.repeat(dim)}`,
 		normalize: parsePointXY,
@@ -140,8 +126,6 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'point:tuple': {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::point`,
 		castArrayParam: (name, _column, dim) => `${name}::point${'[]'.repeat(dim)}`,
 		normalize: parsePointTuple,
@@ -354,6 +338,7 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		castArrayParam: (name, _column, dim) => `${name}::text${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	// Data API cuts fractional seconds of `time` to milliseconds, text keeps them
 	time: {
 		castParam: (name) => `${name}::time`,
 		castArrayParam: (name, _column, dim) => `${name}::time${'[]'.repeat(dim)}`,
@@ -361,11 +346,11 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 	},
 	// Data API converts values with time zones to UTC dropping the offset, text keeps it
 	timetz: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::timetz`,
 		castArrayParam: (name, _column, dim) => `${name}::timetz${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: unsupportedCodec('time with time zone', driver, timeTzReason),
+		normalizeArray: unsupportedCodec('time with time zone', driver, timeTzReason),
 	},
 	tsmultirange: {
 		castParam: (name) => `${name}::tsmultirange`,
@@ -413,22 +398,16 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	enum: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name, column) => `${name}::${column.getSQLType()}`,
 		castArrayParam: (name, column, dimensions) => `${name}::${column.getSQLType()}${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	numeric: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::numeric`,
 		castArrayParam: (name, _column, dim) => `${name}::numeric${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'numeric:number': {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::numeric`,
 		castArrayParam: (name, _column, dim) => `${name}::numeric${'[]'.repeat(dim)}`,
 		normalize: Number,
@@ -436,8 +415,6 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'numeric:bigint': {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::numeric`,
 		castArrayParam: (name, _column, dim) => `${name}::numeric${'[]'.repeat(dim)}`,
 		normalize: BigInt,
@@ -445,17 +422,13 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	bigint: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::bigint`,
 		castArrayParam: (name, _column, dim) => `${name}::bigint${'[]'.repeat(dim)}`,
+		normalizeParamArray: (v) => makePgArray(v),
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
-		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigint:number': {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::bigint`,
 		castArrayParam: (name, _column, dim) => `${name}::bigint${'[]'.repeat(dim)}`,
 		normalize: Number,
@@ -463,24 +436,20 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigint:string': {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::bigint`,
 		castArrayParam: (name, _column, dim) => `${name}::bigint${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: String,
+		normalizeArray: arrayCompatNormalize(String),
 	},
 	bigserial: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::bigint`,
 		castArrayParam: (name, _column, dim) => `${name}::bigint${'[]'.repeat(dim)}`,
+		normalizeParamArray: (v) => makePgArray(v),
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
-		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigserial:number': {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::bigint`,
 		castArrayParam: (name, _column, dim) => `${name}::bigint${'[]'.repeat(dim)}`,
 		normalize: Number,
@@ -488,15 +457,13 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	date: {
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::date`,
 		castArrayParam: (name, _column, dim) => `${name}::date${'[]'.repeat(dim)}`,
+		normalizeParamArray: (v) => makePgArray(v),
 		normalize: textToDate,
 		normalizeArray: arrayCompatNormalize(textToDate),
-		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'date:string': {
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::date`,
 		castArrayParam: (name, _column, dim) => `${name}::date${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
@@ -511,36 +478,33 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		castArrayParam: (name, _column, dim) => `${name}::integer${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	// Data API drops the `BC` suffix of `timestamp`s with fractional seconds
 	timestamp: {
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::timestamp`,
 		castArrayParam: (name, _column, dim) => `${name}::timestamp${'[]'.repeat(dim)}`,
-		normalize: textToDateWithTz,
-		normalizeArray: arrayCompatNormalize(textToDateWithTz),
 		normalizeParam: (value) => value.replace('T', ' ').replace('Z', ''),
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: textToDateWithTz,
+		normalizeArray: arrayCompatNormalize(textToDateWithTz),
 	},
 	timestamptz: {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::timestamptz`,
 		castArrayParam: (name, _column, dim) => `${name}::timestamptz${'[]'.repeat(dim)}`,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: textToDateWithTz,
+		normalizeArray: arrayCompatNormalize(textToDateWithTz),
 	},
 	'timestamp:string': {
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::timestamp`,
 		castArrayParam: (name, _column, dim) => `${name}::timestamp${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'timestamptz:string': {
-		cast: castToText,
-		castArray: castToTextArr,
 		castParam: (name) => `${name}::timestamptz`,
 		castArrayParam: (name, _column, dim) => `${name}::timestamptz${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
+		normalize: unsupportedCodec('timestamp with time zone', driver, timestamptzTextReason),
+		normalizeArray: unsupportedCodec('timestamp with time zone', driver, timestamptzTextReason),
 	},
 	uuid: {
 		castParam: (name) => `${name}::uuid`,

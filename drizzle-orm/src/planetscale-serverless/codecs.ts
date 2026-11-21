@@ -1,6 +1,5 @@
-import { castToText, floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
-import { sql } from '~/sql/sql.ts';
-import { textDecoder } from '~/utils.ts';
+import { refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
+import { decodeUtf8 } from '~/utils.ts';
 
 const bitStringFromBytes = (value: Uint8Array): string => {
 	const str: string[] = new Array(value.length);
@@ -12,19 +11,13 @@ const bitStringFromBytes = (value: Uint8Array): string => {
 
 export const planetscaleServerlessCodecs = refineGenericMySqlCodecs({
 	serial: {
-		cast: castToText,
 		normalize: Number,
 	},
 	bigint: {
-		cast: castToText,
 		normalize: BigInt,
 	},
 	'bigint:number': {
-		cast: castToText,
 		normalize: Number,
-	},
-	'bigint:string': {
-		cast: castToText,
 	},
 	boolean: {
 		normalize: (value: number) => value === 1,
@@ -44,10 +37,6 @@ export const planetscaleServerlessCodecs = refineGenericMySqlCodecs({
 	'decimal:bigint': {
 		normalize: BigInt,
 	},
-	float: {
-		cast: (name) => sql`cast(${name} as double)`,
-		normalize: floatFromDouble,
-	},
 	binary: {
 		normalize: bitStringFromBytes,
 	},
@@ -56,22 +45,22 @@ export const planetscaleServerlessCodecs = refineGenericMySqlCodecs({
 	},
 	blob: {
 		normalize: typeof Buffer === 'undefined'
-			? textDecoder ? ((value: Uint8Array) => textDecoder!.decode(value)) : undefined
+			? decodeUtf8
 			: (value: Uint8Array) => Buffer.from(value).toString('utf8'),
 	},
 	tinyblob: {
 		normalize: typeof Buffer === 'undefined'
-			? textDecoder ? ((value: Uint8Array) => textDecoder!.decode(value)) : undefined
+			? decodeUtf8
 			: (value: Uint8Array) => Buffer.from(value).toString('utf8'),
 	},
 	mediumblob: {
 		normalize: typeof Buffer === 'undefined'
-			? textDecoder ? ((value: Uint8Array) => textDecoder!.decode(value)) : undefined
+			? decodeUtf8
 			: (value: Uint8Array) => Buffer.from(value).toString('utf8'),
 	},
 	longblob: {
 		normalize: typeof Buffer === 'undefined'
-			? textDecoder ? ((value: Uint8Array) => textDecoder!.decode(value)) : undefined
+			? decodeUtf8
 			: (value: Uint8Array) => Buffer.from(value).toString('utf8'),
 	},
 	'blob:buffer': {

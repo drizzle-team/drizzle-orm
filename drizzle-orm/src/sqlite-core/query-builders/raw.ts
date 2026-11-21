@@ -36,4 +36,9 @@ export class SQLiteRaw<TResult> implements SQLWrapper, PreparedQuery {
 	_prepare(): PreparedQuery {
 		return this.prepared;
 	}
+
+	/** Runs the query: the runtime's builder narrows the return type */
+	execute(placeholderValues?: Record<string, unknown>): unknown {
+		return this.prepared.execute(placeholderValues);
+	}
 }

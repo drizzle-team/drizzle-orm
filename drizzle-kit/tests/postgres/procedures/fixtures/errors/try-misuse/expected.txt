@@ -1,0 +1,57 @@
+input.ts:8:5 error TSPG010: commit() is not allowed inside ctx.try()
+      commit()
+      ^^^^^^^^
+  hint: Postgres cannot end a transaction inside an exception block (it runs as a subtransaction) — commit after the try
+
+input.ts:9:5 error TSPG017: 'total' is declared outside this ctx.try() and cannot be assigned inside it
+      total = 1
+      ^^^^^
+  hint: on a caught error the database changes roll back but variables keep their values — return the value instead: return { x }
+
+input.ts:11:7 error TSPG014: inside ctx.try(), `return` may only be the last statement of the body
+        return { v: total }
+        ^^^^^^^^^^^^^^^^^^^
+  hint: restructure with if/else so the body ends in a single return { ... }
+
+input.ts:15:22 error TSPG008: 'res.v' is only readable where the try is known to have succeeded
+    const early: int = res.v
+                       ^^^^^
+  hint: test the error first: if (err === null) { ... } — or exit early: if (err !== null) { throw ... }
+
+input.ts:16:14 error TSPG008: 'err.message' is only readable where an error is known to have been caught
+    ctx.notice(err.message)
+               ^^^^^^^^^^^
+  hint: test it first: if (err !== null) { ... }
+
+input.ts:19:7 error TSPG001: break cannot leave a ctx.try() body
+        break
+        ^^^^^
+  hint: test err after the try instead: if (err !== null) { break }
+
+input.ts:23:21 error TSPG010: ctx.try() needs a non-empty inline list of conditions to catch
+    ctx.try(() => {}, [])
+                      ^^
+  hint: e.g. ['unique_violation', 'P0409'] — a catch-all would also swallow deadlocks and bugs
+
+input.ts:24:22 error TSPG010: 'others' cannot be caught
+    ctx.try(() => {}, ['others', 'not_a_condition', '01000', 'P0409', 'P0409'])
+                       ^^^^^^^^
+  hint: list the conditions you handle — a catch-all would also swallow deadlocks and bugs
+
+input.ts:24:32 error TSPG010: unknown condition 'not_a_condition'
+    ctx.try(() => {}, ['others', 'not_a_condition', '01000', 'P0409', 'P0409'])
+                                 ^^^^^^^^^^^^^^^^^
+  hint: use a PL/pgSQL condition name (unique_violation, foreign_key_violation, ...) or a 5-character SQLSTATE
+
+input.ts:24:51 error TSPG010: SQLSTATE '01000' is not an error (classes 00–02 are success/warning/no-data)
+    ctx.try(() => {}, ['others', 'not_a_condition', '01000', 'P0409', 'P0409'])
+                                                    ^^^^^^^
+
+input.ts:24:69 error TSPG010: duplicate condition 'P0409'
+    ctx.try(() => {}, ['others', 'not_a_condition', '01000', 'P0409', 'P0409'])
+                                                                      ^^^^^^^
+
+input.ts:25:9 error TSPG001: destructure the ctx.try() result with const
+    const r = ctx.try(() => {}, ['unique_violation'])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  hint: const { res, err } = ctx.try(() => { ... }, [...conditions])

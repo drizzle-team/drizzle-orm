@@ -1,4 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { postponed } from '@drizzle/test-utils';
 import {
 	and,
 	asc,
@@ -306,6 +307,81 @@ export function tests(test: Test) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
+		test.concurrent('select distinct ordered by cast columns', async ({ db, push }) => {
+			const table = pgTable('distinct_cast_order', {
+				id: integer('id').notNull(),
+				createdAt: timestamp('created_at', { mode: 'date', precision: 3 }).notNull(),
+				amount: numeric('amount', { mode: 'number' }).notNull(),
+			});
+
+			await push({ table });
+
+			await db.insert(table).values([
+				{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+				{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+				{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+				{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+			]);
+
+			const byDate = await db
+				.selectDistinct({ id: table.id, createdAt: table.createdAt, amount: table.amount })
+				.from(table)
+				.orderBy(desc(table.createdAt));
+			const byAmount = await db
+				.selectDistinct({ id: table.id, amount: table.amount })
+				.from(table)
+				.orderBy(desc(table.amount));
+
+			expect(byDate).toEqual([
+				{ id: 3, createdAt: new Date('2026-10-03T12:00:00.000Z'), amount: 10 },
+				{ id: 2, createdAt: new Date('2026-10-02T12:00:00.000Z'), amount: 100 },
+				{ id: 1, createdAt: new Date('2026-10-01T12:00:00.000Z'), amount: 9 },
+			]);
+			expect(byAmount).toEqual([
+				{ id: 2, amount: 100 },
+				{ id: 3, amount: 10 },
+				{ id: 1, amount: 9 },
+			]);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6673
+		test.concurrent('order by aliased cast columns', async ({ db, push }) => {
+			const table = pgTable('alias_cast_order', {
+				id: integer('id').notNull(),
+				amount: numeric('amount', { mode: 'number' }).notNull(),
+			});
+
+			await push({ table });
+
+			await db.insert(table).values([
+				{ id: 1, amount: 9 },
+				{ id: 2, amount: 100 },
+				{ id: 3, amount: 10 },
+			]);
+
+			const amountAlias = table.amount.as('amount_alias');
+			const amountSql = sql<number>`${table.amount}`.mapWith(table.amount).as('amount_sql');
+
+			const byColumnAlias = await db.select({ id: table.id, amount: amountAlias }).from(table).orderBy(
+				desc(amountAlias),
+			);
+			const bySqlAlias = await db.select({ id: table.id, amount: amountSql }).from(table).orderBy(desc(amountSql));
+			const byDistinctAlias = await db
+				.selectDistinct({ id: table.id, amount: amountAlias })
+				.from(table)
+				.orderBy(desc(amountAlias));
+
+			const expected = [
+				{ id: 2, amount: 100 },
+				{ id: 3, amount: 10 },
+				{ id: 1, amount: 9 },
+			];
+			expect(byColumnAlias).toEqual(expected);
+			expect(bySqlAlias).toEqual(expected);
+			expect(byDistinctAlias).toEqual(expected);
+		});
+
 		test.concurrent('insert returning sql', async ({ db, push }) => {
 			const users = pgTable('users_6', {
 				id: integer('id' as string).primaryKey(),
@@ -596,6 +672,8 @@ export function tests(test: Test) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent('insert with explicit column list', async ({ db, push }) => {
 			const table = pgTable('column_selection', {
 				id: integer('id').primaryKey(),
@@ -619,6 +697,8 @@ export function tests(test: Test) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent('insert with explicit column list - select', async ({ db, push }) => {
 			const src = pgTable('column_selection_select_src', {
 				id: integer('id').primaryKey(),
@@ -645,6 +725,8 @@ export function tests(test: Test) {
 			]);
 		});
 
+		// https://github.com/drizzle-team/drizzle-orm/issues/5001
+		// https://github.com/drizzle-team/drizzle-orm/issues/5309
 		test.concurrent('insert with explicit column list - on conflict', async ({ db, push }) => {
 			const table = pgTable('column_selection_conflict', {
 				id: integer('id').primaryKey(),
@@ -1246,7 +1328,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
-		test.skipIf(Date.now() < +new Date('2026-11-24')).concurrent(
+		test.skipIf(postponed).concurrent(
 			'prepared statement with placeholder in .inArray',
 			async ({ db, push }) => {
 				const usersTable = pgTable('users_392', {
@@ -1388,6 +1470,170 @@ export function tests(test: Test) {
 				.where(eq(usersTable.id, 1));
 
 			expect(res).toEqual([{ id: 1, name: 'John' }]);
+		});
+
+		test.concurrent('insert with onConflict do nothing + composite target', async ({ db }) => {
+			const table = pgTable('on_conflict_nothing_composite', {
+				a: integer('a').notNull(),
+				b: integer('b').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (a integer not null, b integer not null, name text not null, primary key (a, b))`,
+			);
+
+			await db.insert(table).values({ a: 1, b: 1, name: 'John' });
+
+			await db.insert(table).values([{ a: 1, b: 1, name: 'Jane' }, { a: 1, b: 2, name: 'Jane' }]).onConflictDoNothing({
+				target: [table.a, table.b],
+			});
+
+			expect(await db.select().from(table).orderBy(table.b)).toEqual([
+				{ a: 1, b: 1, name: 'John' },
+				{ a: 1, b: 2, name: 'Jane' },
+			]);
+		});
+
+		test.concurrent('insert with onConflict do update + composite target', async ({ db }) => {
+			const table = pgTable('on_conflict_update_composite', {
+				a: integer('a').notNull(),
+				b: integer('b').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (a integer not null, b integer not null, name text not null, primary key (a, b))`,
+			);
+
+			await db.insert(table).values({ a: 1, b: 1, name: 'John' });
+
+			await db.insert(table).values({ a: 1, b: 1, name: 'Jane' }).onConflictDoUpdate({
+				target: [table.a, table.b],
+				set: { name: 'Updated' },
+			});
+
+			expect(await db.select().from(table)).toEqual([{ a: 1, b: 1, name: 'Updated' }]);
+		});
+
+		test.concurrent('insert with onConflict do update + setWhere', async ({ db }) => {
+			const table = pgTable('on_conflict_set_where', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, name text not null, version integer not null)`,
+			);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]);
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 2, name: 'Jane1', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' }, setWhere: eq(table.version, 1) });
+
+			expect(await db.select().from(table).orderBy(table.id)).toEqual([
+				{ id: 1, name: 'Updated', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+			]);
+		});
+
+		test.concurrent('insert with onConflict do update + where', async ({ db }) => {
+			const table = pgTable('on_conflict_where', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, name text not null, version integer not null)`,
+			);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]);
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 2, name: 'Jane1', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' }, where: eq(table.version, 1) });
+
+			expect(await db.select().from(table).orderBy(table.id)).toEqual([
+				{ id: 1, name: 'Updated', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+			]);
+		});
+
+		test.concurrent('insert with onConflict do update + where and targetWhere/setWhere throws', async ({ db }) => {
+			const table = pgTable('on_conflict_throws', { id: integer('id').primaryKey(), name: text('name').notNull() });
+			const message = 'You cannot use both "where" and "targetWhere"/"setWhere" at the same time';
+			const insert = () => db.insert(table).values({ id: 1, name: 'John' });
+			const where = eq(table.id, 1);
+
+			expect(() => insert().onConflictDoUpdate({ target: table.id, set: { name: 'Jane' }, where, targetWhere: where }))
+				.toThrowError(message);
+			expect(() => insert().onConflictDoUpdate({ target: table.id, set: { name: 'Jane' }, where, setWhere: where }))
+				.toThrowError(message);
+		});
+
+		test.concurrent('insert with onConflict returning', async ({ db }) => {
+			const table = pgTable('on_conflict_returning', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, name text not null, version integer not null)`,
+			);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]);
+
+			expect(await db.insert(table).values({ id: 1, name: 'Skipped', version: 3 }).onConflictDoNothing().returning())
+				.toEqual([]);
+			expect(
+				await db.insert(table).values({ id: 1, name: 'Updated', version: 3 }).onConflictDoUpdate({
+					target: table.id,
+					set: { name: 'Updated' },
+				}).returning({ id: table.id, name: table.name }),
+			).toEqual([{ id: 1, name: 'Updated' }]);
+			expect(
+				await db.insert(table).values({ id: 2, name: 'Filtered', version: 3 }).onConflictDoUpdate({
+					target: table.id,
+					set: { name: 'Filtered' },
+					setWhere: eq(table.version, 1),
+				}).returning(),
+			).toEqual([]);
+			expect(
+				await db.insert(table).values({ id: 3, name: 'Inserted', version: 3 }).onConflictDoNothing().returning({
+					id: table.id,
+				}),
+			).toEqual([{ id: 3 }]);
+		});
+
+		test.concurrent('insert with onConflict do update + excluded', async ({ db }) => {
+			const table = pgTable('on_conflict_excluded', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, name text not null, version integer not null)`,
+			);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]);
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 3, name: 'Bruce', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: sql`excluded.${sql.identifier(table.name.name)}` } });
+
+			expect(await db.select().from(table).orderBy(table.id)).toEqual([
+				{ id: 1, name: 'John1', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+				{ id: 3, name: 'Bruce', version: 3 },
+			]);
 		});
 
 		test.concurrent('left join (flat object fields)', async ({ db, push }) => {

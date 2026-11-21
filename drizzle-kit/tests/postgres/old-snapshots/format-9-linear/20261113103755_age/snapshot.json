@@ -1,0 +1,54 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "80e63870-03d4-426f-946f-51f1ca07f7e5",
+  "prevIds": [
+    "1d9af6b3-5a1d-442b-85b5-2c44a41bb9d6"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "users",
+        "age"
+      ],
+      "writes": [
+        "s|col|public.users.age",
+        "n|col|public.users.age",
+        "e|col|public.users.age"
+      ],
+      "reads": [
+        "n|tbl|public.users",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "users",
+        "name": "age",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "indexes\u0000[\"public\",\"users_email_idx\"]",
+      "set": {
+        "concurrently": false
+      }
+    }
+  ]
+}

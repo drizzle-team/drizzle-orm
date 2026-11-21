@@ -1,0 +1,4 @@
+input.ts:3:11 error TSPG009: procedure name 'values' is a reserved SQL keyword
+  procedure('values', { id: 'bigint' }, (ctx) => {
+            ^^^^^^^^
+  hint: rename the procedure — PostgreSQL rejects it as a bare routine name

@@ -1,0 +1,4 @@
+input.ts:7:9 error TSPG013: 'upd' collides with the compiler-generated variable 'v_upd__count'
+    const upd = sql`UPDATE accounts SET settled = true WHERE id = ${id}`
+          ^^^
+  hint: the compiler reserves `<name>__count` for `const <name> = sql`...`` bindings — rename one of them

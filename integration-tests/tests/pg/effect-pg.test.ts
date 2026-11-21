@@ -1,4 +1,5 @@
 import { PgClient } from '@effect/sql-pg';
+import * as PgTypes from '@effect/sql-pg/PgTypes';
 import { assert, expect, expectTypeOf, it } from '@effect/vitest';
 import {
 	defineRelations,
@@ -11,7 +12,7 @@ import {
 } from 'drizzle-orm';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
-import { getTableConfig, integer, pgEnum, pgTable, serial, text } from 'drizzle-orm/pg-core';
+import { bigint, getTableConfig, integer, pgEnum, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { PgEffectSession } from 'drizzle-orm/pg-core/effect/session';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
@@ -21,11 +22,57 @@ import * as Result from 'effect/Result';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { Client as PgPeerClient } from 'pg';
 import { randomString } from '~/utils';
-import { AllTypes, allTypesData, assertAllTypesBounds, assertAllTypesUnions, makeAllTypesColumns } from './all-types';
+import {
+	AllTypes,
+	allTypesData,
+	allTypesDataWith,
+	type AllTypesReplacements,
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	boundsRelations,
+	boundsSchema,
+	makeAllTypesColumns,
+	temporalBoundsData,
+	withEmptyArrays,
+} from './all-types';
 import { DB, push, runCommonEffectPgTests } from './effect-common';
 import { relations } from './relations';
 import { usersMigratorTable } from './schema';
 import { normalizeDataWithDbCodecs } from './utils';
+
+// `@effect/sql-pg` reads results in binary format with no per-query alternative: it fails to decode `interval`, `line`,
+// `point` (driver error), returns `macaddr`, `macaddr8`, `enum[]` corrupted and string-mode `timestamptz`s without the
+// offset the server formats in the session's time zone (unsupported column type errors) - those columns are filled with
+// `null`s, which never reach a decoder
+const unsupportedReplacements = {
+	interval: null,
+	arrinterval: null,
+	line: null,
+	linetuple: null,
+	arrline: null,
+	arrlinetuple: null,
+	point: null,
+	pointtuple: null,
+	arrpoint: null,
+	arrpointtuple: null,
+	macaddr: null,
+	macaddr8: null,
+	arrmacaddr: null,
+	arrmacaddr8: null,
+	arrenum: null,
+	timestampTzstr: null,
+	arrtimestampTzstr: null,
+} satisfies AllTypesReplacements;
+/**
+ * Temporal bounds without `timestamp`s holding microseconds: the driver decodes them to `Date`s (a driver quirk), rounding
+ * sub-millisecond fractions (`+999µs` in the fixture) to the nearest millisecond
+ */
+const temporalBoundsDataNoStrings = temporalBoundsData.map((row) => ({
+	...row,
+	timestampStr: null,
+	timestampTzStr: null,
+	timestampTz: null,
+}));
 
 const makeAllTypesNoMtx = <TTable extends string, TEnum extends string>(tableName: TTable, enumName: TEnum) => {
 	const en = pgEnum(enumName, ['enVal1', 'enVal2']);
@@ -34,7 +81,9 @@ const makeAllTypesNoMtx = <TTable extends string, TEnum extends string>(tableNam
 	return { en, allTypesTable };
 };
 type AllTypesNoMtx = Omit<AllTypes, 'mtxbytea'>;
-const { mtxbytea: _, ...allTypesDataNoMtx } = allTypesData;
+const { mtxbytea: _, ...allTypesDataNoMtx } = allTypesDataWith(unsupportedReplacements);
+/** Empty arrays, except for array columns the driver can't decode */
+const emptyArraysNoMtx = allTypesDataWith(unsupportedReplacements, withEmptyArrays(allTypesDataNoMtx as AllTypes));
 
 const connectionStr = Redacted.make(
 	process.env['PG_CONNECTION_STRING'] ?? 'postgres://postgres:postgres@localhost:55433/drizzle',
@@ -74,8 +123,59 @@ runCommonEffectPgTests({
 	createDB: createDB as any,
 	usedSchema,
 	// @effect/sql-pg can't decode multidimensional arrays
-	skipTests: ['all types', 'all types ~codecs~'],
+	skipTests: [
+		'all types',
+		'all types ~codecs~',
+		// `@effect/sql-pg` decodes `timestamp`s to `Date`s, dropping microseconds of string modes, with no per-query
+		// alternative: these only check `timestamp` values, nothing left to redefine with `null`s
+		'Column as decoder applies codecs',
+		'Column as decoder applies codecs - Jit mappers',
+		'time zones are preserved',
+		'time zones are preserved - non-UTC session',
+	],
 	addTests: (it) => {
+		// https://github.com/drizzle-team/drizzle-orm/issues/6566
+		it.effect('empty array params and bigint mode with int8 decoded as text', () =>
+			Effect.gen(function*() {
+				const types = PgTypes.makeRegistry();
+				types.register<string>(PgTypes.OID.int8, {
+					decode: (b) => Result.succeed(new DataView(b.buffer, b.byteOffset, 8).getBigInt64(0).toString()),
+					encode: (v) => {
+						const b = new Uint8Array(8);
+						new DataView(b.buffer).setBigInt64(0, BigInt(v));
+						return Result.succeed(b);
+					},
+				});
+
+				const items = pgTable('items_6566', {
+					id: serial().primaryKey(),
+					tags: text().array().notNull(),
+					ids: integer().array().notNull(),
+					bigB: bigint({ mode: 'bigint' }).notNull(),
+				});
+
+				yield* Effect.gen(function*() {
+					const db = yield* PgDrizzle.make().pipe(Effect.provide(PgDrizzle.DefaultServices));
+					yield* db.execute(sql`drop table if exists ${items}`);
+					yield* db.execute(
+						sql`create table ${items} (id serial primary key, tags text[] not null, ids integer[] not null, "bigB" bigint not null)`,
+					);
+
+					yield* db.insert(items).values({ tags: ['a'], ids: [1], bigB: 5n });
+					yield* db.insert(items).values({ tags: [], ids: [], bigB: 5n });
+					yield* db.update(items).set({ tags: [], ids: [] }).where(sql`${items.id} = 1`);
+
+					expect(yield* db.select().from(items).orderBy(items.id)).toStrictEqual([
+						{ id: 1, tags: [], ids: [], bigB: 5n },
+						{ id: 2, tags: [], ids: [], bigB: 5n },
+					]);
+
+					yield* db.execute(sql`drop table ${items}`);
+				}).pipe(Effect.provide(PgClient.layer({ url: connectionStr, types })));
+			}));
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/661
+		// https://github.com/drizzle-team/drizzle-orm/issues/6382
 		it.effect('raw db.execute type matches returned data', () =>
 			Effect.gen(function*() {
 				const db = yield* PgDrizzle.make().pipe(Effect.provide(PgDrizzle.DefaultServices));
@@ -149,8 +249,8 @@ runCommonEffectPgTests({
 				yield* db.insert(allTypesTable).values(allTypesDataNoMtx);
 				const session = (<any> db).session as PgEffectSession;
 
-				const queryRes = yield* session.objects<AllTypesNoMtx>(
-					db.select().from(allTypesTable).getSQL(true),
+				const queryRes = yield* session.arrays<unknown[]>(
+					db.select().from(allTypesTable).getSQL(),
 				).pipe(
 					Effect.map((e) =>
 						normalizeDataWithDbCodecs({
@@ -162,13 +262,14 @@ runCommonEffectPgTests({
 					),
 				);
 
-				const relDb = yield* createDB({ allTypesTable }, (r) => ({
+				const relDb = yield* createDB({ allTypesTable, ...boundsSchema }, (r) => ({
 					allTypesTable: {
 						self: r.many.allTypesTable({
 							from: r.allTypesTable.serial,
 							to: r.allTypesTable.serial,
 						}),
 					},
+					...boundsRelations(r),
 				}));
 
 				const { relationRes, rootRes } = yield* session.objects<AllTypesNoMtx & { self: AllTypesNoMtx[] }>(
@@ -201,12 +302,26 @@ runCommonEffectPgTests({
 				expect(rootRes).toStrictEqual(allTypesDataNoMtx);
 
 				const context = yield* Effect.context<never>();
+				// unions expect the full all-types data, which holds values of column types the driver can't decode
 				yield* Effect.promise(() =>
-					assertAllTypesUnions(relDb as any, allTypesTable as any, (query) => Effect.runPromiseWith(context)(query))
+					assertAllTypesBounds(relDb as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
 				);
 				yield* Effect.promise(() =>
-					assertAllTypesBounds(relDb as any, (query) => Effect.runPromiseWith(context)(query))
+					assertAllTypesTemporalBounds(relDb as any, {
+						run: (query) => Effect.runPromiseWith(context)(query),
+						rqb: true,
+						data: temporalBoundsDataNoStrings,
+					})
 				);
+
+				const emptyArrays = emptyArraysNoMtx;
+				yield* db.delete(allTypesTable);
+				yield* db.insert(allTypesTable).values(emptyArrays);
+				expect(yield* db.select().from(allTypesTable)).toStrictEqual([emptyArrays]);
+				expect(yield* relDb.query.allTypesTable.findFirst({ with: { self: true } })).toStrictEqual({
+					...emptyArrays,
+					self: [emptyArrays],
+				});
 			}));
 
 		it.effect('transaction snapshot: isolates the transaction', () =>

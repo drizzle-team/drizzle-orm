@@ -1,145 +1,64 @@
-import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
-import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
-import { upgradeIfNeeded } from '~/up-migrations/mysql.ts';
-import { assertUnreachable } from '~/utils.ts';
+import { asyncMigrationRunner, asyncQueryRuntime, runAsyncProgram } from '~/runtime/async.ts';
+import type { QueryRuntime } from '~/runtime/core.ts';
+import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
+import { migrate as migrateProgram } from '~/up-migrations/mysql-program.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import {
 	type AnyMySqlMapper,
 	MySqlBasePreparedQuery,
 	type MySqlPreparedQueryConfig,
 	type MySqlQueryResultHKT,
+	type MySqlRuntimeHKT,
 	MySqlSession,
 	type MySqlTransactionConfig,
 } from '../session.ts';
 import { MySqlAsyncDatabase } from './db.ts';
 
+type MySqlAsyncPreparedQueryOf<TResult, TRow> = MySqlAsyncPreparedQuery<
+	MySqlPreparedQueryConfig & { execute: TResult; iterator: TRow }
+>;
+
+/** Builders of the async runtime run as Promises */
+export interface MySqlAsyncRuntimeHKT extends MySqlRuntimeHKT {
+	readonly execute: Promise<this['result']>;
+	readonly prepared: MySqlAsyncPreparedQueryOf<this['result'], this['row']>;
+}
+
+export interface MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> {
+	/** Runs the query with values for it's placeholders and returns a Promise of the result */
+	execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+}
+
 export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends MySqlBasePreparedQuery {
 	static override readonly [entityKind]: string = 'MySqlAsyncPreparedQuery';
 
 	/** @internal */
-	readonly mapper: {
-		(rows: any[]): any;
-		body?: string;
-	} | undefined;
-
-	private fastPath: boolean;
+	override get runtime(): QueryRuntime {
+		return asyncQueryRuntime;
+	}
 
 	constructor(
-		protected executor: (params?: unknown[]) => Promise<any>,
+		executor: (params?: unknown[]) => Promise<any>,
 		protected _iterator: ((params?: unknown[]) => AsyncGenerator<any[]>) | undefined,
 		query: Query,
 		mapper:
 			| AnyMySqlMapper
 			| undefined,
-		readonly mode: 'arrays' | 'objects' | 'raw',
-		protected logger: Logger,
-		// cache instance
-		private cache: Cache | undefined,
-		// per query related metadata
-		private queryMetadata: QueryMetadata | undefined,
-		// config that was passed through $withCache
-		private cacheConfig?: WithCacheConfig | undefined,
-		protected paramsInErrors?: boolean | undefined,
+		mode: 'arrays' | 'objects' | 'raw',
+		logger: Logger,
+		paramsInErrors?: boolean | undefined,
 	) {
-		super(query);
-		this.mapper = mapper;
-		// it means that no $withCache options were passed and it should be just enabled
-		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
-			this.cacheConfig = { enabled: true, autoInvalidate: true };
-		}
-		if (!this.cacheConfig?.enabled) {
-			this.cacheConfig = undefined;
-		}
-
-		this.fastPath = cacheConfig === undefined
-			&& (cache === undefined || is(cache, NoopCache));
-	}
-
-	/** @internal */
-	protected async queryWithCache<T>(
-		queryString: string,
-		params: any[],
-		query: () => Promise<T>,
-	): Promise<T> {
-		const cacheStrat = this.cache !== undefined && !is(this.cache, NoopCache)
-			? await strategyFor(queryString, params, this.queryMetadata, this.cacheConfig)
-			: { type: 'skip' as const };
-
-		if (cacheStrat.type === 'skip') {
-			return query().catch((e) => {
-				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-			});
-		}
-
-		const cache = this.cache!;
-
-		if (cacheStrat.type === 'invalidate') {
-			return query().then(async (res) => {
-				await cache.onMutate({ tables: cacheStrat.tables });
-				return res;
-			}).catch((e) => {
-				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-			});
-		}
-
-		if (cacheStrat.type === 'try') {
-			const { tables, key, isTag, autoInvalidate, config } = cacheStrat;
-			const fromCache = await cache.get(
-				key,
-				tables,
-				isTag,
-				autoInvalidate,
-			);
-
-			if (fromCache === undefined) {
-				const result = await query().catch((e) => {
-					throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
-				});
-				// put actual key
-				await cache.put(
-					key,
-					result,
-					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
-					autoInvalidate ? tables : [],
-					isTag,
-					config,
-				);
-				// put flag if we should invalidate or not
-				return result;
-			}
-
-			return fromCache as unknown as T;
-		}
-
-		assertUnreachable(cacheStrat);
-	}
-
-	override async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
-		const { query, logger, executor, mapper, fastPath } = this;
-		const sql = query._sql ? query._sql.join(' ') : query.sql;
-		const params = query.params.length === 0
-			? query.params
-			: fillPlaceholders(query.params, placeholderValues);
-		logger.logQuery(sql, params);
-		const res = fastPath
-			? executor(params).catch((e) => {
-				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
-			})
-			: this.queryWithCache(sql, params, () => executor(params));
-		if (!mapper) return res;
-
-		return res.then((rows) => mapper(rows));
+		super(executor, query, mapper, mode, logger, paramsInErrors);
 	}
 
 	async *iterator(placeholderValues: Record<string, unknown> = {}): AsyncGenerator<T['iterator']> {
-		const { query, logger, executor, _iterator, mapper, fastPath } = this;
+		const { query, logger, _iterator, mapper } = this;
+		const executor = this.executor as (params?: unknown[]) => Promise<any>;
 		const sql = query._sql ? query._sql.join(' ') : query.sql;
 		const params = query.params.length === 0
 			? query.params
@@ -167,11 +86,9 @@ export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends
 		}
 
 		// Fallback for compatibility between drivers
-		const rows = await (fastPath
-			? executor(params).catch((e) => {
-				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
-			})
-			: this.queryWithCache(sql, params, () => executor(params)));
+		const rows = await executor(params).catch((e) => {
+			throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
+		});
 
 		if (mapper) {
 			for (const row of rows) {
@@ -189,40 +106,33 @@ export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends
 	}
 }
 
+export interface MySqlAsyncSession<
+	// oxlint-disable-next-line no-unused-vars
+	TQueryResult extends MySqlQueryResultHKT = MySqlQueryResultHKT,
+	// oxlint-disable-next-line no-unused-vars
+	TRelations extends AnyRelations = EmptyRelations,
+> {
+	execute<T>(query: SQL): Promise<T>;
+	arrays<T>(query: SQL): Promise<T[]>;
+	objects<T>(query: SQL): Promise<T[]>;
+}
+
 export abstract class MySqlAsyncSession<
 	TQueryResult extends MySqlQueryResultHKT = MySqlQueryResultHKT,
 	TRelations extends AnyRelations = EmptyRelations,
 > extends MySqlSession {
 	static override readonly [entityKind]: string = 'MySqlAsyncSession';
 
+	/** @internal */
+	override get runtime(): QueryRuntime {
+		return asyncQueryRuntime;
+	}
+
 	abstract override prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (rows: any) => any,
-		queryMetadata?: QueryMetadata,
-		cacheConfig?: WithCacheConfig,
 	): MySqlAsyncPreparedQuery<T>;
-
-	override execute<T>(query: SQL): Promise<T> {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T }>(
-			this.dialect.sqlToQuery(query),
-			'raw',
-		).execute();
-	}
-
-	override arrays<T>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T[] }>(
-			this.dialect.sqlToQuery(query),
-			'arrays',
-		).execute();
-	}
-
-	override objects<T>(query: SQL): Promise<T[]> {
-		return this.prepareQuery<MySqlPreparedQueryConfig & { execute: T[] }>(
-			this.dialect.sqlToQuery(query),
-			'objects',
-		).execute();
-	}
 
 	abstract transaction<T>(
 		transaction: (
@@ -259,82 +169,17 @@ export abstract class MySqlAsyncTransaction<
 	): Promise<T>;
 }
 
-export async function migrate(
+/** Applies the migrations that the database doesn't have yet, in a transaction */
+export function migrate(
 	migrations: MigrationMeta[],
 	db: MySqlAsyncDatabase<MySqlQueryResultHKT, any>,
 	config: Omit<MigrationConfig, 'migrationsSchema'>,
 ): Promise<void | MigratorInitFailResponse> {
-	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
-
-	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeIfNeeded(
-		migrationsTable,
-		db.session,
-		migrations,
-	);
-
-	if (newDb) {
-		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash TEXT NOT NULL,
-				created_at BIGINT,
-				name TEXT,
-				applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-			)
-		`;
-		await db.session.execute(migrationTableCreate);
-	}
-
-	const dbMigrations = await db.session.objects<{
-		id: number;
-		hash: string;
-		created_at: string;
-		name: string | null;
-	}>(
-		sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)}`,
-	);
-
-	if (typeof config === 'object' && config.init) {
-		if (dbMigrations.length) {
-			return { exitCode: 'databaseMigrations' as const };
-		}
-
-		if (migrations.length > 1) {
-			return { exitCode: 'localMigrations' as const };
-		}
-
-		const [migration] = migrations;
-
-		if (!migration) return;
-
-		await db.session.execute(
-			sql`insert into ${
-				sql.identifier(
-					migrationsTable,
-				)
-			} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-		);
-
-		return;
-	}
-
-	const migrationsToRun = getMigrationsToRun({
-		localMigrations: migrations,
-		dbMigrations,
+	const runner = asyncMigrationRunner({
+		execute: (query) => db.session.execute(query),
+		objects: (query) => db.session.objects(query),
+		transaction: (transaction) => db.transaction(transaction),
 	});
-	await db.transaction(async (tx) => {
-		for (const migration of migrationsToRun) {
-			for (const stmt of migration.sql) {
-				await tx.execute(sql.raw(stmt));
-			}
-			await tx.execute(
-				sql`insert into ${
-					sql.identifier(
-						migrationsTable,
-					)
-				} (\`hash\`, \`created_at\`, \`name\`) values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-			);
-		}
-	});
+
+	return runAsyncProgram(() => migrateProgram(migrations, runner, config));
 }

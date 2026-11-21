@@ -1,3 +1,4 @@
+import { borrowPGlite, returnPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { is } from 'drizzle-orm';
 import { PgRole } from 'drizzle-orm/pg-core';
@@ -290,7 +291,7 @@ export const createFolderFlow = () => {
 	// Returns the statements that push still needs after migrate. An empty list means the database matches
 	// `schema`.
 	const migrate = async (branch: string, schema: PostgresSchema) => {
-		const client = new PGlite();
+		const client = await borrowPGlite();
 		try {
 			await migrateFolder(drizzle({ client }), { migrationsFolder: dirOf(branch) });
 			const db = { query: async (query: string, params?: any[]) => (await client.query<any>(query, params)).rows };
@@ -300,7 +301,7 @@ export const createFolderFlow = () => {
 			const { sqlStatements } = await push({ db, to: schema, entities });
 			return sqlStatements;
 		} finally {
-			await client.close();
+			await returnPGlite(client);
 		}
 	};
 

@@ -1,11 +1,28 @@
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
+import type {
+	PgBasePreparedQuery,
+	PgQueryResultHKT,
+	PgQueryResultKind,
+	PgRunnableQueryMethods,
+	PgSession,
+} from '~/pg-core/session.ts';
 import type { PgMaterializedView } from '~/pg-core/view.ts';
+import type { QueryRuntimeHKT } from '~/query-builders/runtime.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { tracer } from '~/tracing.ts';
 
-// eslint-disable-next-line no-unused-vars
-export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT> implements SQLWrapper {
+export interface PgRefreshMaterializedView<
+	TQueryResult extends PgQueryResultHKT,
+	TRuntime extends QueryRuntimeHKT = QueryRuntimeHKT,
+> extends PgRunnableQueryMethods<TRuntime, PgQueryResultKind<TQueryResult, never>> {
+}
+
+export class PgRefreshMaterializedView<
+	TQueryResult extends PgQueryResultHKT,
+	// oxlint-disable-next-line no-unused-vars
+	TRuntime extends QueryRuntimeHKT = QueryRuntimeHKT,
+> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgRefreshMaterializedView';
 	static [Symbol.hasInstance](value: unknown): boolean {
 		return is(value, this);
@@ -52,5 +69,16 @@ export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT> im
 
 	toSQL(): Query {
 		return this.dialect.sqlToQuery(this.getSQL());
+	}
+
+	/**
+	 * Prepares the query on the session, for both runtimes. The runtime's builder narrows the return type.
+	 *
+	 * @internal
+	 */
+	_prepare(name?: string, generateName = false): PgBasePreparedQuery {
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			return this.session.prepareQuery(this.toSQL(), 'raw', name ?? generateName, undefined);
+		});
 	}
 }

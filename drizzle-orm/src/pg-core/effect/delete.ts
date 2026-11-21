@@ -6,15 +6,15 @@ import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
-import { usedTablesOf } from '~/used-tables.ts';
-import type { Assume } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
-import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
+import type { PgEffectPreparedQuery, PgEffectRuntimeHKT, PgEffectSession } from './session.ts';
 
 export type PgEffectDelete<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
 > = PgEffectDeleteBase<TTable, TQueryResult, TSelectedFields, TReturning, true, never, TEffectHKT>;
@@ -33,6 +33,7 @@ export type PgEffectDeletePrepare<
 export type AnyEffectPgDelete = PgEffectDeleteBase<any, any, any, any, any, any, any>;
 
 export interface PgEffectDeleteHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgDeleteHKTBase {
+	runtime: PgEffectRuntimeHKT<TEffectHKT>;
 	_type: PgEffectDeleteBase<
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
@@ -62,7 +63,8 @@ export interface PgEffectDeleteBase<
 		TEffectHKT['error'],
 		TEffectHKT['context']
 	>
-{}
+{
+}
 
 export class PgEffectDeleteBase<
 	TTable extends PgTable,
@@ -91,35 +93,7 @@ export class PgEffectDeleteBase<
 	static override readonly [entityKind]: string = 'PgEffectDelete';
 
 	declare protected session: PgEffectSession<TEffectHKT, any, any>;
-
-	/** @internal */
-	_prepare(name?: string, generateName = false): PgEffectDeletePrepare<this, TEffectHKT> {
-		const { session, config, dialect } = this;
-		const { returning: fields } = config;
-
-		const query = dialect.sqlToQuery(this.getSQL(true));
-		const mapper = fields
-			? this.dialect.mapperGenerators.rows(fields, undefined)
-			: undefined;
-
-		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
-			query,
-			fields ? 'arrays' : 'raw',
-			name ?? generateName,
-			mapper,
-			{ type: 'delete', tables: () => usedTablesOf(this.config.table) },
-		);
-
-		return preparedQuery;
-	}
-
-	prepare(name?: string): PgEffectDeletePrepare<this, TEffectHKT> {
-		return this._prepare(name, true);
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this._prepare().execute(placeholderValues);
-	};
 }
 
+applyMixins(PgEffectDeleteBase, [PgRunnableQuery]);
 applyEffectWrapper(PgEffectDeleteBase);

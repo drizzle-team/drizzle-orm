@@ -73,7 +73,7 @@ export function parseCockroachNestedArray(arrayString: string, startFrom = 0, de
 		}
 
 		const [value, newStartFrom] = parseCockroachArrayValue(arrayString, i, false, delim);
-		result.push(value);
+		result.push(value === 'NULL' ? null : value);
 		i = newStartFrom;
 	}
 

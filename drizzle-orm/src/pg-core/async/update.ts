@@ -6,12 +6,11 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { tracer } from '~/tracing.ts';
-import { usedTablesOf } from '~/used-tables.ts';
-import { applyMixins, type Assume, resolveNullableObjectPaths } from '~/utils.ts';
+import { applyMixins, type Assume } from '~/utils.ts';
+import { PgRunnableQuery } from '../query-builders/runnable.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import type { PgViewBase } from '../view-base.ts';
-import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
+import type { PgAsyncPreparedQuery, PgAsyncRuntimeHKT, PgAsyncSession } from './session.ts';
 
 export type PgAsyncUpdatePrepare<T extends AnyPgAsyncUpdate> = PgAsyncPreparedQuery<
 	PreparedQueryConfig & {
@@ -23,11 +22,11 @@ export type PgAsyncUpdatePrepare<T extends AnyPgAsyncUpdate> = PgAsyncPreparedQu
 export type PgAsyncUpdate<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
-	TSelectedFields extends ColumnsSelection | undefined = undefined,
+	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = PgTable | Subquery | PgViewBase | SQL | undefined,
+	TSelectedFields extends ColumnsSelection | undefined = ColumnsSelection | undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
-	TJoins extends Join[] = [],
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+	TJoins extends Join[] = Join[],
 > = PgAsyncUpdateBase<
 	TTable,
 	TQueryResult,
@@ -41,6 +40,7 @@ export type PgAsyncUpdate<
 >;
 
 export interface PgAsyncUpdateHKT extends PgUpdateHKTBase {
+	runtime: PgAsyncRuntimeHKT;
 	_type: PgAsyncUpdateBase<
 		Assume<this['table'], PgTable>,
 		Assume<this['queryResult'], PgQueryResultHKT>,
@@ -72,7 +72,8 @@ export interface PgAsyncUpdateBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]> {}
+> extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]> {
+}
 
 export class PgAsyncUpdateBase<
 	TTable extends PgTable,
@@ -99,44 +100,6 @@ export class PgAsyncUpdateBase<
 	static override readonly [entityKind]: string = 'PgAsyncUpdate';
 
 	declare protected session: PgAsyncSession;
-
-	/** @internal */
-	_prepare(name?: string, generateName = false): PgAsyncUpdatePrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap } = this;
-		const { returning: fields } = config;
-
-		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const nullableObjectPaths = fields ? resolveNullableObjectPaths(fields, joinsNotNullableMap) : undefined;
-			const shape = fields
-				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, nullableObjectPaths)
-				: undefined;
-
-			const query = dialect.sqlToQuery(this.getSQL(true));
-			const mapper = shape || !fields
-				? undefined
-				: this.dialect.mapperGenerators.rows(fields, nullableObjectPaths);
-
-			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
-				query,
-				shape ? 'objects' : fields ? 'arrays' : 'raw',
-				name ?? generateName,
-				mapper,
-				{ type: 'update', tables: () => usedTablesOf(this.config.table) },
-				undefined,
-				shape,
-			);
-
-			return preparedQuery;
-		});
-	}
-
-	prepare(name?: string): PgAsyncUpdatePrepare<this> {
-		return this._prepare(name, true);
-	}
-
-	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues: Record<string, unknown> = {}) => {
-		return this._prepare().execute(placeholderValues);
-	};
 }
 
-applyMixins(PgAsyncUpdateBase, [QueryPromise]);
+applyMixins(PgAsyncUpdateBase, [QueryPromise, PgRunnableQuery]);

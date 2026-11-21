@@ -70,30 +70,30 @@ export const assertEitherPackage = async (
 	throw new RequiredEitherPackagesCliError(pkgs);
 };
 
-const requiredApiVersion = 14;
+// export is needed for tests
+export const requiredApiVersion = 14;
 export const assertOrmCoreVersion = async () => {
+	let compatibilityVersion: number;
 	try {
-		const { compatibilityVersion } = await import('drizzle-orm/version');
-
-		await import('drizzle-orm/_relations');
-
-		if (Number(compatibilityVersion) === requiredApiVersion) {
-			return;
-		}
-
-		if (!compatibilityVersion || compatibilityVersion < requiredApiVersion) {
-			throw new OrmVersionCliError(
-				'This version of drizzle-kit requires newer version of drizzle-orm\nPlease update drizzle-orm package to the latest version 👍',
-				'orm_too_old',
-			);
-		} else {
-			throw new OrmVersionCliError(
-				'This version of drizzle-kit is outdated\nPlease update drizzle-kit package to the latest version 👍',
-				'kit_outdated',
-			);
-		}
+		({ compatibilityVersion } = await import('drizzle-orm/version'));
 	} catch {
 		throw new OrmVersionCliError('Please install latest version of drizzle-orm', 'orm_missing');
+	}
+
+	if (Number(compatibilityVersion) === requiredApiVersion) {
+		return;
+	}
+
+	if (!compatibilityVersion || compatibilityVersion < requiredApiVersion) {
+		throw new OrmVersionCliError(
+			'This version of drizzle-kit requires newer version of drizzle-orm\nPlease update drizzle-orm package to the latest version 👍',
+			'orm_too_old',
+		);
+	} else {
+		throw new OrmVersionCliError(
+			'This version of drizzle-kit is outdated\nPlease update drizzle-kit package to the latest version 👍',
+			'kit_outdated',
+		);
 	}
 };
 

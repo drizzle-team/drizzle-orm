@@ -496,7 +496,6 @@ test('add column before creating unique constraint', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'ALTER TABLE `table` ADD `name` text NOT NULL;',
 		'PRAGMA foreign_keys=OFF;',
 		'CREATE TABLE `__new_table` (\n'
 		+ '\t`id` integer PRIMARY KEY,\n'
@@ -952,7 +951,6 @@ test('recreate table with added column not null and without default with data', 
 	});
 
 	const st0: string[] = [
-		'ALTER TABLE `users` ADD `new_column` text NOT NULL;',
 		'PRAGMA foreign_keys=OFF;',
 		'CREATE TABLE `__new_users` (\n'
 		+ '\t`id` integer PRIMARY KEY,\n'
@@ -969,6 +967,9 @@ test('recreate table with added column not null and without default with data', 
 	expect(pst).toStrictEqual(st0);
 
 	expect(phints[0].statement).toStrictEqual('DELETE FROM "users" where true;');
+	expect(phints[0].hint).toStrictEqual(
+		`You're about to add not-null "new_column" column without default value to non-empty "users" table`,
+	);
 	expect(error).toBeNull();
 });
 
@@ -1080,7 +1081,6 @@ test('recreate table and add unique column', async (t) => {
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: [] });
 
 	const st0: string[] = [
-		'ALTER TABLE `users` ADD `referral_code` text;',
 		'PRAGMA foreign_keys=OFF;',
 		`CREATE TABLE \`__new_users\` (
 \t\`id\` text PRIMARY KEY,
@@ -1153,4 +1153,132 @@ test('recreate table and add unique column', async (t) => {
 	expect(errorMessage).toStrictEqual(
 		`query error: INSERT INTO rating_event (id, player_id) VALUES ('e2', 'p1')\n\nUNIQUE constraint failed: rating_event.player_id`,
 	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6251
+test('Issue 6251. drop referenced table, child name sorts after parent', async () => {
+	const parent = sqliteTable('aaa_parent', {
+		id: integer('id').primaryKey(),
+		code: text('code'),
+	});
+	const schema1 = {
+		parent,
+		child: sqliteTable('bbb_child', {
+			id: integer('id').primaryKey(),
+			p: integer('p').references(() => parent.id),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, {}, []);
+
+	await push({ db, to: schema1 });
+	await db.run("INSERT INTO `aaa_parent` VALUES (1, 'a');");
+	await db.run('INSERT INTO `bbb_child` VALUES (1, 1);');
+	const { sqlStatements: pst } = await push({ db, to: {} });
+
+	const st0: string[] = [
+		'DROP TABLE `bbb_child`;',
+		'DROP TABLE `aaa_parent`;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6251
+test('Issue 6251. drop referenced table, child name sorts before parent', async () => {
+	const parent = sqliteTable('bbb_parent', {
+		id: integer('id').primaryKey(),
+		code: text('code'),
+	});
+	const schema1 = {
+		child: sqliteTable('aaa_child', {
+			id: integer('id').primaryKey(),
+			p: integer('p').references(() => parent.id),
+		}),
+		parent,
+	};
+
+	const { sqlStatements: st } = await diff(schema1, {}, []);
+
+	await push({ db, to: schema1 });
+	await db.run("INSERT INTO `bbb_parent` VALUES (1, 'a');");
+	await db.run('INSERT INTO `aaa_child` VALUES (1, 1);');
+	const { sqlStatements: pst } = await push({ db, to: {} });
+
+	const st0: string[] = [
+		'DROP TABLE `aaa_child`;',
+		'DROP TABLE `bbb_parent`;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6251
+test('Issue 6251. drop chain of referenced tables', async () => {
+	const root = sqliteTable('a_root', {
+		id: integer('id').primaryKey(),
+	});
+	const mid = sqliteTable('b_mid', {
+		id: integer('id').primaryKey(),
+		rootId: integer('root_id').references(() => root.id),
+	});
+	const leaf = sqliteTable('c_leaf', {
+		id: integer('id').primaryKey(),
+		midId: integer('mid_id').references(() => mid.id),
+	});
+	const kept = sqliteTable('kept', {
+		id: integer('id').primaryKey(),
+	});
+	const schema1 = { mid, root, leaf, kept };
+	const schema2 = { kept };
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	await db.run('INSERT INTO `a_root` VALUES (1);');
+	await db.run('INSERT INTO `b_mid` VALUES (1, 1);');
+	await db.run('INSERT INTO `c_leaf` VALUES (1, 1);');
+	await db.run('INSERT INTO `kept` VALUES (1);');
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'DROP TABLE `c_leaf`;',
+		'DROP TABLE `b_mid`;',
+		'DROP TABLE `a_root`;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const res = await db.query('select * from `kept`;');
+	expect(res).toStrictEqual([{ id: 1 }]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6251
+// tables referencing each other can't be dropped with data in any order, sort must not loop on them
+test('Issue 6251. drop tables referencing each other', async () => {
+	const a = sqliteTable('a', {
+		id: integer('id').primaryKey(),
+		bId: integer('b_id').references((): AnySQLiteColumn => b.id),
+	});
+	const b = sqliteTable('b', {
+		id: integer('id').primaryKey(),
+		aId: integer('a_id').references((): AnySQLiteColumn => a.id),
+	});
+	const schema1 = { b, a };
+
+	const { sqlStatements: st } = await diff(schema1, {}, []);
+
+	await push({ db, to: schema1 });
+
+	await db.run('INSERT INTO a (id, b_id) VALUES (1, NULL)');
+	await db.run('INSERT INTO b (id, a_id) VALUES (1, 1)');
+	await db.run('UPDATE a SET b_id = 1');
+
+	await expect(push({ db, to: {} })).rejects.toThrow();
+
+	const st0: string[] = [
+		'DROP TABLE `a`;',
+		'DROP TABLE `b`;',
+	];
+	expect(st).toStrictEqual(st0);
 });

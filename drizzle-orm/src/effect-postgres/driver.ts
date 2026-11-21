@@ -1,6 +1,6 @@
 import { PgClient } from '@effect/sql-pg/PgClient';
+import type * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
-import { EffectCache } from '~/cache/core/cache-effect.ts';
 import { DefaultServices } from '~/effect-core/defaults.ts';
 import { EffectLogger } from '~/effect-core/index.ts';
 import { entityKind } from '~/entity.ts';
@@ -22,8 +22,8 @@ export class EffectPgDatabase<TRelations extends AnyRelations = EmptyRelations>
 /**
  * Creates an EffectPgDatabase instance.
  *
- * Requires `PgClient`, `EffectLogger`, and `EffectCache` services to be provided.
- * Use `DefaultServices` to provide default (no-op) logger and cache implementations.
+ * Requires `PgClient`, and `EffectLogger` services to be provided.
+ * Use `DefaultServices` to provide the default (no-op) logger implementation.
  *
  * @example
  * ```ts
@@ -44,13 +44,20 @@ export class EffectPgDatabase<TRelations extends AnyRelations = EmptyRelations>
  *   Effect.provide(PgDrizzle.DefaultServices),
  * );
  * ```
+ *
+ * Driver quirks:
+ * - `timestamp` in `string` mode loses microseconds
+ * - The driver itself fails on `point`, `line`, `bit`, `interval[]` and multidimensional arrays
+ *
+ * Unsupported column types (throw on non-null values):
+ * - `timestamptz` in `string` mode (offset dropped)
+ * - `macaddr`, `macaddr8`, `enum[]`, `geometry`, `vector`, `halfvec`, `sparsevec` (binary format decoded as corrupted text)
  */
 export const make = Effect.fn('PgDrizzle.make')(
 	function*<
 		TRelations extends AnyRelations = EmptyRelations,
 	>(config: EffectDrizzlePgConfig<TRelations> = {}) {
 		const client = yield* PgClient;
-		const cache = yield* EffectCache;
 		const logger = yield* EffectLogger;
 
 		const dialect = new PgDialect({
@@ -61,18 +68,13 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const relations = config.relations ?? {} as TRelations;
 		const session = new EffectPgSession(client, dialect, relations, {
 			logger,
-			cache,
 			paramsInErrors: config.paramsInErrors,
 		});
 		const db = new EffectPgDatabase(dialect, session, relations) as EffectPgDatabase<TRelations>;
 		(<any> db).$client = client;
-		(<any> db).$cache = cache;
-		if ((<any> db).$cache) {
-			(<any> db).$cache['invalidate'] = cache.onMutate;
-		}
 
 		return db as EffectPgDatabase<TRelations> & {
-			$client: PgClient;
+			$client: Context.Service.Shape<typeof PgClient>;
 		};
 	},
 );

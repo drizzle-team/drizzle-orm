@@ -1,10 +1,11 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { relationalQueryCacheConfig, relationalQueryCacheMetadata } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SQLiteRelationalQuery, type SQLiteRelationalQueryHKTBase } from '~/sqlite-core/query-builders/query.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
+import { SQLiteRunnableQuery } from '../query-builders/runnable.ts';
 import type { PreparedQueryConfig } from '../session.ts';
+import { SQLiteAsyncRunnableQuery } from './runnable.ts';
 import type { SQLiteAsyncPreparedQuery, SQLiteAsyncSession } from './session.ts';
 
 export interface SQLiteAsyncRelationalQueryHKT extends SQLiteRelationalQueryHKTBase {
@@ -18,7 +19,22 @@ export type SQLiteAsyncRelationalQueryKind<TType extends 'sync' | 'async', TResu
 export type AnySQLiteAsyncRelationalQuery = SQLiteAsyncRelationalQuery<any, any>;
 
 // oxlint-disable-next-line no-unused-vars
-export interface SQLiteAsyncRelationalQuery<TType extends 'sync' | 'async', TResult> extends QueryPromise<TResult> {}
+export interface SQLiteAsyncRelationalQuery<TType extends 'sync' | 'async', TResult> extends QueryPromise<TResult> {
+	/** @internal */
+	_prepare(
+		prepare?: boolean,
+	): SQLiteAsyncPreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
+
+	prepare(): SQLiteAsyncPreparedQuery<
+		PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }
+	>;
+
+	/**
+	 * Declared rather than inherited from `QueryPromise`, where it's abstract: {@link SQLiteSyncRelationalQuery}
+	 * extends this class
+	 */
+	execute(placeholderValues?: Record<string, unknown>): Promise<TResult>;
+}
 
 export class SQLiteAsyncRelationalQuery<TType extends 'sync' | 'async', TResult>
 	extends SQLiteRelationalQuery<SQLiteAsyncRelationalQueryHKT, TResult>
@@ -34,43 +50,6 @@ export class SQLiteAsyncRelationalQuery<TType extends 'sync' | 'async', TResult>
 	};
 
 	declare protected session: SQLiteAsyncSession<TType, any, any>;
-
-	/** @internal */
-	_prepare(
-		prepare = false,
-	): SQLiteAsyncPreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
-		const { query, builtQuery, usedTables } = this._toSQL();
-
-		const mapper = this.mapper ??= this.dialect.mapperGenerators.relationalRows({
-			isFirst: this.mode === 'first',
-			parseJson: true,
-			parseJsonIfString: false,
-			rootJsonMappers: false,
-			selection: query.selection,
-			arrayModeRoot: true,
-		});
-
-		return this.session.prepareQuery(
-			builtQuery,
-			'arrays',
-			prepare,
-			// Do not use 'get' - mapper returns an item instead of an array, would break on session's destructuring; query itself is already limited to 1 item, so no performance overhead occurs.
-			'all',
-			mapper,
-			relationalQueryCacheMetadata(this.config, query.sql, usedTables, this),
-			relationalQueryCacheConfig(this.config),
-		) as SQLiteAsyncPreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
-	}
-
-	prepare(): SQLiteAsyncPreparedQuery<
-		PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }
-	> {
-		return this._prepare(true);
-	}
-
-	async execute(placeholderValues?: Record<string, unknown>): Promise<TResult> {
-		return this._prepare().execute(placeholderValues) as Promise<TResult>;
-	}
 }
 
 export class SQLiteSyncRelationalQuery<TResult> extends SQLiteAsyncRelationalQuery<'sync', TResult> {
@@ -81,4 +60,4 @@ export class SQLiteSyncRelationalQuery<TResult> extends SQLiteAsyncRelationalQue
 	}
 }
 
-applyMixins(SQLiteAsyncRelationalQuery, [QueryPromise]);
+applyMixins(SQLiteAsyncRelationalQuery, [QueryPromise, SQLiteRunnableQuery, SQLiteAsyncRunnableQuery]);

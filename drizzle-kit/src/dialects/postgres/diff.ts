@@ -25,10 +25,19 @@ import type {
 	UniqueConstraint,
 	View,
 } from './ddl';
-import { createDDL, tableFromDDL } from './ddl';
+import { createDDL, tablesFromDDL } from './ddl';
 import { defaults, defaultsCommutative, isSerialType } from './grammar';
-import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
+import type { JsonAlterCheck, JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
+
+const columnKey = (it: { schema: string; table: string; name: string }) =>
+	JSON.stringify([it.schema, it.table, it.name]);
+
+// The columns that are in a primary key of `ddl`, by `columnKey`, so a check per column doesn't scan every primary key
+const pkColumnsOf = (ddl: PostgresDDL) =>
+	new Set(
+		ddl.pks.list().flatMap((pk) => pk.columns.map((name) => columnKey({ schema: pk.schema, table: pk.table, name }))),
+	);
 
 export const ddlDiffDry = async (
 	ddlFrom: PostgresDDL,
@@ -396,8 +405,6 @@ export const ddlDiff = async (
 	const indexesAlters = alters.filter((it): it is DiffEntities['indexes'] => {
 		if (it.entityType !== 'indexes' || it.$left.table !== it.$right.table) return false;
 
-		delete it.concurrently;
-
 		return ddl2.indexes.hasDiff(it);
 	});
 
@@ -406,17 +413,15 @@ export const ddlDiff = async (
 		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? mode !== 'push' : true);
 		const forColumns = !!idx.columns && (idx.columns.from.length === idx.columns.to.length ? mode !== 'push' : true);
 
-		if (idx.isUnique || idx.concurrently || idx.method || idx.with || forColumns || forWhere) {
+		if (idx.isUnique || idx.method || idx.with || forColumns || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
 
 			// when a column used by the index is being dropped, emit a plain drop_index instead of recreate
-			const prevIndex = ddl1.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name });
-			const shouldDrop = !!prevIndex
-				&& !columnsToDelete.some((col) =>
-					col.schema === idx.schema
-					&& col.table === idx.table
-					&& prevIndex.columns.some((idxCol) => idxCol.value === col.name)
-				);
+			const shouldDrop = !columnsToDelete.some((col) =>
+				col.schema === idx.schema
+				&& col.table === idx.table
+				&& idx.$left.columns.some((idxCol) => idxCol.value === col.name)
+			);
 
 			if (!shouldDrop) {
 				jsonCreateIndexes.push(prepareStatement('create_index', { index }));
@@ -427,10 +432,10 @@ export const ddlDiff = async (
 		}
 	}
 
-	const jsonDropTables = deletedTables.map((it) => {
-		const oldSchema = renamedSchemas.find((x) => x.to.name === it.schema);
-		const key = oldSchema ? `"${oldSchema.from.name}"."${it.name}"` : `"${it.schema}"."${it.name}"`;
-		return prepareStatement('drop_table', { table: tableFromDDL(it, ddl2), key });
+	const jsonDropTables = tablesFromDDL(deletedTables, ddl2).map((table) => {
+		const oldSchema = renamedSchemas.find((x) => x.to.name === table.schema);
+		const key = oldSchema ? `"${oldSchema.from.name}"."${table.name}"` : `"${table.schema}"."${table.name}"`;
+		return prepareStatement('drop_table', { table, key });
 	});
 	const jsonRenameTables = renamedTables.map((it) =>
 		prepareStatement('rename_table', {
@@ -444,6 +449,7 @@ export const ddlDiff = async (
 	const jsonDropColumnsStatemets = columnsToDelete.filter(tablesFilter('deleted')).map((it) =>
 		prepareStatement('drop_column', { column: it })
 	);
+	const pkColumnsBeforeAdd = pkColumnsOf(ddl2);
 	const jsonAddColumnsStatemets = columnsToCreate.filter(tablesFilter('created')).map((it) =>
 		prepareStatement('add_column', {
 			column: it,
@@ -451,7 +457,7 @@ export const ddlDiff = async (
 			// this flag is needed for column recreation (generated)
 			// see tests: "drizzle-kit/tests/postgres/pg-constraints.test.ts" => "remove/add pk" and below
 			isPK: false, // ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
-			isCompositePK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null,
+			isCompositePK: pkColumnsBeforeAdd.has(columnKey(it)),
 		})
 	);
 
@@ -641,13 +647,37 @@ export const ddlDiff = async (
 		return true;
 	}).map((it) => prepareStatement('drop_fk', { fk: it }));
 
-	const jsonAlterCheckConstraints = alteredChecks.filter((it) => it.value && mode !== 'push').map((it) =>
-		prepareStatement('alter_check', {
+	const jsonAlterCheckConstraints: JsonAlterCheck[] = [];
+	alteredChecks.filter((it) => it.value).forEach((it) => {
+		const prevColumns = checkColumns(it.$left.value, ddl1, it.schema, it.table);
+		const newColumns = checkColumns(it.$right.value, ddl2, it.schema, it.table);
+
+		// if column was dropped and this column was in check value
+		// we need only create new check instead
+		// after dropping a column postgres will drop all constraints that depended on that column
+		const shouldDrop = !columnsToDelete.some((col) =>
+			col.schema === it.schema
+			&& col.table === it.table
+			&& prevColumns.some((checkCol) => checkCol === col.name)
+		);
+
+		if (!shouldDrop) {
+			jsonCreatedCheckConstraints.push(prepareStatement('add_check', { check: it.$right, columns: newColumns }));
+			return;
+		}
+
+		// We should check on push only here since
+		// if check definition was updated because of dropping column - we need to create
+		// that check back and ignore other
+		if (mode === 'push') return;
+
+		jsonAlterCheckConstraints.push(prepareStatement('alter_check', {
 			diff: it,
-			newColumns: checkColumns(it.$right?.value ?? '', ddl2, it.schema, it.table),
-			oldColumns: checkColumns(it.$left?.value ?? '', ddl2, it.schema, it.table),
-		})
-	);
+			newColumns: newColumns,
+			oldColumns: prevColumns,
+		}));
+	});
+
 	const jsonCreatePoliciesStatements = policyCreates.map((it) => prepareStatement('create_policy', { policy: it }));
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
 	const jsonRenamePoliciesStatements = policyRenames.map((it) => prepareStatement('rename_policy', it));
@@ -789,6 +819,7 @@ export const ddlDiff = async (
 		}
 	}
 
+	const pkColumnsBeforeAlter = pkColumnsOf(ddl2);
 	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated && it.generated.to !== null))
 		.filter((it) => {
 			// if column is of type enum we're about to recreate - we will reset default anyway
@@ -805,8 +836,7 @@ export const ddlDiff = async (
 				delete it.notNull;
 			}
 
-			const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
-			if (it.notNull && pkIn2) {
+			if (it.notNull && pkColumnsBeforeAlter.has(columnKey(it))) {
 				delete it.notNull;
 			}
 
@@ -861,7 +891,7 @@ export const ddlDiff = async (
 	const dropSchemas = deletedSchemas.map((it) => prepareStatement('drop_schema', it));
 	const renameSchemas = renamedSchemas.map((it) => prepareStatement('rename_schema', it));
 
-	const createTables = createdTables.map((it) => prepareStatement('create_table', { table: tableFromDDL(it, ddl2) }));
+	const createTables = tablesFromDDL(createdTables, ddl2).map((table) => prepareStatement('create_table', { table }));
 
 	const createViews = createdViews.map((it) => prepareStatement('create_view', { view: it }));
 
@@ -914,6 +944,21 @@ export const ddlDiff = async (
 			view: it.view,
 		});
 	});
+
+	// Procedures have no rename resolver: a renamed procedure is dropped and created. A body-only change is a
+	// CREATE OR REPLACE. Postgres refuses CREATE OR REPLACE for a changed parameter list (and an IN type change
+	// would create an overload instead), so any other change drops the old signature and creates it again.
+	const proceduresDiff = diff(ddl1, ddl2, 'procedures');
+	const jsonCreateProcedures = proceduresDiff
+		.filter((it) => it.$diffType === 'create')
+		.map((it) => prepareStatement('create_procedure', { procedure: it }));
+	const jsonDropProcedures = proceduresDiff
+		.filter((it) => it.$diffType === 'drop')
+		.map((it) => prepareStatement('drop_procedure', { procedure: it }));
+	for (const it of alters.filter((it): it is DiffEntities['procedures'] => it.entityType === 'procedures')) {
+		if (it.params || it.language) jsonDropProcedures.push(prepareStatement('drop_procedure', { procedure: it.$left }));
+		jsonCreateProcedures.push(prepareStatement('create_procedure', { procedure: it.$right }));
+	}
 
 	const jsonDropRecreatedViews: typeof jsonDropViews = [];
 	// recreate views
@@ -1025,6 +1070,7 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...createTables);
 
+	jsonStatements.push(...jsonDropProcedures);
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
 	jsonStatements.push(...jsonMoveViews);
@@ -1088,6 +1134,9 @@ export const ddlDiff = async (
 	// Topological sort
 	// dependent views must be created after their dependencies, otherwise the migration breaks
 	jsonStatements.push(...sortCreateViews(createViews, $metadata?.viewDependencies));
+
+	// After every table and view: a body is only parsed at CREATE, but reads them when the procedure runs.
+	jsonStatements.push(...jsonCreateProcedures);
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);

@@ -1,0 +1,4 @@
+input.ts:6:3 error TSPG001: unsupported statement: ForStatement
+    for (let i = 0; i < limit; i = i + 1) {
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  hint: use while, or for..of over sql`...`.many<T>()

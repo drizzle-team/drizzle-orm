@@ -1,3 +1,4 @@
+import { createProvider, requireEnv, workerDatabaseName } from '@drizzle/test-utils';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite-pgvector';
 import { drizzle as drizzleNodePostgres } from 'drizzle-orm/node-postgres';
@@ -36,15 +37,30 @@ export const preparePglite = async () => {
 		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
 	};
 
-	return { client, query, batch };
+	return { client, query, batch, close: () => client.close() };
 };
 
-export const prepareNodePostgres = async (db: string = 'drizzle') => {
-	const envUrl = process.env['PG_POSTGIS_CONNECTION_STRING'];
-	if (!envUrl) throw new Error('PG_POSTGIS_CONNECTION_STRING env is not set.');
-	const url = new URL(envUrl);
-	url.pathname = `/${db}`;
+// A database for this worker alone, copied from the image's PostGIS template: test files run side by side. The
+// URL's database is the job's; it only serves to connect for the copy.
+export const prepareNodePostgres = async () => {
+	const envUrl = requireEnv('PG_POSTGIS_CONNECTION_STRING');
+	const database = workerDatabaseName();
+	const admin = new Client(envUrl);
+	await admin.connect();
+	await admin.query(`drop database if exists "${database}" with (force)`);
+	for (let attempt = 1;; attempt++) {
+		try {
+			await admin.query(`create database "${database}" template template_postgis`);
+			break;
+		} catch (error) {
+			// 55006 (object_in_use): another worker is copying the template at this moment; it clears in milliseconds.
+			if ((error as { code?: string }).code !== '55006' || attempt === 50) throw error;
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		}
+	}
 
+	const url = new URL(envUrl);
+	url.pathname = `/${database}`;
 	const client = new Client(url.toString());
 	await client.connect();
 
@@ -55,30 +71,13 @@ export const prepareNodePostgres = async (db: string = 'drizzle') => {
 	const batch = async (statements: string[]) => {
 		return client.query(statements.map((x) => x.endsWith(';') ? x : `${x};`).join('\n')).then(() => '' as any);
 	};
-
-	await query('drop schema if exists public cascade;');
-	await query('create schema public;');
-	await query('create extension if not exists postgis;');
-
-	return { client, query, batch };
-};
-
-const providerClosure = async <T>(items: T[]) => {
-	return async () => {
-		while (true) {
-			const c = items.shift();
-			if (!c) {
-				await new Promise((resolve) => setTimeout(resolve, 50));
-				continue;
-			}
-			return {
-				...c,
-				release: () => {
-					items.push(c);
-				},
-			};
-		}
+	const close = async () => {
+		await client.end();
+		await admin.query(`drop database if exists "${database}" with (force)`);
+		await admin.end();
 	};
+
+	return { client, query, batch, close };
 };
 
 export const provideForPglite = async () => {
@@ -86,7 +85,7 @@ export const provideForPglite = async () => {
 		await preparePglite(),
 	];
 
-	return providerClosure(clients);
+	return { provider: createProvider(clients), close: () => Promise.all(clients.map((it) => it.close())) };
 };
 
 export const provideForNodePostgres = async () => {
@@ -94,11 +93,11 @@ export const provideForNodePostgres = async () => {
 		await prepareNodePostgres(),
 	];
 
-	return providerClosure(clients);
+	return { provider: createProvider(clients), close: () => Promise.all(clients.map((it) => it.close())) };
 };
 
-type ProvideForPglite = Awaited<ReturnType<typeof provideForPglite>>;
-type ProvideForNodePostgres = Awaited<ReturnType<typeof provideForNodePostgres>>;
+type ProvideForPglite = Awaited<ReturnType<typeof provideForPglite>>['provider'];
+type ProvideForNodePostgres = Awaited<ReturnType<typeof provideForNodePostgres>>['provider'];
 
 type Provider =
 	| ProvideForPglite
@@ -121,13 +120,14 @@ const prepareTest = (dbType: 'pglite' | 'postgis') => {
 		provider: [
 			// oxlint-disable-next-line no-empty-pattern
 			async ({}, use) => {
-				const provider = dbType === 'postgis'
+				const { provider, close } = dbType === 'postgis'
 					? await provideForNodePostgres()
 					: dbType === 'pglite'
 					? await provideForPglite()
 					: '' as never;
 
 				await use(provider);
+				await close();
 			},
 			{ scope: 'file' },
 		],

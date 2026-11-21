@@ -1,3 +1,4 @@
+import { postponed } from '@drizzle/test-utils';
 import { expect, test } from 'vitest';
 import { drizzle } from '~/node-postgres';
 import { PgDialect, pgTable, serial, text } from '~/pg-core';
@@ -39,7 +40,7 @@ test('NOT conditions not wrapped in parentheses for non-SQL', () => {
 	expect(text).toStrictEqual(`not "users"."id"`);
 });
 
-test.skipIf(Date.now() < +new Date('2026-11-24'))('OR conditions deep filter empty queries', () => {
+test.skipIf(postponed)('OR conditions deep filter empty queries', () => {
 	const query = or(
 		eq(users.id, 1),
 		sql`${sql`never`.if(false)}`,
@@ -50,7 +51,7 @@ test.skipIf(Date.now() < +new Date('2026-11-24'))('OR conditions deep filter emp
 	expect(text).toStrictEqual(`(("users"."id" = 1) or (users.id = post.user_id AND posts.is_deleted = false))`);
 });
 
-test.skipIf(Date.now() < +new Date('2026-11-24'))('AND conditions deep filter empty queries', () => {
+test.skipIf(postponed)('AND conditions deep filter empty queries', () => {
 	const query = and(
 		eq(users.id, 1),
 		sql`${sql`never`.if(false)}`,
@@ -61,7 +62,7 @@ test.skipIf(Date.now() < +new Date('2026-11-24'))('AND conditions deep filter em
 	expect(text).toStrictEqual(`(("users"."id" = 1) and (users.id = post.user_id AND posts.is_deleted = false))`);
 });
 
-test.skipIf(Date.now() < +new Date('2026-11-24'))('NOT conditions deep filter empty queries', () => {
+test.skipIf(postponed)('NOT conditions deep filter empty queries', () => {
 	const query = not(sql`${sql`never`.if(false)}`);
 
 	expect(query).toBeUndefined();
