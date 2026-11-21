@@ -661,11 +661,6 @@ const getPostgresInfo = (
 						&& rel.refTable === relation.refTable
 					)
 				) {
-					console.warn(
-						`You are providing a one-to-many relation between the '${relation.refTable}' and '${relation.table}' tables,\n`
-							+ `while the '${relation.table}' table object already has foreign key constraint in the schema referencing '${relation.refTable}' table.\n`
-							+ `In this case, the foreign key constraint will be used.\n`,
-					);
 					continue;
 				}
 
