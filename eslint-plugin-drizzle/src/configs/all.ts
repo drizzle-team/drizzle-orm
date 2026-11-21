@@ -10,5 +10,6 @@ export default {
 	rules: {
 		'drizzle/enforce-delete-with-where': 'error',
 		'drizzle/enforce-update-with-where': 'error',
+		'drizzle/enforce-alias-in-subquery': 'error',
 	},
 };

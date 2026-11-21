@@ -169,3 +169,51 @@ const db = drizzle(...)
 // ---> Will be triggered by ESLint Rule
 db.update()
 ```
+
+**enforce-alias-in-subquery**: Enforce an explicit `.as('alias')` on a raw `` sql`...` `` field whose name drizzle reads from a subquery, CTE, or set operation.
+
+A plain column carries its own SQL name, but a raw `` sql`...` `` template does not. Whenever drizzle needs that field's name — to build a set operation, or to read the field back out of a subquery/CTE — an unaliased raw field throws **when the query is built** (not at compile time). drizzle calls all of these a "subquery" in the error:
+
+```
+Error: You tried to reference "role" field from a subquery, which is a raw SQL field,
+but it doesn't have an alias declared. Please add an alias to the field using ".as('alias')" method.
+```
+
+This rule turns that runtime crash into a lint error. The **subquery/CTE** case is auto-fixed — there the alias must equal the referenced key, so the fix is unambiguous. The **set-operation** case offers a manual _suggestion_ instead: the correct alias is the one used for that field in the _other_ branch, which the rule cannot infer, so it never rewrites your code automatically.
+
+**Set operations** (`union`, `unionAll`, `except`, `exceptAll`, `intersect`, `intersectAll`) line up their branches by position and take the output column names from the **leading** branch. An unaliased raw field in a _trailing_ branch throws when the query is built; a leading one is silently re-inlined, but breaks the moment the branches are reordered or the set operation is wrapped in a subquery. So every branch's unaliased raw field is flagged — inline or via a variable — with a suggestion to add `.as(...)` (use the same alias as the matching field in the other branch):
+
+```ts
+// ---> Will be triggered ("role" has no alias), inline or via a variable
+const everyone = await union(
+  db.select({ role: sql<string>`'coach'`, id: users.id }).from(users),
+  db.select({ role: sql<string>`'athlete'`, id: users.id }).from(athletes),
+);
+
+// ---> Will NOT be triggered: every raw `sql` field is aliased
+const ok = await union(
+  db.select({ role: sql<string>`'coach'`.as('role'), id: users.id }).from(users),
+  db.select({ role: sql<string>`'athlete'`.as('role'), id: users.id }).from(athletes),
+);
+```
+
+**Subqueries and CTEs** (a subquery is `` <select>.as('name') ``, a CTE is `db.$with('name').as(<select>)`) only read a field when it is *used*, so the rule flags a raw field when it is read — through an explicit `subquery.field` reference, or by selecting all columns (`db.select().from(subquery)`, which reads every field). Fields that are never read are left alone:
+
+```ts
+const withCount = db
+  .select({ total: sql<number>`count(*)`, day: activities.day })
+  .from(activities)
+  .groupBy(activities.day)
+  .as('with_count');
+
+// ---> Will be triggered ("total" is read as with_count.total)
+const a = db.select({ total: withCount.total }).from(withCount);
+
+// ---> Will be triggered (select-all reads every field of the subquery)
+const b = db.select().from(withCount);
+
+// ---> Will NOT be triggered: only the plain column `day` is read
+const c = db.select({ day: withCount.day }).from(withCount);
+```
+
+Notes: fields pulled into a `.select()` through a spread from another module (`...sharedSelect`) are not traced across files, so alias the raw `sql` fields inside such shared select objects directly. The subquery/CTE check tracks values assigned to a variable; inline subqueries and aliases reassigned to another variable are best-effort.
