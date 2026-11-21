@@ -46,7 +46,6 @@
 		"@libsql/client": "^0.10.0",
 		"@miniflare/d1": "^2.14.4",
 		"@miniflare/shared": "^2.14.4",
-		"@netlify/db": "^0.4.0",
 		"@planetscale/database": "^1.16.0",
 		"@prisma/client": "5.14.0",
 		"@tidbcloud/serverless": "^0.1.1",
