@@ -237,9 +237,17 @@ export const preparePostgresDB = async (
 		};
 
 		const proxy: Proxy = async (params) => {
+			const processedParams = (params.params ?? []).map((p, i) => {
+				const typing = params.typings?.[i];
+				if (typing === 'json' && (Array.isArray(p) || (typeof p === 'object' && p !== null))) {
+					return JSON.stringify(p);
+				}
+				return p;
+			});
+
 			const result = await client.query({
 				text: params.sql,
-				values: params.params,
+				values: processedParams,
 				...(params.mode === 'array' && { rowMode: 'array' }),
 				types,
 			});
@@ -291,8 +299,8 @@ export const preparePostgresDB = async (
 			client.options.parsers[type as any] = transparentParser;
 			client.options.serializers[type as any] = transparentParser;
 		}
-		client.options.serializers['114'] = transparentParser;
-		client.options.serializers['3802'] = transparentParser;
+		// client.options.serializers['114'] = transparentParser;
+		// client.options.serializers['3802'] = transparentParser;
 
 		const db = drizzle(client);
 		const migrateFn = async (config: MigrationConfig) => {
@@ -305,10 +313,17 @@ export const preparePostgresDB = async (
 		};
 
 		const proxy: Proxy = async (params) => {
+			const processedParams = (params.params ?? []).map((p, i) => {
+				const typing = params.typings?.[i];
+				if (typing === 'json' && (Array.isArray(p) || (typeof p === 'object' && p !== null))) {
+					return JSON.stringify(p);
+				}
+				return p;
+			});
 			if (params.mode === 'array') {
-				return await client.unsafe(params.sql, params.params).values();
+				return await client.unsafe(params.sql, processedParams).values();
 			}
-			return await client.unsafe(params.sql, params.params);
+			return await client.unsafe(params.sql, processedParams);
 		};
 
 		const transactionProxy: TransactionProxy = async (queries) => {
@@ -393,9 +408,17 @@ export const preparePostgresDB = async (
 		};
 
 		const proxy: Proxy = async (params) => {
+			const processedParams = (params.params ?? []).map((p, i) => {
+				const typing = params.typings?.[i];
+				if (typing === 'json' && (Array.isArray(p) || (typeof p === 'object' && p !== null))) {
+					return JSON.stringify(p);
+				}
+				return p;
+			});
+
 			const result = await client.query({
 				text: params.sql,
-				values: params.params,
+				values: processedParams,
 				...(params.mode === 'array' && { rowMode: 'array' }),
 				types,
 			});
@@ -493,9 +516,17 @@ export const preparePostgresDB = async (
 		};
 
 		const proxy: Proxy = async (params: ProxyParams) => {
+			const processedParams = (params.params ?? []).map((p, i) => {
+				const typing = params.typings?.[i];
+				if (typing === 'json' && (Array.isArray(p) || (typeof p === 'object' && p !== null))) {
+					return JSON.stringify(p);
+				}
+				return p;
+			});
+
 			const result = await client.query({
 				text: params.sql,
-				values: params.params,
+				values: processedParams,
 				...(params.mode === 'array' && { rowMode: 'array' }),
 				types,
 			});
