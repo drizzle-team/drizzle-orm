@@ -25,6 +25,7 @@ function readMigrationFiles({ journal, migrations }: MigrationConfig): Migration
 			});
 
 			migrationQueries.push({
+				tag: journalEntry.tag,
 				sql: result,
 				bps: journalEntry.breakpoints,
 				folderMillis: journalEntry.when,
