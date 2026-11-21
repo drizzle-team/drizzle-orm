@@ -349,8 +349,8 @@ export function notInArray(
  *
  * @see isNotNull for the inverse of this test
  */
-export function isNull(value: SQLWrapper): SQL {
-	return sql`${value} is null`;
+export function isNull(value: SQLWrapper): SQL<boolean | null> {
+	return sql<boolean | null>`${value} is null`;
 }
 
 /**
@@ -369,8 +369,8 @@ export function isNull(value: SQLWrapper): SQL {
  *
  * @see isNull for the inverse of this test
  */
-export function isNotNull(value: SQLWrapper): SQL {
-	return sql`${value} is not null`;
+export function isNotNull(value: SQLWrapper): SQL<boolean | null> {
+	return sql<boolean | null>`${value} is not null`;
 }
 
 /**
