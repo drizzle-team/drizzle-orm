@@ -137,16 +137,29 @@ export class PgDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList }: PgDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, withList, using }: PgDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
+		const isSingleTable = using == undefined;
+
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable })}`
 			: undefined;
+
+		const usingSqlChunks = [];
+		if (using) {
+			usingSqlChunks.push(sql` using `);
+			const usingTableChunks = [];
+			for (const table of using) {
+				usingTableChunks.push(this.buildFromTable(table));
+			}
+			usingSqlChunks.push(sql.join(usingTableChunks, sql`, `));
+		}
+		const usingSql = sql.join(usingSqlChunks);
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`${withSql}delete from ${table}${whereSql}${returningSql}`;
+		return sql`${withSql}delete from ${table}${usingSql}${whereSql}${returningSql}`;
 	}
 
 	buildUpdateSet(table: PgTable, set: UpdateSet): SQL {
