@@ -8,7 +8,7 @@ export const mysqlCredentials = union([
 		host: string().min(1),
 		port: coerce.number().min(1).optional(),
 		user: string().min(1).optional(),
-		password: string().min(1).optional(),
+		password: string().optional(),
 		database: string().min(1),
 		ssl: union([
 			string(),
