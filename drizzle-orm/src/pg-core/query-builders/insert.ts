@@ -174,7 +174,6 @@ export interface PgInsertOnConflictDoUpdateConfig<T extends AnyPgInsert> {
 	target: IndexColumn | IndexColumn[];
 	/** @deprecated use either `targetWhere` or `setWhere` */
 	where?: SQL;
-	// TODO: add tests for targetWhere and setWhere
 	targetWhere?: SQL;
 	setWhere?: SQL;
 	set: PgUpdateSetSource<T['_']['table']>;
