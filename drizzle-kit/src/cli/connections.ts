@@ -17,6 +17,7 @@ import {
 	type TransactionProxy,
 } from '../utils';
 import { assertPackages, checkPackage } from './utils';
+import type { FirebirdCredentials } from './validations/firebird';
 import { GelCredentials } from './validations/gel';
 import { LibSQLCredentials } from './validations/libsql';
 import type { MysqlCredentials } from './validations/mysql';
@@ -24,6 +25,630 @@ import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
 import { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
+
+const attachFirebird = async (firebird: any, options: Record<string, unknown>) => {
+	return await new Promise<any>((resolve, reject) => {
+		firebird.attach(options, (err: Error | undefined, db: any) => {
+			if (err) {
+				reject(err);
+			} else {
+				resolve(db);
+			}
+		});
+	});
+};
+
+const queryFirebird = async <T>(client: any, sql: string, params: any[] = []): Promise<T[]> => {
+	return await new Promise<T[]>((resolve, reject) => {
+		client.query(sql, params, (err: Error | undefined, rows: T[]) => {
+			if (err) {
+				reject(err);
+			} else {
+				resolve(rows ?? []);
+			}
+		});
+	});
+};
+
+const trimFirebirdIdentifier = (value: unknown): string => {
+	return typeof value === 'string' ? value.trim() : String(value ?? '').trim();
+};
+
+const firebirdFieldTypeToSqliteType = (column: {
+	fieldType: number;
+	fieldSubType: number | null;
+	fieldScale: number | null;
+}): string => {
+	switch (Number(column.fieldType)) {
+		case 7:
+		case 8:
+			return 'integer';
+		case 10:
+		case 11:
+		case 24:
+		case 25:
+		case 27:
+			return 'real';
+		case 12:
+		case 13:
+		case 14:
+		case 28:
+		case 29:
+		case 35:
+		case 37:
+			return 'text';
+		case 16:
+		case 26:
+			return Number(column.fieldSubType) === 0 && Number(column.fieldScale ?? 0) === 0 ? 'integer' : 'real';
+		case 23:
+			return 'boolean';
+		case 261:
+			return Number(column.fieldSubType) === 1 ? 'text' : 'blob';
+		default:
+			return 'text';
+	}
+};
+
+type FirebirdStudioColumn = {
+	table: string;
+	name: string;
+	position: number;
+	fieldType: number;
+	fieldSubType: number | null;
+	fieldScale: number | null;
+	notNull: boolean;
+	defaultValue: string | null;
+	sqliteType: string;
+};
+
+type FirebirdStudioConstraintColumn = {
+	table: string;
+	name: string;
+	column: string;
+	position: number;
+};
+
+type FirebirdStudioForeignKeyColumn = {
+	tableFrom: string;
+	id: string;
+	tableTo: string;
+	from: string;
+	to: string;
+	onUpdate: string | null;
+	onDelete: string | null;
+	seq: number;
+};
+
+const quoteSqliteIdentifier = (value: string): string => {
+	return `"${value.replace(/"/g, '""')}"`;
+};
+
+const defaultSourceToSqlite = (value: string | null): string | null => {
+	if (!value) {
+		return null;
+	}
+	return value.replace(/^default\s+/i, '').trim();
+};
+
+const getFirebirdStudioColumns = async (client: any): Promise<FirebirdStudioColumn[]> => {
+	const rows = await queryFirebird<any>(
+		client,
+		`
+		select
+			trim(rf.rdb$relation_name) as "table",
+			trim(rf.rdb$field_name) as "name",
+			rf.rdb$field_position as "position",
+			f.rdb$field_type as "fieldType",
+			f.rdb$field_sub_type as "fieldSubType",
+			f.rdb$field_scale as "fieldScale",
+			coalesce(rf.rdb$null_flag, f.rdb$null_flag, 0) as "nullFlag",
+			coalesce(rf.rdb$default_source, f.rdb$default_source) as "defaultSource"
+		from rdb$relation_fields rf
+		join rdb$fields f on f.rdb$field_name = rf.rdb$field_source
+		join rdb$relations r on r.rdb$relation_name = rf.rdb$relation_name
+		where coalesce(r.rdb$system_flag, 0) = 0
+			and r.rdb$view_blr is null
+		order by rf.rdb$relation_name, rf.rdb$field_position
+	`,
+	);
+
+	return rows.map((row) => {
+		const column = {
+			table: trimFirebirdIdentifier(row.table),
+			name: trimFirebirdIdentifier(row.name),
+			position: Number(row.position ?? 0),
+			fieldType: Number(row.fieldType),
+			fieldSubType: row.fieldSubType === null || row.fieldSubType === undefined ? null : Number(row.fieldSubType),
+			fieldScale: row.fieldScale === null || row.fieldScale === undefined ? null : Number(row.fieldScale),
+			notNull: Number(row.nullFlag ?? 0) === 1,
+			defaultValue: defaultSourceToSqlite(typeof row.defaultSource === 'string' ? row.defaultSource : null),
+			sqliteType: 'text',
+		};
+
+		return {
+			...column,
+			sqliteType: firebirdFieldTypeToSqliteType(column),
+		};
+	});
+};
+
+const getFirebirdStudioConstraintColumns = async (
+	client: any,
+	type: 'PRIMARY KEY' | 'UNIQUE',
+): Promise<FirebirdStudioConstraintColumn[]> => {
+	const rows = await queryFirebird<any>(
+		client,
+		`
+		select
+			trim(rc.rdb$relation_name) as "table",
+			trim(rc.rdb$constraint_name) as "name",
+			trim(s.rdb$field_name) as "column",
+			s.rdb$field_position as "position"
+		from rdb$relation_constraints rc
+		join rdb$index_segments s on s.rdb$index_name = rc.rdb$index_name
+		where trim(rc.rdb$constraint_type) = ?
+		order by rc.rdb$relation_name, rc.rdb$constraint_name, s.rdb$field_position
+	`,
+		[type],
+	);
+
+	return rows.map((row) => ({
+		table: trimFirebirdIdentifier(row.table),
+		name: trimFirebirdIdentifier(row.name),
+		column: trimFirebirdIdentifier(row.column),
+		position: Number(row.position ?? 0),
+	}));
+};
+
+const getFirebirdStudioForeignKeyColumns = async (client: any): Promise<FirebirdStudioForeignKeyColumn[]> => {
+	const rows = await queryFirebird<any>(
+		client,
+		`
+		select
+			trim(rc.rdb$relation_name) as "tableFrom",
+			trim(rc.rdb$constraint_name) as "id",
+			trim(refc.rdb$relation_name) as "tableTo",
+			trim(isc.rdb$field_name) as "from",
+			trim(refs.rdb$field_name) as "to",
+			trim(ref.rdb$update_rule) as "onUpdate",
+			trim(ref.rdb$delete_rule) as "onDelete",
+			isc.rdb$field_position as "seq"
+		from rdb$relation_constraints rc
+		join rdb$ref_constraints ref on ref.rdb$constraint_name = rc.rdb$constraint_name
+		join rdb$relation_constraints refc on refc.rdb$constraint_name = ref.rdb$const_name_uq
+		join rdb$index_segments isc on isc.rdb$index_name = rc.rdb$index_name
+		join rdb$index_segments refs
+			on refs.rdb$index_name = refc.rdb$index_name
+			and refs.rdb$field_position = isc.rdb$field_position
+		where trim(rc.rdb$constraint_type) = 'FOREIGN KEY'
+		order by rc.rdb$relation_name, rc.rdb$constraint_name, isc.rdb$field_position
+	`,
+	);
+
+	return rows.map((row) => ({
+		tableFrom: trimFirebirdIdentifier(row.tableFrom),
+		id: trimFirebirdIdentifier(row.id),
+		tableTo: trimFirebirdIdentifier(row.tableTo),
+		from: trimFirebirdIdentifier(row.from),
+		to: trimFirebirdIdentifier(row.to),
+		onUpdate: row.onUpdate ? trimFirebirdIdentifier(row.onUpdate) : null,
+		onDelete: row.onDelete ? trimFirebirdIdentifier(row.onDelete) : null,
+		seq: Number(row.seq ?? 0),
+	}));
+};
+
+const groupFirebirdConstraintColumns = <T extends { table: string; name: string; column: string; position: number }>(
+	columns: T[],
+) => {
+	return columns.reduce<Record<string, { table: string; name: string; columns: string[] }>>((acc, column) => {
+		const key = `${column.table}.${column.name}`;
+		acc[key] ??= {
+			table: column.table,
+			name: column.name,
+			columns: [],
+		};
+		acc[key].columns[column.position] = column.column;
+		return acc;
+	}, {});
+};
+
+const groupFirebirdForeignKeyColumns = (columns: FirebirdStudioForeignKeyColumn[]) => {
+	return columns.reduce<
+		Record<string, {
+			tableFrom: string;
+			id: string;
+			tableTo: string;
+			columns: string[];
+			columnsTo: string[];
+			onUpdate: string | null;
+			onDelete: string | null;
+		}>
+	>((acc, column) => {
+		const key = `${column.tableFrom}.${column.id}`;
+		acc[key] ??= {
+			tableFrom: column.tableFrom,
+			id: column.id,
+			tableTo: column.tableTo,
+			columns: [],
+			columnsTo: [],
+			onUpdate: column.onUpdate,
+			onDelete: column.onDelete,
+		};
+		acc[key].columns[column.seq] = column.from;
+		acc[key].columnsTo[column.seq] = column.to;
+		return acc;
+	}, {});
+};
+
+const buildFirebirdSqliteTableSql = (
+	table: string,
+	columns: FirebirdStudioColumn[],
+	primaryKeys: Record<string, { table: string; name: string; columns: string[] }>,
+	uniques: Record<string, { table: string; name: string; columns: string[] }>,
+	foreignKeys: ReturnType<typeof groupFirebirdForeignKeyColumns>,
+): string => {
+	const tablePrimaryKeys = Object.values(primaryKeys).filter((pk) => pk.table === table);
+	const singleColumnPrimaryKey = tablePrimaryKeys.find((pk) => pk.columns.filter(Boolean).length === 1);
+	const primaryKeyColumn = singleColumnPrimaryKey?.columns.find(Boolean);
+
+	const columnSql = columns.map((column) => {
+		const parts = [
+			quoteSqliteIdentifier(column.name),
+			column.sqliteType,
+		];
+		if (column.name === primaryKeyColumn) {
+			parts.push('PRIMARY KEY');
+		}
+		if (column.notNull) {
+			parts.push('NOT NULL');
+		}
+		if (column.defaultValue) {
+			parts.push(`DEFAULT ${column.defaultValue}`);
+		}
+		return parts.join(' ');
+	});
+
+	const constraintSql: string[] = [];
+
+	for (const pk of tablePrimaryKeys) {
+		const columns = pk.columns.filter(Boolean);
+		if (columns.length > 1) {
+			const pkColumns = columns.map(quoteSqliteIdentifier).join(', ');
+			constraintSql.push(`CONSTRAINT ${quoteSqliteIdentifier(pk.name)} PRIMARY KEY (${pkColumns})`);
+		}
+	}
+
+	for (const unique of Object.values(uniques).filter((unique) => unique.table === table)) {
+		const columns = unique.columns.filter(Boolean).map(quoteSqliteIdentifier).join(', ');
+		constraintSql.push(`CONSTRAINT ${quoteSqliteIdentifier(unique.name)} UNIQUE (${columns})`);
+	}
+
+	for (const fk of Object.values(foreignKeys).filter((fk) => fk.tableFrom === table)) {
+		const columns = fk.columns.filter(Boolean).map(quoteSqliteIdentifier).join(', ');
+		const columnsTo = fk.columnsTo.filter(Boolean).map(quoteSqliteIdentifier).join(', ');
+		const updateRule = fk.onUpdate && fk.onUpdate !== 'NO ACTION' ? ` ON UPDATE ${fk.onUpdate}` : '';
+		const deleteRule = fk.onDelete && fk.onDelete !== 'NO ACTION' ? ` ON DELETE ${fk.onDelete}` : '';
+		constraintSql.push(
+			`CONSTRAINT ${quoteSqliteIdentifier(fk.id)} FOREIGN KEY (${columns}) REFERENCES ${
+				quoteSqliteIdentifier(fk.tableTo)
+			} (${columnsTo})${updateRule}${deleteRule}`,
+		);
+	}
+
+	return `CREATE TABLE ${quoteSqliteIdentifier(table)} (${[...columnSql, ...constraintSql].join(', ')})`;
+};
+
+const getFirebirdStudioSqliteIntrospection = async (client: any) => {
+	// node-firebird uses a single socket per attachment and can hang when several
+	// metadata queries are started concurrently on the same client.
+	const columns = await getFirebirdStudioColumns(client);
+	const pkColumns = await getFirebirdStudioConstraintColumns(client, 'PRIMARY KEY');
+	const uniqueColumns = await getFirebirdStudioConstraintColumns(client, 'UNIQUE');
+	const fkColumns = await getFirebirdStudioForeignKeyColumns(client);
+
+	const primaryKeys = groupFirebirdConstraintColumns(pkColumns);
+	const uniques = groupFirebirdConstraintColumns(uniqueColumns);
+	const foreignKeys = groupFirebirdForeignKeyColumns(fkColumns);
+
+	const columnsByTable = columns.reduce<Record<string, FirebirdStudioColumn[]>>((acc, column) => {
+		acc[column.table] ??= [];
+		acc[column.table].push(column);
+		return acc;
+	}, {});
+
+	const tableSql = Object.fromEntries(
+		Object.entries(columnsByTable).map(([table, tableColumns]) => [
+			table,
+			buildFirebirdSqliteTableSql(table, tableColumns, primaryKeys, uniques, foreignKeys),
+		]),
+	);
+
+	const primaryColumnPositions = pkColumns.reduce<Record<string, Record<string, number>>>((acc, column) => {
+		acc[column.table] ??= {};
+		acc[column.table][column.column] = column.position + 1;
+		return acc;
+	}, {});
+
+	return {
+		tables: Object.entries(tableSql).map(([table, sql]) => ({
+			name: table,
+			tbl_name: table,
+			sql,
+			type: 'table',
+		})),
+		columns: columns.map((column) => ({
+			table: column.table,
+			name: column.name,
+			columnType: column.sqliteType,
+			notNull: column.notNull ? 1 : 0,
+			defaultValue: column.defaultValue,
+			pk: primaryColumnPositions[column.table]?.[column.name] ?? 0,
+			hidden: 0,
+			sql: tableSql[column.table],
+			type: 'table',
+		})),
+		views: [],
+		viewColumns: [],
+		tablesWithSequences: [],
+		indexes: [],
+		foreignKeys: fkColumns.map((fk) => ({
+			tableFrom: fk.tableFrom,
+			id: fk.id,
+			tableTo: fk.tableTo,
+			from: fk.from,
+			to: fk.to,
+			sql: tableSql[fk.tableFrom],
+			onUpdate: fk.onUpdate,
+			onDelete: fk.onDelete,
+			seq: fk.seq,
+		})),
+	};
+};
+
+const normalizeStudioSql = (sql: string): string => {
+	return sql.replace(/\s+/g, ' ').trim().toLowerCase();
+};
+
+const maybeHandleFirebirdStudioSqliteIntrospection = async (client: any, sql: string) => {
+	const normalized = normalizeStudioSql(sql);
+	if (!normalized.includes('sqlite_master') && !normalized.includes('pragma_')) {
+		return undefined;
+	}
+
+	const metadata = await getFirebirdStudioSqliteIntrospection(client);
+
+	if (
+		normalized.includes('join pragma_table_xinfo')
+		&& normalized.includes("m.type = 'table'")
+	) {
+		return metadata.columns;
+	}
+
+	if (
+		normalized.includes('join pragma_table_xinfo')
+		&& normalized.includes("m.type = 'view'")
+	) {
+		return metadata.viewColumns;
+	}
+
+	if (
+		normalized.includes('from sqlite_master as m')
+		&& normalized.includes("m.type = 'table'")
+	) {
+		return metadata.tables;
+	}
+
+	if (
+		normalized.includes('from sqlite_master as m')
+		&& normalized.includes("m.type = 'view'")
+	) {
+		return metadata.views;
+	}
+
+	if (
+		normalized.includes('from sqlite_master where name !=')
+		&& normalized.includes('autoincrement')
+	) {
+		return metadata.tablesWithSequences;
+	}
+
+	if (normalized.includes('pragma_index_list')) {
+		return metadata.indexes;
+	}
+
+	if (normalized.includes('pragma_foreign_key_list')) {
+		return metadata.foreignKeys;
+	}
+
+	if (normalized.includes('from pragma_table_xinfo')) {
+		return [];
+	}
+
+	return undefined;
+};
+
+const adaptSqliteLimitOffsetForFirebird = (sql: string, params: any[] = []) => {
+	const limitOffsetParam = /\s+limit\s+\?\s+offset\s+\?\s*;?\s*$/i;
+	if (limitOffsetParam.test(sql)) {
+		const nextParams = [...params];
+		if (nextParams.length >= 2) {
+			const offset = nextParams.pop();
+			const limit = nextParams.pop();
+			nextParams.push(offset, limit);
+		}
+		return {
+			sql: sql.replace(limitOffsetParam, ' offset ? rows fetch next ? rows only'),
+			params: nextParams,
+		};
+	}
+
+	const limitParam = /\s+limit\s+\?\s*;?\s*$/i;
+	if (limitParam.test(sql)) {
+		return {
+			sql: sql.replace(limitParam, ' fetch next ? rows only'),
+			params,
+		};
+	}
+
+	const limitOffsetLiteral = /\s+limit\s+(\d+)\s+offset\s+(\d+)\s*;?\s*$/i;
+	if (limitOffsetLiteral.test(sql)) {
+		return {
+			sql: sql.replace(limitOffsetLiteral, ' offset $2 rows fetch next $1 rows only'),
+			params,
+		};
+	}
+
+	const limitLiteral = /\s+limit\s+(\d+)\s*;?\s*$/i;
+	if (limitLiteral.test(sql)) {
+		return {
+			sql: sql.replace(limitLiteral, ' fetch next $1 rows only'),
+			params,
+		};
+	}
+
+	return { sql, params };
+};
+
+const maybeNormalizeFirebirdStudioRows = <T extends Record<string, any>>(sql: string, rows: T[]): T[] => {
+	const normalized = normalizeStudioSql(sql);
+	if (!normalized.includes('count(*)')) {
+		return rows;
+	}
+
+	return rows.map((row) => {
+		const next: Record<string, any> = { ...row };
+		for (const key of ['database', 'schema', 'table']) {
+			if (typeof next[key] === 'string') {
+				next[key] = next[key].trim();
+			}
+		}
+		return next as T;
+	});
+};
+
+const startFirebirdTransaction = async (client: any) => {
+	return await new Promise<any>((resolve, reject) => {
+		client.transaction((err: Error | undefined, tx: any) => {
+			if (err) {
+				reject(err);
+			} else {
+				resolve(tx);
+			}
+		});
+	});
+};
+
+const commitFirebirdTransaction = async (tx: any) => {
+	return await new Promise<void>((resolve, reject) => {
+		tx.commit((err: Error | undefined) => err ? reject(err) : resolve());
+	});
+};
+
+const rollbackFirebirdTransaction = async (tx: any) => {
+	return await new Promise<void>((resolve) => {
+		tx.rollback(() => resolve());
+	});
+};
+
+export const connectToFirebird = async (
+	credentials: FirebirdCredentials,
+): Promise<{
+	db: DB;
+	packageName: 'node-firebird';
+	proxy: Proxy;
+	transactionProxy: TransactionProxy;
+	database: string;
+	migrate: (config: MigrationConfig) => Promise<void>;
+}> => {
+	if (await checkPackage('node-firebird')) {
+		const firebirdModule = await import('node-firebird');
+		const firebird = firebirdModule.default ?? firebirdModule;
+		const { drizzle } = await import('drizzle-orm/node-firebird');
+		const { migrate } = await import('drizzle-orm/node-firebird/migrator');
+
+		const connectionOptions: Record<string, unknown> = {
+			host: credentials.host,
+			port: credentials.port ?? 3050,
+			database: credentials.database,
+			user: credentials.user ?? 'SYSDBA',
+			password: credentials.password ?? 'masterkey',
+		};
+
+		if (credentials.role !== undefined) {
+			connectionOptions.role = credentials.role;
+		}
+
+		if (credentials.pageSize !== undefined) {
+			connectionOptions.pageSize = credentials.pageSize;
+		}
+
+		const client = await attachFirebird(firebird, connectionOptions);
+
+		const dbInstance = drizzle(client);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(dbInstance, config);
+		};
+
+		const query: DB['query'] = async <T>(
+			sql: string,
+			params?: any[],
+		): Promise<T[]> => {
+			const adapted = adaptSqliteLimitOffsetForFirebird(sql, params);
+			return queryFirebird<T>(client, adapted.sql, adapted.params);
+		};
+
+		const proxy: Proxy = async (params: ProxyParams) => {
+			const introspectionResult = await maybeHandleFirebirdStudioSqliteIntrospection(client, params.sql);
+			if (introspectionResult !== undefined) {
+				if (params.mode === 'array') {
+					return introspectionResult.map((row) => Object.values(row));
+				}
+				return introspectionResult;
+			}
+
+			const adapted = adaptSqliteLimitOffsetForFirebird(params.sql, params.params);
+			const rows = maybeNormalizeFirebirdStudioRows(
+				params.sql,
+				await queryFirebird<Record<string, any>>(client, adapted.sql, adapted.params),
+			);
+			if (params.mode === 'array') {
+				return rows.map((row) => Array.isArray(row) ? row : Object.values(row));
+			}
+			return rows;
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			const tx = await startFirebirdTransaction(client);
+			try {
+				for (const query of queries) {
+					const adapted = adaptSqliteLimitOffsetForFirebird(query.sql);
+					const rows = await queryFirebird(tx, adapted.sql, adapted.params);
+					results.push(rows);
+				}
+				await commitFirebirdTransaction(tx);
+			} catch (error) {
+				await rollbackFirebirdTransaction(tx);
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return {
+			db: { query },
+			packageName: 'node-firebird',
+			proxy,
+			transactionProxy,
+			database: credentials.database,
+			migrate: migrateFn,
+		};
+	}
+
+	console.error(
+		"To connect to Firebird database - please install 'node-firebird' driver",
+	);
+	process.exit(1);
+};
 
 export const preparePostgresDB = async (
 	credentials: PostgresCredentials | {

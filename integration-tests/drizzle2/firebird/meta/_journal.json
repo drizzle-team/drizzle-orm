@@ -1,0 +1,13 @@
+{
+	"version": "6",
+	"dialect": "firebird",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "6",
+			"when": 1775600000000,
+			"tag": "0000_firebird_runtime",
+			"breakpoints": true
+		}
+	]
+}
