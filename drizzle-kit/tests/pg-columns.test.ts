@@ -322,7 +322,7 @@ test('with composite pks #3', async (t) => {
 		),
 	};
 
-	// TODO: remove redundand drop/create create constraint
+	// TODO: remove redundant drop/create create constraint
 	const { statements } = await diffTestSchemas(schema1, schema2, [
 		'public.users.id2->public.users.id3',
 	]);
@@ -381,7 +381,7 @@ test('add multiple constraints #1', async (t) => {
 		}),
 	};
 
-	// TODO: remove redundand drop/create create constraint
+	// TODO: remove redundant drop/create create constraint
 	const { statements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(statements.length).toBe(6);
@@ -412,7 +412,7 @@ test('add multiple constraints #2', async (t) => {
 		}),
 	};
 
-	// TODO: remove redundand drop/create create constraint
+	// TODO: remove redundant drop/create create constraint
 	const { statements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(statements.length).toBe(6);
@@ -451,7 +451,7 @@ test('add multiple constraints #3', async (t) => {
 		}),
 	};
 
-	// TODO: remove redundand drop/create create constraint
+	// TODO: remove redundant drop/create create constraint
 	const { statements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(statements.length).toBe(6);

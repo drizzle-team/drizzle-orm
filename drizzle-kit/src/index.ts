@@ -22,7 +22,7 @@ type Verify<T, U extends T> = U;
  *
  * **Config** usage:
  *
- * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
+ * `dialect` - mandatory and is responsible for explicitly providing a database dialect you are using for all the commands
  * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
@@ -72,7 +72,7 @@ type Verify<T, U extends T> = U;
  * ---
  *
  * `tablesFilters` - param lets you filter tables with glob syntax for db push command.
- * It’s useful when you have only one database avaialable for several separate projects with separate sql schemas.
+ * It’s useful when you have only one database available for several separate projects with separate sql schemas.
  *
  * How to define multi-project tables with Drizzle ORM — see https://orm.drizzle.team/docs/goodies#multi-project-schema
  *
@@ -260,7 +260,7 @@ export type Config =
  *
  * **Config** usage:
  *
- * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
+ * `dialect` - mandatory and is responsible for explicitly providing a database dialect you are using for all the commands
  * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore`, `gel`
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
@@ -310,7 +310,7 @@ export type Config =
  * ---
  *
  * `tablesFilters` - param lets you filter tables with glob syntax for db push command.
- * It’s useful when you have only one database avaialable for several separate projects with separate sql schemas.
+ * It’s useful when you have only one database available for several separate projects with separate sql schemas.
  *
  * How to define multi-project tables with Drizzle ORM — see https://orm.drizzle.team/docs/goodies#multi-project-schema
  *
