@@ -1047,3 +1047,32 @@ test('text default values escape single quotes', async (t) => {
 		"ALTER TABLE `table` ADD `text` text DEFAULT 'escape''s quotes';",
 	);
 });
+
+test('boolean-mode integer default — no spurious migration', async (t) => {
+	const schema = {
+		sample: sqliteTable('sample', {
+			id: integer('id').primaryKey(),
+			isDeleted: integer('is_deleted', { mode: 'boolean' }).notNull().default(false),
+			isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(schema, schema, []);
+	expect(sqlStatements).toStrictEqual([]);
+
+	const base = {
+		sample: sqliteTable('sample', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+	const next = {
+		sample: sqliteTable('sample', {
+			id: integer('id').primaryKey(),
+			isDeleted: integer('is_deleted', { mode: 'boolean' }).notNull().default(false),
+		}),
+	};
+	const { sqlStatements: addSql } = await diffTestSchemasSqlite(base, next, []);
+	expect(addSql).toStrictEqual([
+		'ALTER TABLE `sample` ADD `is_deleted` integer DEFAULT 0 NOT NULL;',
+	]);
+});
