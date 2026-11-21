@@ -1,5 +1,4 @@
 node_modules
-.vscode
 dist
 dist.new
 *.tsbuildinfo
