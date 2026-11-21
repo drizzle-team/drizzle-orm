@@ -1,5 +1,6 @@
 export { bufferSchema, jsonSchema, literalSchema } from './column.ts';
 export * from './column.types.ts';
+export { CONSTANTS } from './constants.ts';
 export * from './schema.ts';
 export * from './schema.types.internal.ts';
 export * from './schema.types.ts';
