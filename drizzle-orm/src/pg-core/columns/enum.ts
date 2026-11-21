@@ -95,6 +95,8 @@ export interface PgEnum<TValues extends [string, ...string[]]> {
 	[isPgEnumSym]: true;
 }
 
+export type InferPgEnum<T extends PgEnum<any>> = T['enumValues'][number];
+
 export function isPgEnum(obj: unknown): obj is PgEnum<[string, ...string[]]> {
 	return !!obj && typeof obj === 'function' && isPgEnumSym in obj && obj[isPgEnumSym] === true;
 }
