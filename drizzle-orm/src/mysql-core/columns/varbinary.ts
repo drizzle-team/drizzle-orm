@@ -7,21 +7,21 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<{
 	name: TName;
-	dataType: 'string';
+	dataType: 'buffer';
 	columnType: 'MySqlVarBinary';
-	data: string;
+	data: Buffer;
 	driverParam: string;
 	enumValues: undefined;
 }>;
 
-export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlVarBinary'>>
+export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'MySqlVarBinary'>>
 	extends MySqlColumnBuilder<T, MySqlVarbinaryOptions>
 {
 	static override readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
 
 	/** @internal */
 	constructor(name: T['name'], config: MySqlVarbinaryOptions) {
-		super(name, 'string', 'MySqlVarBinary');
+		super(name, 'buffer', 'MySqlVarBinary');
 		this.config.length = config?.length;
 	}
 
@@ -37,22 +37,18 @@ export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', '
 }
 
 export class MySqlVarBinary<
-	T extends ColumnBaseConfig<'string', 'MySqlVarBinary'>,
+	T extends ColumnBaseConfig<'buffer', 'MySqlVarBinary'>,
 > extends MySqlColumn<T, MySqlVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'MySqlVarBinary';
 
 	length: number | undefined = this.config.length;
 
-	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
-		if (typeof value === 'string') return value;
-		if (Buffer.isBuffer(value)) return value.toString();
+	override mapFromDriverValue(value: string | Buffer | Uint8Array): Buffer {
+		if (Buffer.isBuffer(value)) return value;
+		if (typeof value === 'string') return Buffer.from(value);
+		if (value instanceof Uint8Array) return Buffer.from(value);
 
-		const str: string[] = [];
-		for (const v of value) {
-			str.push(v === 49 ? '1' : '0');
-		}
-
-		return str.join('');
+		throw new Error(`Invalid value for varbinary column: ${typeof value}`);
 	}
 
 	getSQLType(): string {
