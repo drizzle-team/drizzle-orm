@@ -7,22 +7,22 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export type SingleStoreVarBinaryBuilderInitial<TName extends string> = SingleStoreVarBinaryBuilder<{
 	name: TName;
-	dataType: 'string';
+	dataType: 'buffer';
 	columnType: 'SingleStoreVarBinary';
-	data: string;
-	driverParam: string;
+	data: Buffer;
+	driverParam: Buffer;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class SingleStoreVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreVarBinary'>>
+export class SingleStoreVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'SingleStoreVarBinary'>>
 	extends SingleStoreColumnBuilder<T, SingleStoreVarbinaryOptions>
 {
 	static override readonly [entityKind]: string = 'SingleStoreVarBinaryBuilder';
 
 	/** @internal */
 	constructor(name: T['name'], config: SingleStoreVarbinaryOptions) {
-		super(name, 'string', 'SingleStoreVarBinary');
+		super(name, 'buffer', 'SingleStoreVarBinary');
 		this.config.length = config?.length;
 	}
 
@@ -38,22 +38,16 @@ export class SingleStoreVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'stri
 }
 
 export class SingleStoreVarBinary<
-	T extends ColumnBaseConfig<'string', 'SingleStoreVarBinary'>,
+	T extends ColumnBaseConfig<'buffer', 'SingleStoreVarBinary'>,
 > extends SingleStoreColumn<T, SingleStoreVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'SingleStoreVarBinary';
 
 	length: number | undefined = this.config.length;
 
-	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
-		if (typeof value === 'string') return value;
-		if (Buffer.isBuffer(value)) return value.toString();
-
-		const str: string[] = [];
-		for (const v of value) {
-			str.push(v === 49 ? '1' : '0');
-		}
-
-		return str.join('');
+	override mapFromDriverValue(value: string | Buffer | Uint8Array): Buffer {
+		if (typeof value === 'string') return Buffer.from(value);
+		if (Buffer.isBuffer(value)) return value;
+		return Buffer.from(value);
 	}
 
 	getSQLType(): string {

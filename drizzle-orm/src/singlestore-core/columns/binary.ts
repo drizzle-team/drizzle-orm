@@ -7,15 +7,15 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export type SingleStoreBinaryBuilderInitial<TName extends string> = SingleStoreBinaryBuilder<{
 	name: TName;
-	dataType: 'string';
+	dataType: 'buffer';
 	columnType: 'SingleStoreBinary';
-	data: string;
-	driverParam: string;
+	data: Buffer;
+	driverParam: Buffer;
 	enumValues: undefined;
 	generated: undefined;
 }>;
 
-export class SingleStoreBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreBinary'>>
+export class SingleStoreBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'SingleStoreBinary'>>
 	extends SingleStoreColumnBuilder<
 		T,
 		SingleStoreBinaryConfig
@@ -24,7 +24,7 @@ export class SingleStoreBinaryBuilder<T extends ColumnBuilderBaseConfig<'string'
 	static override readonly [entityKind]: string = 'SingleStoreBinaryBuilder';
 
 	constructor(name: T['name'], length: number | undefined) {
-		super(name, 'string', 'SingleStoreBinary');
+		super(name, 'buffer', 'SingleStoreBinary');
 		this.config.length = length;
 	}
 
@@ -39,7 +39,7 @@ export class SingleStoreBinaryBuilder<T extends ColumnBuilderBaseConfig<'string'
 	}
 }
 
-export class SingleStoreBinary<T extends ColumnBaseConfig<'string', 'SingleStoreBinary'>> extends SingleStoreColumn<
+export class SingleStoreBinary<T extends ColumnBaseConfig<'buffer', 'SingleStoreBinary'>> extends SingleStoreColumn<
 	T,
 	SingleStoreBinaryConfig
 > {
@@ -47,16 +47,10 @@ export class SingleStoreBinary<T extends ColumnBaseConfig<'string', 'SingleStore
 
 	length: number | undefined = this.config.length;
 
-	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
-		if (typeof value === 'string') return value;
-		if (Buffer.isBuffer(value)) return value.toString();
-
-		const str: string[] = [];
-		for (const v of value) {
-			str.push(v === 49 ? '1' : '0');
-		}
-
-		return str.join('');
+	override mapFromDriverValue(value: string | Buffer | Uint8Array): Buffer {
+		if (typeof value === 'string') return Buffer.from(value);
+		if (Buffer.isBuffer(value)) return value;
+		return Buffer.from(value);
 	}
 
 	getSQLType(): string {
