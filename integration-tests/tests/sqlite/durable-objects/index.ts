@@ -225,6 +225,43 @@ export class MyDurableObject extends DurableObject {
 		}
 	}
 
+	async migratorSchemaTest(): Promise<void> {
+		try {
+			this.db.run(sql`drop table if exists another_users`);
+			this.db.run(sql`drop table if exists users12`);
+			this.db.run(sql`drop table if exists __drizzle_migrations`);
+
+			migrate(this.db, migrations);
+
+			// Verify the __drizzle_migrations table uses proper SQLite syntax
+			// The id column should be "integer PRIMARY KEY" (which auto-increments in SQLite),
+			// not "SERIAL PRIMARY KEY" (which is PostgreSQL syntax)
+			const tableInfo = this.db.all<{ cid: number; name: string; type: string; notnull: number; pk: number }>(
+				sql`PRAGMA table_info(__drizzle_migrations)`,
+			);
+
+			const idColumn = tableInfo.find((col: { name: string }) => col.name === 'id');
+			expect(idColumn).to.not.be.undefined;
+			// In SQLite, the type should be "integer" (case-insensitive) for proper auto-increment behavior
+			// "SERIAL" is PostgreSQL syntax and should not be used
+			expect(idColumn!.type.toLowerCase()).to.equal('integer');
+			expect(idColumn!.pk).to.equal(1);
+
+			// Verify migration hashes are computed (not empty)
+			const migrationRows = this.db.all<{ hash: string }>(sql`SELECT hash FROM __drizzle_migrations`);
+			expect(migrationRows.length).to.be.greaterThan(0);
+			for (const row of migrationRows) {
+				expect(row.hash).to.have.lengthOf(64); // SHA-256 hex = 64 chars
+			}
+
+			this.db.run(sql`drop table another_users`);
+			this.db.run(sql`drop table users12`);
+			this.db.run(sql`drop table __drizzle_migrations`);
+		} catch {
+			throw new Error('migratorSchemaTest has broken');
+		}
+	}
+
 	async beforeEach(): Promise<void> {
 		this.db.run(sql`drop table if exists ${usersTable}`);
 		this.db.run(sql`drop table if exists ${users2Table}`);
