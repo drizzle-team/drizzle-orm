@@ -51,6 +51,8 @@ export function mapResultRow<TResult>(
 							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
 						) {
 							nullifyMap[objectName] = false;
+						} else if (typeof nullifyMap[objectName] === 'string' && value !== null) {
+							nullifyMap[objectName] = false;
 						}
 					}
 				}
