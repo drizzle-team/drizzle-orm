@@ -247,7 +247,7 @@ export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	: never;
 
 export type KnownKeysOnly<T, U> = {
-	[K in keyof T]: K extends keyof U ? T[K] : never;
+	[K in keyof T]: K extends keyof U ? T[K] & KnownKeysOnly<T[K], U[K]> : never;
 };
 
 export type IsAny<T> = 0 extends (1 & T) ? true : false;
