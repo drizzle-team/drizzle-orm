@@ -2,7 +2,7 @@ import type { CodecsCollection, ResolvedCodecs } from '~/codecs.ts';
 import { entityKind, entityKindsOf, is } from '~/entity.ts';
 import { Subquery } from '~/subquery.ts';
 import { hasTelemetry, tracer } from '~/tracing.ts';
-import type { Equal } from '~/utils.ts';
+import type { Assume, Equal } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
 import type { AnyColumn } from '../column.ts';
@@ -37,6 +37,7 @@ export interface BuildQueryConfig {
 	escapeName(name: string): string;
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
+	buildJsonObject(object: JsonObject): SQLChunk[];
 	codecs?: CodecsCollection;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
@@ -358,6 +359,26 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				continue;
 			}
 
+			if (isChunk(chunk, kind, chunkKinds.jsonObject)) {
+				if (chunk.alias !== undefined) {
+					out.sql += (chunk.origin !== undefined ? escapeName(chunk.origin) + '.' : '') + escapeName(chunk.alias);
+					continue;
+				}
+
+				const nested = config.buildJsonObject(chunk);
+				this.collectSQL(
+					nested,
+					config,
+					paramStartIndex,
+					inlineParams,
+					out,
+					params,
+					undefined,
+				);
+
+				continue;
+			}
+
 			if (typeof chunk === 'function' && 'enumName' in chunk) {
 				if ('schema' in chunk && chunk.schema) {
 					out.sql += escapeName(chunk.schema as string) + '.' + escapeName(chunk.enumName as string);
@@ -561,6 +582,7 @@ export const chunkKinds = {
 	aliased: 9,
 	subquery: 10,
 	valueRows: 11,
+	jsonObject: 12,
 } as const;
 
 const chunkKindByConstructor = new WeakMap<object, number>();
@@ -588,6 +610,8 @@ function resolveChunkKind(ctor: object, kinds: Set<string>): number {
 		? chunkKinds.subquery
 		: kinds.has(ValueRows[entityKind])
 		? chunkKinds.valueRows
+		: kinds.has(JsonObject[entityKind])
+		? chunkKinds.jsonObject
 		: chunkKinds.other;
 	chunkKindByConstructor.set(ctor, kind);
 	// Set cache directly on entity
@@ -622,6 +646,7 @@ export interface ChunkTypes {
 	[chunkKinds.aliased]: SQL.Aliased;
 	[chunkKinds.subquery]: Subquery;
 	[chunkKinds.valueRows]: ValueRows;
+	[chunkKinds.jsonObject]: JsonObject;
 }
 
 export function isChunk<TKind extends keyof ChunkTypes>(
@@ -794,6 +819,7 @@ export type SQLChunk =
 	| View
 	| Subquery
 	| AnyColumn
+	| JsonObject
 	| Param
 	| Name
 	| undefined
@@ -801,6 +827,32 @@ export type SQLChunk =
 	| Placeholder;
 
 export type SQLGenerator<T = unknown> = typeof sql<T>;
+
+export type JsonObjectSelectionField = Column | SQL | SQL.Aliased | Subquery | JsonObject;
+
+export type JsonObjectSelection = Record<string, JsonObjectSelectionField>;
+
+export class JsonObject<
+	TSelection extends JsonObjectSelection = JsonObjectSelection,
+	TAlias extends string | undefined = string | undefined,
+	TOrigin extends string | undefined = string | undefined,
+> {
+	static readonly [entityKind]: string = 'JsonObject';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	constructor(readonly selection: TSelection, readonly alias?: TAlias, readonly origin?: TOrigin) {}
+
+	as<TAlias extends string>(alias: TAlias) {
+		return new JsonObject<TSelection, TAlias>(this.selection, alias);
+	}
+
+	/** @internal - used to claim JSON object as subquery's or view's field */
+	bindToOrigin<TOrigin extends string | undefined>(origin: TOrigin, selection: TSelection = this.selection) {
+		return new JsonObject<TSelection, TAlias, TOrigin>(selection, this.alias, origin);
+	}
+}
 
 export function sql<T>(strings: TemplateStringsArray, ...params: any[]): SQL<T>;
 /*
@@ -904,6 +956,27 @@ export namespace sql {
 		if (!encoded.length) return undefined;
 
 		return sql.raw(encoded);
+	}
+
+	export function jsonObject<TTable extends Table>(table: TTable): JsonObject<TTable['_']['columns']>;
+	export function jsonObject<TView extends View>(
+		view: TView,
+	): JsonObject<Assume<TView['_']['selectedFields'], JsonObjectSelection>, undefined, undefined>;
+	export function jsonObject<TSubquery extends Subquery>(
+		subquery: TSubquery,
+	): JsonObject<Assume<TSubquery['_']['selectedFields'], JsonObjectSelection>, undefined, undefined>;
+	export function jsonObject<TSelection extends JsonObjectSelection>(
+		selection: TSelection,
+	): JsonObject<TSelection, undefined, undefined>;
+	export function jsonObject(
+		source: Table | View | Subquery | JsonObjectSelection,
+	): JsonObject<JsonObjectSelection, undefined, undefined> {
+		const kind = chunkKindOf(source);
+		if (kind === chunkKinds.other) return new JsonObject(source as JsonObjectSelection);
+
+		return new JsonObject(
+			(source as Exclude<typeof source, JsonObjectSelection>)[Table.Symbol.Columns] as JsonObjectSelection,
+		);
 	}
 }
 
@@ -1131,5 +1204,3 @@ function qualifiedName(schema: string | undefined, name: string): SQL {
 defineQualifier(Table.prototype, (table) => qualifiedName(table[TableSchema], table[TableName]));
 defineQualifier(View.prototype, (view) => qualifiedName(view[ViewBaseConfig].schema, view[ViewBaseConfig].name));
 defineQualifier(Subquery.prototype, (subquery) => new Name(subquery._.alias));
-
-export type SQLEntity = SQL | SQLWrapper | SQL.Aliased | Table | View;

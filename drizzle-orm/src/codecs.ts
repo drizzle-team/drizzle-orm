@@ -1,3 +1,4 @@
+import type { Dialect } from './column-builder.ts';
 import type { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { DrizzleError } from './errors.ts';
@@ -97,19 +98,38 @@ export type ItemToArrayTypeCodecNameMap = {
 	normalizeParamArray: 'normalizeParamArray';
 };
 
+export interface CodecIdentifier<TTypeSet extends string = string> {
+	codec?: TTypeSet | undefined;
+	dimensions?: number | undefined;
+}
+
+/** @internal Codecs of JSON objects built by `sql.jsonObject`, by dialect */
+export const jsonObjectCodecs: Partial<Record<Dialect, CodecIdentifier>> = {
+	pg: { codec: 'json' },
+	cockroach: { codec: 'jsonb' },
+	mysql: { codec: 'json' },
+	singlestore: { codec: 'json' },
+	sqlite: { codec: 'text:json' },
+	mssql: { codec: 'varchar:json' },
+};
+
 export class CodecsCollection<TTypeSet extends string = string> {
 	static readonly [entityKind]: string = 'CodecsCollection';
 	static [Symbol.hasInstance](value: unknown): boolean {
 		return is(value, this);
 	}
 
-	constructor(protected resolveTypes: (type: string) => string, readonly codecs: Codecs<TTypeSet> = noopCodecs) {}
+	constructor(
+		readonly dialect: Dialect,
+		protected resolveTypes: (type: string) => string,
+		readonly codecs: Codecs<TTypeSet> = noopCodecs,
+	) {}
 
 	private itemCodecsCache: Map<string, ResolvedCodecs> = new Map();
 	private arrayCodecsCache: Map<string, ResolvedCodecs> = new Map();
 
 	/** @internal */
-	codecsOf(column: Column, override?: TTypeSet): ResolvedCodecs {
+	codecsOf(column: Column | CodecIdentifier, override?: TTypeSet): ResolvedCodecs {
 		const sqlType = (override ?? column.codec) as TTypeSet | undefined;
 		if (!sqlType) return noCodecs;
 
@@ -142,7 +162,7 @@ export class CodecsCollection<TTypeSet extends string = string> {
 	}
 
 	get<TCodecType extends keyof Codec>(
-		column: Column,
+		column: Column | CodecIdentifier<TTypeSet>,
 		type: TCodecType,
 		override?: TTypeSet,
 	):
@@ -153,7 +173,7 @@ export class CodecsCollection<TTypeSet extends string = string> {
 	}
 
 	apply<TCodecType extends keyof Codec>(
-		column: Column,
+		column: Column | CodecIdentifier,
 		type: TCodecType,
 		value: Codec[TCodecType] extends ((v: infer TValue, ...rest: any[]) => any) ? TValue : unknown,
 		override?: TTypeSet,
@@ -163,7 +183,11 @@ export class CodecsCollection<TTypeSet extends string = string> {
 		if (!codec) return value as any;
 
 		if (codecType === 'castParam') {
-			return (<CastParamCodec | CastArrayParamCodec> codec)(value as string, column, (<any> column).dimensions) as any;
+			return (<CastParamCodec | CastArrayParamCodec> codec)(
+				value as string,
+				column as Column,
+				(<any> column).dimensions,
+			) as any;
 		}
 
 		return (<NormalizeCodec | NormalizeArrayCodec | CastCodec | CastArrayCodec> codec)(

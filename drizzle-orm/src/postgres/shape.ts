@@ -14,7 +14,7 @@ import { Collect, CollectNullable, Json, JsonArray, Nullable, Transform } from '
 import { getOriginalColumnFromAlias } from '~/alias.ts';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
-import type { SelectedFieldsOrdered } from '~/operations.ts';
+import type { SelectedFieldsOrdered, SelectedJsonFieldsOrdered } from '~/operations.ts';
 import type { PgCodecs, PostgresType } from '~/pg-core/codecs.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PreparedQuerySelection } from '~/pg-core/dialect.ts';
@@ -104,7 +104,11 @@ type PlainItem = SelectedFieldsOrdered<Column>[number];
 type RelationalSelection = Extract<PreparedQuerySelection, { type: 'relational' }>['fields'];
 type RelationalItem = RelationalSelection[number];
 
-function getDecoder(item: PlainItem): DriverValueDecoder<any, any> {
+type JsonObjectItem = SelectedJsonFieldsOrdered<Column>[number];
+
+function getDecoder(
+	item: Exclude<PlainItem | JsonObjectItem, { fieldType: 'JsonObject' }>,
+): DriverValueDecoder<any, any> {
 	switch (item.fieldType) {
 		case 'Column':
 			return item.field;
@@ -231,7 +235,7 @@ type ShapeEntry = ShapeValue;
 
 interface PlainLeaf {
 	path: readonly string[];
-	leaf: WireSpec | TransformMarker;
+	leaf: WireSpec | TransformMarker | JsonMarker;
 }
 
 function assembleGroupBody(
@@ -283,12 +287,18 @@ function jsonSpecForColumn(column: Column | undefined, arrayDimensions: number |
 }
 
 function jsonLeafFor(item: RelationalItem): TypeSpec | TransformMarker {
-	const { field, codec, arrayDimensions } = item;
+	return jsonLeaf(item, getRqbDecoder(item), getRqbColumn(item));
+}
 
-	const mapFromJsonValue = (<{ mapFromJsonValue?: (value: unknown) => unknown }> field).mapFromJsonValue;
-	const decoder = getRqbDecoder(item);
+function jsonLeaf(
+	item: RelationalItem | Exclude<JsonObjectItem, { fieldType: 'JsonObject' }>,
+	decoder: DriverValueDecoder<any, any>,
+	column: Column | undefined,
+): TypeSpec | TransformMarker {
+	const { codec, arrayDimensions } = item;
+
+	const mapFromJsonValue = (<{ mapFromJsonValue?: (value: unknown) => unknown }> decoder).mapFromJsonValue;
 	const isNoop = decoder.mapFromDriverValue.isNoop;
-	const column = getRqbColumn(item);
 
 	if (!mapFromJsonValue && !codec && isNoop) {
 		return jsonSpecForColumn(column, arrayDimensions);
@@ -317,6 +327,22 @@ function jsonSpecFor(selection: RelationalSelection): JsonSpec {
 	for (let i = 0; i < selection.length; ++i) {
 		const item = selection[i]!;
 		spec[i] = [item.key, item.selection ? jsonMarkerFor(item) : jsonLeafFor(item)];
+	}
+
+	return spec;
+}
+
+function jsonObjectSpecFor(selection: SelectedJsonFieldsOrdered<Column>): JsonSpec {
+	const spec: [string, TypeSpec | JsonMarker | TransformMarker][] = new Array(selection.length);
+
+	for (let i = 0; i < selection.length; ++i) {
+		const item = selection[i]!;
+		spec[i] = [
+			item.key,
+			item.fieldType === 'JsonObject' || (item.fieldType === 'Subquery' && item.selection)
+				? Json(jsonObjectSpecFor(item.selection!))
+				: jsonLeaf(item, getDecoder(item), item.column),
+		];
 	}
 
 	return spec;
@@ -351,18 +377,35 @@ export function buildShape(
 	if (selection.type === 'relational') return relationalShape(selection.fields, codecs);
 
 	const { fields } = selection;
-	const leaves = new Array<WireSpec | TransformMarker>(fields.length);
+	const leaves = new Array<PlainLeafSpec>(fields.length);
 	for (let i = 0; i < fields.length; ++i) leaves[i] = plainLeaf(fields[i]!, codecs);
 	return plainShape(fields, leaves, nullableObjectPaths);
 }
 
-function plainLeaf(item: PlainItem, codecs: PgCodecs | undefined): WireSpec | TransformMarker {
-	return wireLeaf(getDecoder(item), item.column, item.codecOverride, item.arrayDimensions, codecs);
+type PlainLeafSpec = WireSpec | TransformMarker | JsonMarker;
+
+/** JSON objects, subqueries selecting one: their selections are already resolved against codecs */
+function isJsonObjectItem(
+	item: PlainItem,
+): item is PlainItem & { selection: SelectedJsonFieldsOrdered<Column> } {
+	return item.fieldType === 'JsonObject' || (item.fieldType === 'Subquery' && !!item.selection);
+}
+
+function plainLeaf(item: PlainItem, codecs: PgCodecs | undefined): PlainLeafSpec {
+	if (isJsonObjectItem(item)) return Json(jsonObjectSpecFor(item.selection));
+
+	return wireLeaf(
+		getDecoder(item as Exclude<PlainItem, { fieldType: 'JsonObject' }>),
+		item.column,
+		item.codecOverride,
+		item.arrayDimensions,
+		codecs,
+	);
 }
 
 function plainShape(
 	fields: readonly PlainItem[],
-	leaves: readonly (WireSpec | TransformMarker)[],
+	leaves: readonly PlainLeafSpec[],
 	nullableObjectPaths: string[] | undefined,
 ): ShapeSpec {
 	const nullableKeys = new Set(nullableObjectPaths ?? []);
@@ -417,7 +460,7 @@ function plainShape(
 // nullable paths select the shape at the end.
 interface ShapeNode {
 	segs?: Map<string, ShapeNode>;
-	leaves?: Map<WireSpec | TransformMarker, ShapeNode>;
+	leaves?: Map<PlainLeafSpec, ShapeNode>;
 	shapes?: Map<string, ShapeSpec>;
 }
 
@@ -427,11 +470,18 @@ const MAX_MEMOIZED_SHAPES = 2048;
 
 export const createShapeGenerator = (codecs: PgCodecs) => {
 	// A column's leaf depends only on the column and the codecs (its arrayDimensions is column.dimensions).
-	const columnLeaves = new WeakMap<Column, WireSpec | TransformMarker>();
+	const columnLeaves = new WeakMap<Column, PlainLeafSpec>();
+	// `Json` markers are built anew per call: cached by the selected object to keep shapes memoizable
+	const jsonObjectLeaves = new WeakMap<object, PlainLeafSpec>();
 	let root: ShapeNode = {};
 	let memoized = 0;
 
-	const leafOf = (item: PlainItem): WireSpec | TransformMarker => {
+	const leafOf = (item: PlainItem): PlainLeafSpec => {
+		if (isJsonObjectItem(item)) {
+			let leaf = jsonObjectLeaves.get(item.field);
+			if (leaf === undefined) jsonObjectLeaves.set(item.field, leaf = plainLeaf(item, codecs));
+			return leaf;
+		}
 		if (item.fieldType !== 'Column' || item.codecOverride !== undefined) return plainLeaf(item, codecs);
 		let leaf = columnLeaves.get(item.field);
 		if (leaf === undefined) columnLeaves.set(item.field, leaf = plainLeaf(item, codecs));
@@ -446,7 +496,7 @@ export const createShapeGenerator = (codecs: PgCodecs) => {
 			memoized = 0;
 		}
 		const { fields } = selection;
-		const leaves = new Array<WireSpec | TransformMarker>(fields.length);
+		const leaves = new Array<PlainLeafSpec>(fields.length);
 		let node = root;
 		for (let i = 0; i < fields.length; ++i) {
 			const item = fields[i]!;

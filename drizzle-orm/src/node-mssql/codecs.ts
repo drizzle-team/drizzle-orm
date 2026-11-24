@@ -30,4 +30,7 @@ export const nodeMssqlCodecs = refineGenericMsSqlCodecs({
 	'numeric:bigint': {
 		normalize: bigintFromIntegerValue('numeric', driver),
 	},
+	'varchar:json': {
+		normalize: (value: string) => JSON.parse(value),
+	},
 });

@@ -1,5 +1,5 @@
 import { aliasedTable, aliasedTableSQL, getOriginalColumnFromAlias } from '~/alias.ts';
-import { CodecsCollection } from '~/codecs.ts';
+import { type CodecIdentifier, CodecsCollection, jsonObjectCodecs } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -13,8 +13,8 @@ import type {
 	WithContainer,
 } from '~/relations.ts';
 import {
-	buildRqbColumns,
 	// AggregatedField,
+	buildRqbColumns,
 	collectSubquery,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
@@ -24,15 +24,18 @@ import {
 	relationExtrasToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
+	type RqbCustomColumn,
 } from '~/relations.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
+import type { JsonObject } from '~/sql/sql.ts';
 import { noopEncoder, SQL, sql } from '~/sql/sql.ts';
 import type { DriverValueEncoder, Name, Placeholder, Query, SQLChunk } from '~/sql/sql.ts';
-import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, isSQLWrapper, unqualifyColumns } from '~/sql/sql.ts';
 import { ValueRows } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import {
+	getColumnFromDecoder,
 	make$ReturningResponseMapper,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
@@ -66,7 +69,7 @@ export interface MySqlDialectConfig {
 
 const escapeMySqlName = memoizeEscape((name) => `\`${name.replace(/`/g, '``')}\``);
 // Stored separately - differ per dialect
-const rqbChunks = {
+const mysqlCommonStringChunks = {
 	relationField: new StringChunk('.`r` as '),
 	rowNumber: new StringChunk(', row_number() over (order by '),
 	joinOpen: new StringChunk(' left join lateral(select '),
@@ -101,7 +104,7 @@ export class MySqlDialect {
 			this.escapeParam = config.escapeParam;
 		}
 
-		this.codecs = new CodecsCollection<MySqlType>(resolveMySqlTypeAlias, config?.codecs);
+		this.codecs = new CodecsCollection<MySqlType>('mysql', resolveMySqlTypeAlias, config?.codecs);
 		this.mapperGenerators = config?.useJitMappers
 			? {
 				rows: makeJitQueryMapper,
@@ -127,6 +130,82 @@ export class MySqlDialect {
 	escapeString(str: string): string {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
+
+	private collectJsonValue(
+		collectTo: SQLChunk[],
+		value: SQLChunk,
+		decoder: Column | CodecIdentifier | undefined,
+	): void {
+		if (!decoder) {
+			collectTo.push(value);
+			return;
+		}
+
+		const { jsonSelectIdentifier, dimensions } = decoder as Column & RqbCustomColumn;
+		// Codec bypass for custom columns with enabled legacy JSON api
+		collectTo.push(
+			jsonSelectIdentifier
+				? jsonSelectIdentifier.call(decoder as Column, new SQL([value]), sql, dimensions)
+				: this.codecs.apply(decoder, 'castInJson', value),
+		);
+	}
+
+	private buildJsonObjectField(field: unknown, collectTo: SQLChunk[]): void {
+		const kind = chunkKindOf(field);
+		if (isChunk(field, kind, chunkKinds.column)) {
+			this.collectJsonValue(collectTo, field, field);
+		} else if (isChunk(field, kind, chunkKinds.sql)) {
+			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
+		} else if (isChunk(field, kind, chunkKinds.aliased)) {
+			this.collectJsonValue(collectTo, field.isSelectionField ? field : field.sql, getColumnFromDecoder(field));
+		} else if (isChunk(field, kind, chunkKinds.subquery)) {
+			const value = field._.isWith
+				? field
+				: new SQL([commonStringChunks['('], field._.sql, commonStringChunks[')']]);
+			const innerField = Object.values(field._.selectedFields)[0];
+			const innerKind = chunkKindOf(innerField);
+
+			if (isChunk(innerField, innerKind, chunkKinds.jsonObject)) {
+				this.collectJsonValue(collectTo, value, jsonObjectCodecs.mysql);
+				return;
+			}
+
+			this.collectJsonValue(
+				collectTo,
+				value,
+				isChunk(innerField, innerKind, chunkKinds.column)
+					? innerField
+					: isSQLWrapper(innerField)
+					? getColumnFromDecoder(innerField)
+					: undefined,
+			);
+		} else if (isChunk(field, kind, chunkKinds.jsonObject)) {
+			this.collectJsonValue(
+				collectTo,
+				field.origin !== undefined && field.alias !== undefined
+					? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
+					: new SQL(this.buildJsonObject(field)),
+				jsonObjectCodecs.mysql,
+			);
+		} else if (isSQLWrapper(field)) {
+			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
+		}
+	}
+
+	buildJsonObject = (object: JsonObject, collectTo: SQLChunk[] = []): SQLChunk[] => {
+		const entries = Object.entries(object.selection);
+
+		collectTo.push(mysqlCommonStringChunks.jsonObjectOpen);
+		for (let i = 0; i < entries.length; ++i) {
+			const [key, field] = entries[i]!;
+			if (i > 0) collectTo.push(commonStringChunks[', ']);
+			collectTo.push(new StringChunk(this.escapeString(key)), commonStringChunks[', ']);
+			this.buildJsonObjectField(field, collectTo);
+		}
+		collectTo.push(commonStringChunks[')']);
+
+		return collectTo;
+	};
 
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
@@ -366,6 +445,20 @@ export class MySqlDialect {
 						chunks.push(field);
 					}
 
+					break;
+				}
+				case 'JsonObject': {
+					if (field.origin !== undefined && field.alias !== undefined) {
+						const query = !isSingleTable
+							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
+							: sql.identifier(field.alias);
+						chunks.push(query);
+						break;
+					}
+
+					this.buildJsonObject(field, chunks);
+
+					if (field.alias !== undefined) chunks.push(commonStringChunks[' as '], sql.identifier(field.alias));
 					break;
 				}
 			}
@@ -775,6 +868,7 @@ export class MySqlDialect {
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			buildJsonObject: this.buildJsonObject,
 			codecs: this.codecs,
 			invokeSource,
 		});
@@ -870,7 +964,7 @@ export class MySqlDialect {
 		for (const k of withKeys) {
 			const key = sql.identifier(k);
 			if (selected++) collectTo.push(commonStringChunks[', ']);
-			collectTo.push(key, rqbChunks.relationField, key);
+			collectTo.push(key, mysqlCommonStringChunks.relationField, key);
 		}
 
 		if (!selected) {
@@ -880,7 +974,7 @@ export class MySqlDialect {
 		}
 		// json_arrayagg() ignores order by clause otherwise
 		if (isNestedMany && order) {
-			collectTo.push(rqbChunks.rowNumber, ...order, commonStringChunks[')']);
+			collectTo.push(mysqlCommonStringChunks.rowNumber, ...order, commonStringChunks[')']);
 		}
 
 		// Optimize slow queries caused by planner applying pagination or filters after building relations
@@ -930,10 +1024,10 @@ export class MySqlDialect {
 				throughTable,
 			);
 
-			collectTo.push(rqbChunks.joinOpen);
+			collectTo.push(mysqlCommonStringChunks.joinOpen);
 			// Reserved for JSON object of relation's fields, known once relation's query is built
 			const jsonIdx = collectTo.length;
-			collectTo.push(undefined, rqbChunks.joinFrom);
+			collectTo.push(undefined, mysqlCommonStringChunks.joinFrom);
 			const innerSelection = this.collectRelationalQuery({
 				table: targetTable,
 				mode: isSingle ? 'first' : 'many',
@@ -949,15 +1043,17 @@ export class MySqlDialect {
 				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
 				nested: true,
 			}, collectTo);
-			collectTo.push(rqbChunks.joinClose, sql.identifier(k), rqbChunks.onTrue);
+			collectTo.push(mysqlCommonStringChunks.joinClose, sql.identifier(k), mysqlCommonStringChunks.onTrue);
 
-			const jsonChunks: SQLChunk[] = [isSingle ? rqbChunks.jsonObjectOpen : rqbChunks.jsonArrayAggOpen];
+			const jsonChunks: SQLChunk[] = [
+				isSingle ? mysqlCommonStringChunks.jsonObjectOpen : mysqlCommonStringChunks.jsonArrayAggOpen,
+			];
 			for (let i = 0; i < innerSelection.length; ++i) {
 				const key = innerSelection[i]!.key;
 				if (i) jsonChunks.push(commonStringChunks[', ']);
 				jsonChunks.push(new StringChunk(this.escapeString(key)), commonStringChunks[', '], sql.identifier(key));
 			}
-			jsonChunks.push(isSingle ? commonStringChunks[')'] : rqbChunks.jsonArrayAggClose);
+			jsonChunks.push(isSingle ? commonStringChunks[')'] : mysqlCommonStringChunks.jsonArrayAggClose);
 			collectTo[jsonIdx] = new SQL(jsonChunks);
 
 			selection.push({

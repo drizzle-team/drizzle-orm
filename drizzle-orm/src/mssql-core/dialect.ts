@@ -1,5 +1,5 @@
 import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
-import { CodecsCollection } from '~/codecs.ts';
+import { type CodecIdentifier, CodecsCollection, jsonObjectCodecs } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
@@ -24,15 +24,18 @@ import {
 	relationExtrasToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
+	type RqbCustomColumn,
 } from '~/relations.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
+import type { JsonObject } from '~/sql/sql.ts';
 import { type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, isSQLWrapper, unqualifyColumns } from '~/sql/sql.ts';
 import { ValueRows } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
 import {
+	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
 	memoizeEscape,
@@ -62,7 +65,7 @@ export interface MsSqlDialectConfig {
 
 const escapeMsSqlName = memoizeEscape((name) => `[${name.replace(/\]/g, ']]')}]`);
 // Stored separately - differ per dialect
-const rqbChunks = {
+const mssqlCommonStringChunks = {
 	select: new StringChunk('select'),
 	top: new StringChunk(' top('),
 	offset: new StringChunk(' offset '),
@@ -80,6 +83,9 @@ const rqbChunks = {
 	forJsonOne: new StringChunk(' for json path, include_null_values, without_array_wrapper) '),
 	forJsonMany: new StringChunk(' for json path, include_null_values) '),
 	applyColumn: new StringChunk('([j])'),
+	// No `json_object` before SQL Server 2022: objects are built by scalar subqueries
+	jsonObjectOpen: new StringChunk('(select '),
+	jsonObjectClose: new StringChunk(' for json path, include_null_values, without_array_wrapper)'),
 } as const;
 
 export class MsSqlDialect {
@@ -95,7 +101,7 @@ export class MsSqlDialect {
 	};
 
 	constructor(config?: MsSqlDialectConfig) {
-		this.codecs = new CodecsCollection<MsSqlType>(resolveMsSqlTypeAlias, config?.codecs);
+		this.codecs = new CodecsCollection<MsSqlType>('mssql', resolveMsSqlTypeAlias, config?.codecs);
 		this.mapperGenerators = config?.useJitMappers
 			? {
 				rows: makeJitQueryMapper,
@@ -227,6 +233,94 @@ export class MsSqlDialect {
 	escapeString(str: string): string {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
+
+	private collectJsonValue(
+		collectTo: SQLChunk[],
+		value: SQLChunk,
+		decoder: Column | CodecIdentifier | undefined,
+	): void {
+		if (!decoder) {
+			collectTo.push(value);
+			return;
+		}
+
+		const { jsonSelectIdentifier, dimensions } = decoder as Column & RqbCustomColumn;
+		// Codec bypass for custom columns with enabled legacy JSON api
+		collectTo.push(
+			jsonSelectIdentifier
+				? jsonSelectIdentifier.call(decoder as Column, new SQL([value]), sql, dimensions)
+				: this.codecs.apply(decoder, 'castInJson', value),
+		);
+	}
+
+	private buildJsonObjectField(field: unknown, collectTo: SQLChunk[]): void {
+		const kind = chunkKindOf(field);
+		if (isChunk(field, kind, chunkKinds.column)) {
+			this.collectJsonValue(collectTo, field, field);
+		} else if (isChunk(field, kind, chunkKinds.sql)) {
+			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
+		} else if (isChunk(field, kind, chunkKinds.aliased)) {
+			this.collectJsonValue(collectTo, field.isSelectionField ? field : field.sql, getColumnFromDecoder(field));
+		} else if (isChunk(field, kind, chunkKinds.subquery)) {
+			const value = field._.isWith
+				? field
+				: new SQL([commonStringChunks['('], field._.sql, commonStringChunks[')']]);
+			const innerField = Object.values(field._.selectedFields)[0];
+			const innerKind = chunkKindOf(innerField);
+
+			if (isChunk(innerField, innerKind, chunkKinds.jsonObject)) {
+				// `for json path` escapes text values: objects have to be marked as JSON to be embedded
+				this.collectJsonValue(
+					collectTo,
+					new SQL([mssqlCommonStringChunks.jsonQueryOpen, value, commonStringChunks[')']]),
+					jsonObjectCodecs.mssql,
+				);
+				return;
+			}
+
+			this.collectJsonValue(
+				collectTo,
+				value,
+				isChunk(innerField, innerKind, chunkKinds.column)
+					? innerField
+					: isSQLWrapper(innerField)
+					? getColumnFromDecoder(innerField)
+					: undefined,
+			);
+		} else if (isChunk(field, kind, chunkKinds.jsonObject)) {
+			const value = field.origin !== undefined && field.alias !== undefined
+				? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
+				: new SQL(this.buildJsonObject(field));
+			// `for json path` escapes text values: objects have to be marked as JSON to be embedded
+			this.collectJsonValue(
+				collectTo,
+				new SQL([mssqlCommonStringChunks.jsonQueryOpen, value, commonStringChunks[')']]),
+				jsonObjectCodecs.mssql,
+			);
+		} else if (isSQLWrapper(field)) {
+			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
+		}
+	}
+
+	buildJsonObject = (object: JsonObject, collectTo: SQLChunk[] = []): SQLChunk[] => {
+		const entries = Object.entries(object.selection);
+
+		collectTo.push(mssqlCommonStringChunks.jsonObjectOpen);
+		for (let i = 0; i < entries.length; ++i) {
+			const [key, field] = entries[i]!;
+			// `for json path` turns dot-separated keys into nested objects
+			if (key.includes('.')) {
+				throw new DrizzleError({ message: `JSON object keys can't contain dots in MSSQL, got "${key}"` });
+			}
+
+			if (i > 0) collectTo.push(commonStringChunks[', ']);
+			this.buildJsonObjectField(field, collectTo);
+			collectTo.push(commonStringChunks[' as '], sql.identifier(key));
+		}
+		collectTo.push(mssqlCommonStringChunks.jsonObjectClose);
+
+		return collectTo;
+	};
 
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
@@ -478,6 +572,20 @@ export class MsSqlDialect {
 						chunks.push(field);
 					}
 
+					break;
+				}
+				case 'JsonObject': {
+					if (field.origin !== undefined && field.alias !== undefined) {
+						const query = !isSingleTable
+							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
+							: sql.identifier(field.alias);
+						chunks.push(query);
+						break;
+					}
+
+					this.buildJsonObject(field, chunks);
+
+					if (field.alias !== undefined) chunks.push(commonStringChunks[' as '], sql.identifier(field.alias));
 					break;
 				}
 			}
@@ -894,6 +1002,7 @@ export class MsSqlDialect {
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			buildJsonObject: this.buildJsonObject,
 			codecs: this.codecs,
 			invokeSource,
 		});
@@ -976,9 +1085,9 @@ export class MsSqlDialect {
 		const withIdx = currentDepth ? -1 : collectTo.length;
 		if (!currentDepth) collectTo.push(undefined);
 
-		collectTo.push(rqbChunks.select);
+		collectTo.push(mssqlCommonStringChunks.select);
 		if (!useOffset && limit !== undefined) {
-			collectTo.push(rqbChunks.top, limit as SQLChunk, commonStringChunks[')']);
+			collectTo.push(mssqlCommonStringChunks.top, limit as SQLChunk, commonStringChunks[')']);
 		}
 		collectTo.push(commonStringChunks[' ']);
 		const hasColumns = buildRqbColumns(
@@ -1010,16 +1119,16 @@ export class MsSqlDialect {
 			if (selected++) collectTo.push(commonStringChunks[', ']);
 			collectTo.push(
 				relation.relationType === 'one'
-					? nested ? rqbChunks.jsonQueryOpen : undefined
+					? nested ? mssqlCommonStringChunks.jsonQueryOpen : undefined
 					: nested
-					? rqbChunks.jsonQueryCoalesceOpen
-					: rqbChunks.coalesceOpen,
+					? mssqlCommonStringChunks.jsonQueryCoalesceOpen
+					: mssqlCommonStringChunks.coalesceOpen,
 				applyAlias,
 				relation.relationType === 'one'
-					? nested ? rqbChunks.jsonOneNestedClose : rqbChunks.jsonOneClose
+					? nested ? mssqlCommonStringChunks.jsonOneNestedClose : mssqlCommonStringChunks.jsonOneClose
 					: nested
-					? rqbChunks.jsonManyNestedClose
-					: rqbChunks.jsonManyClose,
+					? mssqlCommonStringChunks.jsonManyNestedClose
+					: mssqlCommonStringChunks.jsonManyClose,
 				sql.identifier(k),
 			);
 		}
@@ -1047,8 +1156,10 @@ export class MsSqlDialect {
 			if (where) collectTo.push(commonStringChunks[' where '], ...where);
 			if (order) collectTo.push(commonStringChunks[' order by '], ...order);
 			// Wrapped only when paginated with `offset`
-			collectTo.push(rqbChunks.offset, offset as SQLChunk, rqbChunks.rows);
-			if (limit !== undefined) collectTo.push(rqbChunks.fetchNext, limit as SQLChunk, rqbChunks.rowsOnly);
+			collectTo.push(mssqlCommonStringChunks.offset, offset as SQLChunk, mssqlCommonStringChunks.rows);
+			if (limit !== undefined) {
+				collectTo.push(mssqlCommonStringChunks.fetchNext, limit as SQLChunk, mssqlCommonStringChunks.rowsOnly);
+			}
 			collectTo.push(commonStringChunks[') as '], tableRef);
 		}
 
@@ -1067,7 +1178,7 @@ export class MsSqlDialect {
 
 			const { filter, joinCondition } = relationToSQL(relation, table, targetTable, throughTable);
 
-			collectTo.push(rqbChunks.applyOpen);
+			collectTo.push(mssqlCommonStringChunks.applyOpen);
 			const innerSelection = this.collectRelationalQuery({
 				table: targetTable,
 				mode: isSingle ? 'first' : 'many',
@@ -1083,9 +1194,9 @@ export class MsSqlDialect {
 				nested: true,
 			}, collectTo);
 			collectTo.push(
-				isSingle ? rqbChunks.forJsonOne : rqbChunks.forJsonMany,
+				isSingle ? mssqlCommonStringChunks.forJsonOne : mssqlCommonStringChunks.forJsonMany,
 				applyAliases[i],
-				rqbChunks.applyColumn,
+				mssqlCommonStringChunks.applyColumn,
 			);
 
 			selection.push({
@@ -1105,8 +1216,10 @@ export class MsSqlDialect {
 			if (where) collectTo.push(commonStringChunks[' where '], ...where);
 			if (order) collectTo.push(commonStringChunks[' order by '], ...order);
 			if (useOffset) {
-				collectTo.push(rqbChunks.offset, offset as SQLChunk, rqbChunks.rows);
-				if (limit !== undefined) collectTo.push(rqbChunks.fetchNext, limit as SQLChunk, rqbChunks.rowsOnly);
+				collectTo.push(mssqlCommonStringChunks.offset, offset as SQLChunk, mssqlCommonStringChunks.rows);
+				if (limit !== undefined) {
+					collectTo.push(mssqlCommonStringChunks.fetchNext, limit as SQLChunk, mssqlCommonStringChunks.rowsOnly);
+				}
 			}
 		}
 

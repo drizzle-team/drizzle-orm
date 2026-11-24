@@ -25,6 +25,8 @@ import {
 import type { DsqlAsyncDatabase } from 'drizzle-orm/pg-core/async/dsql';
 import { expect, expectTypeOf } from 'vitest';
 
+export const asJsonObjects = <TRow>(rows: TRow[]) => rows.map((row) => ({ object: row, nested: { object: row } }));
+
 export const makeAllTypes = <TTable extends string>(tableName: TTable) => {
 	const allTypesTable = makeAllTypesTable(tableName);
 	return { allTypesTable };
@@ -1050,6 +1052,15 @@ export async function assertAllTypesBounds(
 			expect(
 				await run((<any> db).query.boundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
 			).toStrictEqual(boundsData.map((row) => ({ ...row, self: [row] })));
+
+			const objects = db.select({
+				object: sql.jsonObject(boundsTable),
+				nested: sql.jsonObject({ object: sql.jsonObject(boundsTable) }),
+			}).from(boundsTable).orderBy(boundsTable.id);
+			expectTypeOf<(typeof objects)['_']['result']>().toEqualTypeOf<
+				{ object: BoundsRow; nested: { object: BoundsRow } }[]
+			>();
+			expect(await run(objects)).toStrictEqual(asJsonObjects(boundsData));
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropBounds())));
@@ -1281,6 +1292,17 @@ export async function assertAllTypesTemporalBounds(
 			expect(
 				await run((<any> db).query.temporalBoundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
 			).toStrictEqual(temporalBoundsData.map((row) => ({ ...row, self: [row] })));
+
+			const objects = db.select({
+				object: sql.jsonObject(temporalBoundsTable),
+				nested: sql.jsonObject({ object: sql.jsonObject(temporalBoundsTable) }),
+			}).from(temporalBoundsTable).orderBy(
+				temporalBoundsTable.id,
+			);
+			expectTypeOf<(typeof objects)['_']['result']>().toEqualTypeOf<
+				{ object: TemporalBoundsRow; nested: { object: TemporalBoundsRow } }[]
+			>();
+			expect(await run(objects)).toStrictEqual(asJsonObjects(temporalBoundsData));
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropTemporalBounds())));

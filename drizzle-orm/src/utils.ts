@@ -1,15 +1,15 @@
 import { View } from '~/view.ts';
-import type { CodecsCollection } from './codecs.ts';
+import { type CodecsCollection, jsonObjectCodecs } from './codecs.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './operations.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered, SelectedJsonFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
 import type { AnyRelations, EmptyRelations } from './relations.ts';
-import { chunkKindOf, chunkKinds, isChunk, Param, SQL } from './sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, type JsonObject, Param, type SQL } from './sql/sql.ts';
 import type { DriverValueDecoder, SQLWrapper } from './sql/sql.ts';
-import { Subquery } from './subquery.ts';
+import type { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
@@ -32,8 +32,10 @@ export function resolveNullableObjectPaths(
 			seen.add(key);
 			order.push(key);
 		}
-		if (fieldType !== 'Column') continue;
-		const tableName = getTableName(field.table);
+		let tableName: string;
+		if (fieldType === 'Column') tableName = getTableName(field.table);
+		else if (fieldType === 'JsonObject' && field.origin !== undefined) tableName = field.origin;
+		else continue;
 		const current = tableOf.get(key);
 		if (current === undefined) tableOf.set(key, tableName);
 		else if (current !== false && current !== tableName) tableOf.set(key, false);
@@ -75,6 +77,186 @@ function nullablePathTargets(
 /** @internal bypass bundle-time filtering */
 export const FnConstructor = Object.getPrototypeOf(() => null).constructor as typeof Function;
 
+type JsonObjectSelectionItem = SelectedJsonFieldsOrdered<AnyColumn>[number];
+
+function jsonSelectionOf(
+	item: SelectedFieldsOrdered<AnyColumn>[number] | JsonObjectSelectionItem,
+): SelectedJsonFieldsOrdered<AnyColumn> | undefined {
+	return item.fieldType === 'JsonObject' || item.fieldType === 'Subquery' ? item.selection : undefined;
+}
+
+function jsonFieldDecoderSource(
+	item: Exclude<JsonObjectSelectionItem, { fieldType: 'JsonObject' }>,
+): DriverValueDecoder<unknown, unknown> & { mapFromJsonValue?: (value: unknown) => unknown } {
+	switch (item.fieldType) {
+		case 'Column':
+			return item.field;
+		case 'SQL':
+			return item.field.decoder;
+		case 'SQL.Aliased':
+			return item.field.sql.decoder;
+		case 'Subquery':
+			return item.field._.sql.decoder;
+	}
+}
+
+function makeJsonFieldDecoder(item: JsonObjectSelectionItem): ((v: any) => any) | undefined {
+	const { codec, arrayDimensions } = item;
+
+	const selection = jsonSelectionOf(item);
+	if (selection) {
+		const inner = makeJsonObjectDecoder(selection);
+		if (!codec) return inner;
+		if (!inner) return (v: any) => codec(v, arrayDimensions!);
+
+		return (v: any) => {
+			const parsed = codec(v, arrayDimensions!);
+			return parsed === null ? parsed : inner(parsed);
+		};
+	}
+
+	const decoderSrc = jsonFieldDecoderSource(item as Exclude<JsonObjectSelectionItem, { fieldType: 'JsonObject' }>);
+	if (decoderSrc.mapFromJsonValue) return (v: any) => decoderSrc.mapFromJsonValue!(v);
+
+	if (decoderSrc.mapFromDriverValue.isNoop) {
+		return codec ? (v: any) => codec(v, arrayDimensions!) : undefined;
+	}
+
+	return codec
+		? (v: any) => decoderSrc.mapFromDriverValue(codec(v, arrayDimensions!))
+		: (v: any) => decoderSrc.mapFromDriverValue(v);
+}
+
+/** Maps JSON object's values in place, returns `undefined` if there's nothing to map */
+function makeJsonObjectDecoder(
+	selection: SelectedJsonFieldsOrdered<AnyColumn>,
+): ((v: Record<string, unknown>) => Record<string, unknown>) | undefined {
+	const keys: string[] = [];
+	const decoders: ((v: any) => any)[] = [];
+	for (const item of selection) {
+		const decoder = makeJsonFieldDecoder(item);
+		if (!decoder) continue;
+
+		keys.push(item.key);
+		decoders.push(decoder);
+	}
+
+	if (!decoders.length) return undefined;
+
+	return (obj) => {
+		for (let i = 0; i < keys.length; ++i) {
+			const key = keys[i]!;
+			const value = obj[key];
+			if (value === null || value === undefined) continue;
+
+			obj[key] = decoders[i]!(value);
+		}
+
+		return obj;
+	};
+}
+
+function makeJitJsonObjectInner(
+	selection: SelectedJsonFieldsOrdered<AnyColumn>,
+	valueExpr: string,
+	selectionVar: string,
+	preFn: string[],
+	counter: { n: number },
+): { bodyStmts: string[]; literal: string; hasWork: boolean } {
+	const bodyStmts: string[] = [];
+	const literalEntries: string[] = [];
+	let hasWork = false;
+
+	const vars = selection.map(() => `j${counter.n++}`);
+	bodyStmts.push(
+		`let { ${selection.map((item, i) => `${JSON.stringify(item.key)}: ${vars[i]}`).join(', ')} } = ${valueExpr};`,
+	);
+
+	for (let idx = 0; idx < selection.length; ++idx) {
+		const item = selection[idx]!;
+		const { codec, arrayDimensions } = item;
+		const sel = `${selectionVar}[${idx}]`;
+		const keyStr = JSON.stringify(item.key);
+		const slot = vars[idx]!;
+
+		const nestedSelection = jsonSelectionOf(item);
+		if (nestedSelection) {
+			const codecVar = codec ? `jcodec${counter.n++}` : '';
+			const nestedSelVar = `jsel${counter.n++}`;
+			const savedPreFnLen = preFn.length;
+			preFn.push(`const { selection: ${nestedSelVar}${codecVar ? `, codec: ${codecVar}` : ''} } = ${sel};`);
+
+			const inner = makeJitJsonObjectInner(nestedSelection, slot, nestedSelVar, preFn, counter);
+			if (codecVar) {
+				hasWork = true;
+				bodyStmts.push(`if (${slot} !== null) ${slot} = ${codecVar}(${slot}, ${arrayDimensions});`);
+			}
+
+			if (inner.hasWork) {
+				hasWork = true;
+				bodyStmts.push(`if (${slot} !== null) {`);
+				for (const s of inner.bodyStmts) bodyStmts.push(`\t${s}`);
+				bodyStmts.push(`\t${slot} = ${inner.literal};`);
+				bodyStmts.push(`}`);
+			} else if (codecVar) {
+				preFn[savedPreFnLen] = `const { codec: ${codecVar} } = ${sel};`;
+			} else {
+				preFn.splice(savedPreFnLen, 1);
+			}
+
+			literalEntries.push(`${keyStr}: ${slot}`);
+			continue;
+		}
+
+		const plainItem = item as Exclude<JsonObjectSelectionItem, { fieldType: 'JsonObject' }>;
+		const decoderSrc = jsonFieldDecoderSource(plainItem);
+		const decVar = `jdec${counter.n++}`;
+		let destructure: string;
+		switch (plainItem.fieldType) {
+			case 'Column':
+				destructure = `field: ${decVar}`;
+				break;
+			case 'SQL':
+				destructure = `field: { decoder: ${decVar} }`;
+				break;
+			case 'SQL.Aliased':
+				destructure = `field: { sql: { decoder: ${decVar} } }`;
+				break;
+			case 'Subquery':
+				destructure = `field: { _: { sql: { decoder: ${decVar} } } }`;
+				break;
+		}
+
+		let decoderExpr = '';
+		let codecVar = '';
+		if (decoderSrc.mapFromJsonValue) {
+			// Legacy custom column JSON api bypasses codecs
+			decoderExpr = `${decVar}.mapFromJsonValue`;
+		} else {
+			if (!decoderSrc.mapFromDriverValue.isNoop) decoderExpr = `${decVar}.mapFromDriverValue`;
+			if (codec) codecVar = `jcodec${counter.n++}`;
+		}
+
+		const parts: string[] = [];
+		if (decoderExpr) parts.push(destructure);
+		if (codecVar) parts.push(`codec: ${codecVar}`);
+		if (!parts.length) {
+			literalEntries.push(`${keyStr}: ${slot}`);
+			continue;
+		}
+
+		hasWork = true;
+		preFn.push(`const { ${parts.join(', ')} } = ${sel};`);
+
+		let decoded = slot;
+		if (codecVar) decoded = `${codecVar}(${decoded}, ${arrayDimensions})`;
+		if (decoderExpr) decoded = `${decoderExpr}(${decoded})`;
+		literalEntries.push(`${keyStr}: ${slot} === null ? null : ${decoded}`);
+	}
+
+	return { bodyStmts, literal: `{ ${literalEntries.join(', ')} }`, hasWork };
+}
+
 /** @internal */
 function makeJitQueryMapperInner(
 	columns: SelectedFieldsOrdered<AnyColumn>,
@@ -88,9 +270,47 @@ function makeJitQueryMapperInner(
 	const descendantIds: Record<string, string[]> = {};
 	const nullableKeys = new Set(nullableObjectPaths ?? []);
 	const decodes = new Array<string>(columns.length);
+	const jsonCounter = { n: 0 };
 
 	for (let idx = 0; idx < columns.length; ++idx) {
-		const { field, fieldType, path, codec, arrayDimensions } = columns[idx]!;
+		const column = columns[idx]!;
+		const { field, fieldType, path, codec, arrayDimensions } = column;
+		if (path.length > 1) (descendantIds[path[0]!] ??= []).push(`c${idx}`);
+
+		const jsonSelection = jsonSelectionOf(column);
+		if (jsonSelection) {
+			const colStr = `c${idx}`;
+			const objStr = `o${idx}`;
+			const selVar = `jsel${jsonCounter.n++}`;
+			const codecVar = codec ? `codec${idx}` : '';
+			const savedPreFnLen = preFn.length;
+			preFn.push(`const { selection: ${selVar}${codecVar ? `, codec: ${codecVar}` : ''} } = columns[${idx}];`);
+
+			const inner = makeJitJsonObjectInner(jsonSelection, objStr, selVar, preFn, jsonCounter);
+			if (!codecVar && !inner.hasWork) {
+				preFn.splice(savedPreFnLen, 1);
+				decodes[idx] = colStr;
+				continue;
+			}
+
+			fn.push(
+				codecVar
+					? `let ${objStr} = ${colStr} === null ? ${colStr} : ${codecVar}(${colStr}, ${arrayDimensions});`
+					: `let ${objStr} = ${colStr};`,
+			);
+			if (inner.hasWork) {
+				fn.push(`if (${objStr} !== null) {`);
+				for (const s of inner.bodyStmts) fn.push(`\t${s}`);
+				fn.push(`\t${objStr} = ${inner.literal};`);
+				fn.push(`}`);
+			} else {
+				preFn[savedPreFnLen] = `const { codec: ${codecVar} } = columns[${idx}];`;
+			}
+
+			decodes[idx] = objStr;
+			continue;
+		}
+
 		let decoder: DriverValueDecoder<unknown, unknown>;
 		let decoderStr: string;
 		let decoderFieldDestructure: string;
@@ -107,9 +327,14 @@ function makeJitQueryMapperInner(
 				decoder = field._.sql.decoder;
 				decoderFieldDestructure = `field: { _: { sql: { decoder: decoder${idx} } } }`;
 				break;
-			default:
+			case 'SQL.Aliased':
 				decoder = field.sql.decoder;
 				decoderFieldDestructure = `field: { sql: { decoder: decoder${idx} } }`;
+				break;
+			case 'JsonObject':
+				throw new Error('Unexpected JsonObject');
+			default:
+				assertUnreachable(fieldType);
 		}
 		decoderStr = `decoder${idx}.mapFromDriverValue`;
 		if (decoder.mapFromDriverValue.isNoop) decoderStr = '';
@@ -126,8 +351,6 @@ function makeJitQueryMapperInner(
 		decodes[idx] = colStr === decodedValue
 			? `${colStr}`
 			: `${colStr} === null ? ${colStr} : ${decodedValue}`;
-
-		if (path.length > 1) (descendantIds[path[0]!] ??= []).push(colStr);
 	}
 
 	fn.push(`mapped[i] = {`);
@@ -238,7 +461,22 @@ export function makeDefaultQueryMapper<TResult>(
 ): RowsMapper<TResult> {
 	const interpretedData: (((v: any) => any) | undefined)[] = new Array(columns.length);
 	for (let i = 0; i < columns.length; ++i) {
-		const { field, fieldType, codec, arrayDimensions } = columns[i]!;
+		const column = columns[i]!;
+		const { field, fieldType, codec, arrayDimensions } = column;
+
+		const jsonSelection = jsonSelectionOf(column);
+		if (jsonSelection) {
+			const inner = makeJsonObjectDecoder(jsonSelection);
+			interpretedData[i] = codec
+				? inner
+					? (v: any) => {
+						const parsed = codec(v, arrayDimensions!);
+						return parsed === null ? parsed : inner(parsed);
+					}
+					: (v: any) => codec(v, arrayDimensions!)
+				: inner;
+			continue;
+		}
 
 		let decoderSrc: DriverValueDecoder<unknown, unknown>;
 		switch (fieldType) {
@@ -251,8 +489,13 @@ export function makeDefaultQueryMapper<TResult>(
 			case 'Subquery':
 				decoderSrc = field._.sql.decoder;
 				break;
-			default:
+			case 'SQL.Aliased':
 				decoderSrc = field.sql.decoder;
+				break;
+			case 'JsonObject':
+				throw new Error('Unexpected JsonObject');
+			default:
+				assertUnreachable(fieldType);
 		}
 
 		let decoder: ((v: any) => any) | undefined;
@@ -360,6 +603,14 @@ export function make$ReturningResponseMapper(
 	};
 }
 
+/** Decoder of JSON object selected outside of JSON - nested ones are embedded as JSON and need none */
+function topLevelJsonObjectCodec(codecs: CodecsCollection | undefined) {
+	if (!codecs) return;
+
+	const identifier = jsonObjectCodecs[codecs.dialect];
+	return identifier && codecs.get(identifier, 'normalize');
+}
+
 /** @internal */
 export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
@@ -392,7 +643,9 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 
 		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-		if (is(field, Column)) {
+		const kind = chunkKindOf(field);
+
+		if (isChunk(field, kind, chunkKinds.column)) {
 			result.push({
 				path: newPath,
 				field: field,
@@ -401,7 +654,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 				arrayDimensions: (<any> field).dimensions,
 				column: field,
 			});
-		} else if (is(field, SQL)) {
+		} else if (isChunk(field, kind, chunkKinds.sql)) {
 			const col = getColumnFromDecoder(field);
 			result.push(
 				col
@@ -419,7 +672,7 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 						fieldType: 'SQL',
 					},
 			);
-		} else if (is(field, SQL.Aliased)) {
+		} else if (isChunk(field, kind, chunkKinds.aliased)) {
 			const col = getColumnFromDecoder(field);
 			result.push(
 				col
@@ -437,16 +690,28 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 						fieldType: 'SQL.Aliased',
 					},
 			);
-		} else if (is(field, Subquery)) {
+		} else if (isChunk(field, kind, chunkKinds.subquery)) {
 			let column: Column | undefined;
-			const entries = Object.values(field._.selectedFields) as (SQL.Aliased | Column | SQL)[];
+			const entries = Object.values(field._.selectedFields) as (SQL.Aliased | Column | SQL | JsonObject)[];
 			const entry = entries[0]!;
+			const entryKind = chunkKindOf(entry);
+
+			if (isChunk(entry, entryKind, chunkKinds.jsonObject)) {
+				result.push({
+					path: newPath,
+					field,
+					fieldType: 'Subquery',
+					selection: orderSelectedJsonFields(entry, codecs),
+					codec: topLevelJsonObjectCodec(codecs),
+				});
+				continue;
+			}
 
 			let fieldDecoder: DriverValueDecoder<any, any>;
-			if (is(entry, Column)) {
+			if (isChunk(entry, entryKind, chunkKinds.column)) {
 				column = entry;
 				fieldDecoder = entry;
-			} else if (is(entry, SQL)) {
+			} else if (isChunk(entry, entryKind, chunkKinds.sql)) {
 				column = getColumnFromDecoder(entry);
 				fieldDecoder = entry.decoder;
 			} else {
@@ -474,14 +739,142 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 						fieldType: 'Subquery',
 					},
 			);
-		} else if (is(field, Table)) {
+		} else if (isChunk(field, kind, chunkKinds.table)) {
 			orderSelectedFields(field[Table.Symbol.Columns], newPath, codecs, result);
+		} else if (isChunk(field, kind, chunkKinds.jsonObject)) {
+			result.push({
+				fieldType: 'JsonObject',
+				field: field,
+				path: newPath,
+				selection: orderSelectedJsonFields(field, codecs),
+				codec: topLevelJsonObjectCodec(codecs),
+			});
 		} else {
 			orderSelectedFields(field as Record<string, unknown>, newPath, codecs, result);
 		}
 	}
 
 	return result as SelectedFieldsOrdered<TColumn>;
+}
+
+function orderSelectedJsonFields<TColumn extends AnyColumn>(
+	object: JsonObject,
+	codecs?: CodecsCollection,
+): SelectedJsonFieldsOrdered<TColumn> {
+	const entries = Object.entries(object.selection);
+	const result: SelectedJsonFieldsOrdered<AnyColumn> = [];
+
+	for (let i = 0; i < entries.length; ++i) {
+		const [key, field] = entries[i]!;
+
+		const kind = chunkKindOf(field);
+
+		if (isChunk(field, kind, chunkKinds.column)) {
+			result.push({
+				key,
+				fieldType: 'Column',
+				field,
+				codec: codecs?.get(field, 'normalizeInJson'),
+				arrayDimensions: (<any> field).dimensions,
+				column: field,
+			});
+		} else if (isChunk(field, kind, chunkKinds.sql)) {
+			const col = getColumnFromDecoder(field);
+			result.push(
+				col
+					? {
+						key,
+						field,
+						fieldType: 'SQL',
+						codec: codecs?.get(col, 'normalizeInJson'),
+						arrayDimensions: (<any> col).dimensions,
+						column: col,
+					}
+					: {
+						key,
+						field,
+						fieldType: 'SQL',
+					},
+			);
+		} else if (isChunk(field, kind, chunkKinds.aliased)) {
+			const col = getColumnFromDecoder(field);
+			result.push(
+				col
+					? {
+						key,
+						field,
+						fieldType: 'SQL.Aliased',
+						codec: codecs?.get(col, 'normalizeInJson'),
+						arrayDimensions: (<any> col).dimensions,
+						column: col,
+					}
+					: {
+						key,
+						field,
+						fieldType: 'SQL.Aliased',
+					},
+			);
+		} else if (isChunk(field, kind, chunkKinds.subquery)) {
+			let column: Column | undefined;
+			const entries = Object.values(field._.selectedFields) as (SQL.Aliased | Column | SQL | JsonObject)[];
+			const entry = entries[0]!;
+			const entryKind = chunkKindOf(entry);
+
+			if (isChunk(entry, entryKind, chunkKinds.jsonObject)) {
+				result.push({
+					key,
+					field,
+					fieldType: 'Subquery',
+					selection: orderSelectedJsonFields(entry, codecs),
+				});
+				continue;
+			}
+
+			let fieldDecoder: DriverValueDecoder<any, any>;
+			if (isChunk(entry, entryKind, chunkKinds.column)) {
+				column = entry;
+				fieldDecoder = entry;
+			} else if (isChunk(entry, entryKind, chunkKinds.sql)) {
+				column = getColumnFromDecoder(entry);
+				fieldDecoder = entry.decoder;
+			} else {
+				column = getColumnFromDecoder(entry);
+				fieldDecoder = entry.sql.decoder;
+			}
+
+			if (fieldDecoder) {
+				field._.sql.decoder = fieldDecoder;
+			}
+
+			result.push(
+				column
+					? {
+						key,
+						field,
+						fieldType: 'Subquery',
+						codec: codecs?.get(column, 'normalizeInJson'),
+						arrayDimensions: (<any> column).dimensions,
+						column,
+					}
+					: {
+						key,
+						field,
+						fieldType: 'Subquery',
+					},
+			);
+		} else if (isChunk(field, kind, chunkKinds.jsonObject)) {
+			result.push({
+				key,
+				fieldType: 'JsonObject',
+				field: field,
+				selection: orderSelectedJsonFields(field, codecs),
+			});
+		} else {
+			throw new Error(`Unknown JsonObject field type`);
+		}
+	}
+
+	return result as SelectedJsonFieldsOrdered<TColumn>;
 }
 
 export function getColumnFromDecoder(source: SQL | SQL.Aliased | SQLWrapper): Column | undefined {

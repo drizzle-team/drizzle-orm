@@ -2733,8 +2733,8 @@ export function relationalQueryWhereToSQL(
 	return { sql: conditions.finish() ? collectTo : undefined, hasRelationFilters };
 }
 
-/** Legacy JSON api of custom columns */
-interface RqbCustomColumn {
+/** @internal Legacy JSON api of custom columns */
+export interface RqbCustomColumn {
 	readonly mapFromJsonValue?: (value: unknown) => unknown;
 	readonly jsonSelectIdentifier?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
 	readonly dimensions?: number;

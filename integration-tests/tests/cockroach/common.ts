@@ -62,7 +62,9 @@ import {
 	cockroachSchema,
 	cockroachTable,
 	cockroachTableCreator,
+	type CockroachTableFn,
 	cockroachView,
+	type CockroachViewFn,
 	customType,
 	date,
 	decimal,
@@ -235,6 +237,10 @@ const aggregateTable = cockroachTable('aggregate_table', {
 
 // To test another schema and multischema
 export const mySchema = cockroachSchema('mySchema');
+
+/** Tables and views of jit mapper variants: same names in another schema keep selections' keys identical, without collisions */
+const mappersTable = (jit: boolean): CockroachTableFn<string | undefined> => jit ? mySchema.table : cockroachTable;
+const mappersView = (jit: boolean): CockroachViewFn<string | undefined> => jit ? mySchema.view : cockroachView;
 
 export const usersMySchemaTable = mySchema.table('users', {
 	id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -7769,307 +7775,6 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			await assertAllTypesTemporalBounds(db);
 		});
 
-		// https://github.com/drizzle-team/drizzle-orm/issues/5724
-		test('Column as decoder applies codecs', async ({ createDB, push }) => {
-			let customCast = false;
-			let customMap = false;
-
-			const codecBypass = customType<{
-				data: Date;
-				driverData: string;
-				jsonData: string;
-			}>({
-				codec: 'timestamptz',
-				dataType: () => 'timestamptz(3)',
-				forJsonSelect: (identifier, sql, arrayDimensions) => {
-					customCast = true;
-					return sql`${identifier}::text${arrayDimensions ? sql.raw('[]'.repeat(arrayDimensions)) : undefined}`;
-				},
-				fromJson: (v) => {
-					customMap = true;
-					return new Date(v);
-				},
-				toDriver: (v) => v.toISOString(),
-			});
-
-			const users = cockroachTable('users_823', (t) => ({
-				id: t.int4().primaryKey(),
-				name: t.text().notNull(),
-				createdAt: t.timestamp('createdAt', { withTimezone: true }).notNull(),
-				createdAtStr: t.timestamp('createdAtStr', { mode: 'string', withTimezone: true }).notNull(),
-				arrCreatedAt: t.timestamp('arrCreatedAt', { withTimezone: true }).notNull().array(),
-				arrCreatedAtStr: t.timestamp('arrCreatedAtStr', { mode: 'string', withTimezone: true }).notNull().array(),
-				cus: codecBypass('cus').notNull(),
-				arrCus: codecBypass('arrCus').notNull().array(),
-			}));
-
-			const usersView = cockroachView('users_823_v').as((qb) =>
-				qb.select({
-					...getColumns(users),
-					max: max(users.createdAt).as('max'),
-					maxStr: max(users.createdAtStr).as('maxStr'),
-					sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
-					sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
-					sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
-						.as('sq_tag'),
-				}).from(users).groupBy(users.id)
-			);
-
-			await push({ users, usersView });
-
-			const db = createDB({ users, usersView }, (r) => ({
-				users: {
-					self: r.one.users({
-						from: r.users.id,
-						to: r.users.id,
-					}),
-				},
-				usersView: {
-					self: r.one.usersView({
-						from: r.usersView.id,
-						to: r.usersView.id,
-					}),
-				},
-			}));
-
-			const exDateStr = '1970-01-16 16:45:46.351+00';
-			const exDate = new Date(exDateStr);
-
-			await db.insert(users).values({
-				id: 1,
-				name: 'First',
-				createdAt: exDate,
-				createdAtStr: exDateStr,
-				arrCreatedAt: [exDate],
-				arrCreatedAtStr: [exDateStr],
-				cus: exDate,
-				arrCus: [exDate],
-			});
-
-			const res = await db.select({
-				...getColumns(users),
-				max: max(users.createdAt).as('max'),
-				maxStr: max(users.createdAtStr).as('maxStr'),
-				sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
-				sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
-				sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
-					.as('sq_tag'),
-			}).from(users).groupBy(users.id);
-
-			const viewRes = await db.select().from(usersView);
-
-			// no `arrMax`/`arrMaxStr` in the extras either: cockroach has no aggregate over array types
-			const nested = await db.query.users.findFirst({
-				with: {
-					self: {
-						extras: {
-							max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
-							maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
-						},
-					},
-				},
-				extras: {
-					max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
-					maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
-				},
-			});
-
-			const viewNested = await db.query.usersView.findFirst({
-				with: {
-					self: true,
-				},
-			});
-
-			const cols = {
-				id: 1,
-				name: 'First',
-				createdAt: exDate,
-				createdAtStr: exDateStr,
-				arrCreatedAt: [exDate],
-				arrCreatedAtStr: [exDateStr],
-				cus: exDate,
-				arrCus: [exDate],
-			};
-			// no `arrMax`/`arrMaxStr`: cockroach has no aggregate over array types
-			// ("unknown signature: max(timestamptz[])"), unlike postgres
-			const aggregates = { max: exDate, maxStr: exDateStr };
-			const subqueries = { sq: exDate, sqAliased: exDate, sqTag: 'tag-1' };
-
-			expect(res).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
-			expect(viewRes).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
-
-			// the custom type's own hooks are what ran for the json-shaped read
-			expect(customCast).toBeTruthy();
-			expect(customMap).toBeTruthy();
-
-			expect(nested).toStrictEqual({ ...cols, ...aggregates, self: { ...cols, ...aggregates } });
-
-			type ViewRow = typeof usersView.$inferSelect;
-			type ViewNestedRow = {
-				[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
-			};
-
-			expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
-
-			expect(viewNested).toStrictEqual({
-				...cols,
-				...aggregates,
-				...subqueries,
-				self: { ...cols, ...aggregates, ...subqueries },
-			});
-		});
-
-		// https://github.com/drizzle-team/drizzle-orm/issues/5724
-		test('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
-			let customCast = false;
-			let customMap = false;
-
-			const codecBypass = customType<{
-				data: Date;
-				driverData: string;
-				jsonData: string;
-			}>({
-				codec: 'timestamptz',
-				dataType: () => 'timestamptz(3)',
-				forJsonSelect: (identifier, sql, arrayDimensions) => {
-					customCast = true;
-					return sql`${identifier}::text${arrayDimensions ? sql.raw('[]'.repeat(arrayDimensions)) : undefined}`;
-				},
-				fromJson: (v) => {
-					customMap = true;
-					return new Date(v);
-				},
-				toDriver: (v) => v.toISOString(),
-			});
-
-			const users = cockroachTable('users_823_jit', (t) => ({
-				id: t.int4().primaryKey(),
-				name: t.text().notNull(),
-				createdAt: t.timestamp('createdAt', { withTimezone: true }).notNull(),
-				createdAtStr: t.timestamp('createdAtStr', { mode: 'string', withTimezone: true }).notNull(),
-				arrCreatedAt: t.timestamp('arrCreatedAt', { withTimezone: true }).notNull().array(),
-				arrCreatedAtStr: t.timestamp('arrCreatedAtStr', { mode: 'string', withTimezone: true }).notNull().array(),
-				cus: codecBypass('cus').notNull(),
-				arrCus: codecBypass('arrCus').notNull().array(),
-			}));
-
-			const usersView = cockroachView('users_823_jit_v').as((qb) =>
-				qb.select({
-					...getColumns(users),
-					max: max(users.createdAt).as('max'),
-					maxStr: max(users.createdAtStr).as('maxStr'),
-					sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
-					sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
-					sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
-						.as('sq_tag'),
-				}).from(users).groupBy(users.id)
-			);
-
-			await push({ users, usersView });
-
-			const db = createDB(
-				{ users, usersView },
-				(r) => ({
-					users: {
-						self: r.one.users({
-							from: r.users.id,
-							to: r.users.id,
-						}),
-					},
-					usersView: {
-						self: r.one.usersView({
-							from: r.usersView.id,
-							to: r.usersView.id,
-						}),
-					},
-				}),
-				true,
-			);
-
-			const exDateStr = '1970-01-16 16:45:46.351+00';
-			const exDate = new Date(exDateStr);
-
-			await db.insert(users).values({
-				id: 1,
-				name: 'First',
-				createdAt: exDate,
-				createdAtStr: exDateStr,
-				arrCreatedAt: [exDate],
-				arrCreatedAtStr: [exDateStr],
-				cus: exDate,
-				arrCus: [exDate],
-			});
-
-			const res = await db.select({
-				...getColumns(users),
-				max: max(users.createdAt).as('max'),
-				maxStr: max(users.createdAtStr).as('maxStr'),
-				sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
-				sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
-				sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
-					.as('sq_tag'),
-			}).from(users).groupBy(users.id);
-
-			const viewRes = await db.select().from(usersView);
-
-			// Cockroach has no aggregate over array types
-			const nested = await db.query.users.findFirst({
-				with: {
-					self: {
-						extras: {
-							max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
-							maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
-						},
-					},
-				},
-				extras: {
-					max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
-					maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
-				},
-			});
-
-			const viewNested = await db.query.usersView.findFirst({
-				with: {
-					self: true,
-				},
-			});
-
-			const cols = {
-				id: 1,
-				name: 'First',
-				createdAt: exDate,
-				createdAtStr: exDateStr,
-				arrCreatedAt: [exDate],
-				arrCreatedAtStr: [exDateStr],
-				cus: exDate,
-				arrCus: [exDate],
-			};
-			const aggregates = { max: exDate, maxStr: exDateStr };
-			const subqueries = { sq: exDate, sqAliased: exDate, sqTag: 'tag-1' };
-
-			expect(res).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
-			expect(viewRes).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
-
-			expect(customCast).toBeTruthy();
-			expect(customMap).toBeTruthy();
-
-			expect(nested).toStrictEqual({ ...cols, ...aggregates, self: { ...cols, ...aggregates } });
-
-			type ViewRow = typeof usersView.$inferSelect;
-			type ViewNestedRow = {
-				[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
-			};
-
-			expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
-
-			expect(viewNested).toStrictEqual({
-				...cols,
-				...aggregates,
-				...subqueries,
-				self: { ...cols, ...aggregates, ...subqueries },
-			});
-		});
-
 		test('all types ~codecs~', async ({ createDB, push }) => {
 			const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
 				...allTypesRelations(r),
@@ -8301,45 +8006,6 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			}
 		});
 
-		// https://github.com/drizzle-team/drizzle-orm/issues/1603
-		test('Nested partial select left join: null first column', async ({ cockroach: { db } }) => {
-			const orgs = cockroachTable('issue1603_orgs', {
-				id: int4('id').primaryKey(),
-				name: text('name').notNull(),
-			});
-			const branding = cockroachTable('issue1603_branding', {
-				id: int4('id').primaryKey(),
-				orgId: int4('org_id'),
-				logo: text('logo'),
-				panelBackground: text('panel_background'),
-			});
-
-			await db.execute(sql`create table issue1603_orgs (id int4 primary key, name text not null)`);
-			await db.execute(
-				sql`create table issue1603_branding (id int4 primary key, org_id int4, logo text, panel_background text)`,
-			);
-
-			await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
-			await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
-
-			const withBranding = await db.select({
-				name: orgs.name,
-				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
-			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
-
-			expect(withBranding).toStrictEqual([{
-				name: 'Acme',
-				branding: { logo: null, panelBackground: '#1a8cff' },
-			}]);
-
-			const withoutBranding = await db.select({
-				name: orgs.name,
-				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
-			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
-
-			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
-		});
-
 		test('Mappers: correct mappers enabled', async ({ db, createDB }) => {
 			const dialect: CockroachDialect = (<any> db).dialect;
 			const jitDialect: CockroachDialect = (<any> createDB({}, () => ({}), true)).dialect;
@@ -8350,115 +8016,218 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			expect(jitDialect.mapperGenerators.rows === makeJitQueryMapper).toStrictEqual(true);
 		});
 
-		// https://github.com/drizzle-team/drizzle-orm/issues/1603
-		test('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
-			const orgs = cockroachTable('issue1603_orgs_jit', (t) => ({
-				id: t.int4('id').primaryKey(),
-				name: t.text('name').notNull(),
-			}));
-			const branding = cockroachTable('issue1603_branding_jit', (t) => ({
-				id: t.int4('id').primaryKey(),
-				orgId: t.int4('org_id').references(() => orgs.id),
-				logo: t.text('logo'),
-				panelBackground: t.text('panel_background'),
-			}));
-
-			await push({ orgs, branding });
-			const db = createDB({ orgs, branding }, () => ({}), true);
-
-			await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
-			await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
-
-			const withBranding = await db.select({
-				name: orgs.name,
-				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
-			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
-
-			expect(withBranding).toStrictEqual([{
-				name: 'Acme',
-				branding: { logo: null, panelBackground: '#1a8cff' },
-			}]);
-
-			const withoutBranding = await db.select({
-				name: orgs.name,
-				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
-			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
-
-			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
-		});
-
 		const mappersDate = new Date('2026-04-02T00:00:00.000Z');
 
-		test('Mappers: simple select - no rows', async ({ db, push }) => {
-			const users = cockroachTable('mappers_users_1', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', {
-					withTimezone: true,
-					mode: 'date',
-				}).notNull(),
-				isBanned: t.bool('is_banned'),
-			}));
+		const jsonObjectUsers = [{
+			id: 1,
+			name: 'First',
+			bio: null,
+			createdAt: mappersDate,
+			meta: { tags: ['a', 'b'] },
+		}, {
+			id: 2,
+			name: 'Second',
+			bio: 'About',
+			createdAt: mappersDate,
+			meta: null,
+		}];
 
-			await push({ users });
+		const jsonObjectPosts = [
+			{ id: 1, authorId: 1, title: 'P1' },
+			{ id: 2, authorId: 1, title: 'P2' },
+			{ id: 3, authorId: null, title: 'Orphan' },
+		];
 
-			const result = await db.select().from(users);
+		for (const jit of [false, true]) {
+			// https://github.com/drizzle-team/drizzle-orm/issues/5724
+			test(`Column as decoder applies codecs${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				let customCast = false;
+				let customMap = false;
 
-			expect(result).toStrictEqual([]);
-		});
+				const codecBypass = customType<{
+					data: Date;
+					driverData: string;
+					jsonData: string;
+				}>({
+					codec: 'timestamptz',
+					dataType: () => 'timestamptz(3)',
+					forJsonSelect: (identifier, sql, arrayDimensions) => {
+						customCast = true;
+						return sql`${identifier}::text${arrayDimensions ? sql.raw('[]'.repeat(arrayDimensions)) : undefined}`;
+					},
+					fromJson: (v) => {
+						customMap = true;
+						return new Date(v);
+					},
+					toDriver: (v) => v.toISOString(),
+				});
 
-		test('Mappers: select - nothing to decode - text', async ({ db, push }) => {
-			const users = cockroachTable('mappers_users_2', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', {
-					withTimezone: true,
-					mode: 'date',
-				}).notNull(),
-				isBanned: t.bool('is_banned'),
-			}));
+				const users = mappersTable(jit)('users_823', (t) => ({
+					id: t.int4().primaryKey(),
+					name: t.text().notNull(),
+					createdAt: t.timestamp('createdAt', { withTimezone: true }).notNull(),
+					createdAtStr: t.timestamp('createdAtStr', { mode: 'string', withTimezone: true }).notNull(),
+					arrCreatedAt: t.timestamp('arrCreatedAt', { withTimezone: true }).notNull().array(),
+					arrCreatedAtStr: t.timestamp('arrCreatedAtStr', { mode: 'string', withTimezone: true }).notNull().array(),
+					cus: codecBypass('cus').notNull(),
+					arrCus: codecBypass('arrCus').notNull().array(),
+				}));
 
-			await push({ users });
+				const usersView = mappersView(jit)('users_823_v').as((qb) =>
+					qb.select({
+						...getColumns(users),
+						max: max(users.createdAt).as('max'),
+						maxStr: max(users.createdAtStr).as('maxStr'),
+						sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+						sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+						sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+							.as('sq_tag'),
+					}).from(users).groupBy(users.id)
+				);
 
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}]).returning();
+				await push({ users, usersView });
 
-			const selected = await db.select({ name: users.name }).from(users);
+				const db = createDB({ users, usersView }, (r) => ({
+					users: {
+						self: r.one.users({
+							from: r.users.id,
+							to: r.users.id,
+						}),
+					},
+					usersView: {
+						self: r.one.usersView({
+							from: r.usersView.id,
+							to: r.usersView.id,
+						}),
+					},
+				}), jit);
 
-			expect(selected).toStrictEqual([{ name: 'First' }]);
-		});
+				const exDateStr = '1970-01-16 16:45:46.351+00';
+				const exDate = new Date(exDateStr);
 
-		test('Mappers: select - nothing to decode - null', async ({ db, push }) => {
-			const users = cockroachTable('mappers_users_3', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', {
-					withTimezone: true,
-					mode: 'date',
-				}).notNull(),
-				isBanned: t.bool('is_banned'),
-			}));
+				await db.insert(users).values({
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					cus: exDate,
+					arrCus: [exDate],
+				});
 
-			await push({ users });
+				const res = await db.select({
+					...getColumns(users),
+					max: max(users.createdAt).as('max'),
+					maxStr: max(users.createdAtStr).as('maxStr'),
+					sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+					sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+					sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+						.as('sq_tag'),
+				}).from(users).groupBy(users.id);
 
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}]).returning();
+				const viewRes = await db.select().from(usersView);
 
-			const selected = await db.select({ isBanned: users.isBanned }).from(users);
+				// no `arrMax`/`arrMaxStr` in the extras either: cockroach has no aggregate over array types
+				const nested = await db.query.users.findFirst({
+					with: {
+						self: {
+							extras: {
+								max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+								maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+							},
+						},
+					},
+					extras: {
+						max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+						maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+					},
+				});
 
-			expect(selected).toStrictEqual([{ isBanned: null }]);
-		});
+				const viewNested = await db.query.usersView.findFirst({
+					with: {
+						self: true,
+					},
+				});
 
-		test(
-			'Mappers: insert returning all + select + update returning + delete returning',
-			async ({ db, push }) => {
-				const users = cockroachTable('mappers_users_4', (t) => ({
+				const cols = {
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					cus: exDate,
+					arrCus: [exDate],
+				};
+				// no `arrMax`/`arrMaxStr`: cockroach has no aggregate over array types
+				// ("unknown signature: max(timestamptz[])"), unlike postgres
+				const aggregates = { max: exDate, maxStr: exDateStr };
+				const subqueries = { sq: exDate, sqAliased: exDate, sqTag: 'tag-1' };
+
+				expect(res).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
+				expect(viewRes).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
+
+				// the custom type's own hooks are what ran for the json-shaped read
+				expect(customCast).toBeTruthy();
+				expect(customMap).toBeTruthy();
+
+				expect(nested).toStrictEqual({ ...cols, ...aggregates, self: { ...cols, ...aggregates } });
+
+				type ViewRow = typeof usersView.$inferSelect;
+				type ViewNestedRow = {
+					[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+				};
+
+				expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
+				expect(viewNested).toStrictEqual({
+					...cols,
+					...aggregates,
+					...subqueries,
+					self: { ...cols, ...aggregates, ...subqueries },
+				});
+			});
+
+			// https://github.com/drizzle-team/drizzle-orm/issues/1603
+			test(`Nested partial select left join: null first column${jit ? ' - Jit mappers' : ''}`, async ({ cockroach: { db: defaultDb }, push, createDB }) => {
+				const orgs = mappersTable(jit)('issue1603_orgs', (t) => ({
+					id: t.int4('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+				const branding = mappersTable(jit)('issue1603_branding', (t) => ({
+					id: t.int4('id').primaryKey(),
+					orgId: t.int4('org_id').references(() => orgs.id),
+					logo: t.text('logo'),
+					panelBackground: t.text('panel_background'),
+				}));
+
+				await push({ orgs, branding });
+				const db = jit ? createDB({ orgs, branding }, () => ({}), true) : defaultDb;
+
+				await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+				await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+
+				const withBranding = await db.select({
+					name: orgs.name,
+					branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+				}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+
+				expect(withBranding).toStrictEqual([{
+					name: 'Acme',
+					branding: { logo: null, panelBackground: '#1a8cff' },
+				}]);
+
+				const withoutBranding = await db.select({
+					name: orgs.name,
+					branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+				}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+
+				expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+			});
+
+			test(`Mappers: simple select - no rows${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const users = mappersTable(jit)('mappers_users_1', (t) => ({
 					id: t.bigint('id', { mode: 'number' }).primaryKey(),
 					name: t.text('name').notNull(),
 					createdAt: t.timestamp('created_at', {
@@ -8469,6 +8238,76 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				}));
 
 				await push({ users });
+				const db = jit ? createDB({ users }, () => ({}), true) : defaultDb;
+
+				const result = await db.select().from(users);
+
+				expect(result).toStrictEqual([]);
+			});
+
+			test(`Mappers: select - nothing to decode - text${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const users = mappersTable(jit)('mappers_users_2', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', {
+						withTimezone: true,
+						mode: 'date',
+					}).notNull(),
+					isBanned: t.bool('is_banned'),
+				}));
+
+				await push({ users });
+				const db = jit ? createDB({ users }, () => ({}), true) : defaultDb;
+
+				await db.insert(users).values([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+				}]).returning();
+
+				const selected = await db.select({ name: users.name }).from(users);
+
+				expect(selected).toStrictEqual([{ name: 'First' }]);
+			});
+
+			test(`Mappers: select - nothing to decode - null${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const users = mappersTable(jit)('mappers_users_3', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', {
+						withTimezone: true,
+						mode: 'date',
+					}).notNull(),
+					isBanned: t.bool('is_banned'),
+				}));
+
+				await push({ users });
+				const db = jit ? createDB({ users }, () => ({}), true) : defaultDb;
+
+				await db.insert(users).values([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+				}]).returning();
+
+				const selected = await db.select({ isBanned: users.isBanned }).from(users);
+
+				expect(selected).toStrictEqual([{ isBanned: null }]);
+			});
+
+			test(`Mappers: insert returning all + select + update returning + delete returning${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const users = mappersTable(jit)('mappers_users_4', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', {
+						withTimezone: true,
+						mode: 'date',
+					}).notNull(),
+					isBanned: t.bool('is_banned'),
+				}));
+
+				await push({ users });
+				const db = jit ? createDB({ users }, () => ({}), true) : defaultDb;
 
 				const inserted = await db.insert(users).values([{
 					id: 1,
@@ -8547,753 +8386,10 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 					createdAt: mappersDate,
 					isBanned: null,
 				}]));
-			},
-		);
-
-		test('Mappers: select complex selections', async ({ db, push }) => {
-			const users = cockroachTable('mappers_users_5', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', {
-					withTimezone: true,
-					mode: 'date',
-				}).notNull(),
-				isBanned: t.bool('is_banned'),
-			}));
-
-			const posts = cockroachTable('mappers_posts_1', (t) => ({
-				id: t.int4('id').primaryKey(),
-				authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
-				content: t.text('content'),
-			}));
-
-			const internalStaff = cockroachTable('internal_staff_qm1', {
-				userId: int4('user_id').notNull().primaryKey(),
 			});
 
-			const ticket = cockroachTable('ticket_qm1', {
-				staffId: int4('staff_id').notNull(),
-			});
-
-			const notes = cockroachTable('mappers_notes_1', (t) => ({
-				id: t.int4('id').primaryKey(),
-				ownerId: t.bigint('owner_id', { mode: 'number' }).references(() => users.id),
-				body: t.text('body'),
-			}));
-
-			await push({ users, posts, internalStaff, ticket, notes });
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]).returning();
-			await db.insert(posts).values({
-				id: 1,
-				authorId: 1,
-				content: 'p1',
-			});
-			await db.insert(internalStaff).values([{
-				userId: 1,
-			}, {
-				userId: 2,
-			}]);
-			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }]);
-			await db.insert(notes).values([{ id: 1, ownerId: 1, body: null }, { id: 2, ownerId: 2, body: 'n2' }]);
-
-			const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected3 = await db.select({
-				userId: users.id,
-				postId: posts.id,
-				name: users.name,
-				isBanned: users.isBanned,
-				content: posts.content,
-				createdAt: users.createdAt,
-			}).from(users).leftJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected4 = await db.select({
-				userId: users.id,
-				postId: posts.id,
-				name: users.name,
-				isBanned: users.isBanned,
-				content: posts.content,
-				createdAt: users.createdAt,
-			}).from(users).innerJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected5 = await db.select({
-				user: {
-					...getTableColumns(users),
-					extra: sql`1`.mapWith(Number).as('extra_1'),
-				},
-				post: {
-					...getTableColumns(posts),
-					extra: sql`1`.mapWith(Number).as('extra_1'),
-				},
-			}).from(users).leftJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const subq = db
-				.select()
-				.from(internalStaff)
-				.leftJoin(users, eq(internalStaff.userId, users.id))
-				.as('internal_staff');
-			const selected6 = await db
-				.select()
-				.from(ticket)
-				.leftJoin(subq, eq(subq.internal_staff_qm1.userId, ticket.staffId))
-				.orderBy(ticket.staffId);
-			const selected7 = await db.select({
-				user: { id: users.id },
-				note: { ownerId: notes.ownerId, body: notes.body },
-			}).from(users).leftJoin(notes, eq(users.id, notes.ownerId)).orderBy(users.id);
-			const selected8 = await db.select({
-				user: { id: users.id },
-				post: { ...getTableColumns(posts), nothing: sql`null`.as('nothing_1') },
-			}).from(users).leftJoin(posts, eq(users.id, posts.authorId)).orderBy(users.id);
-
-			expect(selected1).toStrictEqual([{
-				user: {
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				},
-				post: {
-					id: 1,
-					authorId: 1,
-					content: 'p1',
-				},
-			}, {
-				user: {
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: true,
-				},
-				post: null,
-			}, {
-				user: {
-					id: 3,
-					name: 'Third',
-					createdAt: mappersDate,
-					isBanned: null,
-				},
-				post: null,
-			}]);
-			expect(selected2).toStrictEqual([{
-				user: {
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				},
-				post: {
-					id: 1,
-					authorId: 1,
-					content: 'p1',
-				},
-			}]);
-			expect(selected3).toStrictEqual([
-				{
-					content: 'p1',
-					createdAt: mappersDate,
-					isBanned: null,
-					name: 'First',
-					postId: 1,
-					userId: 1,
-				},
-				{
-					content: null,
-					createdAt: mappersDate,
-					isBanned: true,
-					name: 'Second',
-					postId: null,
-					userId: 2,
-				},
-				{
-					content: null,
-					createdAt: mappersDate,
-					isBanned: null,
-					name: 'Third',
-					postId: null,
-					userId: 3,
-				},
-			]);
-			expect(selected4).toStrictEqual([
-				{
-					content: 'p1',
-					createdAt: mappersDate,
-					isBanned: null,
-					name: 'First',
-					postId: 1,
-					userId: 1,
-				},
-			]);
-			expect(selected5).toStrictEqual([
-				{
-					post: {
-						authorId: 1,
-						content: 'p1',
-						extra: 1,
-						id: 1,
-					},
-					user: {
-						createdAt: mappersDate,
-						extra: 1,
-						id: 1,
-						isBanned: null,
-						name: 'First',
-					},
-				},
-				{
-					post: {
-						authorId: null,
-						content: null,
-						extra: 1,
-						id: null,
-					},
-					user: {
-						createdAt: mappersDate,
-						extra: 1,
-						id: 2,
-						isBanned: true,
-						name: 'Second',
-					},
-				},
-				{
-					post: {
-						authorId: null,
-						content: null,
-						extra: 1,
-						id: null,
-					},
-					user: {
-						createdAt: mappersDate,
-						extra: 1,
-						id: 3,
-						isBanned: null,
-						name: 'Third',
-					},
-				},
-			]);
-			expect(selected6).toStrictEqual(
-				[
-					{
-						internal_staff: {
-							internal_staff_qm1: {
-								userId: 1,
-							},
-							mappers_users_5: {
-								createdAt: mappersDate,
-								id: 1,
-								isBanned: null,
-								name: 'First',
-							},
-						},
-						ticket_qm1: {
-							staffId: 1,
-						},
-					},
-					{
-						internal_staff: {
-							internal_staff_qm1: {
-								userId: 2,
-							},
-							mappers_users_5: {
-								createdAt: mappersDate,
-								id: 2,
-								isBanned: true,
-								name: 'Second',
-							},
-						},
-						ticket_qm1: {
-							staffId: 2,
-						},
-					},
-				],
-			);
-			expect(selected7).toStrictEqual([
-				{ user: { id: 1 }, note: { ownerId: 1, body: null } },
-				{ user: { id: 2 }, note: { ownerId: 2, body: 'n2' } },
-				{ user: { id: 3 }, note: null },
-			]);
-			expect(selected8).toStrictEqual([
-				{ user: { id: 1 }, post: { id: 1, authorId: 1, content: 'p1', nothing: null } },
-				{ user: { id: 2 }, post: null },
-				{ user: { id: 3 }, post: null },
-			]);
-		});
-
-		test('Mappers: relational', async ({ createDB, push }) => {
-			const users = cockroachTable('mappers_users_6', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', {
-					withTimezone: true,
-					mode: 'date',
-				}).notNull(),
-				isBanned: t.bool('is_banned'),
-			}));
-
-			const posts = cockroachTable('mappers_posts_2', (t) => ({
-				id: t.int4('id').primaryKey(),
-				authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
-				content: t.text('content'),
-			}));
-
-			await push({ users, posts });
-			const db = createDB(
-				{ users, posts },
-				(r) => ({
-					users: {
-						post: r.one.posts({
-							from: r.users.id,
-							to: r.posts.authorId,
-						}),
-						posts: r.one.posts({
-							from: r.users.id,
-							to: r.posts.authorId,
-						}),
-					},
-					posts: {
-						author: r.one.users({
-							from: r.posts.authorId,
-							to: r.users.id,
-						}),
-						authors: r.many.users({
-							from: r.posts.authorId,
-							to: r.users.id,
-						}),
-					},
-				}),
-				false,
-			);
-
-			const empty1 = await db.query.users.findFirst();
-			const empty2 = await db.query.users.findMany();
-
-			expect(empty1).toStrictEqual(undefined);
-			expect(empty2).toStrictEqual([]);
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]).returning();
-			await db.insert(posts).values({
-				id: 1,
-				authorId: 1,
-				content: 'p1',
-			});
-
-			const simple1 = await db.query.users.findFirst({ orderBy: { id: 'asc' } });
-			const simple2 = await db.query.users.findMany({ orderBy: { id: 'asc' } });
-
-			expect(simple1).toStrictEqual(
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-				},
-			);
-			expect(simple2).toStrictEqual([
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-				},
-				{
-					createdAt: mappersDate,
-					id: 2,
-					isBanned: true,
-					name: 'Second',
-				},
-				{
-					createdAt: mappersDate,
-					id: 3,
-					isBanned: null,
-					name: 'Third',
-				},
-			]);
-
-			const extra1 = await db.query.users.findFirst({
-				orderBy: { id: 'asc' },
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-			const extra2 = await db.query.users.findMany({
-				orderBy: { id: 'asc' },
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-
-			expect(extra1).toStrictEqual(
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			);
-			expect(extra2).toStrictEqual([
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 2,
-					isBanned: true,
-					name: 'Second',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 3,
-					isBanned: null,
-					name: 'Third',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			]);
-
-			const nested1 = await db.query.users.findFirst({
-				orderBy: { id: 'asc' },
-				with: {
-					post: {
-						with: {
-							author: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-								where: {
-									RAW: sql`false`,
-								},
-							},
-							authors: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-								where: {
-									RAW: sql`false`,
-								},
-							},
-						},
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-					posts: {
-						with: {
-							author: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-							},
-							authors: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-							},
-						},
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-				},
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-			const nested2 = await db.query.users.findMany({
-				orderBy: { id: 'asc' },
-				with: {
-					post: {
-						with: {
-							author: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-								where: {
-									RAW: sql`false`,
-								},
-							},
-							authors: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-								where: {
-									RAW: sql`false`,
-								},
-							},
-						},
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-					posts: {
-						with: {
-							author: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-							},
-							authors: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-							},
-						},
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-				},
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-
-			expect(nested1).toStrictEqual(
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					post: {
-						author: null,
-						authorId: 1,
-						authors: [],
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					posts: {
-						author: {
-							createdAt: mappersDate,
-							id: 1,
-							isBanned: null,
-							name: 'First',
-							sql: 1,
-							sqlWrapper: 2,
-						},
-						authorId: 1,
-						authors: [
-							{
-								createdAt: mappersDate,
-								id: 1,
-								isBanned: null,
-								name: 'First',
-								sql: 1,
-								sqlWrapper: 2,
-							},
-						],
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			);
-			expect(nested2).toStrictEqual([
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					post: {
-						author: null,
-						authorId: 1,
-						authors: [],
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					posts: {
-						author: {
-							createdAt: mappersDate,
-							id: 1,
-							isBanned: null,
-							name: 'First',
-							sql: 1,
-							sqlWrapper: 2,
-						},
-						authorId: 1,
-						authors: [
-							{
-								createdAt: mappersDate,
-								id: 1,
-								isBanned: null,
-								name: 'First',
-								sql: 1,
-								sqlWrapper: 2,
-							},
-						],
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 2,
-					isBanned: true,
-					name: 'Second',
-					post: null,
-					posts: null,
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 3,
-					isBanned: null,
-					name: 'Third',
-					post: null,
-					posts: null,
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			]);
-		});
-
-		test('Jit mappers: simple select - no rows', async ({ createDB, push }) => {
-			const users = cockroachTable('jit_mappers_users_1', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', {
-					withTimezone: true,
-					mode: 'date',
-				}).notNull(),
-				isBanned: t.bool('is_banned'),
-			}));
-
-			await push({ users });
-			const db = createDB({ users }, () => ({}), true);
-
-			const result = await db.select().from(users);
-
-			expect(result).toStrictEqual([]);
-		});
-
-		test('Jit mappers: select - nothing to decode - text', async ({ createDB, push }) => {
-			const users = cockroachTable('jit_mappers_users_2', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', {
-					withTimezone: true,
-					mode: 'date',
-				}).notNull(),
-				isBanned: t.bool('is_banned'),
-			}));
-
-			await push({ users });
-			const db = createDB({ users }, () => ({}), true);
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}]).returning();
-
-			const selected = await db.select({ name: users.name }).from(users);
-
-			expect(selected).toStrictEqual([{ name: 'First' }]);
-		});
-
-		test('Jit mappers: select - nothing to decode - null', async ({ createDB, push }) => {
-			const users = cockroachTable('jit_mappers_users_3', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', {
-					withTimezone: true,
-					mode: 'date',
-				}).notNull(),
-				isBanned: t.bool('is_banned'),
-			}));
-
-			await push({ users });
-			const db = createDB({ users }, () => ({}), true);
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}]).returning();
-
-			const selected = await db.select({ isBanned: users.isBanned }).from(users);
-
-			expect(selected).toStrictEqual([{ isBanned: null }]);
-		});
-
-		test(
-			'Jit mappers: insert returning all + select + update returning + delete returning',
-			async ({ createDB, push }) => {
-				const users = cockroachTable('jit_mappers_users_4', (t) => ({
+			test(`Mappers: select complex selections${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const users = mappersTable(jit)('mappers_users_5', (t) => ({
 					id: t.bigint('id', { mode: 'number' }).primaryKey(),
 					name: t.text('name').notNull(),
 					createdAt: t.timestamp('created_at', {
@@ -9303,10 +8399,30 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 					isBanned: t.bool('is_banned'),
 				}));
 
-				await push({ users });
-				const db = createDB({ users }, () => ({}), true);
+				const posts = mappersTable(jit)('mappers_posts_1', (t) => ({
+					id: t.int4('id').primaryKey(),
+					authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
+					content: t.text('content'),
+				}));
 
-				const inserted = await db.insert(users).values([{
+				const internalStaff = mappersTable(jit)('internal_staff_qm1', {
+					userId: int4('user_id').notNull().primaryKey(),
+				});
+
+				const ticket = mappersTable(jit)('ticket_qm1', {
+					staffId: int4('staff_id').notNull(),
+				});
+
+				const notes = mappersTable(jit)('mappers_notes_1', (t) => ({
+					id: t.int4('id').primaryKey(),
+					ownerId: t.bigint('owner_id', { mode: 'number' }).references(() => users.id),
+					body: t.text('body'),
+				}));
+
+				await push({ users, posts, internalStaff, ticket, notes });
+				const db = jit ? createDB({ users, posts, internalStaff, ticket, notes }, () => ({}), true) : defaultDb;
+
+				await db.insert(users).values([{
 					id: 1,
 					name: 'First',
 					createdAt: mappersDate,
@@ -9320,661 +8436,537 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 					name: 'Third',
 					createdAt: mappersDate,
 				}]).returning();
-
-				const selected = await db.select().from(users).orderBy(users.id);
-
-				const updated = await db.update(users).set({
-					isBanned: false,
-				}).where(eq(users.id, 2)).returning();
-
-				const deleted = await db.delete(users).returning();
-
-				expect(inserted).toStrictEqual([{
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				}, {
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: true,
-				}, {
-					id: 3,
-					name: 'Third',
-					createdAt: mappersDate,
-					isBanned: null,
-				}]);
-				expect(selected).toStrictEqual([{
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				}, {
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: true,
-				}, {
-					id: 3,
-					name: 'Third',
-					createdAt: mappersDate,
-					isBanned: null,
-				}]);
-				expect(updated).toStrictEqual([{
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: false,
-				}]);
-				expect(deleted).toStrictEqual(expect.arrayContaining([{
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				}, {
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: false,
-				}, {
-					id: 3,
-					name: 'Third',
-					createdAt: mappersDate,
-					isBanned: null,
-				}]));
-			},
-		);
-
-		test('Jit mappers: select complex selections', async ({ createDB, push }) => {
-			const users = cockroachTable('jit_mappers_users_5', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', {
-					withTimezone: true,
-					mode: 'date',
-				}).notNull(),
-				isBanned: t.bool('is_banned'),
-			}));
-
-			const posts = cockroachTable('jit_mappers_posts_1', (t) => ({
-				id: t.int4('id').primaryKey(),
-				authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
-				content: t.text('content'),
-			}));
-
-			const internalStaff = cockroachTable('internal_staff_qm2', {
-				userId: int4('user_id').notNull().primaryKey(),
-			});
-
-			const ticket = cockroachTable('ticket_qm2', {
-				staffId: int4('staff_id').notNull(),
-			});
-
-			const notes = cockroachTable('jit_mappers_notes_1', (t) => ({
-				id: t.int4('id').primaryKey(),
-				ownerId: t.bigint('owner_id', { mode: 'number' }).references(() => users.id),
-				body: t.text('body'),
-			}));
-
-			await push({ users, posts, internalStaff, ticket, notes });
-			const db = createDB({ users, posts, internalStaff, ticket, notes }, () => ({}), true);
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]).returning();
-			await db.insert(posts).values({
-				id: 1,
-				authorId: 1,
-				content: 'p1',
-			});
-			await db.insert(internalStaff).values([{
-				userId: 1,
-			}, {
-				userId: 2,
-			}]);
-			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }]);
-			await db.insert(notes).values([{ id: 1, ownerId: 1, body: null }, { id: 2, ownerId: 2, body: 'n2' }]);
-
-			const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected3 = await db.select({
-				userId: users.id,
-				postId: posts.id,
-				name: users.name,
-				isBanned: users.isBanned,
-				content: posts.content,
-				createdAt: users.createdAt,
-			}).from(users).leftJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected4 = await db.select({
-				userId: users.id,
-				postId: posts.id,
-				name: users.name,
-				isBanned: users.isBanned,
-				content: posts.content,
-				createdAt: users.createdAt,
-			}).from(users).innerJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected5 = await db.select({
-				user: {
-					...getTableColumns(users),
-					extra: sql`1`.mapWith(Number).as('extra_1'),
-				},
-				post: {
-					...getTableColumns(posts),
-					extra: sql`1`.mapWith(Number).as('extra_1'),
-				},
-			}).from(users).leftJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const subq = db
-				.select()
-				.from(internalStaff)
-				.leftJoin(users, eq(internalStaff.userId, users.id))
-				.as('internal_staff');
-			const selected6 = await db
-				.select()
-				.from(ticket)
-				.leftJoin(subq, eq(subq.internal_staff_qm2.userId, ticket.staffId))
-				.orderBy(ticket.staffId);
-			const selected7 = await db.select({
-				user: { id: users.id },
-				note: { ownerId: notes.ownerId, body: notes.body },
-			}).from(users).leftJoin(notes, eq(users.id, notes.ownerId)).orderBy(users.id);
-			const selected8 = await db.select({
-				user: { id: users.id },
-				post: { ...getTableColumns(posts), nothing: sql`null`.as('nothing_1') },
-			}).from(users).leftJoin(posts, eq(users.id, posts.authorId)).orderBy(users.id);
-
-			expect(selected1).toStrictEqual([{
-				user: {
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				},
-				post: {
+				await db.insert(posts).values({
 					id: 1,
 					authorId: 1,
 					content: 'p1',
-				},
-			}, {
-				user: {
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: true,
-				},
-				post: null,
-			}, {
-				user: {
-					id: 3,
-					name: 'Third',
-					createdAt: mappersDate,
-					isBanned: null,
-				},
-				post: null,
-			}]);
-			expect(selected2).toStrictEqual([{
-				user: {
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				},
-				post: {
-					id: 1,
-					authorId: 1,
-					content: 'p1',
-				},
-			}]);
-			expect(selected3).toStrictEqual([
-				{
-					content: 'p1',
-					createdAt: mappersDate,
-					isBanned: null,
-					name: 'First',
-					postId: 1,
+				});
+				await db.insert(internalStaff).values([{
 					userId: 1,
-				},
-				{
-					content: null,
-					createdAt: mappersDate,
-					isBanned: true,
-					name: 'Second',
-					postId: null,
+				}, {
 					userId: 2,
-				},
-				{
-					content: null,
-					createdAt: mappersDate,
-					isBanned: null,
-					name: 'Third',
-					postId: null,
-					userId: 3,
-				},
-			]);
-			expect(selected4).toStrictEqual([
-				{
-					content: 'p1',
-					createdAt: mappersDate,
-					isBanned: null,
-					name: 'First',
-					postId: 1,
-					userId: 1,
-				},
-			]);
-			expect(selected5).toStrictEqual([
-				{
+				}]);
+				await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }]);
+				await db.insert(notes).values([{ id: 1, ownerId: 1, body: null }, { id: 2, ownerId: 2, body: 'n2' }]);
+
+				const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
+					posts,
+					eq(users.id, posts.authorId),
+				).orderBy(users.id);
+				const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
+					posts,
+					eq(users.id, posts.authorId),
+				).orderBy(users.id);
+				const selected3 = await db.select({
+					userId: users.id,
+					postId: posts.id,
+					name: users.name,
+					isBanned: users.isBanned,
+					content: posts.content,
+					createdAt: users.createdAt,
+				}).from(users).leftJoin(
+					posts,
+					eq(users.id, posts.authorId),
+				).orderBy(users.id);
+				const selected4 = await db.select({
+					userId: users.id,
+					postId: posts.id,
+					name: users.name,
+					isBanned: users.isBanned,
+					content: posts.content,
+					createdAt: users.createdAt,
+				}).from(users).innerJoin(
+					posts,
+					eq(users.id, posts.authorId),
+				).orderBy(users.id);
+				const selected5 = await db.select({
+					user: {
+						...getTableColumns(users),
+						extra: sql`1`.mapWith(Number).as('extra_1'),
+					},
 					post: {
+						...getTableColumns(posts),
+						extra: sql`1`.mapWith(Number).as('extra_1'),
+					},
+				}).from(users).leftJoin(
+					posts,
+					eq(users.id, posts.authorId),
+				).orderBy(users.id);
+				const subq = db
+					.select()
+					.from(internalStaff)
+					.leftJoin(users, eq(internalStaff.userId, users.id))
+					.as('internal_staff');
+				const selected6 = await db
+					.select()
+					.from(ticket)
+					.leftJoin(subq, eq(subq.internal_staff_qm1.userId, ticket.staffId))
+					.orderBy(ticket.staffId);
+				const selected7 = await db.select({
+					user: { id: users.id },
+					note: { ownerId: notes.ownerId, body: notes.body },
+				}).from(users).leftJoin(notes, eq(users.id, notes.ownerId)).orderBy(users.id);
+				const selected8 = await db.select({
+					user: { id: users.id },
+					post: { ...getTableColumns(posts), nothing: sql`null`.as('nothing_1') },
+				}).from(users).leftJoin(posts, eq(users.id, posts.authorId)).orderBy(users.id);
+
+				expect(selected1).toStrictEqual([{
+					user: {
+						id: 1,
+						name: 'First',
+						createdAt: mappersDate,
+						isBanned: null,
+					},
+					post: {
+						id: 1,
 						authorId: 1,
 						content: 'p1',
-						extra: 1,
-						id: 1,
 					},
+				}, {
 					user: {
+						id: 2,
+						name: 'Second',
 						createdAt: mappersDate,
-						extra: 1,
+						isBanned: true,
+					},
+					post: null,
+				}, {
+					user: {
+						id: 3,
+						name: 'Third',
+						createdAt: mappersDate,
+						isBanned: null,
+					},
+					post: null,
+				}]);
+				expect(selected2).toStrictEqual([{
+					user: {
+						id: 1,
+						name: 'First',
+						createdAt: mappersDate,
+						isBanned: null,
+					},
+					post: {
+						id: 1,
+						authorId: 1,
+						content: 'p1',
+					},
+				}]);
+				expect(selected3).toStrictEqual([
+					{
+						content: 'p1',
+						createdAt: mappersDate,
+						isBanned: null,
+						name: 'First',
+						postId: 1,
+						userId: 1,
+					},
+					{
+						content: null,
+						createdAt: mappersDate,
+						isBanned: true,
+						name: 'Second',
+						postId: null,
+						userId: 2,
+					},
+					{
+						content: null,
+						createdAt: mappersDate,
+						isBanned: null,
+						name: 'Third',
+						postId: null,
+						userId: 3,
+					},
+				]);
+				expect(selected4).toStrictEqual([
+					{
+						content: 'p1',
+						createdAt: mappersDate,
+						isBanned: null,
+						name: 'First',
+						postId: 1,
+						userId: 1,
+					},
+				]);
+				expect(selected5).toStrictEqual([
+					{
+						post: {
+							authorId: 1,
+							content: 'p1',
+							extra: 1,
+							id: 1,
+						},
+						user: {
+							createdAt: mappersDate,
+							extra: 1,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+						},
+					},
+					{
+						post: {
+							authorId: null,
+							content: null,
+							extra: 1,
+							id: null,
+						},
+						user: {
+							createdAt: mappersDate,
+							extra: 1,
+							id: 2,
+							isBanned: true,
+							name: 'Second',
+						},
+					},
+					{
+						post: {
+							authorId: null,
+							content: null,
+							extra: 1,
+							id: null,
+						},
+						user: {
+							createdAt: mappersDate,
+							extra: 1,
+							id: 3,
+							isBanned: null,
+							name: 'Third',
+						},
+					},
+				]);
+				expect(selected6).toStrictEqual(
+					[
+						{
+							internal_staff: {
+								internal_staff_qm1: {
+									userId: 1,
+								},
+								mappers_users_5: {
+									createdAt: mappersDate,
+									id: 1,
+									isBanned: null,
+									name: 'First',
+								},
+							},
+							ticket_qm1: {
+								staffId: 1,
+							},
+						},
+						{
+							internal_staff: {
+								internal_staff_qm1: {
+									userId: 2,
+								},
+								mappers_users_5: {
+									createdAt: mappersDate,
+									id: 2,
+									isBanned: true,
+									name: 'Second',
+								},
+							},
+							ticket_qm1: {
+								staffId: 2,
+							},
+						},
+					],
+				);
+				expect(selected7).toStrictEqual([
+					{ user: { id: 1 }, note: { ownerId: 1, body: null } },
+					{ user: { id: 2 }, note: { ownerId: 2, body: 'n2' } },
+					{ user: { id: 3 }, note: null },
+				]);
+				expect(selected8).toStrictEqual([
+					{ user: { id: 1 }, post: { id: 1, authorId: 1, content: 'p1', nothing: null } },
+					{ user: { id: 2 }, post: null },
+					{ user: { id: 3 }, post: null },
+				]);
+			});
+
+			test(`Mappers: relational${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = mappersTable(jit)('mappers_users_6', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', {
+						withTimezone: true,
+						mode: 'date',
+					}).notNull(),
+					isBanned: t.bool('is_banned'),
+				}));
+
+				const posts = mappersTable(jit)('mappers_posts_2', (t) => ({
+					id: t.int4('id').primaryKey(),
+					authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
+					content: t.text('content'),
+				}));
+
+				await push({ users, posts });
+				const db = createDB(
+					{ users, posts },
+					(r) => ({
+						users: {
+							post: r.one.posts({
+								from: r.users.id,
+								to: r.posts.authorId,
+							}),
+							posts: r.one.posts({
+								from: r.users.id,
+								to: r.posts.authorId,
+							}),
+						},
+						posts: {
+							author: r.one.users({
+								from: r.posts.authorId,
+								to: r.users.id,
+							}),
+							authors: r.many.users({
+								from: r.posts.authorId,
+								to: r.users.id,
+							}),
+						},
+					}),
+					jit,
+				);
+
+				const empty1 = await db.query.users.findFirst();
+				const empty2 = await db.query.users.findMany();
+
+				expect(empty1).toStrictEqual(undefined);
+				expect(empty2).toStrictEqual([]);
+
+				await db.insert(users).values([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+				}]).returning();
+				await db.insert(posts).values({
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				});
+
+				const simple1 = await db.query.users.findFirst({ orderBy: { id: 'asc' } });
+				const simple2 = await db.query.users.findMany({ orderBy: { id: 'asc' } });
+
+				expect(simple1).toStrictEqual(
+					{
+						createdAt: mappersDate,
 						id: 1,
 						isBanned: null,
 						name: 'First',
 					},
-				},
-				{
-					post: {
-						authorId: null,
-						content: null,
-						extra: 1,
-						id: null,
-					},
-					user: {
+				);
+				expect(simple2).toStrictEqual([
+					{
 						createdAt: mappersDate,
-						extra: 1,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+					},
+					{
+						createdAt: mappersDate,
 						id: 2,
 						isBanned: true,
 						name: 'Second',
 					},
-				},
-				{
-					post: {
-						authorId: null,
-						content: null,
-						extra: 1,
-						id: null,
-					},
-					user: {
+					{
 						createdAt: mappersDate,
-						extra: 1,
 						id: 3,
 						isBanned: null,
 						name: 'Third',
 					},
-				},
-			]);
-			expect(selected6).toStrictEqual(
-				[
+				]);
+
+				const extra1 = await db.query.users.findFirst({
+					orderBy: { id: 'asc' },
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				});
+				const extra2 = await db.query.users.findMany({
+					orderBy: { id: 'asc' },
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				});
+
+				expect(extra1).toStrictEqual(
 					{
-						internal_staff: {
-							internal_staff_qm2: {
-								userId: 1,
-							},
-							jit_mappers_users_5: {
-								createdAt: mappersDate,
-								id: 1,
-								isBanned: null,
-								name: 'First',
-							},
-						},
-						ticket_qm2: {
-							staffId: 1,
-						},
-					},
-					{
-						internal_staff: {
-							internal_staff_qm2: {
-								userId: 2,
-							},
-							jit_mappers_users_5: {
-								createdAt: mappersDate,
-								id: 2,
-								isBanned: true,
-								name: 'Second',
-							},
-						},
-						ticket_qm2: {
-							staffId: 2,
-						},
-					},
-				],
-			);
-			expect(selected7).toStrictEqual([
-				{ user: { id: 1 }, note: { ownerId: 1, body: null } },
-				{ user: { id: 2 }, note: { ownerId: 2, body: 'n2' } },
-				{ user: { id: 3 }, note: null },
-			]);
-			expect(selected8).toStrictEqual([
-				{ user: { id: 1 }, post: { id: 1, authorId: 1, content: 'p1', nothing: null } },
-				{ user: { id: 2 }, post: null },
-				{ user: { id: 3 }, post: null },
-			]);
-		});
-
-		test('Jit mappers: relational', async ({ createDB, push }) => {
-			const users = cockroachTable('jit_mappers_users_6', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', {
-					withTimezone: true,
-					mode: 'date',
-				}).notNull(),
-				isBanned: t.bool('is_banned'),
-			}));
-
-			const posts = cockroachTable('jit_mappers_posts_2', (t) => ({
-				id: t.int4('id').primaryKey(),
-				authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
-				content: t.text('content'),
-			}));
-
-			await push({ users, posts });
-			const db = createDB(
-				{ users, posts },
-				(r) => ({
-					users: {
-						post: r.one.posts({
-							from: r.users.id,
-							to: r.posts.authorId,
-						}),
-						posts: r.one.posts({
-							from: r.users.id,
-							to: r.posts.authorId,
-						}),
-					},
-					posts: {
-						author: r.one.users({
-							from: r.posts.authorId,
-							to: r.users.id,
-						}),
-						authors: r.many.users({
-							from: r.posts.authorId,
-							to: r.users.id,
-						}),
-					},
-				}),
-				true,
-			);
-
-			const empty1 = await db.query.users.findFirst();
-			const empty2 = await db.query.users.findMany();
-
-			expect(empty1).toStrictEqual(undefined);
-			expect(empty2).toStrictEqual([]);
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]).returning();
-			await db.insert(posts).values({
-				id: 1,
-				authorId: 1,
-				content: 'p1',
-			});
-
-			const simple1 = await db.query.users.findFirst({ orderBy: { id: 'asc' } });
-			const simple2 = await db.query.users.findMany({ orderBy: { id: 'asc' } });
-
-			expect(simple1).toStrictEqual(
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-				},
-			);
-			expect(simple2).toStrictEqual([
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-				},
-				{
-					createdAt: mappersDate,
-					id: 2,
-					isBanned: true,
-					name: 'Second',
-				},
-				{
-					createdAt: mappersDate,
-					id: 3,
-					isBanned: null,
-					name: 'Third',
-				},
-			]);
-
-			const extra1 = await db.query.users.findFirst({
-				orderBy: { id: 'asc' },
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-			const extra2 = await db.query.users.findMany({
-				orderBy: { id: 'asc' },
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-
-			expect(extra1).toStrictEqual(
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			);
-			expect(extra2).toStrictEqual([
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 2,
-					isBanned: true,
-					name: 'Second',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 3,
-					isBanned: null,
-					name: 'Third',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			]);
-
-			const nested1 = await db.query.users.findFirst({
-				orderBy: { id: 'asc' },
-				with: {
-					post: {
-						with: {
-							author: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-								where: {
-									RAW: sql`false`,
-								},
-							},
-							authors: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-								where: {
-									RAW: sql`false`,
-								},
-							},
-						},
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-					posts: {
-						with: {
-							author: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-							},
-							authors: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-							},
-						},
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-				},
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-			const nested2 = await db.query.users.findMany({
-				orderBy: { id: 'asc' },
-				with: {
-					post: {
-						with: {
-							author: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-								where: {
-									RAW: sql`false`,
-								},
-							},
-							authors: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-								where: {
-									RAW: sql`false`,
-								},
-							},
-						},
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-					posts: {
-						with: {
-							author: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-							},
-							authors: {
-								extras: {
-									sql: sql`SELECT 1`.mapWith(Number),
-									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-								},
-							},
-						},
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-				},
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-
-			expect(nested1).toStrictEqual(
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					post: {
-						author: null,
-						authorId: 1,
-						authors: [],
-						content: 'p1',
+						createdAt: mappersDate,
 						id: 1,
+						isBanned: null,
+						name: 'First',
 						sql: 1,
 						sqlWrapper: 2,
 					},
-					posts: {
-						author: {
-							createdAt: mappersDate,
+				);
+				expect(extra2).toStrictEqual([
+					{
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					{
+						createdAt: mappersDate,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					{
+						createdAt: mappersDate,
+						id: 3,
+						isBanned: null,
+						name: 'Third',
+						sql: 1,
+						sqlWrapper: 2,
+					},
+				]);
+
+				const nested1 = await db.query.users.findFirst({
+					orderBy: { id: 'asc' },
+					with: {
+						post: {
+							with: {
+								author: {
+									extras: {
+										sql: sql`SELECT 1`.mapWith(Number),
+										sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+									},
+									where: {
+										RAW: sql`false`,
+									},
+								},
+								authors: {
+									extras: {
+										sql: sql`SELECT 1`.mapWith(Number),
+										sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+									},
+									where: {
+										RAW: sql`false`,
+									},
+								},
+							},
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+						posts: {
+							with: {
+								author: {
+									extras: {
+										sql: sql`SELECT 1`.mapWith(Number),
+										sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+									},
+								},
+								authors: {
+									extras: {
+										sql: sql`SELECT 1`.mapWith(Number),
+										sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+									},
+								},
+							},
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				});
+				const nested2 = await db.query.users.findMany({
+					orderBy: { id: 'asc' },
+					with: {
+						post: {
+							with: {
+								author: {
+									extras: {
+										sql: sql`SELECT 1`.mapWith(Number),
+										sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+									},
+									where: {
+										RAW: sql`false`,
+									},
+								},
+								authors: {
+									extras: {
+										sql: sql`SELECT 1`.mapWith(Number),
+										sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+									},
+									where: {
+										RAW: sql`false`,
+									},
+								},
+							},
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+						posts: {
+							with: {
+								author: {
+									extras: {
+										sql: sql`SELECT 1`.mapWith(Number),
+										sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+									},
+								},
+								authors: {
+									extras: {
+										sql: sql`SELECT 1`.mapWith(Number),
+										sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+									},
+								},
+							},
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				});
+
+				expect(nested1).toStrictEqual(
+					{
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+						post: {
+							author: null,
+							authorId: 1,
+							authors: [],
+							content: 'p1',
 							id: 1,
-							isBanned: null,
-							name: 'First',
 							sql: 1,
 							sqlWrapper: 2,
 						},
-						authorId: 1,
-						authors: [
-							{
+						posts: {
+							author: {
 								createdAt: mappersDate,
 								id: 1,
 								isBanned: null,
@@ -9982,43 +8974,43 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 								sql: 1,
 								sqlWrapper: 2,
 							},
-						],
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			);
-			expect(nested2).toStrictEqual([
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					post: {
-						author: null,
-						authorId: 1,
-						authors: [],
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					posts: {
-						author: {
-							createdAt: mappersDate,
+							authorId: 1,
+							authors: [
+								{
+									createdAt: mappersDate,
+									id: 1,
+									isBanned: null,
+									name: 'First',
+									sql: 1,
+									sqlWrapper: 2,
+								},
+							],
+							content: 'p1',
 							id: 1,
-							isBanned: null,
-							name: 'First',
 							sql: 1,
 							sqlWrapper: 2,
 						},
-						authorId: 1,
-						authors: [
-							{
+						sql: 1,
+						sqlWrapper: 2,
+					},
+				);
+				expect(nested2).toStrictEqual([
+					{
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+						post: {
+							author: null,
+							authorId: 1,
+							authors: [],
+							content: 'p1',
+							id: 1,
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						posts: {
+							author: {
 								createdAt: mappersDate,
 								id: 1,
 								isBanned: null,
@@ -10026,240 +9018,649 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 								sql: 1,
 								sqlWrapper: 2,
 							},
-						],
-						content: 'p1',
-						id: 1,
+							authorId: 1,
+							authors: [
+								{
+									createdAt: mappersDate,
+									id: 1,
+									isBanned: null,
+									name: 'First',
+									sql: 1,
+									sqlWrapper: 2,
+								},
+							],
+							content: 'p1',
+							id: 1,
+							sql: 1,
+							sqlWrapper: 2,
+						},
 						sql: 1,
 						sqlWrapper: 2,
 					},
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
+					{
+						createdAt: mappersDate,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+						post: null,
+						posts: null,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					{
+						createdAt: mappersDate,
+						id: 3,
+						isBanned: null,
+						name: 'Third',
+						post: null,
+						posts: null,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+				]);
+			});
+
+			test(`Mappers: deep nullification of joined subquery${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const users = mappersTable(jit)('mappers_users_dn', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', {
+						withTimezone: true,
+						mode: 'date',
+					}).notNull(),
+					isBanned: t.bool('is_banned'),
+				}));
+
+				const internalStaff = mappersTable(jit)('internal_staff_qm_dn', {
+					userId: int4('user_id').notNull().primaryKey(),
+				});
+
+				const ticket = mappersTable(jit)('ticket_qm_dn', {
+					staffId: int4('staff_id').notNull(),
+				});
+
+				await push({ users, internalStaff, ticket });
+				const db = jit ? createDB({ users, internalStaff, ticket }, () => ({}), true) : defaultDb;
+
+				await db.insert(users).values([{
+					id: 1,
+					name: 'First',
 					createdAt: mappersDate,
+				}, {
 					id: 2,
-					isBanned: true,
 					name: 'Second',
-					post: null,
-					posts: null,
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
 					createdAt: mappersDate,
+					isBanned: true,
+				}, {
 					id: 3,
-					isBanned: null,
 					name: 'Third',
-					post: null,
-					posts: null,
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			]);
-		});
+					createdAt: mappersDate,
+				}]).returning();
+				await db.insert(internalStaff).values([{
+					userId: 1,
+				}, {
+					userId: 2,
+				}]);
+				await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
 
-		test('Mappers: deep nullification', async ({ db, push }) => {
-			const users = cockroachTable('mappers_users_dn', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', {
-					withTimezone: true,
-					mode: 'date',
-				}).notNull(),
-				isBanned: t.bool('is_banned'),
-			}));
+				const subq = db
+					.select()
+					.from(internalStaff)
+					.leftJoin(users, eq(internalStaff.userId, users.id))
+					.as('internal_staff');
+				const selected = await db
+					.select()
+					.from(ticket)
+					.leftJoin(subq, eq(subq.internal_staff_qm_dn.userId, ticket.staffId))
+					.orderBy(ticket.staffId);
 
-			const internalStaff = cockroachTable('internal_staff_qm_dn', {
-				userId: int4('user_id').notNull().primaryKey(),
+				expect(selected).toStrictEqual(
+					[
+						{
+							internal_staff: {
+								internal_staff_qm_dn: {
+									userId: 1,
+								},
+								mappers_users_dn: {
+									createdAt: mappersDate,
+									id: 1,
+									isBanned: null,
+									name: 'First',
+								},
+							},
+							ticket_qm_dn: {
+								staffId: 1,
+							},
+						},
+						{
+							internal_staff: {
+								internal_staff_qm_dn: {
+									userId: 2,
+								},
+								mappers_users_dn: {
+									createdAt: mappersDate,
+									id: 2,
+									isBanned: true,
+									name: 'Second',
+								},
+							},
+							ticket_qm_dn: {
+								staffId: 2,
+							},
+						},
+						{
+							internal_staff: null,
+							ticket_qm_dn: {
+								staffId: 3,
+							},
+						},
+					],
+				);
 			});
 
-			const ticket = cockroachTable('ticket_qm_dn', {
-				staffId: int4('staff_id').notNull(),
+			test(`Mappers: deep nullification through views and inner folds${jit ? ' - Jit mappers' : ''}`, async ({ cockroach: { db }, createDB }) => {
+				await runDeepNullification(jit ? createDB({}, () => ({}), true) : db);
 			});
 
-			await push({ users, internalStaff, ticket });
+			test(`Mappers - JsonObject: field kinds${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = mappersTable(jit)('jo_kinds_users', (t) => ({
+					id: t.int4('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
+					meta: t.jsonb('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = mappersTable(jit)('jo_kinds_posts', (t) => ({
+					id: t.int4('id').primaryKey(),
+					authorId: t.int4('author_id'),
+					title: t.text('title').notNull(),
+				}));
 
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]).returning();
-			await db.insert(internalStaff).values([{
-				userId: 1,
-			}, {
-				userId: 2,
-			}]);
-			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
 
-			const subq = db
-				.select()
-				.from(internalStaff)
-				.leftJoin(users, eq(internalStaff.userId, users.id))
-				.as('internal_staff');
-			const selected = await db
-				.select()
-				.from(ticket)
-				.leftJoin(subq, eq(subq.internal_staff_qm_dn.userId, ticket.staffId))
-				.orderBy(ticket.staffId);
+				const res = await db.select({
+					id: users.id,
+					object: sql.jsonObject({
+						id: users.id,
+						name: users.name,
+						bio: users.bio,
+						createdAt: users.createdAt,
+						meta: users.meta,
+						upperName: sql<string>`upper(${users.name})`.as('upper_name'),
+						doubleId: sql`${users.id} * 2`.mapWith(Number),
+						mappedCreatedAt: sql`${users.createdAt}`.mapWith(users.createdAt),
+						postCount: db.select({ count: count().as('count') }).from(posts).where(eq(posts.authorId, users.id)).as(
+							'post_count',
+						),
+						nested: sql.jsonObject({
+							createdAt: users.createdAt,
+							deeper: sql.jsonObject({ name: users.name, meta: users.meta }),
+						}),
+					}),
+					aliased: sql.jsonObject({ name: users.name, createdAt: users.createdAt }).as('aliased'),
+					table: sql.jsonObject(users),
+				}).from(users).orderBy(users.id);
 
-			expect(selected).toStrictEqual(
-				[
-					{
-						internal_staff: {
-							internal_staff_qm_dn: {
-								userId: 1,
-							},
-							mappers_users_dn: {
-								createdAt: mappersDate,
-								id: 1,
-								isBanned: null,
-								name: 'First',
-							},
-						},
-						ticket_qm_dn: {
-							staffId: 1,
+				expectTypeOf(res).toEqualTypeOf<{
+					id: number;
+					object: {
+						id: number;
+						name: string;
+						bio: string | null;
+						createdAt: Date;
+						meta: { tags: string[] } | null;
+						upperName: string;
+						doubleId: number;
+						mappedCreatedAt: Date;
+						postCount: number | null;
+						nested: {
+							createdAt: Date;
+							deeper: { name: string; meta: { tags: string[] } | null };
+						};
+					};
+					aliased: { name: string; createdAt: Date };
+					table: {
+						id: number;
+						name: string;
+						bio: string | null;
+						createdAt: Date;
+						meta: { tags: string[] } | null;
+					};
+				}[]>();
+
+				expect(res).toStrictEqual([{
+					id: 1,
+					object: {
+						id: 1,
+						name: 'First',
+						bio: null,
+						createdAt: mappersDate,
+						meta: { tags: ['a', 'b'] },
+						upperName: 'FIRST',
+						doubleId: 2,
+						mappedCreatedAt: mappersDate,
+						postCount: 2,
+						nested: {
+							createdAt: mappersDate,
+							deeper: { name: 'First', meta: { tags: ['a', 'b'] } },
 						},
 					},
-					{
-						internal_staff: {
-							internal_staff_qm_dn: {
-								userId: 2,
-							},
-							mappers_users_dn: {
-								createdAt: mappersDate,
-								id: 2,
-								isBanned: true,
-								name: 'Second',
-							},
-						},
-						ticket_qm_dn: {
-							staffId: 2,
-						},
-					},
-					{
-						internal_staff: null,
-						ticket_qm_dn: {
-							staffId: 3,
+					aliased: { name: 'First', createdAt: mappersDate },
+					table: jsonObjectUsers[0]!,
+				}, {
+					id: 2,
+					object: {
+						id: 2,
+						name: 'Second',
+						bio: 'About',
+						createdAt: mappersDate,
+						meta: null,
+						upperName: 'SECOND',
+						doubleId: 4,
+						mappedCreatedAt: mappersDate,
+						postCount: 0,
+						nested: {
+							createdAt: mappersDate,
+							deeper: { name: 'Second', meta: null },
 						},
 					},
-				],
-			);
-		});
+					aliased: { name: 'Second', createdAt: mappersDate },
+					table: jsonObjectUsers[1]!,
+				}]);
 
-		test('Jit mappers: deep nullification', async ({ createDB, push }) => {
-			const users = cockroachTable('mappers_users_jdn', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', {
-					withTimezone: true,
-					mode: 'date',
-				}).notNull(),
-				isBanned: t.bool('is_banned'),
-			}));
+				// Legacy custom column JSON api, used both directly and as a decoder of an expression
+				const customText = customType<{ data: string; driverData: string; jsonData: string }>({
+					dataType: () => 'text',
+					forJsonSelect: (identifier, sql) => sql`upper(${identifier})`,
+					fromJson: (value) => `json:${value}`,
+				});
+				const customs = mappersTable(jit)('jo_kinds_custom', { value: customText('value').notNull() });
 
-			const internalStaff = cockroachTable('internal_staff_qm_jdn', {
-				userId: int4('user_id').notNull().primaryKey(),
+				await push({ customs });
+				await db.insert(customs).values({ value: 'nick' });
+
+				const customRes = await db.select({
+					plain: customs.value,
+					object: sql.jsonObject({
+						direct: customs.value,
+						mapped: sql`${customs.value}`.mapWith(customs.value),
+					}),
+				}).from(customs);
+
+				expectTypeOf(customRes).toEqualTypeOf<{ plain: string; object: { direct: string; mapped: string } }[]>();
+				expect(customRes).toStrictEqual([{ plain: 'nick', object: { direct: 'json:NICK', mapped: 'json:NICK' } }]);
 			});
 
-			const ticket = cockroachTable('ticket_qm_jdn', {
-				staffId: int4('staff_id').notNull(),
+			test(`Mappers - JsonObject: join nullability${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = mappersTable(jit)('jo_joins_users', (t) => ({
+					id: t.int4('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
+					meta: t.jsonb('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = mappersTable(jit)('jo_joins_posts', (t) => ({
+					id: t.int4('id').primaryKey(),
+					authorId: t.int4('author_id'),
+					title: t.text('title').notNull(),
+				}));
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
+
+				const left = await db.select({
+					post: sql.jsonObject({ id: posts.id, title: posts.title }),
+					author: sql.jsonObject({ id: users.id, name: users.name, bio: users.bio }),
+					aliased: sql.jsonObject({ name: users.name, createdAt: users.createdAt }).as('aliased'),
+				}).from(posts).leftJoin(users, eq(users.id, posts.authorId)).orderBy(posts.id);
+
+				expectTypeOf(left).toEqualTypeOf<{
+					post: { id: number; title: string };
+					author: { id: number | null; name: string | null; bio: string | null };
+					aliased: { name: string | null; createdAt: Date | null };
+				}[]>();
+
+				expect(left).toStrictEqual([{
+					post: { id: 1, title: 'P1' },
+					author: { id: 1, name: 'First', bio: null },
+					aliased: { name: 'First', createdAt: mappersDate },
+				}, {
+					post: { id: 2, title: 'P2' },
+					author: { id: 1, name: 'First', bio: null },
+					aliased: { name: 'First', createdAt: mappersDate },
+				}, {
+					post: { id: 3, title: 'Orphan' },
+					author: { id: null, name: null, bio: null },
+					aliased: { name: null, createdAt: null },
+				}]);
+
+				const right = await db.select({
+					post: sql.jsonObject({ id: posts.id, title: posts.title }),
+					author: sql.jsonObject({ id: users.id, name: users.name }),
+				}).from(posts).rightJoin(users, eq(users.id, posts.authorId)).orderBy(users.id, posts.id);
+
+				expectTypeOf(right).toEqualTypeOf<{
+					post: { id: number | null; title: string | null };
+					author: { id: number; name: string };
+				}[]>();
+
+				expect(right).toStrictEqual([{
+					post: { id: 1, title: 'P1' },
+					author: { id: 1, name: 'First' },
+				}, {
+					post: { id: 2, title: 'P2' },
+					author: { id: 1, name: 'First' },
+				}, {
+					post: { id: null, title: null },
+					author: { id: 2, name: 'Second' },
+				}]);
+
+				const inner = await db.select({
+					post: sql.jsonObject({ title: posts.title }),
+					author: sql.jsonObject({ name: users.name }),
+				}).from(posts).innerJoin(users, eq(users.id, posts.authorId)).orderBy(posts.id);
+
+				expectTypeOf(inner).toEqualTypeOf<{
+					post: { title: string };
+					author: { name: string };
+				}[]>();
+
+				expect(inner).toStrictEqual([
+					{ post: { title: 'P1' }, author: { name: 'First' } },
+					{ post: { title: 'P2' }, author: { name: 'First' } },
+				]);
+
+				const full = await db.select({
+					post: sql.jsonObject({ title: posts.title }),
+					author: sql.jsonObject({ name: users.name }),
+				}).from(posts).fullJoin(users, eq(users.id, posts.authorId)).orderBy(posts.id, users.id);
+
+				expectTypeOf(full).toEqualTypeOf<{
+					post: { title: string | null };
+					author: { name: string | null };
+				}[]>();
+
+				expect(full).toStrictEqual([
+					{ post: { title: null }, author: { name: 'Second' } },
+					{ post: { title: 'P1' }, author: { name: 'First' } },
+					{ post: { title: 'P2' }, author: { name: 'First' } },
+					{ post: { title: 'Orphan' }, author: { name: null } },
+				]);
 			});
 
-			await push({ users, internalStaff, ticket });
-			const db = createDB({ users, internalStaff, ticket }, () => ({}), true);
+			test(`Mappers - JsonObject: automatic selection${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = mappersTable(jit)('jo_auto_users', (t) => ({
+					id: t.int4('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
+					meta: t.jsonb('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = mappersTable(jit)('jo_auto_posts', (t) => ({
+					id: t.int4('id').primaryKey(),
+					authorId: t.int4('author_id'),
+					title: t.text('title').notNull(),
+				}));
 
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]).returning();
-			await db.insert(internalStaff).values([{
-				userId: 1,
-			}, {
-				userId: 2,
-			}]);
-			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
 
-			const subq = db
-				.select()
-				.from(internalStaff)
-				.leftJoin(users, eq(internalStaff.userId, users.id))
-				.as('internal_staff');
-			const selected = await db
-				.select()
-				.from(ticket)
-				.leftJoin(subq, eq(subq.internal_staff_qm_jdn.userId, ticket.staffId))
-				.orderBy(ticket.staffId);
+				const sq = db.select({
+					id: users.id,
+					profile: sql.jsonObject({ name: users.name, createdAt: users.createdAt, meta: users.meta }).as('profile'),
+				}).from(users).as('sq');
 
-			expect(selected).toStrictEqual(
-				[
-					{
-						internal_staff: {
-							internal_staff_qm_jdn: {
-								userId: 1,
-							},
-							mappers_users_jdn: {
-								createdAt: mappersDate,
-								id: 1,
-								isBanned: null,
-								name: 'First',
-							},
-						},
-						ticket_qm_jdn: {
-							staffId: 1,
-						},
-					},
-					{
-						internal_staff: {
-							internal_staff_qm_jdn: {
-								userId: 2,
-							},
-							mappers_users_jdn: {
-								createdAt: mappersDate,
-								id: 2,
-								isBanned: true,
-								name: 'Second',
-							},
-						},
-						ticket_qm_jdn: {
-							staffId: 2,
-						},
-					},
-					{
-						internal_staff: null,
-						ticket_qm_jdn: {
-							staffId: 3,
-						},
-					},
-				],
-			);
-		});
+				const fromSubquery = await db.select().from(sq).orderBy(sq.id);
 
-		test('Mappers: deep nullification through views and inner folds', async ({ cockroach: { db } }) => {
-			await runDeepNullification(db);
-		});
+				expectTypeOf(fromSubquery).toEqualTypeOf<{
+					id: number;
+					profile: { name: string; createdAt: Date; meta: { tags: string[] } | null };
+				}[]>();
 
-		test('Jit mappers: deep nullification through views and inner folds', async ({ createDB }) => {
-			await runDeepNullification(createDB({}, () => ({}), true));
-		});
+				expect(fromSubquery).toStrictEqual([
+					{ id: 1, profile: { name: 'First', createdAt: mappersDate, meta: { tags: ['a', 'b'] } } },
+					{ id: 2, profile: { name: 'Second', createdAt: mappersDate, meta: null } },
+				]);
+
+				const joined = await db.select().from(posts).leftJoin(sq, eq(sq.id, posts.authorId)).orderBy(posts.id);
+
+				expectTypeOf(joined).toEqualTypeOf<{
+					jo_auto_posts: { id: number; authorId: number | null; title: string };
+					sq: {
+						id: number;
+						profile: { name: string; createdAt: Date; meta: { tags: string[] } | null };
+					} | null;
+				}[]>();
+
+				expect(joined).toStrictEqual([{
+					jo_auto_posts: jsonObjectPosts[0]!,
+					sq: { id: 1, profile: { name: 'First', createdAt: mappersDate, meta: { tags: ['a', 'b'] } } },
+				}, {
+					jo_auto_posts: jsonObjectPosts[1]!,
+					sq: { id: 1, profile: { name: 'First', createdAt: mappersDate, meta: { tags: ['a', 'b'] } } },
+				}, {
+					jo_auto_posts: jsonObjectPosts[2]!,
+					sq: null,
+				}]);
+			});
+
+			test(`Mappers - JsonObject: selection from subquery${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = mappersTable(jit)('jo_sq_users', (t) => ({
+					id: t.int4('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
+					meta: t.jsonb('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = mappersTable(jit)('jo_sq_posts', (t) => ({
+					id: t.int4('id').primaryKey(),
+					authorId: t.int4('author_id'),
+					title: t.text('title').notNull(),
+				}));
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
+
+				const sq = db.select({
+					id: posts.id,
+					title: posts.title,
+					author: sql.jsonObject({ id: users.id, name: users.name, createdAt: users.createdAt }).as('author'),
+				}).from(posts).leftJoin(users, eq(users.id, posts.authorId)).as('sq');
+
+				const res = await db.select({
+					title: sq.title,
+					author: sq.author,
+					wrapped: sql.jsonObject({ title: sq.title, author: sq.author }),
+				}).from(sq).orderBy(sq.id);
+
+				expectTypeOf(res).toEqualTypeOf<{
+					title: string;
+					author: { id: number | null; name: string | null; createdAt: Date | null };
+					wrapped: {
+						title: string;
+						author: { id: number | null; name: string | null; createdAt: Date | null };
+					};
+				}[]>();
+
+				const first = { id: 1, name: 'First', createdAt: mappersDate };
+				const none = { id: null, name: null, createdAt: null };
+				expect(res).toStrictEqual([
+					{ title: 'P1', author: first, wrapped: { title: 'P1', author: first } },
+					{ title: 'P2', author: first, wrapped: { title: 'P2', author: first } },
+					{ title: 'Orphan', author: none, wrapped: { title: 'Orphan', author: none } },
+				]);
+
+				const unaliased = db.select({ object: sql.jsonObject({ id: users.id }) }).from(users).as('unaliased');
+				expect(() => unaliased.object).toThrowError(
+					'You tried to reference "object" field from a subquery, which is an un-aliased JSON object field. Please add an alias to the field using ".as(\'alias\')" method.',
+				);
+			});
+
+			test(`Mappers - JsonObject: selection from $with subquery${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = mappersTable(jit)('jo_with_users', (t) => ({
+					id: t.int4('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
+					meta: t.jsonb('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = mappersTable(jit)('jo_with_posts', (t) => ({
+					id: t.int4('id').primaryKey(),
+					authorId: t.int4('author_id'),
+					title: t.text('title').notNull(),
+				}));
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
+
+				const w = db.$with('w').as(
+					db.select({
+						id: users.id,
+						profile: sql.jsonObject({ name: users.name, meta: users.meta }).as('profile'),
+					}).from(users),
+				);
+
+				const all = await db.with(w).select().from(w).orderBy(w.id);
+
+				expectTypeOf(all).toEqualTypeOf<{
+					id: number;
+					profile: { name: string; meta: { tags: string[] } | null };
+				}[]>();
+
+				expect(all).toStrictEqual([
+					{ id: 1, profile: { name: 'First', meta: { tags: ['a', 'b'] } } },
+					{ id: 2, profile: { name: 'Second', meta: null } },
+				]);
+
+				const joined = await db.with(w).select({
+					title: posts.title,
+					profile: w.profile,
+					wrapped: sql.jsonObject({ title: posts.title, profile: w.profile }),
+				}).from(posts).leftJoin(w, eq(w.id, posts.authorId)).orderBy(posts.id);
+
+				expectTypeOf(joined).toEqualTypeOf<{
+					title: string;
+					profile: { name: string; meta: { tags: string[] } | null } | null;
+					wrapped: {
+						title: string;
+						profile: { name: string; meta: { tags: string[] } | null } | null;
+					};
+				}[]>();
+
+				const first = { name: 'First', meta: { tags: ['a', 'b'] } };
+				expect(joined).toStrictEqual([
+					{ title: 'P1', profile: first, wrapped: { title: 'P1', profile: first } },
+					{ title: 'P2', profile: first, wrapped: { title: 'P2', profile: first } },
+					{ title: 'Orphan', profile: null, wrapped: { title: 'Orphan', profile: null } },
+				]);
+			});
+
+			test(`Mappers - JsonObject: joined subquery${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = mappersTable(jit)('jo_joined_sq_users', (t) => ({
+					id: t.int4('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
+					meta: t.jsonb('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = mappersTable(jit)('jo_joined_sq_posts', (t) => ({
+					id: t.int4('id').primaryKey(),
+					authorId: t.int4('author_id'),
+					title: t.text('title').notNull(),
+				}));
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
+
+				const first = { id: 1, name: 'First', createdAt: mappersDate };
+
+				const sq = db.select({
+					id: users.id,
+					author: sql.jsonObject({ id: users.id, name: users.name, createdAt: users.createdAt }).as('author'),
+				}).from(users).as('sq');
+
+				const left = await db.select({
+					title: posts.title,
+					author: sq.author,
+					wrapped: sql.jsonObject({ title: posts.title, author: sq.author }),
+				}).from(posts).leftJoin(sq, eq(sq.id, posts.authorId)).orderBy(posts.id);
+
+				expectTypeOf(left).toEqualTypeOf<{
+					title: string;
+					author: { id: number; name: string; createdAt: Date } | null;
+					wrapped: { title: string; author: { id: number; name: string; createdAt: Date } | null };
+				}[]>();
+
+				expect(left).toStrictEqual([
+					{ title: 'P1', author: first, wrapped: { title: 'P1', author: first } },
+					{ title: 'P2', author: first, wrapped: { title: 'P2', author: first } },
+					{ title: 'Orphan', author: null, wrapped: { title: 'Orphan', author: null } },
+				]);
+
+				const inner = await db.select({
+					title: posts.title,
+					author: sq.author,
+				}).from(posts).innerJoin(sq, eq(sq.id, posts.authorId)).orderBy(posts.id);
+
+				expectTypeOf(inner).toEqualTypeOf<{
+					title: string;
+					author: { id: number; name: string; createdAt: Date };
+				}[]>();
+
+				expect(inner).toStrictEqual([
+					{ title: 'P1', author: first },
+					{ title: 'P2', author: first },
+				]);
+
+				const lateralSq = db.select({
+					author: sql.jsonObject({ id: users.id, name: users.name, createdAt: users.createdAt }).as('author'),
+				}).from(users).where(eq(users.id, posts.authorId)).as('lateral_sq');
+
+				const lateral = await db.select().from(posts).leftJoinLateral(lateralSq, sql`true`).orderBy(posts.id);
+
+				expectTypeOf(lateral).toEqualTypeOf<{
+					jo_joined_sq_posts: { id: number; authorId: number | null; title: string };
+					lateral_sq: { author: { id: number; name: string; createdAt: Date } } | null;
+				}[]>();
+
+				expect(lateral).toStrictEqual([
+					{ jo_joined_sq_posts: jsonObjectPosts[0]!, lateral_sq: { author: first } },
+					{ jo_joined_sq_posts: jsonObjectPosts[1]!, lateral_sq: { author: first } },
+					{ jo_joined_sq_posts: jsonObjectPosts[2]!, lateral_sq: null },
+				]);
+
+				const scalar = await db.select({
+					title: posts.title,
+					author: db.select({
+						author: sql.jsonObject({ id: users.id, name: users.name, createdAt: users.createdAt }).as('author'),
+					}).from(users).where(eq(users.id, posts.authorId)).as('author'),
+				}).from(posts).orderBy(posts.id);
+
+				expectTypeOf(scalar).toEqualTypeOf<{
+					title: string;
+					author: { id: number; name: string; createdAt: Date } | null;
+				}[]>();
+
+				expect(scalar).toStrictEqual([
+					{ title: 'P1', author: first },
+					{ title: 'P2', author: first },
+					{ title: 'Orphan', author: null },
+				]);
+			});
+		}
 
 		test('Default value priority', async ({ cockroach: { db } }) => {
 			const exTbl = cockroachTable('no_default_override', {

@@ -1,5 +1,5 @@
 import type { RelationsBuilder } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
+import { getColumns, sql } from 'drizzle-orm';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core';
 import {
 	bigint,
@@ -35,6 +35,21 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { expect, expectTypeOf } from 'vitest';
+
+export const asJsonObjects = <TRow>(rows: TRow[]) => rows.map((row) => ({ object: row, nested: { object: row } }));
+
+/**
+ * {@link AllTypesTable}'s columns split in halves, with matching halves of `row`:
+ * whole table exceeds `json_build_object`'s limit of 100 arguments
+ */
+const allTypesHalves = (table: AllTypesTable, row: AllTypes) => {
+	const columns = Object.entries(getColumns(table));
+	const middle = Math.ceil(columns.length / 2);
+	return [columns.slice(0, middle), columns.slice(middle)].map((half) => ({
+		selection: Object.fromEntries(half),
+		row: Object.fromEntries(half.map(([key]) => [key, row[key as keyof AllTypes]])),
+	}));
+};
 
 export const makeAllTypes = <TTable extends string, TEnum extends string>(tableName: TTable, enumName: TEnum) => {
 	const en = pgEnum(enumName, ['enVal1', 'enVal2']);
@@ -1309,6 +1324,16 @@ export async function assertAllTypesEmptyArrays(
 			...data,
 			self: [data],
 		});
+		for (const half of allTypesHalves(allTypesTable, data)) {
+			expect(
+				await run(
+					db.select({
+						object: sql.jsonObject(half.selection),
+						nested: sql.jsonObject({ object: sql.jsonObject(half.selection) }),
+					}).from(allTypesTable),
+				),
+			).toStrictEqual(asJsonObjects([half.row]));
+		}
 	}
 }
 
@@ -1332,6 +1357,16 @@ export async function assertAllTypesWithReplacements(
 			...data,
 			self: [data],
 		});
+		for (const half of allTypesHalves(allTypesTable, data)) {
+			expect(
+				await run(
+					db.select({
+						object: sql.jsonObject(half.selection),
+						nested: sql.jsonObject({ object: sql.jsonObject(half.selection) }),
+					}).from(allTypesTable),
+				),
+			).toStrictEqual(asJsonObjects([half.row]));
+		}
 	}
 
 	await assertAllTypesEmptyArrays(db, allTypesTable, {
@@ -1359,6 +1394,15 @@ export async function assertAllTypesBounds(
 			expect(
 				await run((<any> db).query.boundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
 			).toStrictEqual(boundsData.map((row) => ({ ...row, self: [row] })));
+
+			const objects = db.select({
+				object: sql.jsonObject(boundsTable),
+				nested: sql.jsonObject({ object: sql.jsonObject(boundsTable) }),
+			}).from(boundsTable).orderBy(boundsTable.id);
+			expectTypeOf<(typeof objects)['_']['result']>().toEqualTypeOf<
+				{ object: BoundsRow; nested: { object: BoundsRow } }[]
+			>();
+			expect(await run(objects)).toStrictEqual(asJsonObjects(boundsData));
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropBounds())));
@@ -1704,6 +1748,17 @@ export async function assertAllTypesTemporalBounds(
 			expect(
 				await run((<any> db).query.temporalBoundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
 			).toStrictEqual(data.map((row) => ({ ...row, self: [row] })));
+
+			const objects = db.select({
+				object: sql.jsonObject(temporalBoundsTable),
+				nested: sql.jsonObject({ object: sql.jsonObject(temporalBoundsTable) }),
+			}).from(temporalBoundsTable).orderBy(
+				temporalBoundsTable.id,
+			);
+			expectTypeOf<(typeof objects)['_']['result']>().toEqualTypeOf<
+				{ object: TemporalBoundsRow; nested: { object: TemporalBoundsRow } }[]
+			>();
+			expect(await run(objects)).toStrictEqual(asJsonObjects(data));
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropTemporalBounds())));
@@ -1774,6 +1829,20 @@ export async function assertAllTypesTemporalBoundsInSessions(
 						})),
 						label,
 					).toStrictEqual(expected.map((row) => ({ ...row, self: [row] })));
+
+					const object = sql.jsonObject({
+						id: table.id,
+						date: table.date,
+						timestamp: table.timestamp,
+						timestampTz: table.timestampTz,
+						arrTimestampTz: table.arrTimestampTz,
+					});
+					expect(
+						await run(
+							tx.select({ object, nested: sql.jsonObject({ object }) }).from(table).orderBy(table.id),
+						),
+						label,
+					).toStrictEqual(asJsonObjects(expected));
 				}
 			});
 		}
@@ -2047,6 +2116,17 @@ and array_position(${nullElementsTable.arrjsonb}, null) is not null`).orderBy(nu
 			expect(
 				await run((<any> db).query.nullElementsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
 			).toStrictEqual(nullElementsData.map((row) => ({ ...row, self: [row] })));
+
+			const objects = db.select({
+				object: sql.jsonObject(nullElementsTable),
+				nested: sql.jsonObject({ object: sql.jsonObject(nullElementsTable) }),
+			}).from(nullElementsTable).orderBy(
+				nullElementsTable.id,
+			);
+			expectTypeOf<(typeof objects)['_']['result']>().toEqualTypeOf<
+				{ object: NullElementsRow; nested: { object: NullElementsRow } }[]
+			>();
+			expect(await run(objects)).toStrictEqual(asJsonObjects(nullElementsData));
 		}
 	} finally {
 		await drop();
@@ -2168,6 +2248,20 @@ and array_position(${customNullElementsTable.taggedJson}, null) is not null`).or
 
 			expect(await run(counted)).toStrictEqual(customNullElementsData.map((row) => ({ ...row, self: [row] })));
 			expect(fromJsonCalls).toStrictEqual([2]);
+
+			const objects = db.select({
+				object: sql.jsonObject(customNullElementsTable),
+				nested: sql.jsonObject({ object: sql.jsonObject(customNullElementsTable) }),
+			}).from(customNullElementsTable).orderBy(
+				customNullElementsTable.id,
+			);
+			expectTypeOf<(typeof objects)['_']['result']>().toEqualTypeOf<
+				{ object: CustomNullElementsRow; nested: { object: CustomNullElementsRow } }[]
+			>();
+			taggedFromJsonCalls = 0;
+			expect(await run(objects)).toStrictEqual(asJsonObjects(customNullElementsData));
+			// Once per row of each object: JSON values are decoded with `fromJson`, not `fromDriver`
+			expect(taggedFromJsonCalls).toStrictEqual(4);
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropCustomNullElements())));

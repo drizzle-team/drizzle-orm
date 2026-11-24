@@ -12,6 +12,7 @@ import {
 	eq,
 	getColumns,
 	getTableColumns,
+	getTableName,
 	gt,
 	gte,
 	inArray,
@@ -3555,168 +3556,6 @@ export function tests(test: Test) {
 			expect(parseStoredJson(stored)).toStrictEqual(output);
 		});
 
-		// https://github.com/drizzle-team/drizzle-orm/issues/5724
-		test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
-			let customCast = false;
-			let customMap = false;
-
-			const codecBypass = customType<{
-				data: Date;
-				driverData: string;
-				jsonData: string;
-			}>({
-				codec: 'datetime',
-				dataType: () => 'datetime',
-				forJsonSelect: (identifier, sql) => {
-					customCast = true;
-					return sql`cast(${identifier} as char)`;
-				},
-				fromJson: (v) => {
-					customMap = true;
-					return new Date(v.replace(' ', 'T') + 'Z');
-				},
-				toDriver: (v) => v.toISOString().replace('T', ' ').replace('Z', ''),
-			});
-
-			const users = singlestoreTable('users_823', {
-				id: int('id').primaryKey(),
-				name: text('name').notNull(),
-				createdAt: datetime('createdAt', { mode: 'date' }).notNull(),
-				createdAtStr: datetime('createdAtStr', { mode: 'string' }).notNull(),
-				cus: codecBypass('cus').notNull(),
-			});
-
-			await push({ users });
-
-			const db = createDB({ users }, (r) => ({
-				users: {
-					self: r.one.users({
-						from: r.users.id,
-						to: r.users.id,
-					}),
-				},
-			}));
-
-			const exDateStr = '1970-01-16 16:45:46';
-			const exDate = new Date(exDateStr.replace(' ', 'T') + 'Z');
-
-			await db.insert(users).values({
-				id: 1,
-				name: 'First',
-				createdAt: exDate,
-				createdAtStr: exDateStr,
-				cus: exDate,
-			});
-
-			const res = await db.select({
-				...getColumns(users),
-				max: max(users.createdAt).as('max'),
-				maxStr: max(users.createdAtStr).as('maxStr'),
-			}).from(users).groupBy(users.id);
-
-			const nested = await db.query.users.findFirst({
-				with: {
-					self: true,
-				},
-			});
-
-			const cols = {
-				id: 1,
-				name: 'First',
-				createdAt: exDate,
-				createdAtStr: exDateStr,
-				cus: exDate,
-			};
-
-			expect(res).toStrictEqual([{ ...cols, max: exDate, maxStr: exDateStr }]);
-
-			expect(customCast).toBeTruthy();
-			expect(customMap).toBeTruthy();
-
-			expect(nested).toStrictEqual({ ...cols, self: cols });
-		});
-
-		// https://github.com/drizzle-team/drizzle-orm/issues/5724
-		test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
-			let customCast = false;
-			let customMap = false;
-
-			const codecBypass = customType<{
-				data: Date;
-				driverData: string;
-				jsonData: string;
-			}>({
-				codec: 'datetime',
-				dataType: () => 'datetime',
-				forJsonSelect: (identifier, sql) => {
-					customCast = true;
-					return sql`cast(${identifier} as char)`;
-				},
-				fromJson: (v) => {
-					customMap = true;
-					return new Date(v.replace(' ', 'T') + 'Z');
-				},
-				toDriver: (v) => v.toISOString().replace('T', ' ').replace('Z', ''),
-			});
-
-			const users = singlestoreTable('users_824', {
-				id: int('id').primaryKey(),
-				name: text('name').notNull(),
-				createdAt: datetime('createdAt', { mode: 'date' }).notNull(),
-				createdAtStr: datetime('createdAtStr', { mode: 'string' }).notNull(),
-				cus: codecBypass('cus').notNull(),
-			});
-
-			await push({ users });
-
-			const db = createDB({ users }, (r) => ({
-				users: {
-					self: r.one.users({
-						from: r.users.id,
-						to: r.users.id,
-					}),
-				},
-			}), true);
-
-			const exDateStr = '1970-01-16 16:45:46';
-			const exDate = new Date(exDateStr.replace(' ', 'T') + 'Z');
-
-			await db.insert(users).values({
-				id: 1,
-				name: 'First',
-				createdAt: exDate,
-				createdAtStr: exDateStr,
-				cus: exDate,
-			});
-
-			const res = await db.select({
-				...getColumns(users),
-				max: max(users.createdAt).as('max'),
-				maxStr: max(users.createdAtStr).as('maxStr'),
-			}).from(users).groupBy(users.id);
-
-			const nested = await db.query.users.findFirst({
-				with: {
-					self: true,
-				},
-			});
-
-			const cols = {
-				id: 1,
-				name: 'First',
-				createdAt: exDate,
-				createdAtStr: exDateStr,
-				cus: exDate,
-			};
-
-			expect(res).toStrictEqual([{ ...cols, max: exDate, maxStr: exDateStr }]);
-
-			expect(customCast).toBeTruthy();
-			expect(customMap).toBeTruthy();
-
-			expect(nested).toStrictEqual({ ...cols, self: cols });
-		});
-
 		// https://github.com/drizzle-team/drizzle-orm/issues/4878
 		test.concurrent('.where with isNull in it', async ({ db, push }) => {
 			const table = singlestoreTable('table_where_is_null', {
@@ -3834,1309 +3673,1278 @@ export function tests(test: Test) {
 			expect(jitDialect.mapperGenerators.rows === makeJitQueryMapper).toStrictEqual(true);
 		});
 
-		// https://github.com/drizzle-team/drizzle-orm/issues/1603
-		test.concurrent('Nested partial select left join: null first column', async ({ db, push }) => {
-			const orgs = singlestoreTable('issue1603_orgs', (t) => ({
-				id: t.int('id').primaryKey(),
-				name: t.text('name').notNull(),
-			}));
-			const branding = singlestoreTable('issue1603_branding', (t) => ({
-				id: t.int('id').primaryKey(),
-				orgId: t.int('org_id'),
-				logo: t.text('logo'),
-				panelBackground: t.text('panel_background'),
-			}));
-
-			await push({ orgs, branding });
-
-			await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
-			await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
-
-			const withBranding = await db.select({
-				name: orgs.name,
-				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
-			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
-
-			expect(withBranding).toStrictEqual([{
-				name: 'Acme',
-				branding: { logo: null, panelBackground: '#1a8cff' },
-			}]);
-
-			const withoutBranding = await db.select({
-				name: orgs.name,
-				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
-			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
-
-			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
-		});
-
-		test.concurrent('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
-			const orgs = singlestoreTable('issue1603_orgs_jit', (t) => ({
-				id: t.int('id').primaryKey(),
-				name: t.text('name').notNull(),
-			}));
-			const branding = singlestoreTable('issue1603_branding_jit', (t) => ({
-				id: t.int('id').primaryKey(),
-				orgId: t.int('org_id'),
-				logo: t.text('logo'),
-				panelBackground: t.text('panel_background'),
-			}));
-
-			await push({ orgs, branding });
-			const db = createDB({ orgs, branding }, () => ({}), true);
-
-			await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
-			await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
-
-			const withBranding = await db.select({
-				name: orgs.name,
-				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
-			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
-
-			expect(withBranding).toStrictEqual([{
-				name: 'Acme',
-				branding: { logo: null, panelBackground: '#1a8cff' },
-			}]);
-
-			const withoutBranding = await db.select({
-				name: orgs.name,
-				branding: { logo: branding.logo, panelBackground: branding.panelBackground },
-			}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
-
-			expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
-		});
-
 		const mappersDate = new Date('2026-04-02T00:00:00.000Z');
 
-		test.concurrent('Mappers: simple select - no rows', async ({ db, push }) => {
-			const users = singlestoreTable('mappers_users_1', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
+		const jsonObjectUsers = [{
+			id: 1,
+			name: 'First',
+			bio: null,
+			createdAt: mappersDate,
+			meta: { tags: ['a', 'b'] },
+		}, {
+			id: 2,
+			name: 'Second',
+			bio: 'About',
+			createdAt: mappersDate,
+			meta: null,
+		}];
 
-			await push({ users });
+		const jsonObjectPosts = [
+			{ id: 1, authorId: 1, title: 'P1' },
+			{ id: 2, authorId: 1, title: 'P2' },
+			{ id: 3, authorId: null, title: 'Orphan' },
+		];
 
-			const result = await db.select().from(users);
+		for (const jit of [false, true]) {
+			// https://github.com/drizzle-team/drizzle-orm/issues/5724
+			test.concurrent(`Column as decoder applies codecs${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				let customCast = false;
+				let customMap = false;
 
-			expect(result).toStrictEqual([]);
-		});
+				const codecBypass = customType<{
+					data: Date;
+					driverData: string;
+					jsonData: string;
+				}>({
+					codec: 'datetime',
+					dataType: () => 'datetime',
+					forJsonSelect: (identifier, sql) => {
+						customCast = true;
+						return sql`cast(${identifier} as char)`;
+					},
+					fromJson: (v) => {
+						customMap = true;
+						return new Date(v.replace(' ', 'T') + 'Z');
+					},
+					toDriver: (v) => v.toISOString().replace('T', ' ').replace('Z', ''),
+				});
 
-		test.concurrent('Mappers: select - nothing to decode - text', async ({ db, push }) => {
-			const users = singlestoreTable('mappers_users_2', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
+				const users = singlestoreTable((jit ? 'users_824' : 'users_823') as 'users_823', {
+					id: int('id').primaryKey(),
+					name: text('name').notNull(),
+					createdAt: datetime('createdAt', { mode: 'date' }).notNull(),
+					createdAtStr: datetime('createdAtStr', { mode: 'string' }).notNull(),
+					cus: codecBypass('cus').notNull(),
+				});
 
-			await push({ users });
+				await push({ users });
 
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}]);
+				const db = createDB({ users }, (r) => ({
+					users: {
+						self: r.one.users({
+							from: r.users.id,
+							to: r.users.id,
+						}),
+					},
+				}), jit);
 
-			const selected = await db.select({ name: users.name }).from(users);
+				const exDateStr = '1970-01-16 16:45:46';
+				const exDate = new Date(exDateStr.replace(' ', 'T') + 'Z');
 
-			expect(selected).toStrictEqual([{ name: 'First' }]);
-		});
+				await db.insert(users).values({
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					cus: exDate,
+				});
 
-		test.concurrent('Mappers: select - nothing to decode - null', async ({ db, push }) => {
-			const users = singlestoreTable('mappers_users_3', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
+				const res = await db.select({
+					...getColumns(users),
+					max: max(users.createdAt).as('max'),
+					maxStr: max(users.createdAtStr).as('maxStr'),
+				}).from(users).groupBy(users.id);
 
-			await push({ users });
+				const nested = await db.query.users.findFirst({
+					with: {
+						self: true,
+					},
+				});
 
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}]);
+				const cols = {
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					cus: exDate,
+				};
 
-			const selected = await db.select({ isBanned: users.isBanned }).from(users);
+				expect(res).toStrictEqual([{ ...cols, max: exDate, maxStr: exDateStr }]);
 
-			expect(selected).toStrictEqual([{ isBanned: null }]);
-		});
+				expect(customCast).toBeTruthy();
+				expect(customMap).toBeTruthy();
 
-		test.concurrent('Mappers: insert $returningId + select', async ({ db, push }) => {
-			const users = singlestoreTable('mappers_users_4', (t) => ({
-				id: t.serial('id').primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
-
-			await push({ users });
-
-			const insertedIds = await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]).$returningId();
-
-			expectTypeOf(insertedIds).toEqualTypeOf<{ id: number }[]>();
-			expect(insertedIds).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
-
-			const selected = await db.select().from(users).orderBy(users.id);
-
-			await db.update(users).set({
-				isBanned: false,
-			}).where(eq(users.id, 2));
-
-			expect(selected).toStrictEqual([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-				isBanned: null,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-				isBanned: null,
-			}]);
-		});
-
-		test.concurrent('Mappers: select complex selections', async ({ db, push }) => {
-			const users = singlestoreTable('mappers_users_5', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
-
-			const posts = singlestoreTable('mappers_posts_1', (t) => ({
-				id: t.int('id').primaryKey(),
-				authorId: t.bigint('author_id', { mode: 'number' }),
-				content: t.text('content'),
-			}));
-
-			await push({ users, posts });
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]);
-
-			await db.insert(posts).values({
-				id: 1,
-				authorId: 1,
-				content: 'p1',
+				expect(nested).toStrictEqual({ ...cols, self: cols });
 			});
 
-			const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected3 = await db.select({
-				userId: users.id,
-				postId: posts.id,
-				name: users.name,
-				isBanned: users.isBanned,
-				content: posts.content,
-				createdAt: users.createdAt,
-			}).from(users).leftJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected4 = await db.select({
-				userId: users.id,
-				postId: posts.id,
-				name: users.name,
-				isBanned: users.isBanned,
-				content: posts.content,
-				createdAt: users.createdAt,
-			}).from(users).innerJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
+			// https://github.com/drizzle-team/drizzle-orm/issues/1603
+			test.concurrent(`Nested partial select left join: null first column${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const orgs = singlestoreTable((jit ? 'issue1603_orgs_jit' : 'issue1603_orgs') as 'issue1603_orgs', (t) => ({
+					id: t.int('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+				const branding = singlestoreTable(
+					(jit ? 'issue1603_branding_jit' : 'issue1603_branding') as 'issue1603_branding',
+					(t) => ({
+						id: t.int('id').primaryKey(),
+						orgId: t.int('org_id'),
+						logo: t.text('logo'),
+						panelBackground: t.text('panel_background'),
+					}),
+				);
 
-			expect(selected1).toStrictEqual([{
-				user: {
+				await push({ orgs, branding });
+				const db = jit ? createDB({ orgs, branding }, () => ({}), true) : defaultDb;
+
+				await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+				await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+
+				const withBranding = await db.select({
+					name: orgs.name,
+					branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+				}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+
+				expect(withBranding).toStrictEqual([{
+					name: 'Acme',
+					branding: { logo: null, panelBackground: '#1a8cff' },
+				}]);
+
+				const withoutBranding = await db.select({
+					name: orgs.name,
+					branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+				}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+
+				expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+			});
+
+			test.concurrent(`Mappers: simple select - no rows${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const users = singlestoreTable((jit ? 'jit_mappers_users_1' : 'mappers_users_1') as 'mappers_users_1', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					isBanned: t.boolean('is_banned'),
+				}));
+
+				await push({ users });
+				const db = jit ? createDB({ users }, () => ({}), true) : defaultDb;
+
+				const result = await db.select().from(users);
+
+				expect(result).toStrictEqual([]);
+			});
+
+			test.concurrent(`Mappers: select - nothing to decode - text${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const users = singlestoreTable((jit ? 'jit_mappers_users_2' : 'mappers_users_2') as 'mappers_users_2', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					isBanned: t.boolean('is_banned'),
+				}));
+
+				await push({ users });
+				const db = jit ? createDB({ users }, () => ({}), true) : defaultDb;
+
+				await db.insert(users).values([{
 					id: 1,
 					name: 'First',
 					createdAt: mappersDate,
-					isBanned: null,
-				},
-				post: {
+				}]);
+
+				const selected = await db.select({ name: users.name }).from(users);
+
+				expect(selected).toStrictEqual([{ name: 'First' }]);
+			});
+
+			test.concurrent(`Mappers: select - nothing to decode - null${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const users = singlestoreTable((jit ? 'jit_mappers_users_3' : 'mappers_users_3') as 'mappers_users_3', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					isBanned: t.boolean('is_banned'),
+				}));
+
+				await push({ users });
+				const db = jit ? createDB({ users }, () => ({}), true) : defaultDb;
+
+				await db.insert(users).values([{
 					id: 1,
-					authorId: 1,
-					content: 'p1',
-				},
-			}, {
-				user: {
+					name: 'First',
+					createdAt: mappersDate,
+				}]);
+
+				const selected = await db.select({ isBanned: users.isBanned }).from(users);
+
+				expect(selected).toStrictEqual([{ isBanned: null }]);
+			});
+
+			test.concurrent(`Mappers: insert $returningId + select${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const users = singlestoreTable((jit ? 'jit_mappers_users_4' : 'mappers_users_4') as 'mappers_users_4', (t) => ({
+					id: t.serial('id').primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					isBanned: t.boolean('is_banned'),
+				}));
+
+				await push({ users });
+				const db = jit ? createDB({ users }, () => ({}), true) : defaultDb;
+
+				const insertedIds = await db.insert(users).values([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+				}, {
 					id: 2,
 					name: 'Second',
 					createdAt: mappersDate,
 					isBanned: true,
-				},
-				post: null,
-			}, {
-				user: {
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+				}]).$returningId();
+
+				expectTypeOf(insertedIds).toEqualTypeOf<{ id: number }[]>();
+				expect(insertedIds).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+
+				const selected = await db.select().from(users).orderBy(users.id);
+
+				await db.update(users).set({
+					isBanned: false,
+				}).where(eq(users.id, 2));
+
+				expect(selected).toStrictEqual([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
 					id: 3,
 					name: 'Third',
 					createdAt: mappersDate,
 					isBanned: null,
-				},
-				post: null,
-			}]);
-			expect(selected2).toStrictEqual([{
-				user: {
+				}]);
+			});
+
+			test.concurrent(`Mappers: select complex selections${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const users = singlestoreTable((jit ? 'jit_mappers_users_5' : 'mappers_users_5') as 'mappers_users_5', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					isBanned: t.boolean('is_banned'),
+				}));
+
+				const posts = singlestoreTable((jit ? 'jit_mappers_posts_1' : 'mappers_posts_1') as 'mappers_posts_1', (t) => ({
+					id: t.int('id').primaryKey(),
+					authorId: t.bigint('author_id', { mode: 'number' }),
+					content: t.text('content'),
+				}));
+
+				await push({ users, posts });
+				const db = jit ? createDB({ users, posts }, () => ({}), true) : defaultDb;
+
+				await db.insert(users).values([{
 					id: 1,
 					name: 'First',
 					createdAt: mappersDate,
-					isBanned: null,
-				},
-				post: {
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+				}]);
+
+				await db.insert(posts).values({
 					id: 1,
 					authorId: 1,
 					content: 'p1',
-				},
-			}]);
-			expect(selected3).toStrictEqual([
-				{
-					content: 'p1',
-					createdAt: mappersDate,
-					isBanned: null,
+				});
+
+				const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
+					posts,
+					eq(users.id, posts.authorId),
+				).orderBy(users.id);
+				const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
+					posts,
+					eq(users.id, posts.authorId),
+				).orderBy(users.id);
+				const selected3 = await db.select({
+					userId: users.id,
+					postId: posts.id,
+					name: users.name,
+					isBanned: users.isBanned,
+					content: posts.content,
+					createdAt: users.createdAt,
+				}).from(users).leftJoin(
+					posts,
+					eq(users.id, posts.authorId),
+				).orderBy(users.id);
+				const selected4 = await db.select({
+					userId: users.id,
+					postId: posts.id,
+					name: users.name,
+					isBanned: users.isBanned,
+					content: posts.content,
+					createdAt: users.createdAt,
+				}).from(users).innerJoin(
+					posts,
+					eq(users.id, posts.authorId),
+				).orderBy(users.id);
+
+				expect(selected1).toStrictEqual([{
+					user: {
+						id: 1,
+						name: 'First',
+						createdAt: mappersDate,
+						isBanned: null,
+					},
+					post: {
+						id: 1,
+						authorId: 1,
+						content: 'p1',
+					},
+				}, {
+					user: {
+						id: 2,
+						name: 'Second',
+						createdAt: mappersDate,
+						isBanned: true,
+					},
+					post: null,
+				}, {
+					user: {
+						id: 3,
+						name: 'Third',
+						createdAt: mappersDate,
+						isBanned: null,
+					},
+					post: null,
+				}]);
+				expect(selected2).toStrictEqual([{
+					user: {
+						id: 1,
+						name: 'First',
+						createdAt: mappersDate,
+						isBanned: null,
+					},
+					post: {
+						id: 1,
+						authorId: 1,
+						content: 'p1',
+					},
+				}]);
+				expect(selected3).toStrictEqual([
+					{
+						content: 'p1',
+						createdAt: mappersDate,
+						isBanned: null,
+						name: 'First',
+						postId: 1,
+						userId: 1,
+					},
+					{
+						content: null,
+						createdAt: mappersDate,
+						isBanned: true,
+						name: 'Second',
+						postId: null,
+						userId: 2,
+					},
+					{
+						content: null,
+						createdAt: mappersDate,
+						isBanned: null,
+						name: 'Third',
+						postId: null,
+						userId: 3,
+					},
+				]);
+				expect(selected4).toStrictEqual([
+					{
+						content: 'p1',
+						createdAt: mappersDate,
+						isBanned: null,
+						name: 'First',
+						postId: 1,
+						userId: 1,
+					},
+				]);
+			});
+
+			test.concurrent(`Mappers: relational${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = singlestoreTable((jit ? 'jit_mappers_users_6' : 'mappers_users_6') as 'mappers_users_6', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					isBanned: t.boolean('is_banned'),
+				}));
+
+				const posts = singlestoreTable((jit ? 'jit_mappers_posts_2' : 'mappers_posts_2') as 'mappers_posts_2', (t) => ({
+					id: t.int('id').primaryKey(),
+					authorId: t.bigint('author_id', { mode: 'number' }),
+					content: t.text('content'),
+				}));
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, (r) => ({
+					users: {
+						post: r.one.posts({
+							from: r.users.id,
+							to: r.posts.authorId,
+						}),
+						posts: r.one.posts({
+							from: r.users.id,
+							to: r.posts.authorId,
+						}),
+					},
+					posts: {
+						author: r.one.users({
+							from: r.posts.authorId,
+							to: r.users.id,
+						}),
+						authors: r.many.users({
+							from: r.posts.authorId,
+							to: r.users.id,
+						}),
+					},
+				}), jit);
+
+				const empty1 = await db.query.users.findFirst();
+				const empty2 = await db.query.users.findMany();
+
+				expect(empty1).toStrictEqual(undefined);
+				expect(empty2).toStrictEqual([]);
+
+				await db.insert(users).values([{
+					id: 1,
 					name: 'First',
-					postId: 1,
-					userId: 1,
-				},
-				{
-					content: null,
+					createdAt: mappersDate,
+				}, {
+					id: 2,
+					name: 'Second',
 					createdAt: mappersDate,
 					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+				}]);
+				await db.insert(posts).values({
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				});
+
+				const simple1 = await db.query.users.findFirst({ orderBy: { id: 'asc' } });
+				const simple2 = await db.query.users.findMany({ orderBy: { id: 'asc' } });
+
+				expect(simple1).toStrictEqual(
+					{
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+					},
+				);
+				expect(simple2).toStrictEqual([
+					{
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+					},
+					{
+						createdAt: mappersDate,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+					},
+					{
+						createdAt: mappersDate,
+						id: 3,
+						isBanned: null,
+						name: 'Third',
+					},
+				]);
+
+				const extra1 = await db.query.users.findFirst({
+					orderBy: { id: 'asc' },
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				});
+				const extra2 = await db.query.users.findMany({
+					orderBy: { id: 'asc' },
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				});
+
+				expect(extra1).toStrictEqual(
+					{
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+						sql: 1,
+						sqlWrapper: 2,
+					},
+				);
+				expect(extra2).toStrictEqual([
+					{
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					{
+						createdAt: mappersDate,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					{
+						createdAt: mappersDate,
+						id: 3,
+						isBanned: null,
+						name: 'Third',
+						sql: 1,
+						sqlWrapper: 2,
+					},
+				]);
+
+				const nested1 = await db.query.users.findFirst({
+					orderBy: { id: 'asc' },
+					with: {
+						post: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+						posts: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				});
+				const nested2 = await db.query.users.findMany({
+					orderBy: { id: 'asc' },
+					with: {
+						post: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+						posts: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				});
+
+				expect(nested1).toStrictEqual(
+					{
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+						post: {
+							authorId: 1,
+							content: 'p1',
+							id: 1,
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						posts: {
+							authorId: 1,
+							content: 'p1',
+							id: 1,
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						sql: 1,
+						sqlWrapper: 2,
+					},
+				);
+				expect(nested2).toStrictEqual([
+					{
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+						post: {
+							authorId: 1,
+							content: 'p1',
+							id: 1,
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						posts: {
+							authorId: 1,
+							content: 'p1',
+							id: 1,
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					{
+						createdAt: mappersDate,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+						post: null,
+						posts: null,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					{
+						createdAt: mappersDate,
+						id: 3,
+						isBanned: null,
+						name: 'Third',
+						post: null,
+						posts: null,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+				]);
+			});
+
+			test.concurrent(`Mappers - JsonObject: field kinds${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = singlestoreTable((jit ? 'jo_kinds_users_jit' : 'jo_kinds_users') as 'jo_kinds_users', (t) => ({
+					id: t.int('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					meta: t.json('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = singlestoreTable((jit ? 'jo_kinds_posts_jit' : 'jo_kinds_posts') as 'jo_kinds_posts', (t) => ({
+					id: t.int('id').primaryKey(),
+					authorId: t.int('author_id'),
+					title: t.text('title').notNull(),
+				}));
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
+
+				const res = await db.select({
+					id: users.id,
+					object: sql.jsonObject({
+						id: users.id,
+						name: users.name,
+						bio: users.bio,
+						createdAt: users.createdAt,
+						meta: users.meta,
+						upperName: sql<string>`upper(${users.name})`.as('upper_name'),
+						doubleId: sql`${users.id} * 2`.mapWith(Number),
+						mappedCreatedAt: sql`${users.createdAt}`.mapWith(users.createdAt),
+						postCount: db.select({ count: count().as('count') }).from(posts).where(eq(posts.authorId, users.id)).as(
+							'post_count',
+						),
+						nested: sql.jsonObject({
+							createdAt: users.createdAt,
+							deeper: sql.jsonObject({ name: users.name, meta: users.meta }),
+						}),
+					}),
+					aliased: sql.jsonObject({ name: users.name, createdAt: users.createdAt }).as('aliased'),
+					table: sql.jsonObject(users),
+				}).from(users).orderBy(users.id);
+
+				expectTypeOf(res).toEqualTypeOf<{
+					id: number;
+					object: {
+						id: number;
+						name: string;
+						bio: string | null;
+						createdAt: Date;
+						meta: { tags: string[] } | null;
+						upperName: string;
+						doubleId: number;
+						mappedCreatedAt: Date;
+						postCount: number | null;
+						nested: {
+							createdAt: Date;
+							deeper: { name: string; meta: { tags: string[] } | null };
+						};
+					};
+					aliased: { name: string; createdAt: Date };
+					table: {
+						id: number;
+						name: string;
+						bio: string | null;
+						createdAt: Date;
+						meta: { tags: string[] } | null;
+					};
+				}[]>();
+
+				expect(res).toStrictEqual([{
+					id: 1,
+					object: {
+						id: 1,
+						name: 'First',
+						bio: null,
+						createdAt: mappersDate,
+						meta: { tags: ['a', 'b'] },
+						upperName: 'FIRST',
+						doubleId: 2,
+						mappedCreatedAt: mappersDate,
+						postCount: 2,
+						nested: {
+							createdAt: mappersDate,
+							deeper: { name: 'First', meta: { tags: ['a', 'b'] } },
+						},
+					},
+					aliased: { name: 'First', createdAt: mappersDate },
+					table: jsonObjectUsers[0]!,
+				}, {
+					id: 2,
+					object: {
+						id: 2,
+						name: 'Second',
+						bio: 'About',
+						createdAt: mappersDate,
+						meta: null,
+						upperName: 'SECOND',
+						doubleId: 4,
+						mappedCreatedAt: mappersDate,
+						postCount: 0,
+						nested: {
+							createdAt: mappersDate,
+							deeper: { name: 'Second', meta: null },
+						},
+					},
+					aliased: { name: 'Second', createdAt: mappersDate },
+					table: jsonObjectUsers[1]!,
+				}]);
+
+				// Legacy custom column JSON api, used both directly and as a decoder of an expression
+				const customText = customType<{ data: string; driverData: string; jsonData: string }>({
+					dataType: () => 'text',
+					forJsonSelect: (identifier, sql) => sql`upper(${identifier})`,
+					fromJson: (value) => `json:${value}`,
+				});
+				const customs = singlestoreTable((jit ? 'jo_kinds_custom_jit' : 'jo_kinds_custom') as 'jo_kinds_custom', {
+					value: customText('value').notNull(),
+				});
+
+				await push({ customs });
+				await db.insert(customs).values({ value: 'nick' });
+
+				const customRes = await db.select({
+					plain: customs.value,
+					object: sql.jsonObject({
+						direct: customs.value,
+						mapped: sql`${customs.value}`.mapWith(customs.value),
+					}),
+				}).from(customs);
+
+				expectTypeOf(customRes).toEqualTypeOf<{ plain: string; object: { direct: string; mapped: string } }[]>();
+				expect(customRes).toStrictEqual([{ plain: 'nick', object: { direct: 'json:NICK', mapped: 'json:NICK' } }]);
+			});
+
+			test.concurrent(`Mappers - JsonObject: join nullability${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = singlestoreTable((jit ? 'jo_joins_users_jit' : 'jo_joins_users') as 'jo_joins_users', (t) => ({
+					id: t.int('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					meta: t.json('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = singlestoreTable((jit ? 'jo_joins_posts_jit' : 'jo_joins_posts') as 'jo_joins_posts', (t) => ({
+					id: t.int('id').primaryKey(),
+					authorId: t.int('author_id'),
+					title: t.text('title').notNull(),
+				}));
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
+
+				const left = await db.select({
+					post: sql.jsonObject({ id: posts.id, title: posts.title }),
+					author: sql.jsonObject({ id: users.id, name: users.name, bio: users.bio }),
+					aliased: sql.jsonObject({ name: users.name, createdAt: users.createdAt }).as('aliased'),
+				}).from(posts).leftJoin(users, eq(users.id, posts.authorId)).orderBy(posts.id);
+
+				expectTypeOf(left).toEqualTypeOf<{
+					post: { id: number; title: string };
+					author: { id: number | null; name: string | null; bio: string | null };
+					aliased: { name: string | null; createdAt: Date | null };
+				}[]>();
+
+				expect(left).toStrictEqual([{
+					post: { id: 1, title: 'P1' },
+					author: { id: 1, name: 'First', bio: null },
+					aliased: { name: 'First', createdAt: mappersDate },
+				}, {
+					post: { id: 2, title: 'P2' },
+					author: { id: 1, name: 'First', bio: null },
+					aliased: { name: 'First', createdAt: mappersDate },
+				}, {
+					post: { id: 3, title: 'Orphan' },
+					author: { id: null, name: null, bio: null },
+					aliased: { name: null, createdAt: null },
+				}]);
+
+				const right = await db.select({
+					post: sql.jsonObject({ id: posts.id, title: posts.title }),
+					author: sql.jsonObject({ id: users.id, name: users.name }),
+				}).from(posts).rightJoin(users, eq(users.id, posts.authorId)).orderBy(users.id, posts.id);
+
+				expectTypeOf(right).toEqualTypeOf<{
+					post: { id: number | null; title: string | null };
+					author: { id: number; name: string };
+				}[]>();
+
+				expect(right).toStrictEqual([{
+					post: { id: 1, title: 'P1' },
+					author: { id: 1, name: 'First' },
+				}, {
+					post: { id: 2, title: 'P2' },
+					author: { id: 1, name: 'First' },
+				}, {
+					post: { id: null, title: null },
+					author: { id: 2, name: 'Second' },
+				}]);
+
+				const inner = await db.select({
+					post: sql.jsonObject({ title: posts.title }),
+					author: sql.jsonObject({ name: users.name }),
+				}).from(posts).innerJoin(users, eq(users.id, posts.authorId)).orderBy(posts.id);
+
+				expectTypeOf(inner).toEqualTypeOf<{
+					post: { title: string };
+					author: { name: string };
+				}[]>();
+
+				expect(inner).toStrictEqual([
+					{ post: { title: 'P1' }, author: { name: 'First' } },
+					{ post: { title: 'P2' }, author: { name: 'First' } },
+				]);
+
+				const full = await db.select({
+					post: sql.jsonObject({ title: posts.title }),
+					author: sql.jsonObject({ name: users.name }),
+				}).from(posts).fullJoin(users, eq(users.id, posts.authorId)).orderBy(posts.id, users.id);
+
+				expectTypeOf(full).toEqualTypeOf<{
+					post: { title: string | null };
+					author: { name: string | null };
+				}[]>();
+
+				expect(full).toStrictEqual([
+					{ post: { title: null }, author: { name: 'Second' } },
+					{ post: { title: 'P1' }, author: { name: 'First' } },
+					{ post: { title: 'P2' }, author: { name: 'First' } },
+					{ post: { title: 'Orphan' }, author: { name: null } },
+				]);
+			});
+
+			test.concurrent(`Mappers - JsonObject: automatic selection${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = singlestoreTable((jit ? 'jo_auto_users_jit' : 'jo_auto_users') as 'jo_auto_users', (t) => ({
+					id: t.int('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					meta: t.json('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = singlestoreTable((jit ? 'jo_auto_posts_jit' : 'jo_auto_posts') as 'jo_auto_posts', (t) => ({
+					id: t.int('id').primaryKey(),
+					authorId: t.int('author_id'),
+					title: t.text('title').notNull(),
+				}));
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
+
+				const sq = db.select({
+					id: users.id,
+					profile: sql.jsonObject({ name: users.name, createdAt: users.createdAt, meta: users.meta }).as('profile'),
+				}).from(users).as('sq');
+
+				const fromSubquery = await db.select().from(sq).orderBy(sq.id);
+
+				expectTypeOf(fromSubquery).toEqualTypeOf<{
+					id: number;
+					profile: { name: string; createdAt: Date; meta: { tags: string[] } | null };
+				}[]>();
+
+				expect(fromSubquery).toStrictEqual([
+					{ id: 1, profile: { name: 'First', createdAt: mappersDate, meta: { tags: ['a', 'b'] } } },
+					{ id: 2, profile: { name: 'Second', createdAt: mappersDate, meta: null } },
+				]);
+
+				const joined = await db.select().from(posts).leftJoin(sq, eq(sq.id, posts.authorId)).orderBy(posts.id);
+
+				expectTypeOf(joined).toEqualTypeOf<{
+					jo_auto_posts: { id: number; authorId: number | null; title: string };
+					sq: {
+						id: number;
+						profile: { name: string; createdAt: Date; meta: { tags: string[] } | null };
+					} | null;
+				}[]>();
+
+				expect(joined).toStrictEqual([{
+					[getTableName(posts)]: jsonObjectPosts[0]!,
+					sq: { id: 1, profile: { name: 'First', createdAt: mappersDate, meta: { tags: ['a', 'b'] } } },
+				}, {
+					[getTableName(posts)]: jsonObjectPosts[1]!,
+					sq: { id: 1, profile: { name: 'First', createdAt: mappersDate, meta: { tags: ['a', 'b'] } } },
+				}, {
+					[getTableName(posts)]: jsonObjectPosts[2]!,
+					sq: null,
+				}]);
+			});
+
+			test.concurrent(`Mappers - JsonObject: selection from subquery${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = singlestoreTable((jit ? 'jo_sq_users_jit' : 'jo_sq_users') as 'jo_sq_users', (t) => ({
+					id: t.int('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					meta: t.json('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = singlestoreTable((jit ? 'jo_sq_posts_jit' : 'jo_sq_posts') as 'jo_sq_posts', (t) => ({
+					id: t.int('id').primaryKey(),
+					authorId: t.int('author_id'),
+					title: t.text('title').notNull(),
+				}));
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
+
+				const sq = db.select({
+					id: posts.id,
+					title: posts.title,
+					author: sql.jsonObject({ id: users.id, name: users.name, createdAt: users.createdAt }).as('author'),
+				}).from(posts).leftJoin(users, eq(users.id, posts.authorId)).as('sq');
+
+				const res = await db.select({
+					title: sq.title,
+					author: sq.author,
+					wrapped: sql.jsonObject({ title: sq.title, author: sq.author }),
+				}).from(sq).orderBy(sq.id);
+
+				expectTypeOf(res).toEqualTypeOf<{
+					title: string;
+					author: { id: number | null; name: string | null; createdAt: Date | null };
+					wrapped: {
+						title: string;
+						author: { id: number | null; name: string | null; createdAt: Date | null };
+					};
+				}[]>();
+
+				const first = { id: 1, name: 'First', createdAt: mappersDate };
+				const none = { id: null, name: null, createdAt: null };
+				expect(res).toStrictEqual([
+					{ title: 'P1', author: first, wrapped: { title: 'P1', author: first } },
+					{ title: 'P2', author: first, wrapped: { title: 'P2', author: first } },
+					{ title: 'Orphan', author: none, wrapped: { title: 'Orphan', author: none } },
+				]);
+
+				const unaliased = db.select({ object: sql.jsonObject({ id: users.id }) }).from(users).as('unaliased');
+				expect(() => unaliased.object).toThrowError(
+					'You tried to reference "object" field from a subquery, which is an un-aliased JSON object field. Please add an alias to the field using ".as(\'alias\')" method.',
+				);
+			});
+
+			test.concurrent(`Mappers - JsonObject: selection from $with subquery${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = singlestoreTable((jit ? 'jo_with_users_jit' : 'jo_with_users') as 'jo_with_users', (t) => ({
+					id: t.int('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					meta: t.json('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = singlestoreTable((jit ? 'jo_with_posts_jit' : 'jo_with_posts') as 'jo_with_posts', (t) => ({
+					id: t.int('id').primaryKey(),
+					authorId: t.int('author_id'),
+					title: t.text('title').notNull(),
+				}));
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
+
+				const w = db.$with('w').as(
+					db.select({
+						id: users.id,
+						profile: sql.jsonObject({ name: users.name, meta: users.meta }).as('profile'),
+					}).from(users),
+				);
+
+				const all = await db.with(w).select().from(w).orderBy(w.id);
+
+				expectTypeOf(all).toEqualTypeOf<{
+					id: number;
+					profile: { name: string; meta: { tags: string[] } | null };
+				}[]>();
+
+				expect(all).toStrictEqual([
+					{ id: 1, profile: { name: 'First', meta: { tags: ['a', 'b'] } } },
+					{ id: 2, profile: { name: 'Second', meta: null } },
+				]);
+
+				const joined = await db.with(w).select({
+					title: posts.title,
+					profile: w.profile,
+					wrapped: sql.jsonObject({ title: posts.title, profile: w.profile }),
+				}).from(posts).leftJoin(w, eq(w.id, posts.authorId)).orderBy(posts.id);
+
+				expectTypeOf(joined).toEqualTypeOf<{
+					title: string;
+					profile: { name: string; meta: { tags: string[] } | null } | null;
+					wrapped: {
+						title: string;
+						profile: { name: string; meta: { tags: string[] } | null } | null;
+					};
+				}[]>();
+
+				const first = { name: 'First', meta: { tags: ['a', 'b'] } };
+				expect(joined).toStrictEqual([
+					{ title: 'P1', profile: first, wrapped: { title: 'P1', profile: first } },
+					{ title: 'P2', profile: first, wrapped: { title: 'P2', profile: first } },
+					{ title: 'Orphan', profile: null, wrapped: { title: 'Orphan', profile: null } },
+				]);
+			});
+
+			test.concurrent(`Mappers - JsonObject: joined subquery${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = singlestoreTable(
+					(jit ? 'jo_joined_sq_users_jit' : 'jo_joined_sq_users') as 'jo_joined_sq_users',
+					(t) => ({
+						id: t.int('id').primaryKey(),
+						name: t.text('name').notNull(),
+						bio: t.text('bio'),
+						createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+						meta: t.json('meta').$type<{ tags: string[] }>(),
+					}),
+				);
+				const posts = singlestoreTable(
+					(jit ? 'jo_joined_sq_posts_jit' : 'jo_joined_sq_posts') as 'jo_joined_sq_posts',
+					(t) => ({
+						id: t.int('id').primaryKey(),
+						authorId: t.int('author_id'),
+						title: t.text('title').notNull(),
+					}),
+				);
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
+
+				const first = { id: 1, name: 'First', createdAt: mappersDate };
+
+				const sq = db.select({
+					id: users.id,
+					author: sql.jsonObject({ id: users.id, name: users.name, createdAt: users.createdAt }).as('author'),
+				}).from(users).as('sq');
+
+				const left = await db.select({
+					title: posts.title,
+					author: sq.author,
+					wrapped: sql.jsonObject({ title: posts.title, author: sq.author }),
+				}).from(posts).leftJoin(sq, eq(sq.id, posts.authorId)).orderBy(posts.id);
+
+				expectTypeOf(left).toEqualTypeOf<{
+					title: string;
+					author: { id: number; name: string; createdAt: Date } | null;
+					wrapped: { title: string; author: { id: number; name: string; createdAt: Date } | null };
+				}[]>();
+
+				expect(left).toStrictEqual([
+					{ title: 'P1', author: first, wrapped: { title: 'P1', author: first } },
+					{ title: 'P2', author: first, wrapped: { title: 'P2', author: first } },
+					{ title: 'Orphan', author: null, wrapped: { title: 'Orphan', author: null } },
+				]);
+
+				const inner = await db.select({
+					title: posts.title,
+					author: sq.author,
+				}).from(posts).innerJoin(sq, eq(sq.id, posts.authorId)).orderBy(posts.id);
+
+				expectTypeOf(inner).toEqualTypeOf<{
+					title: string;
+					author: { id: number; name: string; createdAt: Date };
+				}[]>();
+
+				expect(inner).toStrictEqual([
+					{ title: 'P1', author: first },
+					{ title: 'P2', author: first },
+				]);
+
+				const lateralSq = db.select({
+					author: sql.jsonObject({ id: users.id, name: users.name, createdAt: users.createdAt }).as('author'),
+				}).from(users).where(eq(users.id, posts.authorId)).as('lateral_sq');
+
+				const lateral = await db.select().from(posts).leftJoinLateral(lateralSq, sql`true`).orderBy(posts.id);
+
+				expectTypeOf(lateral).toEqualTypeOf<{
+					jo_joined_sq_posts: { id: number; authorId: number | null; title: string };
+					lateral_sq: { author: { id: number; name: string; createdAt: Date } } | null;
+				}[]>();
+
+				expect(lateral).toStrictEqual([
+					{ [getTableName(posts)]: jsonObjectPosts[0]!, lateral_sq: { author: first } },
+					{ [getTableName(posts)]: jsonObjectPosts[1]!, lateral_sq: { author: first } },
+					{ [getTableName(posts)]: jsonObjectPosts[2]!, lateral_sq: null },
+				]);
+
+				const scalar = await db.select({
+					title: posts.title,
+					author: db.select({
+						author: sql.jsonObject({ id: users.id, name: users.name, createdAt: users.createdAt }).as('author'),
+					}).from(users).where(eq(users.id, posts.authorId)).as('author'),
+				}).from(posts).orderBy(posts.id);
+
+				expectTypeOf(scalar).toEqualTypeOf<{
+					title: string;
+					author: { id: number; name: string; createdAt: Date } | null;
+				}[]>();
+
+				expect(scalar).toStrictEqual([
+					{ title: 'P1', author: first },
+					{ title: 'P2', author: first },
+					{ title: 'Orphan', author: null },
+				]);
+			});
+
+			test.concurrent(`Mappers: deep nullification of joined subquery${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {
+				const users = singlestoreTable((jit ? 'mappers_users_jdn' : 'mappers_users_dn') as 'mappers_users_dn', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					isBanned: t.boolean('is_banned'),
+				}));
+
+				const internalStaff = singlestoreTable(
+					(jit ? 'internal_staff_qm_jdn' : 'internal_staff_qm_dn') as 'internal_staff_qm_dn',
+					{
+						userId: int('user_id').notNull().primaryKey(),
+					},
+				);
+
+				const ticket = singlestoreTable((jit ? 'ticket_qm_jdn' : 'ticket_qm_dn') as 'ticket_qm_dn', {
+					staffId: int('staff_id').notNull(),
+				});
+
+				await push({ users, internalStaff, ticket });
+				const db = jit ? createDB({ users, internalStaff, ticket }, () => ({}), true) : defaultDb;
+
+				await db.insert(users).values([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+				}, {
+					id: 2,
 					name: 'Second',
-					postId: null,
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+				}]);
+				await db.insert(internalStaff).values([{
+					userId: 1,
+				}, {
 					userId: 2,
-				},
-				{
-					content: null,
-					createdAt: mappersDate,
-					isBanned: null,
-					name: 'Third',
-					postId: null,
-					userId: 3,
-				},
-			]);
-			expect(selected4).toStrictEqual([
-				{
-					content: 'p1',
-					createdAt: mappersDate,
-					isBanned: null,
-					name: 'First',
-					postId: 1,
-					userId: 1,
-				},
-			]);
-		});
+				}]);
+				await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
 
-		test.concurrent('Mappers: relational', async ({ createDB, push }) => {
-			const users = singlestoreTable('mappers_users_6', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
+				const subq = db
+					.select()
+					.from(internalStaff)
+					.leftJoin(users, eq(internalStaff.userId, users.id))
+					.as('internal_staff');
+				const selected = await db
+					.select()
+					.from(ticket)
+					.leftJoin(subq, eq(subq[getTableName(internalStaff) as 'internal_staff_qm_dn'].userId, ticket.staffId))
+					.orderBy(ticket.staffId);
 
-			const posts = singlestoreTable('mappers_posts_2', (t) => ({
-				id: t.int('id').primaryKey(),
-				authorId: t.bigint('author_id', { mode: 'number' }),
-				content: t.text('content'),
-			}));
-
-			await push({ users, posts });
-			const db = createDB({ users, posts }, (r) => ({
-				users: {
-					post: r.one.posts({
-						from: r.users.id,
-						to: r.posts.authorId,
-					}),
-					posts: r.one.posts({
-						from: r.users.id,
-						to: r.posts.authorId,
-					}),
-				},
-				posts: {
-					author: r.one.users({
-						from: r.posts.authorId,
-						to: r.users.id,
-					}),
-					authors: r.many.users({
-						from: r.posts.authorId,
-						to: r.users.id,
-					}),
-				},
-			}), false);
-
-			const empty1 = await db.query.users.findFirst();
-			const empty2 = await db.query.users.findMany();
-
-			expect(empty1).toStrictEqual(undefined);
-			expect(empty2).toStrictEqual([]);
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]);
-			await db.insert(posts).values({
-				id: 1,
-				authorId: 1,
-				content: 'p1',
-			});
-
-			const simple1 = await db.query.users.findFirst({ orderBy: { id: 'asc' } });
-			const simple2 = await db.query.users.findMany({ orderBy: { id: 'asc' } });
-
-			expect(simple1).toStrictEqual(
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-				},
-			);
-			expect(simple2).toStrictEqual([
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-				},
-				{
-					createdAt: mappersDate,
-					id: 2,
-					isBanned: true,
-					name: 'Second',
-				},
-				{
-					createdAt: mappersDate,
-					id: 3,
-					isBanned: null,
-					name: 'Third',
-				},
-			]);
-
-			const extra1 = await db.query.users.findFirst({
-				orderBy: { id: 'asc' },
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-			const extra2 = await db.query.users.findMany({
-				orderBy: { id: 'asc' },
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-
-			expect(extra1).toStrictEqual(
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			);
-			expect(extra2).toStrictEqual([
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 2,
-					isBanned: true,
-					name: 'Second',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 3,
-					isBanned: null,
-					name: 'Third',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			]);
-
-			const nested1 = await db.query.users.findFirst({
-				orderBy: { id: 'asc' },
-				with: {
-					post: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-					posts: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-				},
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-			const nested2 = await db.query.users.findMany({
-				orderBy: { id: 'asc' },
-				with: {
-					post: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-					posts: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-				},
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-
-			expect(nested1).toStrictEqual(
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					post: {
-						authorId: 1,
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					posts: {
-						authorId: 1,
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			);
-			expect(nested2).toStrictEqual([
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					post: {
-						authorId: 1,
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					posts: {
-						authorId: 1,
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 2,
-					isBanned: true,
-					name: 'Second',
-					post: null,
-					posts: null,
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 3,
-					isBanned: null,
-					name: 'Third',
-					post: null,
-					posts: null,
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			]);
-		});
-
-		test.concurrent('Jit mappers: simple select - no rows', async ({ createDB, push }) => {
-			const users = singlestoreTable('jit_mappers_users_1', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
-
-			await push({ users });
-			const db = createDB({ users }, () => ({}), true);
-
-			const result = await db.select().from(users);
-
-			expect(result).toStrictEqual([]);
-		});
-
-		test.concurrent('Jit mappers: select - nothing to decode - text', async ({ createDB, push }) => {
-			const users = singlestoreTable('jit_mappers_users_2', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
-
-			await push({ users });
-			const db = createDB({ users }, () => ({}), true);
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}]);
-
-			const selected = await db.select({ name: users.name }).from(users);
-
-			expect(selected).toStrictEqual([{ name: 'First' }]);
-		});
-
-		test.concurrent('Jit mappers: select - nothing to decode - null', async ({ createDB, push }) => {
-			const users = singlestoreTable('jit_mappers_users_3', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
-
-			await push({ users });
-			const db = createDB({ users }, () => ({}), true);
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}]);
-
-			const selected = await db.select({ isBanned: users.isBanned }).from(users);
-
-			expect(selected).toStrictEqual([{ isBanned: null }]);
-		});
-
-		test.concurrent('Jit mappers: insert $returningId + select', async ({ createDB, push }) => {
-			const users = singlestoreTable('jit_mappers_users_4', (t) => ({
-				id: t.serial('id').primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
-
-			await push({ users });
-			const db = createDB({ users }, () => ({}), true);
-
-			const insertedIds = await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]).$returningId();
-
-			expectTypeOf(insertedIds).toEqualTypeOf<{ id: number }[]>();
-			expect(insertedIds).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
-
-			const selected = await db.select().from(users).orderBy(users.id);
-
-			await db.update(users).set({
-				isBanned: false,
-			}).where(eq(users.id, 2));
-
-			expect(selected).toStrictEqual([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-				isBanned: null,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-				isBanned: null,
-			}]);
-		});
-
-		test.concurrent('Jit mappers: select complex selections', async ({ createDB, push }) => {
-			const users = singlestoreTable('jit_mappers_users_5', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
-
-			const posts = singlestoreTable('jit_mappers_posts_1', (t) => ({
-				id: t.int('id').primaryKey(),
-				authorId: t.bigint('author_id', { mode: 'number' }),
-				content: t.text('content'),
-			}));
-
-			await push({ users, posts });
-			const db = createDB({ users, posts }, () => ({}), true);
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]);
-
-			await db.insert(posts).values({
-				id: 1,
-				authorId: 1,
-				content: 'p1',
-			});
-
-			const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected3 = await db.select({
-				userId: users.id,
-				postId: posts.id,
-				name: users.name,
-				isBanned: users.isBanned,
-				content: posts.content,
-				createdAt: users.createdAt,
-			}).from(users).leftJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-			const selected4 = await db.select({
-				userId: users.id,
-				postId: posts.id,
-				name: users.name,
-				isBanned: users.isBanned,
-				content: posts.content,
-				createdAt: users.createdAt,
-			}).from(users).innerJoin(
-				posts,
-				eq(users.id, posts.authorId),
-			).orderBy(users.id);
-
-			expect(selected1).toStrictEqual([{
-				user: {
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				},
-				post: {
-					id: 1,
-					authorId: 1,
-					content: 'p1',
-				},
-			}, {
-				user: {
-					id: 2,
-					name: 'Second',
-					createdAt: mappersDate,
-					isBanned: true,
-				},
-				post: null,
-			}, {
-				user: {
-					id: 3,
-					name: 'Third',
-					createdAt: mappersDate,
-					isBanned: null,
-				},
-				post: null,
-			}]);
-			expect(selected2).toStrictEqual([{
-				user: {
-					id: 1,
-					name: 'First',
-					createdAt: mappersDate,
-					isBanned: null,
-				},
-				post: {
-					id: 1,
-					authorId: 1,
-					content: 'p1',
-				},
-			}]);
-			expect(selected3).toStrictEqual([
-				{
-					content: 'p1',
-					createdAt: mappersDate,
-					isBanned: null,
-					name: 'First',
-					postId: 1,
-					userId: 1,
-				},
-				{
-					content: null,
-					createdAt: mappersDate,
-					isBanned: true,
-					name: 'Second',
-					postId: null,
-					userId: 2,
-				},
-				{
-					content: null,
-					createdAt: mappersDate,
-					isBanned: null,
-					name: 'Third',
-					postId: null,
-					userId: 3,
-				},
-			]);
-			expect(selected4).toStrictEqual([
-				{
-					content: 'p1',
-					createdAt: mappersDate,
-					isBanned: null,
-					name: 'First',
-					postId: 1,
-					userId: 1,
-				},
-			]);
-		});
-
-		test.concurrent('Jit mappers: relational', async ({ createDB, push }) => {
-			const users = singlestoreTable('jit_mappers_users_6', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
-
-			const posts = singlestoreTable('jit_mappers_posts_2', (t) => ({
-				id: t.int('id').primaryKey(),
-				authorId: t.bigint('author_id', { mode: 'number' }),
-				content: t.text('content'),
-			}));
-
-			await push({ users, posts });
-			const db = createDB({ users, posts }, (r) => ({
-				users: {
-					post: r.one.posts({
-						from: r.users.id,
-						to: r.posts.authorId,
-					}),
-					posts: r.one.posts({
-						from: r.users.id,
-						to: r.posts.authorId,
-					}),
-				},
-				posts: {
-					author: r.one.users({
-						from: r.posts.authorId,
-						to: r.users.id,
-					}),
-					authors: r.many.users({
-						from: r.posts.authorId,
-						to: r.users.id,
-					}),
-				},
-			}), true);
-
-			const empty1 = await db.query.users.findFirst();
-			const empty2 = await db.query.users.findMany();
-
-			expect(empty1).toStrictEqual(undefined);
-			expect(empty2).toStrictEqual([]);
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]);
-			await db.insert(posts).values({
-				id: 1,
-				authorId: 1,
-				content: 'p1',
-			});
-
-			const simple1 = await db.query.users.findFirst({ orderBy: { id: 'asc' } });
-			const simple2 = await db.query.users.findMany({ orderBy: { id: 'asc' } });
-
-			expect(simple1).toStrictEqual(
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-				},
-			);
-			expect(simple2).toStrictEqual([
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-				},
-				{
-					createdAt: mappersDate,
-					id: 2,
-					isBanned: true,
-					name: 'Second',
-				},
-				{
-					createdAt: mappersDate,
-					id: 3,
-					isBanned: null,
-					name: 'Third',
-				},
-			]);
-
-			const extra1 = await db.query.users.findFirst({
-				orderBy: { id: 'asc' },
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-			const extra2 = await db.query.users.findMany({
-				orderBy: { id: 'asc' },
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-
-			expect(extra1).toStrictEqual(
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			);
-			expect(extra2).toStrictEqual([
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 2,
-					isBanned: true,
-					name: 'Second',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 3,
-					isBanned: null,
-					name: 'Third',
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			]);
-
-			const nested1 = await db.query.users.findFirst({
-				orderBy: { id: 'asc' },
-				with: {
-					post: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-					posts: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-				},
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-			const nested2 = await db.query.users.findMany({
-				orderBy: { id: 'asc' },
-				with: {
-					post: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-					posts: {
-						extras: {
-							sql: sql`SELECT 1`.mapWith(Number),
-							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-						},
-					},
-				},
-				extras: {
-					sql: sql`SELECT 1`.mapWith(Number),
-					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
-				},
-			});
-
-			expect(nested1).toStrictEqual(
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					post: {
-						authorId: 1,
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					posts: {
-						authorId: 1,
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			);
-			expect(nested2).toStrictEqual([
-				{
-					createdAt: mappersDate,
-					id: 1,
-					isBanned: null,
-					name: 'First',
-					post: {
-						authorId: 1,
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					posts: {
-						authorId: 1,
-						content: 'p1',
-						id: 1,
-						sql: 1,
-						sqlWrapper: 2,
-					},
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 2,
-					isBanned: true,
-					name: 'Second',
-					post: null,
-					posts: null,
-					sql: 1,
-					sqlWrapper: 2,
-				},
-				{
-					createdAt: mappersDate,
-					id: 3,
-					isBanned: null,
-					name: 'Third',
-					post: null,
-					posts: null,
-					sql: 1,
-					sqlWrapper: 2,
-				},
-			]);
-		});
-
-		test.concurrent('Mappers: deep nullification', async ({ db, push }) => {
-			const users = singlestoreTable('mappers_users_dn', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
-
-			const internalStaff = singlestoreTable('internal_staff_qm_dn', {
-				userId: int('user_id').notNull().primaryKey(),
-			});
-
-			const ticket = singlestoreTable('ticket_qm_dn', {
-				staffId: int('staff_id').notNull(),
-			});
-
-			await push({ users, internalStaff, ticket });
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]);
-			await db.insert(internalStaff).values([{
-				userId: 1,
-			}, {
-				userId: 2,
-			}]);
-			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
-
-			const subq = db
-				.select()
-				.from(internalStaff)
-				.leftJoin(users, eq(internalStaff.userId, users.id))
-				.as('internal_staff');
-			const selected = await db
-				.select()
-				.from(ticket)
-				.leftJoin(subq, eq(subq.internal_staff_qm_dn.userId, ticket.staffId))
-				.orderBy(ticket.staffId);
-
-			expect(selected).toStrictEqual(
-				[
-					{
-						internal_staff: {
-							internal_staff_qm_dn: {
-								userId: 1,
+				expect(selected).toStrictEqual(
+					[
+						{
+							internal_staff: {
+								[getTableName(internalStaff)]: {
+									userId: 1,
+								},
+								[getTableName(users)]: {
+									createdAt: mappersDate,
+									id: 1,
+									isBanned: null,
+									name: 'First',
+								},
 							},
-							mappers_users_dn: {
-								createdAt: mappersDate,
-								id: 1,
-								isBanned: null,
-								name: 'First',
+							[getTableName(ticket)]: {
+								staffId: 1,
 							},
 						},
-						ticket_qm_dn: {
-							staffId: 1,
-						},
-					},
-					{
-						internal_staff: {
-							internal_staff_qm_dn: {
-								userId: 2,
+						{
+							internal_staff: {
+								[getTableName(internalStaff)]: {
+									userId: 2,
+								},
+								[getTableName(users)]: {
+									createdAt: mappersDate,
+									id: 2,
+									isBanned: true,
+									name: 'Second',
+								},
 							},
-							mappers_users_dn: {
-								createdAt: mappersDate,
-								id: 2,
-								isBanned: true,
-								name: 'Second',
+							[getTableName(ticket)]: {
+								staffId: 2,
 							},
 						},
-						ticket_qm_dn: {
-							staffId: 2,
+						{
+							internal_staff: null,
+							[getTableName(ticket)]: {
+								staffId: 3,
+							},
 						},
-					},
-					{
-						internal_staff: null,
-						ticket_qm_dn: {
-							staffId: 3,
-						},
-					},
-				],
-			);
-		});
-
-		test.concurrent('Jit mappers: deep nullification', async ({ createDB, push }) => {
-			const users = singlestoreTable('mappers_users_jdn', (t) => ({
-				id: t.bigint('id', { mode: 'number' }).primaryKey(),
-				name: t.text('name').notNull(),
-				createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
-				isBanned: t.boolean('is_banned'),
-			}));
-
-			const internalStaff = singlestoreTable('internal_staff_qm_jdn', {
-				userId: int('user_id').notNull().primaryKey(),
+					],
+				);
 			});
-
-			const ticket = singlestoreTable('ticket_qm_jdn', {
-				staffId: int('staff_id').notNull(),
-			});
-
-			await push({ users, internalStaff, ticket });
-			const db = createDB({ users, internalStaff, ticket }, () => ({}), true);
-
-			await db.insert(users).values([{
-				id: 1,
-				name: 'First',
-				createdAt: mappersDate,
-			}, {
-				id: 2,
-				name: 'Second',
-				createdAt: mappersDate,
-				isBanned: true,
-			}, {
-				id: 3,
-				name: 'Third',
-				createdAt: mappersDate,
-			}]);
-			await db.insert(internalStaff).values([{
-				userId: 1,
-			}, {
-				userId: 2,
-			}]);
-			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
-
-			const subq = db
-				.select()
-				.from(internalStaff)
-				.leftJoin(users, eq(internalStaff.userId, users.id))
-				.as('internal_staff');
-			const selected = await db
-				.select()
-				.from(ticket)
-				.leftJoin(subq, eq(subq.internal_staff_qm_jdn.userId, ticket.staffId))
-				.orderBy(ticket.staffId);
-
-			expect(selected).toStrictEqual(
-				[
-					{
-						internal_staff: {
-							internal_staff_qm_jdn: {
-								userId: 1,
-							},
-							mappers_users_jdn: {
-								createdAt: mappersDate,
-								id: 1,
-								isBanned: null,
-								name: 'First',
-							},
-						},
-						ticket_qm_jdn: {
-							staffId: 1,
-						},
-					},
-					{
-						internal_staff: {
-							internal_staff_qm_jdn: {
-								userId: 2,
-							},
-							mappers_users_jdn: {
-								createdAt: mappersDate,
-								id: 2,
-								isBanned: true,
-								name: 'Second',
-							},
-						},
-						ticket_qm_jdn: {
-							staffId: 2,
-						},
-					},
-					{
-						internal_staff: null,
-						ticket_qm_jdn: {
-							staffId: 3,
-						},
-					},
-				],
-			);
-		});
+		}
 
 		test.concurrent('concat, substring expressions', async ({ db, push }) => {
 			const users = singlestoreTable('expr_concat_substring', {

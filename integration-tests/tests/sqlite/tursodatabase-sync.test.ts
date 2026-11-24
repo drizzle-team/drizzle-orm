@@ -309,5 +309,8 @@ const skip = [
 	// Raw query field names differ
 	'insert via db.get',
 	'insert via db.get w/ query builder',
+	// FULL JOIN is not supported
+	'Mappers - JsonObject: join nullability',
+	'Mappers - JsonObject: join nullability - Jit mappers',
 ];
 tests(test, skip);

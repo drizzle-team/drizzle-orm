@@ -9,7 +9,7 @@ import type {
 } from '~/cockroach-core/query-builders/index.ts';
 import type { CockroachSelectConfig, SelectedFieldsOrdered } from '~/cockroach-core/query-builders/select.types.ts';
 import { CockroachTable } from '~/cockroach-core/table.ts';
-import { CodecsCollection } from '~/codecs.ts';
+import { type CodecIdentifier, CodecsCollection, jsonObjectCodecs } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -35,14 +35,17 @@ import {
 	relationExtrasToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
+	type RqbCustomColumn,
 } from '~/relations.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
+import type { JsonObject } from '~/sql/sql.ts';
 import { type Name, type Query, SQL, sql, type SQLChunk, ValueRows } from '~/sql/sql.ts';
-import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, isSQLWrapper, unqualifyColumns } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/cockroach.ts';
 import {
+	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
 	memoizeEscape,
@@ -63,12 +66,13 @@ export interface CockroachDialectConfig {
 
 const escapeCockroachName = memoizeEscape((name) => `"${name.replace(/"/g, '""')}"`);
 // Stored separately - differ per dialect
-const rqbChunks = {
+const cockroachCommonStringChunks = {
 	relationField: new StringChunk('."r" as '),
 	joinOne: new StringChunk(' left join lateral(select row_to_json("t".*) "r" from ('),
 	joinMany: new StringChunk(` left join lateral(select coalesce(json_agg(row_to_json("t".*)), '[]') as "r" from (`),
 	joinClose: new StringChunk(') as "t") as '),
 	onTrue: new StringChunk(' on true'),
+	jsonObjectOpen: new StringChunk('json_build_object('),
 } as const;
 
 export class CockroachDialect {
@@ -84,7 +88,7 @@ export class CockroachDialect {
 	};
 
 	constructor(config?: CockroachDialectConfig) {
-		this.codecs = new CodecsCollection<CockroachType>(resolveCockroachTypeAlias, config?.codecs);
+		this.codecs = new CodecsCollection<CockroachType>('cockroach', resolveCockroachTypeAlias, config?.codecs);
 		this.mapperGenerators = config?.useJitMappers
 			? {
 				rows: makeJitQueryMapper,
@@ -202,6 +206,82 @@ export class CockroachDialect {
 	escapeString(str: string): string {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
+
+	private collectJsonValue(
+		collectTo: SQLChunk[],
+		value: SQLChunk,
+		decoder: Column | CodecIdentifier | undefined,
+	): void {
+		if (!decoder) {
+			collectTo.push(value);
+			return;
+		}
+
+		const { jsonSelectIdentifier, dimensions } = decoder as Column & RqbCustomColumn;
+		// Codec bypass for custom columns with enabled legacy JSON api
+		collectTo.push(
+			jsonSelectIdentifier
+				? jsonSelectIdentifier.call(decoder as Column, new SQL([value]), sql, dimensions)
+				: this.codecs.apply(decoder, 'castInJson', value),
+		);
+	}
+
+	private buildJsonObjectField(field: unknown, collectTo: SQLChunk[]): void {
+		const kind = chunkKindOf(field);
+		if (isChunk(field, kind, chunkKinds.column)) {
+			this.collectJsonValue(collectTo, field, field);
+		} else if (isChunk(field, kind, chunkKinds.sql)) {
+			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
+		} else if (isChunk(field, kind, chunkKinds.aliased)) {
+			this.collectJsonValue(collectTo, field.isSelectionField ? field : field.sql, getColumnFromDecoder(field));
+		} else if (isChunk(field, kind, chunkKinds.subquery)) {
+			const value = field._.isWith
+				? field
+				: new SQL([commonStringChunks['('], field._.sql, commonStringChunks[')']]);
+			const innerField = Object.values(field._.selectedFields)[0];
+			const innerKind = chunkKindOf(innerField);
+
+			if (isChunk(innerField, innerKind, chunkKinds.jsonObject)) {
+				this.collectJsonValue(collectTo, value, jsonObjectCodecs.cockroach);
+				return;
+			}
+
+			this.collectJsonValue(
+				collectTo,
+				value,
+				isChunk(innerField, innerKind, chunkKinds.column)
+					? innerField
+					: isSQLWrapper(innerField)
+					? getColumnFromDecoder(innerField)
+					: undefined,
+			);
+		} else if (isChunk(field, kind, chunkKinds.jsonObject)) {
+			this.collectJsonValue(
+				collectTo,
+				field.origin !== undefined && field.alias !== undefined
+					? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
+					: new SQL(this.buildJsonObject(field)),
+				jsonObjectCodecs.cockroach,
+			);
+		} else if (isSQLWrapper(field)) {
+			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
+		}
+	}
+
+	buildJsonObject = (object: JsonObject, collectTo: SQLChunk[] = []): SQLChunk[] => {
+		const entries = Object.entries(object.selection);
+
+		collectTo.push(cockroachCommonStringChunks.jsonObjectOpen);
+		for (let i = 0; i < entries.length; ++i) {
+			const [key, field] = entries[i]!;
+			if (i > 0) collectTo.push(commonStringChunks[', ']);
+			collectTo.push(new StringChunk(this.escapeString(key)), commonStringChunks[', ']);
+			this.buildJsonObjectField(field, collectTo);
+		}
+		collectTo.push(commonStringChunks[')']);
+
+		return collectTo;
+	};
 
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
@@ -451,6 +531,20 @@ export class CockroachDialect {
 						chunks.push(field);
 					}
 
+					break;
+				}
+				case 'JsonObject': {
+					if (field.origin !== undefined && field.alias !== undefined) {
+						const query = !isSingleTable
+							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
+							: sql.identifier(field.alias);
+						chunks.push(query);
+						break;
+					}
+
+					this.buildJsonObject(field, chunks);
+
+					if (field.alias !== undefined) chunks.push(commonStringChunks[' as '], sql.identifier(field.alias));
 					break;
 				}
 			}
@@ -822,6 +916,7 @@ export class CockroachDialect {
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			buildJsonObject: this.buildJsonObject,
 			codecs: this.codecs,
 			invokeSource,
 		});
@@ -920,7 +1015,7 @@ export class CockroachDialect {
 
 			const key = sql.identifier(k);
 			if (selected++) collectTo.push(commonStringChunks[', ']);
-			collectTo.push(key, rqbChunks.relationField, key);
+			collectTo.push(key, cockroachCommonStringChunks.relationField, key);
 		}
 
 		if (!selected) {
@@ -969,7 +1064,7 @@ export class CockroachDialect {
 
 			const { filter, joinCondition } = relationToSQL(relation, table, targetTable, throughTable);
 
-			collectTo.push(isSingle ? rqbChunks.joinOne : rqbChunks.joinMany);
+			collectTo.push(isSingle ? cockroachCommonStringChunks.joinOne : cockroachCommonStringChunks.joinMany);
 			const innerSelection = this.collectRelationalQuery({
 				table: targetTable,
 				mode: isSingle ? 'first' : 'many',
@@ -984,7 +1079,7 @@ export class CockroachDialect {
 				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
 				nested: true,
 			}, collectTo);
-			collectTo.push(rqbChunks.joinClose, sql.identifier(k), rqbChunks.onTrue);
+			collectTo.push(cockroachCommonStringChunks.joinClose, sql.identifier(k), cockroachCommonStringChunks.onTrue);
 
 			selection.push({
 				field: targetTable,

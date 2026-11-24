@@ -145,6 +145,9 @@ export const genericMsSqlCodecs = {
 	varbinary: {
 		normalizeInJson: bufferFromBase64,
 	},
+	'varchar:json': {
+		normalizeInJson: (value: string) => JSON.parse(value),
+	},
 } as const satisfies MsSqlCodecs;
 
 export const refineGenericMsSqlCodecs = (extension?: PartialWithUndefined<MsSqlCodecs>): MsSqlCodecs =>

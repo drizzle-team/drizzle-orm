@@ -77,20 +77,22 @@ runCommonEffectSQLiteTests({
 		'partial join with alias',
 		'full join with alias',
 		'select from alias',
+		'Mappers - JsonObject: automatic selection',
+		'Mappers - JsonObject: automatic selection - Jit mappers',
 		'Mappers: select complex selections',
 		'Cross-table group never nullified',
-		'Cross-table group never nullified - jit',
+		'Cross-table group never nullified - Jit mappers',
 		'Mappers: deep nullification',
-		'Mappers: deep nullification - jit',
+		'Mappers: deep nullification - Jit mappers',
 
 		// Cloudflare workers environment doesn't support 'new Function(...)'
 		'Mappers: correct mappers enabled',
-		'Jit mappers: simple select - no rows',
-		'Jit mappers: select - nothing to decode - text',
-		'Jit mappers: select - nothing to decode - null',
-		'Jit mappers: insert returning all + select + update returning + delete returning',
-		'Jit mappers: select complex selections',
-		'Jit mappers: relational',
+		'Mappers: simple select - no rows - Jit mappers',
+		'Mappers: select - nothing to decode - text - Jit mappers',
+		'Mappers: select - nothing to decode - null - Jit mappers',
+		'Mappers: insert returning all + select + update returning + delete returning - Jit mappers',
+		'Mappers: select complex selections - Jit mappers',
+		'Mappers: relational - Jit mappers',
 		// Driver has no migrator to test:
 		// transactions aren't supported by D1 and batch isn't exposed by Effect
 		// Recommended way to apply migrations is via `drizzle-kit generate` + `wrangler d1 migrations apply dbname`

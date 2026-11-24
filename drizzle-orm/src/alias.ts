@@ -55,12 +55,13 @@ export class ViewSelectionAliasProxyHandler<TSelection extends Record<string, un
 		let result = memo.get(value);
 		if (result !== undefined) return result;
 
-		if (isChunk(value, chunkKindOf(value), chunkKinds.column)) {
+		const kind = chunkKindOf(value);
+		if (isChunk(value, kind, chunkKinds.column)) {
 			result = new Proxy(
 				value,
 				this.columnHandler ??= new ColumnTableAliasProxyHandler(this.view, this.ignoreColumnAlias),
 			);
-		} else if (isSQLWrapper(value)) {
+		} else if (isSQLWrapper(value) || isChunk(value, kind, chunkKinds.jsonObject)) {
 			result = value;
 		} else {
 			result = new Proxy(value as Record<string, unknown>, this);

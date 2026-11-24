@@ -77,7 +77,7 @@ const skip = new Set([
 	'Column as decoder applies codecs',
 	'Column as decoder applies codecs - Jit mappers',
 	'Mappers: relational',
-	'Jit mappers: relational',
+	'Mappers: relational - Jit mappers',
 ]);
 
 tests(test, skip);
