@@ -150,12 +150,8 @@ export type BuildSubquerySelection<
 						SQL.Aliased<SubqueryResultField<TSelection[Key]>>,
 						'You can only select one column in the subquery'
 					>
-				: TSelection[Key] extends JsonObject<infer TObjectSelection, infer TObjectAlias, infer TObjectOrigin>
-					? [TObjectAlias] extends [string] ? JsonObject<
-							BuildJsonObjectSubquerySelection<TObjectSelection, TNullability>,
-							TObjectAlias,
-							TObjectOrigin
-						>
+				: TSelection[Key] extends JsonObject<any, infer TObjectAlias, any>
+					? [TObjectAlias] extends [string] ? BuildJsonObjectSubqueryField<TSelection[Key], TNullability>
 					: DrizzleTypeError<'You cannot reference this field without assigning it an alias first - use `.as(<alias>)`'>
 				: TSelection[Key] extends ColumnsSelection ? BuildSubquerySelection<TSelection[Key], TNullability>
 				: never;
@@ -169,12 +165,22 @@ type BuildJsonObjectSubquerySelection<
 	{
 		[Key in keyof TSelection]: TSelection[Key] extends Column
 			? ApplyNullabilityToColumn<TSelection[Key], TNullability[TSelection[Key]['_']['tableName']]>
-			: TSelection[Key] extends JsonObject<infer TObjectSelection, infer TObjectAlias, infer TObjectOrigin>
-				? JsonObject<BuildJsonObjectSubquerySelection<TObjectSelection, TNullability>, TObjectAlias, TObjectOrigin>
+			: TSelection[Key] extends JsonObject ? BuildJsonObjectSubqueryField<TSelection[Key], TNullability>
 			: TSelection[Key];
 	},
 	JsonObjectSelection
 >;
+
+type BuildJsonObjectSubqueryField<
+	TObject extends JsonObject,
+	TNullability extends Record<string, JoinNullability>,
+> = TObject extends JsonObject<infer TObjectSelection, infer TObjectAlias, infer TObjectOrigin>
+	? TObjectOrigin extends keyof TNullability
+		? TNullability[TObjectOrigin] extends 'not-null'
+			? JsonObject<BuildJsonObjectSubquerySelection<TObjectSelection, TNullability>, TObjectAlias, TObjectOrigin>
+		: SQL.Aliased<ApplyNullability<SelectResultFields<TObjectSelection>, TNullability[TObjectOrigin]>>
+	: JsonObject<BuildJsonObjectSubquerySelection<TObjectSelection, TNullability>, TObjectAlias, TObjectOrigin>
+	: never;
 
 type SetJoinsNullability<TNullabilityMap extends Record<string, JoinNullability>, TValue extends JoinNullability> = {
 	[Key in keyof TNullabilityMap]: TValue;
@@ -205,9 +211,9 @@ export type GetSelectTableSelection<TTable extends TableLike> = TTable extends T
 	: TTable extends SQL ? {}
 	: never;
 
-export type SubqueryResultField<TSubquery extends Subquery> =
-	| (TSubquery['_']['selectedFields'] extends { [key: string]: infer TValue } ? SelectResultField<TValue> : never)
-	| null;
+export type SubqueryResultField<TSubquery extends Subquery> = TSubquery['_']['selectedFields'] extends
+	{ [key: string]: infer TValue } ? SelectResultField<TValue> | null
+	: null;
 
 export type SelectResultField<T, TDeep extends boolean = true> = T extends DrizzleTypeError<any> ? T
 	: T extends Table ? Equal<TDeep, true> extends true ? SelectResultField<T['_']['columns'], false> : never

@@ -215,3 +215,49 @@ Expect<
 	db.select().from(names).crossJoinLateral(fullSq);
 	db.update(names).set({ name: 'x' }).from(fullSq);
 }
+
+// JSON object of a joined subquery or view is `null` as a whole when the join has no match, its fields aren't nullable
+{
+	const authors = cockroachTable('jo_authors', {
+		id: int4('id').notNull(),
+		name: text('name').notNull(),
+	});
+	const articles = cockroachTable('jo_articles', {
+		id: int4('id').notNull(),
+		authorId: int4('author_id'),
+		title: text('title').notNull(),
+	});
+
+	const author = db.select({
+		id: authors.id,
+		object: sql.jsonObject({ id: authors.id, name: authors.name }).as('object'),
+	}).from(authors).as('author');
+
+	// Nested into JSON object of another subquery
+	const nested = db.select({
+		object: sql.jsonObject({ title: articles.title, author: author.object }).as('object'),
+	}).from(articles).leftJoin(author, eq(author.id, articles.authorId)).as('nested');
+
+	const nestedRes = await db.select({ article: nested.object }).from(nested);
+	Expect<Equal<typeof nestedRes, { article: { title: string; author: { id: number; name: string } | null } }[]>>;
+
+	// Selected by another subquery
+	const reselected = db.select({
+		id: articles.id,
+		author: author.object,
+	}).from(articles).leftJoin(author, eq(author.id, articles.authorId)).as('reselected');
+
+	const reselectedRes = await db.select().from(reselected);
+	Expect<Equal<typeof reselectedRes, { id: number; author: { id: number; name: string } | null }[]>>;
+
+	const wrappedRes = await db.select({ wrapped: sql.jsonObject({ author: reselected.author }) }).from(reselected);
+	Expect<Equal<typeof wrappedRes, { wrapped: { author: { id: number; name: string } | null } }[]>>;
+
+	// Inner join can't produce `null`
+	const inner = db.select({
+		object: sql.jsonObject({ title: articles.title, author: author.object }).as('object'),
+	}).from(articles).innerJoin(author, eq(author.id, articles.authorId)).as('inner_sq');
+
+	const innerRes = await db.select({ article: inner.object }).from(inner);
+	Expect<Equal<typeof innerRes, { article: { title: string; author: { id: number; name: string } } }[]>>;
+}
