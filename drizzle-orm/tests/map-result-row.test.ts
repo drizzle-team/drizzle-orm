@@ -78,5 +78,4 @@ describe.concurrent('mapResultRow nested partial select', () => {
 		});
 		expect(mapResultRow(fields, [null, null], leftJoined)).toEqual({ branding: null });
 	});
-
 });
