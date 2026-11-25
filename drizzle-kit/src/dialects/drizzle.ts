@@ -182,5 +182,11 @@ export const sqlToStr = (sql: SQL) => {
 		escapeString: () => {
 			throw new Error("we don't support params for `sql` default values");
 		},
+		buildJsonObject: () => {
+			throw new Error("we don't support JSON objects in migrations");
+		},
+		buildJsonArray: () => {
+			throw new Error("we don't support JSON arrays in migrations");
+		},
 	}).sql;
 };

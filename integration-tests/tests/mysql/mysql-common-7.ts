@@ -1,3 +1,4 @@
+import { assertJsonNodes } from '~/json-nodes';
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
 import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
@@ -230,6 +231,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
 		expect(rawRes).toStrictEqual([allTypesData]);
+		await assertJsonNodes(db, table, [allTypesData]);
 	});
 
 	test.concurrent('insert into ... select', async ({ db, push }) => {

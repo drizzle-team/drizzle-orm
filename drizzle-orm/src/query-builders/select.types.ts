@@ -1,6 +1,6 @@
 import type { ChangeColumnTableName, ColumnType, Dialect } from '~/column-builder.ts';
 import type { AnyColumn, Column, ColumnBaseConfig, GetColumnData, UpdateColConfig } from '~/column.ts';
-import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
+import type { ColumnsSelection, JsonArray, JsonArrayItem, JsonObject, JsonObjectSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, FromSingleKeyObject, IsNever, IsUnion, Not, Simplify } from '~/utils.ts';
@@ -46,34 +46,46 @@ export type SelectResult<
 
 type SelectPartialResult<TFields, TNullability extends Record<string, JoinNullability>> = TNullability extends
 	TNullability ? {
-		[Key in keyof TFields]: TFields[Key] extends infer TField
-			? TField extends Table ? TField['_']['name'] extends keyof TNullability ? ApplyNullability<
-						SelectResultFields<TField['_']['columns']>,
-						TNullability[TField['_']['name']]
-					>
-				: never
-			: TField extends Column
-				? TField['_']['tableName'] extends keyof TNullability
-					? ApplyNullability<SelectResultField<TField>, TNullability[TField['_']['tableName']]>
-				: never
-			: TField extends SQL | SQL.Aliased ? SelectResultField<TField>
-			: TField extends Subquery ? FromSingleKeyObject<
-					TField['_']['selectedFields'],
-					SubqueryResultField<TField>,
-					'You can only select one column in the subquery'
-				>
-			: TField extends Record<string, any>
-				? TField[keyof TField] extends SQL | SQL.Aliased ? SelectPartialResult<TField, TNullability>
-				: TField[keyof TField] extends AnyColumn<{ tableName: infer TTableName extends string }> | SQL | SQL.Aliased
-					? Not<IsUnion<TTableName>> extends true ? ApplyNullability<
-							SelectResultFields<TField>,
-							TTableName extends keyof TNullability ? TNullability[TTableName] : 'nullable'
-						>
-					: SelectPartialResult<TField, TNullability>
-				: never
-			: never
-			: never;
+		[Key in keyof TFields]: SelectPartialResultField<TFields[Key], TNullability>;
 	}
+	: never;
+
+type SelectPartialResultField<TField, TNullability extends Record<string, JoinNullability>> = TField extends Table
+	? TField['_']['name'] extends keyof TNullability ? ApplyNullability<
+			SelectResultFields<TField['_']['columns']>,
+			TNullability[TField['_']['name']]
+		>
+	: never
+	: TField extends Column
+		? TField['_']['tableName'] extends keyof TNullability
+			? ApplyNullability<SelectResultField<TField>, TNullability[TField['_']['tableName']]>
+		: never
+	: TField extends SQL | SQL.Aliased ? SelectResultField<TField>
+	: TField extends Subquery ? FromSingleKeyObject<
+			TField['_']['selectedFields'],
+			SubqueryResultField<TField>,
+			'You can only select one column in the subquery'
+		>
+	: TField extends JsonObject<infer TSelection, any, infer TOrigin> ? [TOrigin] extends [string] ? ApplyNullability<
+				SelectResultFields<TSelection>,
+				TOrigin extends keyof TNullability ? TNullability[TOrigin] : 'not-null'
+			>
+		: SelectPartialResult<TSelection, TNullability>
+	: TField extends JsonArray<infer TItem, any, infer TOrigin> ? [TOrigin] extends [string] ? ApplyNullability<
+				SelectResultField<TField>,
+				TOrigin extends keyof TNullability ? TNullability[TOrigin] : 'not-null'
+			>
+		: SelectPartialResultField<TItem, TNullability>[]
+	: TField extends DrizzleTypeError<any> ? TField
+	: TField extends Record<string, any>
+		? TField[keyof TField] extends SQL | SQL.Aliased ? SelectPartialResult<TField, TNullability>
+		: TField[keyof TField] extends AnyColumn<{ tableName: infer TTableName extends string }> | SQL | SQL.Aliased
+			? Not<IsUnion<TTableName>> extends true ? ApplyNullability<
+					SelectResultFields<TField>,
+					TTableName extends keyof TNullability ? TNullability[TTableName] : 'nullable'
+				>
+			: SelectPartialResult<TField, TNullability>
+		: never
 	: never;
 
 export type MapColumnsToTableAlias<
@@ -104,6 +116,17 @@ export type AddAliasToSelection<
 						SQL.Aliased<SubqueryResultField<TSelection[Key]>>,
 						'You can only select one column in the subquery'
 					>
+				: TSelection[Key] extends JsonObject<infer TObjectSelection, infer TObjectAlias, any> ? JsonObject<
+						Assume<AddAliasToSelection<TObjectSelection, TAlias, TDialect>, JsonObjectSelection>,
+						TObjectAlias,
+						TAlias
+					>
+				: TSelection[Key] extends JsonArray<infer TItem, infer TArrayAlias, any> ? JsonArray<
+						Assume<AddAliasToSelection<{ item: TItem }, TAlias, TDialect>['item'], JsonArrayItem>,
+						TArrayAlias,
+						TAlias
+					>
+				: TSelection[Key] extends DrizzleTypeError<any> ? TSelection[Key]
 				: TSelection[Key] extends ColumnsSelection ? MapColumnsToTableAlias<TSelection[Key], TAlias, TDialect>
 				: never;
 		}
@@ -138,10 +161,61 @@ export type BuildSubquerySelection<
 						SQL.Aliased<SubqueryResultField<TSelection[Key]>>,
 						'You can only select one column in the subquery'
 					>
+				: TSelection[Key] extends JsonObject<any, infer TObjectAlias, any>
+					? [TObjectAlias] extends [string] ? BuildJsonObjectSubqueryField<TSelection[Key], TNullability>
+					: DrizzleTypeError<'You cannot reference this field without assigning it an alias first - use `.as(<alias>)`'>
+				: TSelection[Key] extends JsonArray<any, infer TArrayAlias, any>
+					? [TArrayAlias] extends [string] ? BuildJsonArraySubqueryField<TSelection[Key], TNullability>
+					: DrizzleTypeError<'You cannot reference this field without assigning it an alias first - use `.as(<alias>)`'>
 				: TSelection[Key] extends ColumnsSelection ? BuildSubquerySelection<TSelection[Key], TNullability>
 				: never;
 		}
 		& {};
+
+type BuildJsonObjectSubquerySelection<
+	TSelection extends JsonObjectSelection,
+	TNullability extends Record<string, JoinNullability>,
+> = Assume<
+	{
+		[Key in keyof TSelection]: TSelection[Key] extends Column
+			? ApplyNullabilityToColumn<TSelection[Key], TNullability[TSelection[Key]['_']['tableName']]>
+			: TSelection[Key] extends JsonObject ? BuildJsonObjectSubqueryField<TSelection[Key], TNullability>
+			: TSelection[Key] extends JsonArray ? BuildJsonArraySubqueryField<TSelection[Key], TNullability>
+			: TSelection[Key];
+	},
+	JsonObjectSelection
+>;
+
+type BuildJsonObjectSubqueryField<
+	TObject extends JsonObject,
+	TNullability extends Record<string, JoinNullability>,
+> = TObject extends JsonObject<infer TObjectSelection, infer TObjectAlias, infer TObjectOrigin>
+	? TObjectOrigin extends keyof TNullability
+		? TNullability[TObjectOrigin] extends 'not-null'
+			? JsonObject<BuildJsonObjectSubquerySelection<TObjectSelection, TNullability>, TObjectAlias, TObjectOrigin>
+		: SQL.Aliased<ApplyNullability<SelectResultFields<TObjectSelection>, TNullability[TObjectOrigin]>>
+	: JsonObject<BuildJsonObjectSubquerySelection<TObjectSelection, TNullability>, TObjectAlias, TObjectOrigin>
+	: never;
+
+/** JSON array selected from a joined subquery or view is `null` as a whole when the join has no match */
+type BuildJsonArraySubqueryField<
+	TArray extends JsonArray,
+	TNullability extends Record<string, JoinNullability>,
+> = TArray extends JsonArray<infer TItem, infer TArrayAlias, infer TArrayOrigin>
+	? TArrayOrigin extends keyof TNullability
+		? TNullability[TArrayOrigin] extends 'not-null'
+			? JsonArray<BuildJsonArraySubqueryItem<TItem, TNullability>, TArrayAlias, TArrayOrigin>
+		: SQL.Aliased<ApplyNullability<SelectResultField<TItem>[], TNullability[TArrayOrigin]>>
+	: JsonArray<BuildJsonArraySubqueryItem<TItem, TNullability>, TArrayAlias, TArrayOrigin>
+	: never;
+
+type BuildJsonArraySubqueryItem<
+	TItem,
+	TNullability extends Record<string, JoinNullability>,
+> = TItem extends Column ? ApplyNullabilityToColumn<TItem, TNullability[TItem['_']['tableName']]>
+	: TItem extends JsonObject ? BuildJsonObjectSubqueryField<TItem, TNullability>
+	: TItem extends JsonArray ? BuildJsonArraySubqueryField<TItem, TNullability>
+	: TItem;
 
 type SetJoinsNullability<TNullabilityMap extends Record<string, JoinNullability>, TValue extends JoinNullability> = {
 	[Key in keyof TNullabilityMap]: TValue;
@@ -172,14 +246,16 @@ export type GetSelectTableSelection<TTable extends TableLike> = TTable extends T
 	: TTable extends SQL ? {}
 	: never;
 
-export type SubqueryResultField<TSubquery extends Subquery> =
-	| (TSubquery['_']['selectedFields'] extends { [key: string]: infer TValue } ? SelectResultField<TValue> : never)
-	| null;
+export type SubqueryResultField<TSubquery extends Subquery> = TSubquery['_']['selectedFields'] extends
+	{ [key: string]: infer TValue } ? SelectResultField<TValue> | null
+	: null;
 
 export type SelectResultField<T, TDeep extends boolean = true> = T extends DrizzleTypeError<any> ? T
 	: T extends Table ? Equal<TDeep, true> extends true ? SelectResultField<T['_']['columns'], false> : never
 	: T extends Column<any> ? GetColumnData<T>
 	: T extends SQL | SQL.Aliased ? T['_']['type']
+	: T extends JsonObject ? SelectResultFields<T['selection'], TDeep>
+	: T extends JsonArray ? SelectResultField<T['item'], TDeep>[]
 	: T extends Record<string, any> ? SelectResultFields<T, true>
 	: never;
 

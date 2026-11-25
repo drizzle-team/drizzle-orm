@@ -1,5 +1,5 @@
 import { aliasedTable, aliasedTableSQL, getOriginalColumnFromAlias } from '~/alias.ts';
-import { CodecsCollection } from '~/codecs.ts';
+import { type CodecIdentifier, CodecsCollection, jsonObjectCodecs } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -23,17 +23,20 @@ import {
 	relationExtrasToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
+	type RqbCustomColumn,
 } from '~/relations.ts';
 import { asyncMigrationRunner, runAsyncProgram } from '~/runtime/async.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
+import type { JsonArray, JsonObject } from '~/sql/sql.ts';
 import type { Name, Placeholder, Query, SQLChunk } from '~/sql/sql.ts';
 import { SQL, sql } from '~/sql/sql.ts';
-import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, isSQLWrapper, unqualifyColumns } from '~/sql/sql.ts';
 import { ValueRows } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import { migrate as migrateProgram } from '~/up-migrations/singlestore-program.ts';
 import {
+	getColumnFromDecoder,
 	make$ReturningResponseMapper,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
@@ -68,7 +71,7 @@ export interface BuildRelationalQueryResultWithOrder extends BuildRelationalQuer
 }
 
 // Stored separately - differ per dialect
-const rqbChunks = {
+const singlestoreCommonStringChunks = {
 	relationField: new StringChunk('.`r` as '),
 	coalesceOpen: new StringChunk('coalesce('),
 	relationFieldMany: new StringChunk('.`r`, json_build_array()) as '),
@@ -81,9 +84,14 @@ const rqbChunks = {
 	jsonObjectOpen: new StringChunk('json_build_object('),
 	jsonAggOpen: new StringChunk('json_agg(json_build_object('),
 	aggOrder: new StringChunk(' ORDER BY `$drizzle_order_row_number`'),
+	jsonArrayOpen: new StringChunk('(coalesce(json_agg('),
+	jsonArrayClose: new StringChunk('), json_build_array()) :> json)'),
+	jsonReparseOpen: new StringChunk('('),
+	jsonReparseClose: new StringChunk(' :> text) :> json'),
 } as const;
 
 const escapeSingleStoreName = memoizeEscape((name) => `\`${name.replace(/`/g, '``')}\``);
+
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
 	static [Symbol.hasInstance](value: unknown): boolean {
@@ -98,7 +106,7 @@ export class SingleStoreDialect {
 	};
 
 	constructor(config?: SingleStoreDialectConfig) {
-		this.codecs = new CodecsCollection<SingleStoreType>(resolveSingleStoreTypeAlias, config?.codecs);
+		this.codecs = new CodecsCollection<SingleStoreType>('singlestore', resolveSingleStoreTypeAlias, config?.codecs);
 		this.mapperGenerators = config?.useJitMappers
 			? {
 				rows: makeJitQueryMapper,
@@ -137,6 +145,102 @@ export class SingleStoreDialect {
 	escapeString(str: string): string {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
+
+	private collectJsonValue(
+		collectTo: SQLChunk[],
+		value: SQLChunk,
+		decoder: Column | CodecIdentifier | undefined,
+	): void {
+		if (!decoder) {
+			collectTo.push(value);
+			return;
+		}
+
+		const { jsonSelectIdentifier, dimensions } = decoder as Column & RqbCustomColumn;
+		// Codec bypass for custom columns with enabled legacy JSON api
+		collectTo.push(
+			jsonSelectIdentifier
+				? jsonSelectIdentifier.call(decoder as Column, new SQL([value]), sql, dimensions)
+				: this.codecs.apply(decoder, 'castInJson', value),
+		);
+	}
+
+	private buildJsonField(field: unknown, collectTo: SQLChunk[]): void {
+		const kind = chunkKindOf(field);
+		if (isChunk(field, kind, chunkKinds.column)) {
+			this.collectJsonValue(collectTo, field, field);
+		} else if (isChunk(field, kind, chunkKinds.sql)) {
+			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
+		} else if (isChunk(field, kind, chunkKinds.aliased)) {
+			this.collectJsonValue(collectTo, field.isSelectionField ? field : field.sql, getColumnFromDecoder(field));
+		} else if (isChunk(field, kind, chunkKinds.subquery)) {
+			const value = field._.isWith
+				? field
+				: new SQL([commonStringChunks['('], field._.sql, commonStringChunks[')']]);
+			const innerField = Object.values(field._.selectedFields)[0];
+			const innerKind = chunkKindOf(innerField);
+
+			if (
+				isChunk(innerField, innerKind, chunkKinds.jsonObject) || isChunk(innerField, innerKind, chunkKinds.jsonArray)
+			) {
+				this.collectJsonValue(
+					collectTo,
+					new SQL([
+						singlestoreCommonStringChunks.jsonReparseOpen,
+						value,
+						singlestoreCommonStringChunks.jsonReparseClose,
+					]),
+					jsonObjectCodecs.singlestore,
+				);
+				return;
+			}
+
+			this.collectJsonValue(
+				collectTo,
+				value,
+				isChunk(innerField, innerKind, chunkKinds.column)
+					? innerField
+					: isSQLWrapper(innerField)
+					? getColumnFromDecoder(innerField)
+					: undefined,
+			);
+		} else if (isChunk(field, kind, chunkKinds.jsonObject) || isChunk(field, kind, chunkKinds.jsonArray)) {
+			this.collectJsonValue(
+				collectTo,
+				field.origin !== undefined && field.alias !== undefined
+					? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
+					: new SQL(
+						isChunk(field, kind, chunkKinds.jsonObject) ? this.buildJsonObject(field) : this.buildJsonArray(field),
+					),
+				jsonObjectCodecs.singlestore,
+			);
+		} else if (isSQLWrapper(field)) {
+			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
+		}
+	}
+
+	buildJsonObject = (object: JsonObject, collectTo: SQLChunk[] = []): SQLChunk[] => {
+		const entries = Object.entries(object.selection);
+
+		collectTo.push(singlestoreCommonStringChunks.jsonObjectOpen);
+		for (let i = 0; i < entries.length; ++i) {
+			const [key, field] = entries[i]!;
+			if (i > 0) collectTo.push(commonStringChunks[', ']);
+			collectTo.push(new StringChunk(this.escapeString(key)), commonStringChunks[', ']);
+			this.buildJsonField(field, collectTo);
+		}
+		collectTo.push(commonStringChunks[')']);
+
+		return collectTo;
+	};
+
+	buildJsonArray = (array: JsonArray, collectTo: SQLChunk[] = []): SQLChunk[] => {
+		collectTo.push(singlestoreCommonStringChunks.jsonArrayOpen);
+		this.buildJsonField(array.item, collectTo);
+		collectTo.push(singlestoreCommonStringChunks.jsonArrayClose);
+
+		return collectTo;
+	};
 
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
@@ -382,6 +486,22 @@ export class SingleStoreDialect {
 						chunks.push(field);
 					}
 
+					break;
+				}
+				case 'JsonObject':
+				case 'JsonArray': {
+					if (field.origin !== undefined && field.alias !== undefined) {
+						const query = !isSingleTable
+							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
+							: sql.identifier(field.alias);
+						chunks.push(query);
+						break;
+					}
+
+					if (fieldType === 'JsonObject') this.buildJsonObject(field, chunks);
+					else this.buildJsonArray(field, chunks);
+
+					if (field.alias !== undefined) chunks.push(commonStringChunks[' as '], sql.identifier(field.alias));
 					break;
 				}
 			}
@@ -713,6 +833,8 @@ export class SingleStoreDialect {
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			buildJsonObject: this.buildJsonObject,
+			buildJsonArray: this.buildJsonArray,
 			codecs: this.codecs,
 			invokeSource,
 		});
@@ -812,9 +934,14 @@ export class SingleStoreDialect {
 			const key = sql.identifier(k);
 			if (selected++) collectTo.push(commonStringChunks[', ']);
 			if (relation.relationType === 'one') {
-				collectTo.push(key, rqbChunks.relationField, key);
+				collectTo.push(key, singlestoreCommonStringChunks.relationField, key);
 			} else {
-				collectTo.push(rqbChunks.coalesceOpen, key, rqbChunks.relationFieldMany, key);
+				collectTo.push(
+					singlestoreCommonStringChunks.coalesceOpen,
+					key,
+					singlestoreCommonStringChunks.relationFieldMany,
+					key,
+				);
 			}
 		}
 
@@ -825,7 +952,7 @@ export class SingleStoreDialect {
 		}
 
 		if (isNestedMany && order) {
-			collectTo.push(rqbChunks.rowNumber, ...order, rqbChunks.rowNumberAs);
+			collectTo.push(singlestoreCommonStringChunks.rowNumber, ...order, singlestoreCommonStringChunks.rowNumberAs);
 		}
 
 		collectTo.push(commonStringChunks[' from ']);
@@ -858,10 +985,10 @@ export class SingleStoreDialect {
 				throughTable,
 			);
 
-			collectTo.push(rqbChunks.joinOpen);
+			collectTo.push(singlestoreCommonStringChunks.joinOpen);
 			// Reserved for JSON object of relation's fields, known once relation's query is built
 			const jsonIdx = collectTo.length;
-			collectTo.push(undefined, rqbChunks.joinFrom);
+			collectTo.push(undefined, singlestoreCommonStringChunks.joinFrom);
 			const inner = this.collectRelationalQuery({
 				table: targetTable,
 				mode: isSingle ? 'first' : 'many',
@@ -876,9 +1003,11 @@ export class SingleStoreDialect {
 				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
 				nested: true,
 			}, collectTo);
-			collectTo.push(rqbChunks.joinClose, sql.identifier(k), rqbChunks.onTrue);
+			collectTo.push(singlestoreCommonStringChunks.joinClose, sql.identifier(k), singlestoreCommonStringChunks.onTrue);
 
-			const jsonChunks: SQLChunk[] = [isSingle ? rqbChunks.jsonObjectOpen : rqbChunks.jsonAggOpen];
+			const jsonChunks: SQLChunk[] = [
+				isSingle ? singlestoreCommonStringChunks.jsonObjectOpen : singlestoreCommonStringChunks.jsonAggOpen,
+			];
 			for (let i = 0; i < inner.selection.length; ++i) {
 				const key = inner.selection[i]!.key;
 				if (i) jsonChunks.push(commonStringChunks[', ']);
@@ -886,7 +1015,7 @@ export class SingleStoreDialect {
 			}
 			jsonChunks.push(commonStringChunks[')']);
 			if (!isSingle) {
-				if (inner.order) jsonChunks.push(rqbChunks.aggOrder);
+				if (inner.order) jsonChunks.push(singlestoreCommonStringChunks.aggOrder);
 				jsonChunks.push(commonStringChunks[')']);
 			}
 			collectTo[jsonIdx] = new SQL(jsonChunks);

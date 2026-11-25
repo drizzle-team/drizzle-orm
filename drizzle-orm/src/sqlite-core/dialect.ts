@@ -1,12 +1,12 @@
 import { aliasedTable, aliasedTableSQL, getOriginalColumnFromAlias } from '~/alias.ts';
-import { CodecsCollection, type NormalizeCodec } from '~/codecs.ts';
+import { type CodecIdentifier, CodecsCollection, jsonObjectCodecs, type NormalizeCodec } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import {
-	type AnyOne,
 	// AggregatedField,
+	type AnyOne,
 	type BuildRelationalQueryConfig,
 	type BuildRelationalQueryResult,
 	buildRqbColumns,
@@ -21,12 +21,14 @@ import {
 	relationExtrasToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
+	type RqbCustomColumn,
 	type WithContainer,
 } from '~/relations.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
 import type { Name, Placeholder } from '~/sql/index.ts';
+import type { JsonArray, JsonObject } from '~/sql/sql.ts';
 import { type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, isSQLWrapper, unqualifyColumns } from '~/sql/sql.ts';
 import { ValueRows } from '~/sql/sql.ts';
 import { resolveSQLiteTypeAlias, resolveUnionType, type SQLiteCodecs, type SQLiteType } from '~/sqlite-core/codecs.ts';
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
@@ -40,6 +42,7 @@ import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import {
+	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
 	memoizeEscape,
@@ -63,13 +66,16 @@ export interface SQLiteDialectConfig {
 
 const escapeSQLiteName = memoizeEscape((name) => `"${name.replace(/"/g, '""')}"`);
 // Stored separately - differ per dialect
-const rqbChunks = {
+const sqliteCommonStringChunks = {
 	json: new StringChunk('json'),
 	object: new StringChunk('_object('),
 	groupArray: new StringChunk('_group_array(json_object('),
 	groupArrayClose: new StringChunk('))'),
 	relationFrom: new StringChunk(' as "r" from ('),
 	relationClose: new StringChunk(') as "t") as '),
+	jsonObjectOpen: new StringChunk('json_object('),
+	jsonArrayOpen: new StringChunk('json_group_array('),
+	jsonArrayClose: new StringChunk(')'),
 } as const;
 
 export interface SQLiteBuildRelationalQueryConfig
@@ -91,7 +97,7 @@ export class SQLiteDialect {
 	};
 
 	constructor(config?: SQLiteDialectConfig) {
-		this.codecs = new CodecsCollection<SQLiteType>(resolveSQLiteTypeAlias, config?.codecs);
+		this.codecs = new CodecsCollection<SQLiteType>('sqlite', resolveSQLiteTypeAlias, config?.codecs);
 		this.mapperGenerators = config?.useJitMappers
 			? {
 				rows: makeJitQueryMapper,
@@ -114,6 +120,93 @@ export class SQLiteDialect {
 	escapeString(str: string): string {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
+
+	private collectJsonValue(
+		collectTo: SQLChunk[],
+		value: SQLChunk,
+		decoder: Column | CodecIdentifier | undefined,
+	): void {
+		if (!decoder) {
+			collectTo.push(value);
+			return;
+		}
+
+		const { jsonSelectIdentifier, dimensions } = decoder as Column & RqbCustomColumn;
+		// Codec bypass for custom columns with enabled legacy JSON api
+		collectTo.push(
+			jsonSelectIdentifier
+				? jsonSelectIdentifier.call(decoder as Column, new SQL([value]), sql, dimensions)
+				: this.codecs.apply(decoder, 'castInJson', value),
+		);
+	}
+
+	private buildJsonField(field: unknown, collectTo: SQLChunk[]): void {
+		const kind = chunkKindOf(field);
+		if (isChunk(field, kind, chunkKinds.column)) {
+			this.collectJsonValue(collectTo, field, field);
+		} else if (isChunk(field, kind, chunkKinds.sql)) {
+			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
+		} else if (isChunk(field, kind, chunkKinds.aliased)) {
+			this.collectJsonValue(collectTo, field.isSelectionField ? field : field.sql, getColumnFromDecoder(field));
+		} else if (isChunk(field, kind, chunkKinds.subquery)) {
+			const value = field._.isWith
+				? field
+				: new SQL([commonStringChunks['('], field._.sql, commonStringChunks[')']]);
+			const innerField = Object.values(field._.selectedFields)[0];
+			const innerKind = chunkKindOf(innerField);
+
+			if (
+				isChunk(innerField, innerKind, chunkKinds.jsonObject) || isChunk(innerField, innerKind, chunkKinds.jsonArray)
+			) {
+				// Objects and arrays stored outside of JSON lose their JSON subtype and become text
+				this.collectJsonValue(collectTo, sql`json(${value})`, jsonObjectCodecs.sqlite);
+				return;
+			}
+
+			this.collectJsonValue(
+				collectTo,
+				value,
+				isChunk(innerField, innerKind, chunkKinds.column)
+					? innerField
+					: isSQLWrapper(innerField)
+					? getColumnFromDecoder(innerField)
+					: undefined,
+			);
+		} else if (isChunk(field, kind, chunkKinds.jsonObject) || isChunk(field, kind, chunkKinds.jsonArray)) {
+			// Objects and arrays stored outside of JSON lose their JSON subtype and become text
+			const value = field.origin !== undefined && field.alias !== undefined
+				? sql`json(${sql.identifier(field.origin)}.${sql.identifier(field.alias)})`
+				: new SQL(
+					isChunk(field, kind, chunkKinds.jsonObject) ? this.buildJsonObject(field) : this.buildJsonArray(field),
+				);
+			this.collectJsonValue(collectTo, value, jsonObjectCodecs.sqlite);
+		} else if (isSQLWrapper(field)) {
+			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
+		}
+	}
+
+	buildJsonObject = (object: JsonObject, collectTo: SQLChunk[] = []): SQLChunk[] => {
+		const entries = Object.entries(object.selection);
+
+		collectTo.push(sqliteCommonStringChunks.jsonObjectOpen);
+		for (let i = 0; i < entries.length; ++i) {
+			const [key, field] = entries[i]!;
+			if (i > 0) collectTo.push(commonStringChunks[', ']);
+			collectTo.push(new StringChunk(this.escapeString(key)), commonStringChunks[', ']);
+			this.buildJsonField(field, collectTo);
+		}
+		collectTo.push(commonStringChunks[')']);
+
+		return collectTo;
+	};
+
+	buildJsonArray = (array: JsonArray, collectTo: SQLChunk[] = []): SQLChunk[] => {
+		collectTo.push(sqliteCommonStringChunks.jsonArrayOpen);
+		this.buildJsonField(array.item, collectTo);
+		collectTo.push(sqliteCommonStringChunks.jsonArrayClose);
+
+		return collectTo;
+	};
 
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
@@ -365,6 +458,22 @@ export class SQLiteDialect {
 						chunks.push(field);
 					}
 
+					break;
+				}
+				case 'JsonObject':
+				case 'JsonArray': {
+					if (field.origin !== undefined && field.alias !== undefined) {
+						const query = !isSingleTable
+							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
+							: sql.identifier(field.alias);
+						chunks.push(query);
+						break;
+					}
+
+					if (fieldType === 'JsonObject') this.buildJsonObject(field, chunks);
+					else this.buildJsonArray(field, chunks);
+
+					if (field.alias !== undefined) chunks.push(commonStringChunks[' as '], sql.identifier(field.alias));
 					break;
 				}
 			}
@@ -736,6 +845,8 @@ export class SQLiteDialect {
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			buildJsonObject: this.buildJsonObject,
+			buildJsonArray: this.buildJsonArray,
 			codecs: this.codecs,
 			invokeSource,
 		});
@@ -860,7 +971,7 @@ export class SQLiteDialect {
 			if (selected++) collectTo.push(commonStringChunks[', ']);
 			// Reserved for JSON of relation's fields, known once relation's query is built
 			const jsonIdx = collectTo.length;
-			collectTo.push(undefined, rqbChunks.relationFrom);
+			collectTo.push(undefined, sqliteCommonStringChunks.relationFrom);
 			const innerSelection = this.collectRelationalQuery({
 				table: targetTable,
 				mode: isSingle ? 'first' : 'many',
@@ -875,12 +986,12 @@ export class SQLiteDialect {
 				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
 				jsonb,
 			}, collectTo);
-			collectTo.push(rqbChunks.relationClose, sql.identifier(k));
+			collectTo.push(sqliteCommonStringChunks.relationClose, sql.identifier(k));
 
 			const jsonChunks: SQLChunk[] = [
 				commonStringChunks['(select '],
-				nested ? jsonb : rqbChunks.json,
-				isSingle ? rqbChunks.object : rqbChunks.groupArray,
+				nested ? jsonb : sqliteCommonStringChunks.json,
+				isSingle ? sqliteCommonStringChunks.object : sqliteCommonStringChunks.groupArray,
 			];
 			for (let i = 0; i < innerSelection.length; ++i) {
 				const s = innerSelection[i]!;
@@ -892,7 +1003,7 @@ export class SQLiteDialect {
 					jsonChunks.push(sql.identifier(s.key));
 				}
 			}
-			jsonChunks.push(isSingle ? commonStringChunks[')'] : rqbChunks.groupArrayClose);
+			jsonChunks.push(isSingle ? commonStringChunks[')'] : sqliteCommonStringChunks.groupArrayClose);
 			collectTo[jsonIdx] = new SQL(jsonChunks);
 
 			selection.push({

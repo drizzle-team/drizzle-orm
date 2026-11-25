@@ -35,6 +35,9 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { expect, expectTypeOf } from 'vitest';
+import { assertJsonNodes } from '~/json-nodes';
+
+export const asJsonObjects = <TRow>(rows: TRow[]) => rows.map((row) => ({ object: row, nested: { object: row } }));
 
 export const makeAllTypes = <TTable extends string, TEnum extends string>(tableName: TTable, enumName: TEnum) => {
 	const en = pgEnum(enumName, ['enVal1', 'enVal2']);
@@ -1309,6 +1312,7 @@ export async function assertAllTypesEmptyArrays(
 			...data,
 			self: [data],
 		});
+		await assertJsonNodes(db, allTypesTable, [data], { run, maxFields: 45 });
 	}
 }
 
@@ -1332,6 +1336,7 @@ export async function assertAllTypesWithReplacements(
 			...data,
 			self: [data],
 		});
+		await assertJsonNodes(db, allTypesTable, [data], { run, maxFields: 45 });
 	}
 
 	await assertAllTypesEmptyArrays(db, allTypesTable, {
@@ -1359,6 +1364,15 @@ export async function assertAllTypesBounds(
 			expect(
 				await run((<any> db).query.boundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
 			).toStrictEqual(boundsData.map((row) => ({ ...row, self: [row] })));
+
+			const objects = db.select({
+				object: sql.jsonObject(boundsTable),
+				nested: sql.jsonObject({ object: sql.jsonObject(boundsTable) }),
+			}).from(boundsTable).orderBy(boundsTable.id);
+			expectTypeOf<(typeof objects)['_']['result']>().toEqualTypeOf<
+				{ object: BoundsRow; nested: { object: BoundsRow } }[]
+			>();
+			await assertJsonNodes(db, boundsTable, boundsData, { run, maxFields: 45 });
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropBounds())));
@@ -1704,6 +1718,17 @@ export async function assertAllTypesTemporalBounds(
 			expect(
 				await run((<any> db).query.temporalBoundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
 			).toStrictEqual(data.map((row) => ({ ...row, self: [row] })));
+
+			const objects = db.select({
+				object: sql.jsonObject(temporalBoundsTable),
+				nested: sql.jsonObject({ object: sql.jsonObject(temporalBoundsTable) }),
+			}).from(temporalBoundsTable).orderBy(
+				temporalBoundsTable.id,
+			);
+			expectTypeOf<(typeof objects)['_']['result']>().toEqualTypeOf<
+				{ object: TemporalBoundsRow; nested: { object: TemporalBoundsRow } }[]
+			>();
+			await assertJsonNodes(db, temporalBoundsTable, data, { run, maxFields: 45 });
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropTemporalBounds())));
@@ -1774,6 +1799,7 @@ export async function assertAllTypesTemporalBoundsInSessions(
 						})),
 						label,
 					).toStrictEqual(expected.map((row) => ({ ...row, self: [row] })));
+					await assertJsonNodes(tx, table, expected, { run, columns: Object.keys(columns), label });
 				}
 			});
 		}
@@ -2047,6 +2073,17 @@ and array_position(${nullElementsTable.arrjsonb}, null) is not null`).orderBy(nu
 			expect(
 				await run((<any> db).query.nullElementsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
 			).toStrictEqual(nullElementsData.map((row) => ({ ...row, self: [row] })));
+
+			const objects = db.select({
+				object: sql.jsonObject(nullElementsTable),
+				nested: sql.jsonObject({ object: sql.jsonObject(nullElementsTable) }),
+			}).from(nullElementsTable).orderBy(
+				nullElementsTable.id,
+			);
+			expectTypeOf<(typeof objects)['_']['result']>().toEqualTypeOf<
+				{ object: NullElementsRow; nested: { object: NullElementsRow } }[]
+			>();
+			await assertJsonNodes(db, nullElementsTable, nullElementsData, { run });
 		}
 	} finally {
 		await drop();
@@ -2168,6 +2205,21 @@ and array_position(${customNullElementsTable.taggedJson}, null) is not null`).or
 
 			expect(await run(counted)).toStrictEqual(customNullElementsData.map((row) => ({ ...row, self: [row] })));
 			expect(fromJsonCalls).toStrictEqual([2]);
+
+			const objects = db.select({
+				object: sql.jsonObject(customNullElementsTable),
+				nested: sql.jsonObject({ object: sql.jsonObject(customNullElementsTable) }),
+			}).from(customNullElementsTable).orderBy(
+				customNullElementsTable.id,
+			);
+			expectTypeOf<(typeof objects)['_']['result']>().toEqualTypeOf<
+				{ object: CustomNullElementsRow; nested: { object: CustomNullElementsRow } }[]
+			>();
+			taggedFromJsonCalls = 0;
+			expect(await run(objects)).toStrictEqual(asJsonObjects(customNullElementsData));
+			// Once per row of each object: JSON values are decoded with `fromJson`, not `fromDriver`
+			expect(taggedFromJsonCalls).toStrictEqual(4);
+			await assertJsonNodes(db, customNullElementsTable, customNullElementsData, { run });
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropCustomNullElements())));

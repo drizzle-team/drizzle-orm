@@ -24,7 +24,9 @@
 //   numeric[]       -> exact string[] (scanner)     timestamptz[]   -> Date[] (scanner)
 //   int4[]/text[]/… -> number[]/string[] (fast path — JSON.parse is already exact for them)
 // 'json[]'/'unknown[]' are rejected at shape build ('unknown' covers arbitrary arrays); arrays of
-// OBJECTS are JsonArray({…}). NB the interpreted (no-eval) engine fixes arrays up after JSON.parse,
+// OBJECTS are JsonArray({…}). JsonArray also takes any single field value instead — a TypeSpec, a nested
+// Json()/JsonArray() or a Transform() — for arrays of those (json_agg(bigint_col) selected as a column:
+// JsonArray('int8'), arrays of arrays of objects: JsonArray(JsonArray({…}))). NB the interpreted (no-eval) engine fixes arrays up after JSON.parse,
 // so like scalar fields its int8 exactness beyond 2^53 needs jsonBigints (jit scanner is exact always).
 //
 // ORDERING: the scanner is positional (skips key text, doesn't match it). `json` preserves
@@ -41,7 +43,11 @@ export interface JsonMarker {
 	readonly __json: 'object' | 'array';
 	readonly type: 'json' | 'jsonb';
 	readonly spec: JsonSpec;
+	/** An array of `spec`'s only entry (keyed '') — any field value — rather than of objects of `spec`'s fields */
+	readonly element?: true;
 }
+/** What an element of a JsonArray of non-objects can be declared as: anything a Json() field can */
+export type JsonElementSpec = TypeSpec | JsonMarker | TransformMarker;
 /** The ordered ENTRIES form of a spec: [key, value] tuples. Every spec-taking API accepts it
  *  alongside the object literal. It exists because an array cannot lose declaration order —
  *  JS enumerates integer-string object keys ('0', '2024') FIRST in numeric order, so a column
@@ -97,17 +103,26 @@ type JsonSpecInput<K extends string> = ShapeOf<K> | SpecEntries<TypeSpec | JsonM
 export function Json<K extends string>(spec: JsonSpecInput<K>): JsonMarker {
 	return { __json: 'object', type: 'json', spec: spec as JsonSpec };
 }
-/** Declare a `json` column that is an array of objects of a known shape (json_agg). */
-export function JsonArray<K extends string>(spec: JsonSpecInput<K>): JsonMarker {
-	return { __json: 'array', type: 'json', spec: spec as JsonSpec };
+const isElementSpec = (x: unknown): x is JsonElementSpec =>
+	typeof x === 'string' || isJsonMarker(x) || isTransformMarker(x);
+// An element spec is stored as the only entry of `spec`, so every spec walker handles it as a field
+const arrayMarker = (type: 'json' | 'jsonb', spec: JsonSpecInput<string> | JsonElementSpec): JsonMarker =>
+	isElementSpec(spec)
+		? { __json: 'array', type, spec: [['', spec]], element: true }
+		: { __json: 'array', type, spec: spec as JsonSpec };
+/** Declare a `json` column that is an array (json_agg) of objects of a known shape, or of any single
+ *  field value: a TypeSpec, a nested Json()/JsonArray() or a Transform(). */
+export function JsonArray<K extends string>(spec: JsonSpecInput<K> | JsonElementSpec): JsonMarker {
+	return arrayMarker('json', spec);
 }
 /** Declare a `jsonb` column that is a single object (keys read in jsonb's sorted order). */
 export function Jsonb<K extends string>(spec: JsonSpecInput<K>): JsonMarker {
 	return { __json: 'object', type: 'jsonb', spec: spec as JsonSpec };
 }
-/** Declare a `jsonb` column that is an array of objects of a known shape (jsonb_agg). */
-export function JsonbArray<K extends string>(spec: JsonSpecInput<K>): JsonMarker {
-	return { __json: 'array', type: 'jsonb', spec: spec as JsonSpec };
+/** Declare a `jsonb` column that is an array (jsonb_agg) of objects of a known shape, or of any single
+ *  field value: a TypeSpec, a nested Json()/Jsonb() array or object, or a Transform(). */
+export function JsonbArray<K extends string>(spec: JsonSpecInput<K> | JsonElementSpec): JsonMarker {
+	return arrayMarker('jsonb', spec);
 }
 export function isJsonMarker(x: unknown): x is JsonMarker {
 	return typeof x === 'object' && x !== null && typeof (x as { __json?: unknown }).__json === 'string';
@@ -421,6 +436,7 @@ export function buildJsonWalk(marker: JsonMarker): (v: unknown) => unknown {
 		else if (xf) fns.push([key, xf]);
 		else if (base) fns.push([key, base]);
 	}
+	if (marker.element) return walkElements(fns[0]?.[1]);
 	const walkObj = (o: Record<string, unknown>): Record<string, unknown> => {
 		for (const [k, f] of fns) {
 			const val = o[k];
@@ -436,6 +452,19 @@ export function buildJsonWalk(marker: JsonMarker): (v: unknown) => unknown {
 		: (o) => (o != null ? walkObj(o as Record<string, unknown>) : o);
 }
 
+/** Walk of a JsonArray of non-objects: `f` (if any) maps each non-null element in place */
+function walkElements(f: ((x: unknown) => unknown) | undefined): (v: unknown) => unknown {
+	return (arr) => {
+		if (f && Array.isArray(arr)) {
+			for (let i = 0; i < arr.length; i++) {
+				const el = arr[i];
+				if (el != null) arr[i] = f(el);
+			}
+		}
+		return arr;
+	};
+}
+
 /** Post-decode walk applying ONLY the Transform fns (base values already decoded by the JIT scanner or
  *  JSON.parse). Recurses into nested json that has transforms; null passes through (fn never sees null). */
 export function buildJsonTransformWalk(marker: JsonMarker): (v: unknown) => unknown {
@@ -444,6 +473,7 @@ export function buildJsonTransformWalk(marker: JsonMarker): (v: unknown) => unkn
 		if (isTransformMarker(raw)) fns.push([key, raw.fn as (x: unknown) => unknown]);
 		else if (isJsonMarker(raw) && specHasTransform(raw.spec)) fns.push([key, buildJsonTransformWalk(raw)]);
 	}
+	if (marker.element) return walkElements(fns[0]?.[1]);
 	const walkObj = (o: Record<string, unknown>): Record<string, unknown> => {
 		for (const [k, f] of fns) {
 			const val = o[k];
@@ -588,7 +618,7 @@ function inlineEpoch(target: string, js: 'ms' | 'date', ctx: { n: number }): str
 
 function inlineMarker(marker: JsonMarker, target: string, ctx: { n: number }): string {
 	return marker.__json === 'array'
-		? inlineArray(marker.spec, marker.type, target, ctx)
+		? inlineArray(marker, target, ctx)
 		: inlineObject(marker.spec, marker.type, target, ctx);
 }
 
@@ -622,13 +652,15 @@ function inlineObject(spec: JsonSpec, type: 'json' | 'jsonb', target: string, ct
 		} ${SKIPOBJEND} ${target} = ${ret}; } }`;
 }
 
-// Inline array-of-objects parse into `target`: '[', loop each element through an inlined object parse.
-function inlineArray(elemSpec: JsonSpec, type: 'json' | 'jsonb', target: string, ctx: { n: number }): string {
+// Inline array parse into `target`: '[', loop each element through an inlined object parse — or, for an
+// array of non-objects, through the element value's own parse.
+function inlineArray(marker: JsonMarker, target: string, ctx: { n: number }): string {
 	const id = ctx.n++, A = `_a${id}`, EL = `_el${id}`, C = `_ac${id}`;
+	const element = marker.element
+		? `${SKIPWS} ${inlineValue(specEntries(marker.spec)[0]![1], EL, ctx)};`
+		: inlineObject(marker.spec, marker.type, EL, ctx);
 	return `${SKIPWS} if (jb[jp] === 110) { ${target} = null; jp += 4 } else { jp++; const ${A} = []; `
-		+ `${SKIPWS} if (jb[jp] === 93) { jp++ } else { while (jp < je) { let ${EL}; ${
-			inlineObject(elemSpec, type, EL, ctx)
-		} ${A}.push(${EL}); `
+		+ `${SKIPWS} if (jb[jp] === 93) { jp++ } else { while (jp < je) { let ${EL} = null; ${element} ${A}.push(${EL}); `
 		+ `${SKIPWS} const ${C} = jb[jp]; if (${C} === 44) { jp++; ${SKIPWS} continue } if (${C} === 93) { jp++; break } break; } } ${target} = ${A}; }`;
 }
 

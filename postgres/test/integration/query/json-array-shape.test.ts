@@ -3,7 +3,7 @@
 // JIT reads elements exactly from the bytes; the interpreted engine fixes up after JSON.parse,
 // so (like scalar fields) its int8 exactness beyond 2^53 needs jsonBigints: 'bigint'.
 import { describe, expect, test } from 'bun:test';
-import { Json, Jsonb } from '../../../src/index.ts';
+import { Json, JsonArray, Jsonb, JsonbArray, Transform } from '../../../src/index.ts';
 import { caught, TEST_TIMEOUT, testConnect, VARIANT, withConn } from '../../helpers/db.ts';
 
 const BIG = 9007199254740993n; // 2^53 + 1: JSON.parse rounds it to ...992
@@ -218,6 +218,92 @@ describe('scalar arrays inside Json()/Jsonb() shapes', () => {
 			expect(String((e as Error).message)).toMatch(/isn't supported inside a json shape/);
 			const e2 = await caught(() => c.query('select 1 as d', [], { shape: { d: Json({ x: 'unknown[]' as never }) } }));
 			expect(String((e2 as Error).message)).toMatch(/isn't supported inside a json shape/);
+		});
+	}, TEST_TIMEOUT);
+});
+
+// JsonArray()/JsonbArray() of non-objects: the element is declared as any Json() field value, so a json_agg of
+// scalars (or of nested arrays/objects) selected as a COLUMN decodes exactly like the same array inside Json().
+describe('JsonArray()/JsonbArray() of non-objects', () => {
+	test('bigint elements exact with jsonBigints, null elements kept (BOTH engines)', async () => {
+		const c = await testConnect({ jsonBigints: 'bigint' });
+		try {
+			const r = await c.query(`select json_agg(x) as v from (values (${BIG}::int8), (null), (2::int8)) t(x)`, [], {
+				shape: { v: JsonArray('int8') },
+			});
+			expect((r.rows[0] as { v: unknown }).v).toEqual([BIG, null, 2n]);
+		} finally {
+			await c.end();
+		}
+	}, TEST_TIMEOUT);
+
+	test.skipIf(VARIANT === 'interpreted')(
+		'bigint / numeric elements exact under DEFAULT config (jit scanner)',
+		async () => {
+			await withConn(async (c) => {
+				const r = await c.query(
+					`select json_agg(x) as big, json_agg(x::numeric * 10) as num from (values (${BIG}::int8), (-${BIG}::int8)) t(x)`,
+					[],
+					{ shape: { big: JsonArray('int8'), num: JsonArray('numeric') } },
+				);
+				expect(r.rows[0]).toEqual({ big: [BIG, -BIG], num: [String(BIG * 10n), String(-BIG * 10n)] });
+			});
+		},
+		TEST_TIMEOUT,
+	);
+
+	test('temporal, :number targets, empty and null arrays (both engines)', async () => {
+		await withConn(async (c) => {
+			const r = await c.query(
+				`select json_agg(x) as dates, json_agg(n) as nums, (select json_agg(1) where false) as nul,
+				 '[]'::json as empty from (values ('2022-11-21T14:29:11.987Z'::timestamptz, 1::int8)) t(x, n)`,
+				[],
+				{
+					shape: {
+						dates: JsonArray('timestamptz:date'),
+						nums: JsonArray('int8:number'),
+						nul: JsonArray('int8'),
+						empty: JsonArray('int8'),
+					},
+				},
+			);
+			expect(r.rows[0]).toEqual({ dates: [new Date('2022-11-21T14:29:11.987Z')], nums: [1], nul: null, empty: [] });
+		});
+	}, TEST_TIMEOUT);
+
+	test('arrays of arrays, of objects via Json(), and Transform elements (both engines)', async () => {
+		await withConn(async (c) => {
+			const r = await c.query(
+				`select json_agg(json_build_array(x, x + 1)) as nested, json_agg(json_build_object('id', x)) as objects,
+				 json_agg(x) as doubled, json_agg(json_build_array(json_build_object('id', x))) as deep
+				 from (values (1::int8), (2::int8)) t(x)`,
+				[],
+				{
+					shape: {
+						nested: JsonArray(JsonArray('int8')),
+						objects: JsonArray(Json({ id: 'int8' })),
+						doubled: JsonArray(Transform('int4', (v: number) => v * 2)),
+						deep: JsonArray(JsonArray({ id: 'int8' })),
+					},
+				},
+			);
+			expect(r.rows[0]).toEqual({
+				nested: [[1n, 2n], [2n, 3n]],
+				objects: [{ id: 1n }, { id: 2n }],
+				doubled: [2, 4],
+				deep: [[{ id: 1n }], [{ id: 2n }]],
+			});
+		});
+	}, TEST_TIMEOUT);
+
+	test('nested inside Json(), and JsonbArray (both engines)', async () => {
+		await withConn(async (c) => {
+			const r = await c.query(
+				`select json_build_object('ids', json_agg(x)) as obj, jsonb_agg(x) as jb from (values (1::int8), (2::int8)) t(x)`,
+				[],
+				{ shape: { obj: Json({ ids: JsonArray('int8') }), jb: JsonbArray('int8') } },
+			);
+			expect(r.rows[0]).toEqual({ obj: { ids: [1n, 2n] }, jb: [1n, 2n] });
 		});
 	}, TEST_TIMEOUT);
 });

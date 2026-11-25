@@ -1,5 +1,5 @@
 import { aliasedTable, aliasedTableSQL, getOriginalColumnFromAlias } from '~/alias.ts';
-import { CodecsCollection } from '~/codecs.ts';
+import { type CodecIdentifier, CodecsCollection, jsonObjectCodecs } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -15,8 +15,8 @@ import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-buil
 import { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import {
-	type AnyOne,
 	// AggregatedField,
+	type AnyOne,
 	type BuildRelationalQueryConfig,
 	type BuildRelationalQueryResult,
 	buildRqbColumns,
@@ -31,14 +31,16 @@ import {
 	relationExtrasToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
+	type RqbCustomColumn,
 	type WithContainer,
 } from '~/relations.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
-import { type Name, type Query, SQL, sql, type SQLChunk, ValueRows } from '~/sql/sql.ts';
-import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
+import { type JsonArray, type JsonObject, Name, type Query, SQL, sql, type SQLChunk, ValueRows } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, isSQLWrapper, unqualifyColumns } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import {
+	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
 	memoizeEscape,
@@ -75,12 +77,15 @@ export interface PgDialectConfig {
 
 const escapePgName = memoizeEscape((name) => `"${name.replace(/"/g, '""')}"`);
 // Stored separately - differ per dialect
-const rqbChunks = {
+const pgCommonStringChunks = {
 	relationField: new StringChunk('."r" as '),
 	joinOne: new StringChunk(' left join lateral(select row_to_json("t".*) "r" from ('),
 	joinMany: new StringChunk(` left join lateral(select coalesce(json_agg(row_to_json("t".*)), '[]') as "r" from (`),
 	joinClose: new StringChunk(') as "t") as '),
 	onTrue: new StringChunk(' on true'),
+	jsonObjectOpen: new StringChunk('json_build_object('),
+	jsonArrayOpen: new StringChunk('coalesce(json_agg('),
+	jsonArrayClose: new StringChunk(`), '[]')`),
 } as const;
 
 export class PgDialect {
@@ -97,7 +102,7 @@ export class PgDialect {
 	readonly shapeGenerator?: ShapeGenerator;
 
 	constructor(config?: PgDialectConfig) {
-		this.codecs = new CodecsCollection<PostgresType>(resolvePgTypeAlias, config?.codecs);
+		this.codecs = new CodecsCollection<PostgresType>('pg', resolvePgTypeAlias, config?.codecs);
 		this.shapeGenerator = config?.shapeGenerator;
 		this.mapperGenerators = config?.useJitMappers
 			? {
@@ -121,6 +126,94 @@ export class PgDialect {
 	escapeString(str: string): string {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
+
+	private collectJsonValue(
+		collectTo: SQLChunk[],
+		value: SQLChunk,
+		decoder: Column | CodecIdentifier | undefined,
+	): void {
+		if (!decoder) {
+			collectTo.push(value);
+			return;
+		}
+
+		const { jsonSelectIdentifier, dimensions } = decoder as Column & RqbCustomColumn;
+		// Codec bypass for custom columns with enabled legacy JSON api
+		collectTo.push(
+			jsonSelectIdentifier
+				? jsonSelectIdentifier.call(decoder as Column, new SQL([value]), sql, dimensions)
+				: this.codecs.apply(decoder, 'castInJson', value),
+		);
+	}
+
+	private buildJsonField(field: unknown, collectTo: SQLChunk[]): void {
+		const kind = chunkKindOf(field);
+		if (isChunk(field, kind, chunkKinds.column)) {
+			this.collectJsonValue(collectTo, field, field);
+		} else if (isChunk(field, kind, chunkKinds.sql)) {
+			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
+		} else if (isChunk(field, kind, chunkKinds.aliased)) {
+			this.collectJsonValue(collectTo, field.isSelectionField ? field : field.sql, getColumnFromDecoder(field));
+		} else if (isChunk(field, kind, chunkKinds.subquery)) {
+			const value = field._.isWith
+				? field
+				: new SQL([commonStringChunks['('], field._.sql, commonStringChunks[')']]);
+			const innerField = Object.values(field._.selectedFields)[0];
+			const innerKind = chunkKindOf(innerField);
+
+			if (
+				isChunk(innerField, innerKind, chunkKinds.jsonObject) || isChunk(innerField, innerKind, chunkKinds.jsonArray)
+			) {
+				this.collectJsonValue(collectTo, value, jsonObjectCodecs.pg);
+				return;
+			}
+
+			this.collectJsonValue(
+				collectTo,
+				value,
+				isChunk(innerField, innerKind, chunkKinds.column)
+					? innerField
+					: isSQLWrapper(innerField)
+					? getColumnFromDecoder(innerField)
+					: undefined,
+			);
+		} else if (isChunk(field, kind, chunkKinds.jsonObject) || isChunk(field, kind, chunkKinds.jsonArray)) {
+			this.collectJsonValue(
+				collectTo,
+				field.origin !== undefined && field.alias !== undefined
+					? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
+					: new SQL(
+						isChunk(field, kind, chunkKinds.jsonObject) ? this.buildJsonObject(field) : this.buildJsonArray(field),
+					),
+				jsonObjectCodecs.pg,
+			);
+		} else if (isSQLWrapper(field)) {
+			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
+		}
+	}
+
+	buildJsonObject = (object: JsonObject, collectTo: SQLChunk[] = []): SQLChunk[] => {
+		const entries = Object.entries(object.selection);
+
+		collectTo.push(pgCommonStringChunks.jsonObjectOpen);
+		for (let i = 0; i < entries.length; ++i) {
+			const [key, field] = entries[i]!;
+			if (i > 0) collectTo.push(commonStringChunks[', ']);
+			collectTo.push(new StringChunk(this.escapeString(key)), commonStringChunks[', ']);
+			this.buildJsonField(field, collectTo);
+		}
+		collectTo.push(commonStringChunks[')']);
+
+		return collectTo;
+	};
+
+	buildJsonArray = (array: JsonArray, collectTo: SQLChunk[] = []): SQLChunk[] => {
+		collectTo.push(pgCommonStringChunks.jsonArrayOpen);
+		this.buildJsonField(array.item, collectTo);
+		collectTo.push(pgCommonStringChunks.jsonArrayClose);
+
+		return collectTo;
+	};
 
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
@@ -376,6 +469,22 @@ export class PgDialect {
 						chunks.push(field);
 					}
 
+					break;
+				}
+				case 'JsonObject':
+				case 'JsonArray': {
+					if (field.origin !== undefined && field.alias !== undefined) {
+						const query = !isSingleTable
+							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
+							: sql.identifier(field.alias);
+						chunks.push(query);
+						break;
+					}
+
+					if (fieldType === 'JsonObject') this.buildJsonObject(field, chunks);
+					else this.buildJsonArray(field, chunks);
+
+					if (field.alias !== undefined) chunks.push(commonStringChunks[' as '], new Name(field.alias));
 					break;
 				}
 			}
@@ -742,6 +851,8 @@ export class PgDialect {
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			buildJsonObject: this.buildJsonObject,
+			buildJsonArray: this.buildJsonArray,
 			codecs: this.codecs,
 			invokeSource,
 		});
@@ -751,6 +862,8 @@ export class PgDialect {
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			buildJsonObject: this.buildJsonObject,
+			buildJsonArray: this.buildJsonArray,
 			codecs: this.codecs,
 			tagged: true,
 		});
@@ -849,7 +962,7 @@ export class PgDialect {
 
 			const key = sql.identifier(k);
 			if (selected++) collectTo.push(commonStringChunks[', ']);
-			collectTo.push(key, rqbChunks.relationField, key);
+			collectTo.push(key, pgCommonStringChunks.relationField, key);
 		}
 
 		if (!selected) {
@@ -913,7 +1026,7 @@ export class PgDialect {
 				throughTable,
 			);
 
-			collectTo.push(isSingle ? rqbChunks.joinOne : rqbChunks.joinMany);
+			collectTo.push(isSingle ? pgCommonStringChunks.joinOne : pgCommonStringChunks.joinMany);
 			const innerSelection = this.collectRelationalQuery({
 				table: targetTable,
 				mode: isSingle ? 'first' : 'many',
@@ -928,7 +1041,7 @@ export class PgDialect {
 				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
 				nested: true,
 			}, collectTo);
-			collectTo.push(rqbChunks.joinClose, sql.identifier(k), rqbChunks.onTrue);
+			collectTo.push(pgCommonStringChunks.joinClose, sql.identifier(k), pgCommonStringChunks.onTrue);
 
 			selection.push({
 				field: targetTable,

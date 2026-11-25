@@ -242,3 +242,49 @@ Expect<Equal<typeof errorSubquery, { name: DrizzleTypeError<'You can only select
 	db.select().from(users).crossJoinLateral(fullSq);
 	db.update(users).set({ name: 'x' }).from(fullSq);
 }
+
+// JSON object of a joined subquery or view is `null` as a whole when the join has no match, its fields aren't nullable
+{
+	const authors = pgTable('jo_authors', {
+		id: integer('id').notNull(),
+		name: text('name').notNull(),
+	});
+	const articles = pgTable('jo_articles', {
+		id: integer('id').notNull(),
+		authorId: integer('author_id'),
+		title: text('title').notNull(),
+	});
+
+	const author = db.select({
+		id: authors.id,
+		object: sql.jsonObject({ id: authors.id, name: authors.name }).as('object'),
+	}).from(authors).as('author');
+
+	// Nested into JSON object of another subquery
+	const nested = db.select({
+		object: sql.jsonObject({ title: articles.title, author: author.object }).as('object'),
+	}).from(articles).leftJoin(author, eq(author.id, articles.authorId)).as('nested');
+
+	const nestedRes = await db.select({ article: nested.object }).from(nested);
+	Expect<Equal<typeof nestedRes, { article: { title: string; author: { id: number; name: string } | null } }[]>>;
+
+	// Selected by another subquery
+	const reselected = db.select({
+		id: articles.id,
+		author: author.object,
+	}).from(articles).leftJoin(author, eq(author.id, articles.authorId)).as('reselected');
+
+	const reselectedRes = await db.select().from(reselected);
+	Expect<Equal<typeof reselectedRes, { id: number; author: { id: number; name: string } | null }[]>>;
+
+	const wrappedRes = await db.select({ wrapped: sql.jsonObject({ author: reselected.author }) }).from(reselected);
+	Expect<Equal<typeof wrappedRes, { wrapped: { author: { id: number; name: string } | null } }[]>>;
+
+	// Inner join can't produce `null`
+	const inner = db.select({
+		object: sql.jsonObject({ title: articles.title, author: author.object }).as('object'),
+	}).from(articles).innerJoin(author, eq(author.id, articles.authorId)).as('inner_sq');
+
+	const innerRes = await db.select({ article: inner.object }).from(inner);
+	Expect<Equal<typeof innerRes, { article: { title: string; author: { id: number; name: string } } }[]>>;
+}

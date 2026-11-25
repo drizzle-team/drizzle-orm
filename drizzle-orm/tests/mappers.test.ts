@@ -829,6 +829,231 @@ test('Query mapper: never nullify without nullable paths', () => {
 	`);
 });
 
+test('Query mapper: JsonObject uses in-JSON codecs', () => {
+	expect(selectCase(
+		db.select({
+			id: users.id,
+			object: sql.jsonObject({
+				id: users.id,
+				name: users.name,
+				createdAt: users.createdAt,
+				extra: sql`1`.mapWith(Number),
+				nested: sql.jsonObject({ createdAt: users.createdAt, isBanned: users.isBanned }),
+			}),
+		}).from(users),
+		{
+			rawInput: [
+				[1, {
+					id: '1',
+					name: 'First',
+					createdAt: testDateText,
+					extra: '1',
+					nested: { createdAt: testDateText, isBanned: true },
+				}],
+				[2, { id: '2', name: 'Second', createdAt: null, extra: null, nested: { createdAt: null, isBanned: null } }],
+			],
+			expectedOutput: [
+				{
+					id: 1,
+					object: {
+						id: 1,
+						name: 'First',
+						createdAt: testDate,
+						extra: 1,
+						nested: { createdAt: testDate, isBanned: true },
+					},
+				},
+				{
+					id: 2,
+					object: { id: 2, name: 'Second', createdAt: null, extra: null, nested: { createdAt: null, isBanned: null } },
+				},
+			],
+		},
+	)).toMatchInlineSnapshot(`
+		"function jitQueryMapper (rows) {
+			"use strict";
+			const { columns } = this;
+			const { length } = rows;
+			const mapped = new Array(length);
+			const { codec: codec0 } = columns[0];
+			const { selection: jsel0 } = columns[1];
+			const { codec: jcodec7 } = jsel0[0];
+			const { codec: jcodec10 } = jsel0[2];
+			const { field: { decoder: jdec11 } } = jsel0[3];
+			const { selection: jsel12 } = jsel0[4];
+			const { codec: jcodec16 } = jsel12[0];
+			for (let i = 0; i < length; ++i) {
+				const [ c0, c1 ] = rows[i];
+				let o1 = c1;
+				if (o1 !== null) {
+					let { "id": j1, "name": j2, "createdAt": j3, "extra": j4, "nested": j5 } = o1;
+					if (j5 !== null) {
+						let { "createdAt": j13, "isBanned": j14 } = j5;
+						j5 = { "createdAt": j13 === null ? null : jcodec16(j13, 0), "isBanned": j14 };
+					}
+					o1 = { "id": j1 === null ? null : jcodec7(j1, 0), "name": j2, "createdAt": j3 === null ? null : jcodec10(j3, 0), "extra": j4 === null ? null : jdec11.mapFromDriverValue(j4), "nested": j5 };
+				}
+				mapped[i] = {
+					"id": c0 === null ? c0 : codec0(c0, 0),
+					"object": o1,
+				};
+			}
+			return mapped;
+			//# sourceURL=drizzle:jit-query-mapper
+		}"
+	`);
+});
+
+test('Query mapper: JsonObject passthrough on no-op', () => {
+	expect(selectCase(
+		db.select({ object: sql.jsonObject({ name: users.name, content: posts.content }) })
+			.from(users).leftJoin(posts, eq(users.id, posts.authorId)),
+		{
+			rawInput: [[{ name: 'First', content: 'hello' }], [{ name: 'Second', content: null }]],
+			expectedOutput: [{ object: { name: 'First', content: 'hello' } }, { object: { name: 'Second', content: null } }],
+		},
+	)).toMatchInlineSnapshot(`
+		"function jitQueryMapper (rows) {
+			"use strict";
+			const { columns } = this;
+			const { length } = rows;
+			const mapped = new Array(length);
+			for (let i = 0; i < length; ++i) {
+				const [ c0 ] = rows[i];
+				mapped[i] = {
+					"object": c0,
+				};
+			}
+			return mapped;
+			//# sourceURL=drizzle:jit-query-mapper
+		}"
+	`);
+});
+
+test('Query mapper: JsonObject item nullification on columns from nullable joins', () => {
+	const sq = db.select({
+		id: users.id,
+		author: sql.jsonObject({ name: users.name, createdAt: users.createdAt }).as('author'),
+	}).from(users).as('sq');
+
+	expect(selectCase(db.select().from(posts).leftJoin(sq, eq(sq.id, posts.authorId)), {
+		rawInput: [[10, 1, 'hello', 1, { name: 'First', createdAt: testDateText }], [11, null, 'orphan', null, null]],
+		expectedOutput: [
+			{
+				posts: { id: 10, authorId: 1, content: 'hello' },
+				sq: { id: 1, author: { name: 'First', createdAt: testDate } },
+			},
+			{ posts: { id: 11, authorId: null, content: 'orphan' }, sq: null },
+		],
+	})).toMatchInlineSnapshot(`
+		"function jitQueryMapper (rows) {
+			"use strict";
+			const { columns } = this;
+			const { length } = rows;
+			const mapped = new Array(length);
+			const { codec: codec1 } = columns[1];
+			const { codec: codec3 } = columns[3];
+			const { selection: jsel0 } = columns[4];
+			const { codec: jcodec5 } = jsel0[1];
+			for (let i = 0; i < length; ++i) {
+				const [ c0, c1, c2, c3, c4 ] = rows[i];
+				let o4 = c4;
+				if (o4 !== null) {
+					let { "name": j1, "createdAt": j2 } = o4;
+					o4 = { "name": j1, "createdAt": j2 === null ? null : jcodec5(j2, 0) };
+				}
+				mapped[i] = {
+					"posts": {
+						"id": c0,
+						"authorId": c1 === null ? c1 : codec1(c1, 0),
+						"content": c2,
+					},
+					"sq": c3 === null && c4 === null ? null : {
+						"id": c3 === null ? c3 : codec3(c3, 0),
+						"author": o4,
+					},
+				};
+			}
+			return mapped;
+			//# sourceURL=drizzle:jit-query-mapper
+		}"
+	`);
+
+	expect(selectCase(
+		db.select({ content: posts.content, author: sq.author }).from(posts).leftJoin(sq, eq(sq.id, posts.authorId)),
+		{
+			rawInput: [['hello', { name: 'First', createdAt: testDateText }], ['orphan', null]],
+			expectedOutput: [
+				{ content: 'hello', author: { name: 'First', createdAt: testDate } },
+				{ content: 'orphan', author: null },
+			],
+		},
+	)).toMatchInlineSnapshot(`
+		"function jitQueryMapper (rows) {
+			"use strict";
+			const { columns } = this;
+			const { length } = rows;
+			const mapped = new Array(length);
+			const { selection: jsel0 } = columns[1];
+			const { codec: jcodec5 } = jsel0[1];
+			for (let i = 0; i < length; ++i) {
+				const [ c0, c1 ] = rows[i];
+				let o1 = c1;
+				if (o1 !== null) {
+					let { "name": j1, "createdAt": j2 } = o1;
+					o1 = { "name": j1, "createdAt": j2 === null ? null : jcodec5(j2, 0) };
+				}
+				mapped[i] = {
+					"content": c0,
+					"author": o1,
+				};
+			}
+			return mapped;
+			//# sourceURL=drizzle:jit-query-mapper
+		}"
+	`);
+});
+
+test('Query mapper: JsonObject from Subquery', () => {
+	expect(selectCase(
+		db.select({
+			content: posts.content,
+			author: db.select({ author: sql.jsonObject({ name: users.name, createdAt: users.createdAt }).as('author') })
+				.from(users).where(eq(users.id, posts.authorId)).as('author'),
+		}).from(posts),
+		{
+			rawInput: [['hello', { name: 'First', createdAt: testDateText }], ['orphan', null]],
+			expectedOutput: [
+				{ content: 'hello', author: { name: 'First', createdAt: testDate } },
+				{ content: 'orphan', author: null },
+			],
+		},
+	)).toMatchInlineSnapshot(`
+		"function jitQueryMapper (rows) {
+			"use strict";
+			const { columns } = this;
+			const { length } = rows;
+			const mapped = new Array(length);
+			const { selection: jsel0 } = columns[1];
+			const { codec: jcodec5 } = jsel0[1];
+			for (let i = 0; i < length; ++i) {
+				const [ c0, c1 ] = rows[i];
+				let o1 = c1;
+				if (o1 !== null) {
+					let { "name": j1, "createdAt": j2 } = o1;
+					o1 = { "name": j1, "createdAt": j2 === null ? null : jcodec5(j2, 0) };
+				}
+				mapped[i] = {
+					"content": c0,
+					"author": o1,
+				};
+			}
+			return mapped;
+			//# sourceURL=drizzle:jit-query-mapper
+		}"
+	`);
+});
+
 function assertRelationalMapperBehaviorMatch(
 	config: RelationalQueryMapperConfig,
 	rawInput: unknown[],

@@ -74,7 +74,7 @@ _up_one() {
     _compose "$image" down -v --remove-orphans --timeout 0 >/dev/null 2>&1 || true
   fi
   # Readiness is compose/wait.sh's probe from the host, not `up --wait`: some images' own healthchecks call
-  # tools they do not ship (nc in cockroach and azure-sql-edge), so those containers never report healthy.
+  # tools they do not ship (nc in cockroach), so those containers never report healthy.
   _before_up "$image"
   _compose "$image" up -d
   bash compose/wait.sh "$image"

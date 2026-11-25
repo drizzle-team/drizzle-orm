@@ -240,13 +240,13 @@ const skip = [
 	'Mappers: select complex selections',
 	// No jit mappers in workers
 	'Mappers: - correct mappers enabled',
-	'Jit mappers: - simple select - no rows',
-	'Jit mappers: - select - nothing to decode - text',
-	'Jit mappers: - select - nothing to decode - null',
-	'Jit mappers: - insert returning all + select + update returning + delete returning',
-	'Jit mappers: - select complex selections',
-	'Cross-table group never nullified - jit',
-	'Mappers: deep nullification - jit',
+	'Mappers: simple select - no rows - Jit mappers',
+	'Mappers: select - nothing to decode - text - Jit mappers',
+	'Mappers: select - nothing to decode - null - Jit mappers',
+	'Mappers: insert returning all + select + update returning + delete returning - Jit mappers',
+	'Mappers: select complex selections - Jit mappers',
+	'Cross-table group never nullified - Jit mappers',
+	'Mappers: deep nullification - Jit mappers',
 
 	// TODO; alias columns with .as
 	'Cross-table group never nullified',
@@ -259,6 +259,9 @@ const skip = [
 	// Simulator bug: `@miniflare/d1`'s `raw()` builds arrays from object rows, so the two unaliased `rowid` columns
 	// overwrite each other and the row comes back a column short. Real D1's `raw()` returns every column
 	'rowId: a number, rowId.big: a bigint',
+	// Same simulator bug: joined table and subquery both have unaliased `id` column
+	'Mappers - JsonObject: automatic selection',
+	'Mappers - JsonObject: automatic selection - Jit mappers',
 ];
 // the driver returns integers as numbers: integer `numeric` values outside of the safe integer range have already lost
 // precision and throw an unsupported column type error, tests holding them are redefined with safe values

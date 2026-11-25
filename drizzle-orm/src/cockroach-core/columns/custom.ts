@@ -249,7 +249,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 *
 	 * Optional mapping function, that is used for transforming data returned by transofmed to JSON in database data to desired format
 	 *
-	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2)
+	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2) and JSON operators
 	 *
 	 * Defaults to {@link fromDriver} function
 	 * @example
@@ -283,7 +283,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 *
 	 * Additional mapping that could be required for such scenarios can be handled using {@link fromJson} function
 	 *
-	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2)
+	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2) and JSON operators
 	 *
 	 * Following types are being casted to text by default: `geometry`, `timestamp`, `timestamptz`, `decimal`, `int8`
 	 * @example

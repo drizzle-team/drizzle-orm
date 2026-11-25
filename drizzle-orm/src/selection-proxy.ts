@@ -111,6 +111,42 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 			);
 		}
 
+		if (isChunk(value, valueKind, chunkKinds.jsonObject)) {
+			if (value.alias !== undefined || this.config.sqlBehavior === 'sql') {
+				const { alias } = this.config;
+				if (alias === undefined) return value;
+
+				return value.bindToOrigin(
+					alias,
+					new Proxy(
+						value.selection,
+						new SelectionProxyHandler({ ...this.config, sqlBehavior: 'sql' }),
+					) as typeof value.selection,
+				);
+			}
+
+			throw new Error(
+				`You tried to reference "${prop}" field from a subquery, which is an un-aliased JSON object field. Please add an alias to the field using ".as('alias')" method.`,
+			);
+		}
+
+		if (isChunk(value, valueKind, chunkKinds.jsonArray)) {
+			if (value.alias !== undefined || this.config.sqlBehavior === 'sql') {
+				const { alias } = this.config;
+				if (alias === undefined) return value;
+
+				const item = new Proxy(
+					{ item: value.item },
+					new SelectionProxyHandler({ ...this.config, sqlBehavior: 'sql' }),
+				).item as typeof value.item;
+				return value.bindToOrigin(alias, item);
+			}
+
+			throw new Error(
+				`You tried to reference "${prop}" field from a subquery, which is an un-aliased JSON array field. Please add an alias to the field using ".as('alias')" method.`,
+			);
+		}
+
 		if (isChunk(value, valueKind, chunkKinds.column)) {
 			if (this.config.alias) {
 				return new Proxy(
