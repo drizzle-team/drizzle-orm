@@ -26,7 +26,7 @@ import {
 } from '~/relations.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
 import type { Name, Placeholder } from '~/sql/index.ts';
-import type { JsonObject } from '~/sql/sql.ts';
+import type { JsonArray, JsonObject } from '~/sql/sql.ts';
 import { type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { chunkKindOf, chunkKinds, isChunk, isSQLWrapper, unqualifyColumns } from '~/sql/sql.ts';
 import { ValueRows } from '~/sql/sql.ts';
@@ -74,6 +74,8 @@ const sqliteCommonStringChunks = {
 	relationFrom: new StringChunk(' as "r" from ('),
 	relationClose: new StringChunk(') as "t") as '),
 	jsonObjectOpen: new StringChunk('json_object('),
+	jsonArrayOpen: new StringChunk('json_group_array('),
+	jsonArrayClose: new StringChunk(')'),
 } as const;
 
 export interface SQLiteBuildRelationalQueryConfig
@@ -138,7 +140,7 @@ export class SQLiteDialect {
 		);
 	}
 
-	private buildJsonObjectField(field: unknown, collectTo: SQLChunk[]): void {
+	private buildJsonField(field: unknown, collectTo: SQLChunk[]): void {
 		const kind = chunkKindOf(field);
 		if (isChunk(field, kind, chunkKinds.column)) {
 			this.collectJsonValue(collectTo, field, field);
@@ -153,8 +155,10 @@ export class SQLiteDialect {
 			const innerField = Object.values(field._.selectedFields)[0];
 			const innerKind = chunkKindOf(innerField);
 
-			if (isChunk(innerField, innerKind, chunkKinds.jsonObject)) {
-				// Objects stored outside of JSON lose their JSON subtype and become text
+			if (
+				isChunk(innerField, innerKind, chunkKinds.jsonObject) || isChunk(innerField, innerKind, chunkKinds.jsonArray)
+			) {
+				// Objects and arrays stored outside of JSON lose their JSON subtype and become text
 				this.collectJsonValue(collectTo, sql`json(${value})`, jsonObjectCodecs.sqlite);
 				return;
 			}
@@ -168,11 +172,13 @@ export class SQLiteDialect {
 					? getColumnFromDecoder(innerField)
 					: undefined,
 			);
-		} else if (isChunk(field, kind, chunkKinds.jsonObject)) {
-			// Objects stored outside of JSON lose their JSON subtype and become text
+		} else if (isChunk(field, kind, chunkKinds.jsonObject) || isChunk(field, kind, chunkKinds.jsonArray)) {
+			// Objects and arrays stored outside of JSON lose their JSON subtype and become text
 			const value = field.origin !== undefined && field.alias !== undefined
 				? sql`json(${sql.identifier(field.origin)}.${sql.identifier(field.alias)})`
-				: new SQL(this.buildJsonObject(field));
+				: new SQL(
+					isChunk(field, kind, chunkKinds.jsonObject) ? this.buildJsonObject(field) : this.buildJsonArray(field),
+				);
 			this.collectJsonValue(collectTo, value, jsonObjectCodecs.sqlite);
 		} else if (isSQLWrapper(field)) {
 			this.collectJsonValue(collectTo, field, getColumnFromDecoder(field));
@@ -187,9 +193,17 @@ export class SQLiteDialect {
 			const [key, field] = entries[i]!;
 			if (i > 0) collectTo.push(commonStringChunks[', ']);
 			collectTo.push(new StringChunk(this.escapeString(key)), commonStringChunks[', ']);
-			this.buildJsonObjectField(field, collectTo);
+			this.buildJsonField(field, collectTo);
 		}
 		collectTo.push(commonStringChunks[')']);
+
+		return collectTo;
+	};
+
+	buildJsonArray = (array: JsonArray, collectTo: SQLChunk[] = []): SQLChunk[] => {
+		collectTo.push(sqliteCommonStringChunks.jsonArrayOpen);
+		this.buildJsonField(array.item, collectTo);
+		collectTo.push(sqliteCommonStringChunks.jsonArrayClose);
 
 		return collectTo;
 	};
@@ -446,7 +460,8 @@ export class SQLiteDialect {
 
 					break;
 				}
-				case 'JsonObject': {
+				case 'JsonObject':
+				case 'JsonArray': {
 					if (field.origin !== undefined && field.alias !== undefined) {
 						const query = !isSingleTable
 							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
@@ -455,7 +470,8 @@ export class SQLiteDialect {
 						break;
 					}
 
-					this.buildJsonObject(field, chunks);
+					if (fieldType === 'JsonObject') this.buildJsonObject(field, chunks);
+					else this.buildJsonArray(field, chunks);
 
 					if (field.alias !== undefined) chunks.push(commonStringChunks[' as '], sql.identifier(field.alias));
 					break;
@@ -830,6 +846,7 @@ export class SQLiteDialect {
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
 			buildJsonObject: this.buildJsonObject,
+			buildJsonArray: this.buildJsonArray,
 			codecs: this.codecs,
 			invokeSource,
 		});

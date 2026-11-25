@@ -67,6 +67,37 @@ export const joinedJsonObjects = await db.select({
 	author: sql.jsonObject({ id: users.id, bio: users.bio }),
 }).from(posts).leftJoin(users, eq(posts.authorId, users.id));
 
+// JSON arrays
+export const jsonArrays = await db.select({
+	ids: sql.jsonArray(users.id),
+	bios: sql.jsonArray(users.bio),
+	objects: sql.jsonArray(sql.jsonObject({ id: users.id, bio: users.bio })),
+	aliased: sql.jsonArray(users.name).as('aliased'),
+	inObject: sql.jsonObject({ names: sql.jsonArray(users.name) }),
+	scalar: db.select({ titles: sql.jsonArray(posts.title).as('titles') }).from(posts).where(
+		eq(posts.authorId, users.id),
+	).as('scalar'),
+}).from(users);
+export const joinedJsonArrays = await db.select({
+	id: users.id,
+	titles: sql.jsonArray(posts.title),
+}).from(users).leftJoin(posts, eq(posts.authorId, users.id)).groupBy(users.id);
+
+// JSON arrays of joined subqueries are nullable as a whole
+const titlesSq = db.select({
+	authorId: posts.authorId,
+	array: sql.jsonArray(posts.title).as('array'),
+}).from(posts).groupBy(posts.authorId).as('titles_sq');
+const aggregatedSq = db.select({
+	all: sql.jsonArray(titlesSq.array).as('all'),
+}).from(users).leftJoin(titlesSq, eq(titlesSq.authorId, users.id)).as('aggregated_sq');
+
+export const joinedJsonArray = await db.select({
+	titles: titlesSq.array,
+	wrapped: sql.jsonObject({ titles: titlesSq.array }),
+}).from(users).leftJoin(titlesSq, eq(titlesSq.authorId, users.id));
+export const aggregatedJoinedJsonArray = await db.select({ all: aggregatedSq.all }).from(aggregatedSq);
+
 // Subqueries
 const sq = db.select({
 	id: users.id,

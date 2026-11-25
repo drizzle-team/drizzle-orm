@@ -38,6 +38,7 @@ import {
 import { PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
 import { expect, expectTypeOf } from 'vitest';
+import { assertJsonNodes } from '~/json-nodes';
 
 export type RunQuery = (query: any) => Promise<any>;
 const awaitQuery: RunQuery = (query) => query;
@@ -255,6 +256,7 @@ export async function assertAllTypesWithReplacements(
 			...data,
 			self: [allTypesDataWith(nested)],
 		});
+		await assertJsonNodes(db, table, [allTypesDataWith(nested)], { run });
 	}
 }
 
@@ -2354,6 +2356,14 @@ export async function assertAllTypesBounds(
 			expect(
 				await run((<any> db).query.boundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
 			).toStrictEqual(boundsData.map((row) => ({ ...row, self: [row] })));
+			const objects = db.select({
+				object: sql.jsonObject(boundsTable),
+				nested: sql.jsonObject({ object: sql.jsonObject(boundsTable) }),
+			}).from(boundsTable);
+			expectTypeOf<(typeof objects)['_']['result']>().toEqualTypeOf<
+				{ object: BoundsRow; nested: { object: BoundsRow } }[]
+			>();
+			await assertJsonNodes(db, boundsTable, boundsData, { run });
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropBounds())));
@@ -2510,6 +2520,14 @@ export async function assertAllTypesTemporalBounds(
 			expect(
 				await run((<any> db).query.temporalBoundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
 			).toStrictEqual(data.map((row) => ({ ...row, self: [row] })));
+			const objects = db.select({
+				object: sql.jsonObject(temporalBoundsTable),
+				nested: sql.jsonObject({ object: sql.jsonObject(temporalBoundsTable) }),
+			}).from(temporalBoundsTable);
+			expectTypeOf<(typeof objects)['_']['result']>().toEqualTypeOf<
+				{ object: TemporalBoundsRow; nested: { object: TemporalBoundsRow } }[]
+			>();
+			await assertJsonNodes(db, temporalBoundsTable, data, { run });
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropTemporalBounds())));

@@ -185,5 +185,8 @@ export const sqlToStr = (sql: SQL) => {
 		buildJsonObject: () => {
 			throw new Error("we don't support JSON objects in migrations");
 		},
+		buildJsonArray: () => {
+			throw new Error("we don't support JSON arrays in migrations");
+		},
 	}).sql;
 };

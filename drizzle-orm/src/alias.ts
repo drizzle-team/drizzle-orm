@@ -61,7 +61,9 @@ export class ViewSelectionAliasProxyHandler<TSelection extends Record<string, un
 				value,
 				this.columnHandler ??= new ColumnTableAliasProxyHandler(this.view, this.ignoreColumnAlias),
 			);
-		} else if (isSQLWrapper(value) || isChunk(value, kind, chunkKinds.jsonObject)) {
+		} else if (
+			isSQLWrapper(value) || isChunk(value, kind, chunkKinds.jsonObject) || isChunk(value, kind, chunkKinds.jsonArray)
+		) {
 			result = value;
 		} else {
 			result = new Proxy(value as Record<string, unknown>, this);

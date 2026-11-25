@@ -1,6 +1,6 @@
 import type { NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
 import type { Column } from './column.ts';
-import type { JsonObject, SQL } from './sql/sql.ts';
+import type { JsonArray, JsonObject, SQL } from './sql/sql.ts';
 import type { Subquery } from './subquery.ts';
 import type { Table } from './table.ts';
 
@@ -28,7 +28,7 @@ export type OptionalKeyOnly<TKey extends string, T extends Column, OverrideT ext
 // TODO: SQL -> SQLWrapper
 export type SelectedFieldsFlat<TColumn extends Column> = Record<
 	string,
-	TColumn | SQL | SQL.Aliased | Subquery | JsonObject
+	TColumn | SQL | SQL.Aliased | Subquery | JsonObject | JsonArray
 >;
 
 export type SelectedFieldsFlatFull<TColumn extends Column> = Record<
@@ -64,12 +64,20 @@ export type SelectedFieldsOrdered<TColumn extends Column> = (
 		fieldType: 'Subquery';
 		/** Present when subquery's single field is a JSON object */
 		selection?: SelectedJsonFieldsOrdered<TColumn>;
+		/** Present when subquery's single field is a JSON array */
+		element?: SelectedJsonField<TColumn>;
 	} | {
 		field: JsonObject;
 		fieldType: 'JsonObject';
 		selection: SelectedJsonFieldsOrdered<TColumn>;
+	} | {
+		field: JsonArray;
+		fieldType: 'JsonArray';
+		element: SelectedJsonField<TColumn>;
 	})
 )[];
+
+export type SelectedJsonField<TColumn extends Column> = SelectedJsonFieldsOrdered<TColumn>[number];
 
 export type SelectedJsonFieldsOrdered<TColumn extends Column> = (
 	& {
@@ -92,9 +100,15 @@ export type SelectedJsonFieldsOrdered<TColumn extends Column> = (
 		fieldType: 'Subquery';
 		/** Present when subquery's single field is a JSON object */
 		selection?: SelectedJsonFieldsOrdered<TColumn>;
+		/** Present when subquery's single field is a JSON array */
+		element?: SelectedJsonField<TColumn>;
 	} | {
 		field: JsonObject;
 		fieldType: 'JsonObject';
 		selection: SelectedJsonFieldsOrdered<TColumn>;
+	} | {
+		field: JsonArray;
+		fieldType: 'JsonArray';
+		element: SelectedJsonField<TColumn>;
 	})
 )[];

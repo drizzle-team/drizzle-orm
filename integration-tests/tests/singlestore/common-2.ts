@@ -1,3 +1,4 @@
+import { assertJsonNodes } from '~/json-nodes';
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
 import { postponed } from '@drizzle/test-utils';
@@ -3466,6 +3467,7 @@ export function tests(test: Test) {
 
 			expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
 			expect(rawRes).toStrictEqual([allTypesData]);
+			await assertJsonNodes(db, allTypesTable, [allTypesData]);
 
 			await assertAllTypesUnions(db, allTypesTable);
 			await assertAllTypesBounds(db);
@@ -4449,6 +4451,29 @@ export function tests(test: Test) {
 					table: jsonObjectUsers[1]!,
 				}]);
 
+				const empty = await db.select({
+					empty: sql.jsonObject({}),
+					nested: sql.jsonObject({ empty: sql.jsonObject({}) }),
+					inArray: sql.jsonArray(sql.jsonObject({})),
+				}).from(users).where(eq(users.id, 1));
+
+				expectTypeOf(empty).toEqualTypeOf<{ empty: {}; nested: { empty: {} }; inArray: {}[] }[]>();
+				expect(empty).toStrictEqual([{ empty: {}, nested: { empty: {} }, inArray: [{}] }]);
+
+				// Aggregates in objects are computed over the query's groups
+				const aggregated = await db.select({
+					id: users.id,
+					stats: sql.jsonObject({ count: count(posts.id), titles: sql.jsonArray(posts.title) }),
+				}).from(users).leftJoin(posts, eq(posts.authorId, users.id)).groupBy(users.id).orderBy(users.id);
+
+				expectTypeOf(aggregated).toEqualTypeOf<{ id: number; stats: { count: number; titles: (string | null)[] } }[]>();
+				// Order of aggregated elements is up to the database
+				expect(aggregated.map((row) => ({ ...row, stats: { ...row.stats, titles: [...row.stats.titles].sort() } })))
+					.toStrictEqual([
+						{ id: 1, stats: { count: 2, titles: ['P1', 'P2'] } },
+						{ id: 2, stats: { count: 0, titles: [null] } },
+					]);
+
 				// Legacy custom column JSON api, used both directly and as a decoder of an expression
 				const customText = customType<{ data: string; driverData: string; jsonData: string }>({
 					dataType: () => 'text',
@@ -4828,23 +4853,350 @@ export function tests(test: Test) {
 					{ [getTableName(posts)]: jsonObjectPosts[2]!, lateral_sq: null },
 				]);
 
+				const authorOf = db.select({
+					author: sql.jsonObject({ id: users.id, name: users.name, createdAt: users.createdAt }).as('author'),
+				}).from(users).where(eq(users.id, posts.authorId)).as('author');
+
 				const scalar = await db.select({
 					title: posts.title,
-					author: db.select({
-						author: sql.jsonObject({ id: users.id, name: users.name, createdAt: users.createdAt }).as('author'),
-					}).from(users).where(eq(users.id, posts.authorId)).as('author'),
+					author: authorOf,
+					// JSON of correlated subquery embedded into JSON
+					wrapped: sql.jsonObject({ author: authorOf }),
 				}).from(posts).orderBy(posts.id);
 
 				expectTypeOf(scalar).toEqualTypeOf<{
 					title: string;
 					author: { id: number; name: string; createdAt: Date } | null;
+					wrapped: { author: { id: number; name: string; createdAt: Date } | null };
 				}[]>();
 
 				expect(scalar).toStrictEqual([
-					{ title: 'P1', author: first },
-					{ title: 'P2', author: first },
-					{ title: 'Orphan', author: null },
+					{ title: 'P1', author: first, wrapped: { author: first } },
+					{ title: 'P2', author: first, wrapped: { author: first } },
+					{ title: 'Orphan', author: null, wrapped: { author: null } },
 				]);
+
+				// Objects of joined subqueries are `null` as a whole when the join has no match
+				const nestedSq = db.select({
+					id: posts.id,
+					object: sql.jsonObject({ title: posts.title, author: sq.author }).as('object'),
+				}).from(posts).leftJoin(sq, eq(sq.id, posts.authorId)).as('nested_sq');
+
+				const nested = await db.select({ post: nestedSq.object }).from(nestedSq).orderBy(nestedSq.id);
+
+				expectTypeOf(nested).toEqualTypeOf<{
+					post: { title: string; author: { id: number; name: string; createdAt: Date } | null };
+				}[]>();
+
+				expect(nested).toStrictEqual([
+					{ post: { title: 'P1', author: first } },
+					{ post: { title: 'P2', author: first } },
+					{ post: { title: 'Orphan', author: null } },
+				]);
+
+				const reselectedSq = db.select({
+					id: posts.id,
+					author: sq.author,
+				}).from(posts).leftJoin(sq, eq(sq.id, posts.authorId)).as('reselected_sq');
+
+				const reselected = await db.select().from(reselectedSq).orderBy(reselectedSq.id);
+
+				expectTypeOf(reselected).toEqualTypeOf<{
+					id: number;
+					author: { id: number; name: string; createdAt: Date } | null;
+				}[]>();
+
+				expect(reselected).toStrictEqual([
+					{ id: 1, author: first },
+					{ id: 2, author: first },
+					{ id: 3, author: null },
+				]);
+
+				const stats = await db.select({
+					id: users.id,
+					wrapped: sql.jsonObject({
+						stats: db.select({ stats: sql.jsonObject({ count: count() }).as('stats') }).from(posts).where(
+							eq(posts.authorId, users.id),
+						).as('stats'),
+					}),
+				}).from(users).orderBy(users.id);
+
+				expectTypeOf(stats).toEqualTypeOf<{ id: number; wrapped: { stats: { count: number } | null } }[]>();
+
+				expect(stats).toStrictEqual([
+					{ id: 1, wrapped: { stats: { count: 2 } } },
+					{ id: 2, wrapped: { stats: { count: 0 } } },
+				]);
+
+				// Arrays in objects: aggregated by correlated subqueries, selected from subqueries and from joined subqueries
+				const correlatedArrays = await db.select({
+					id: users.id,
+					object: sql.jsonObject({
+						titles: db.select({ titles: sql.jsonArray(posts.title).as('titles') }).from(posts).where(
+							eq(posts.authorId, users.id),
+						).as('titles'),
+					}),
+				}).from(users).orderBy(users.id);
+
+				expectTypeOf(correlatedArrays).toEqualTypeOf<{ id: number; object: { titles: string[] | null } }[]>();
+				// Order of aggregated elements is up to the database
+				expect(
+					correlatedArrays.map((row) => ({
+						id: row.id,
+						object: { titles: row.object.titles && [...row.object.titles].sort() },
+					})),
+				)
+					.toStrictEqual([
+						{ id: 1, object: { titles: ['P1', 'P2'] } },
+						{ id: 2, object: { titles: [] } },
+					]);
+
+				const titlesSq = db.select({
+					id: users.id,
+					titles: sql.jsonArray(posts.title).as('titles'),
+				}).from(users).leftJoin(posts, eq(posts.authorId, users.id)).groupBy(users.id).as('titles_sq');
+
+				const storedArrays = await db.select({
+					id: titlesSq.id,
+					object: sql.jsonObject({ titles: titlesSq.titles }),
+				}).from(titlesSq).orderBy(titlesSq.id);
+
+				expectTypeOf(storedArrays).toEqualTypeOf<{ id: number; object: { titles: (string | null)[] } }[]>();
+				// Order of aggregated elements is up to the database
+				expect(storedArrays.map((row) => ({ id: row.id, object: { titles: [...row.object.titles].sort() } })))
+					.toStrictEqual([
+						{ id: 1, object: { titles: ['P1', 'P2'] } },
+						{ id: 2, object: { titles: [null] } },
+					]);
+
+				// Arrays of joined subqueries are `null` as a whole when the join has no match
+				const authorTitles = db.select({
+					authorId: posts.authorId,
+					array: sql.jsonArray(posts.title).as('array'),
+				}).from(posts).groupBy(posts.authorId).as('author_titles');
+
+				const joinedArrays = await db.select({
+					id: users.id,
+					object: sql.jsonObject({ titles: authorTitles.array }),
+				}).from(users).leftJoin(authorTitles, eq(authorTitles.authorId, users.id)).orderBy(users.id);
+
+				expectTypeOf(joinedArrays).toEqualTypeOf<{ id: number; object: { titles: string[] | null } }[]>();
+				expect(
+					joinedArrays.map((row) => ({
+						id: row.id,
+						object: { titles: row.object.titles && [...row.object.titles].sort() },
+					})),
+				)
+					.toStrictEqual([
+						{ id: 1, object: { titles: ['P1', 'P2'] } },
+						{ id: 2, object: { titles: null } },
+					]);
+			});
+
+			test.concurrent(`Mappers - JsonArray: field kinds${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = singlestoreTable((jit ? 'ja_kinds_users_jit' : 'ja_kinds_users') as 'ja_kinds_users', (t) => ({
+					id: t.int('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					meta: t.json('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = singlestoreTable((jit ? 'ja_kinds_posts_jit' : 'ja_kinds_posts') as 'ja_kinds_posts', (t) => ({
+					id: t.int('id').primaryKey(),
+					authorId: t.int('author_id'),
+					title: t.text('title').notNull(),
+				}));
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
+
+				const res = await db.select({
+					ids: sql.jsonArray(users.id),
+					bios: sql.jsonArray(users.bio),
+					createdAts: sql.jsonArray(users.createdAt),
+					metas: sql.jsonArray(users.meta),
+					doubled: sql.jsonArray(sql`${users.id} * 2`.mapWith(Number)),
+					mapped: sql.jsonArray(sql`${users.createdAt}`.mapWith(users.createdAt)).as('mapped'),
+					objects: sql.jsonArray(sql.jsonObject({
+						id: users.id,
+						createdAt: users.createdAt,
+						nested: sql.jsonObject({ meta: users.meta }),
+					})),
+					aliased: sql.jsonArray(users.name).as('aliased'),
+				}).from(users);
+
+				expectTypeOf(res).toEqualTypeOf<{
+					ids: number[];
+					bios: (string | null)[];
+					createdAts: Date[];
+					metas: ({ tags: string[] } | null)[];
+					doubled: number[];
+					mapped: Date[];
+					objects: { id: number; createdAt: Date; nested: { meta: { tags: string[] } | null } }[];
+					aliased: string[];
+				}[]>();
+
+				expect(res).toStrictEqual([{
+					ids: [1, 2],
+					bios: [null, 'About'],
+					createdAts: [mappersDate, mappersDate],
+					metas: [{ tags: ['a', 'b'] }, null],
+					doubled: [2, 4],
+					mapped: [mappersDate, mappersDate],
+					objects: [
+						{ id: 1, createdAt: mappersDate, nested: { meta: { tags: ['a', 'b'] } } },
+						{ id: 2, createdAt: mappersDate, nested: { meta: null } },
+					],
+					aliased: ['First', 'Second'],
+				}]);
+
+				// Rows of groups without joined matches aggregate to `null` elements
+				const grouped = await db.select({
+					id: users.id,
+					titles: sql.jsonArray(posts.title),
+				}).from(users).leftJoin(posts, eq(posts.authorId, users.id)).groupBy(users.id).orderBy(users.id);
+
+				expectTypeOf(grouped).toEqualTypeOf<{ id: number; titles: (string | null)[] }[]>();
+				// Order of aggregated elements is up to the database
+				expect(grouped.map((row) => ({ ...row, titles: [...row.titles].sort() }))).toStrictEqual([
+					{ id: 1, titles: ['P1', 'P2'] },
+					{ id: 2, titles: [null] },
+				]);
+
+				const empty = await db.select({ ids: sql.jsonArray(users.id) }).from(users).where(eq(users.id, 0));
+
+				expectTypeOf(empty).toEqualTypeOf<{ ids: number[] }[]>();
+				expect(empty).toStrictEqual([{ ids: [] }]);
+
+				// Legacy custom column JSON api, used both directly and as a decoder of an expression
+				const customText = customType<{ data: string; driverData: string; jsonData: string }>({
+					dataType: () => 'text',
+					forJsonSelect: (identifier, sql) => sql`upper(${identifier})`,
+					fromJson: (value) => `json:${value}`,
+				});
+				const customs = singlestoreTable((jit ? 'ja_kinds_custom_jit' : 'ja_kinds_custom') as 'ja_kinds_custom', {
+					value: customText('value').notNull(),
+				});
+
+				await push({ customs });
+				await db.insert(customs).values({ value: 'nick' });
+
+				const customRes = await db.select({
+					direct: sql.jsonArray(customs.value),
+					mapped: sql.jsonArray(sql`${customs.value}`.mapWith(customs.value)).as('mapped'),
+				}).from(customs);
+
+				expectTypeOf(customRes).toEqualTypeOf<{ direct: string[]; mapped: string[] }[]>();
+				expect(customRes).toStrictEqual([{ direct: ['json:NICK'], mapped: ['json:NICK'] }]);
+			});
+
+			test.concurrent(`Mappers - JsonArray: subqueries${jit ? ' - Jit mappers' : ''}`, async ({ createDB, push }) => {
+				const users = singlestoreTable((jit ? 'ja_sq_users_jit' : 'ja_sq_users') as 'ja_sq_users', (t) => ({
+					id: t.int('id').primaryKey(),
+					name: t.text('name').notNull(),
+					bio: t.text('bio'),
+					createdAt: t.timestamp('created_at', { mode: 'date' }).notNull(),
+					meta: t.json('meta').$type<{ tags: string[] }>(),
+				}));
+				const posts = singlestoreTable((jit ? 'ja_sq_posts_jit' : 'ja_sq_posts') as 'ja_sq_posts', (t) => ({
+					id: t.int('id').primaryKey(),
+					authorId: t.int('author_id'),
+					title: t.text('title').notNull(),
+				}));
+
+				await push({ users, posts });
+				const db = createDB({ users, posts }, () => ({}), jit);
+				await db.insert(users).values(jsonObjectUsers);
+				await db.insert(posts).values(jsonObjectPosts);
+
+				const scalar = await db.select({
+					id: users.id,
+					posts: db.select({
+						posts: sql.jsonArray(sql.jsonObject({ id: posts.id, title: posts.title })).as('posts'),
+					}).from(posts).where(eq(posts.authorId, users.id)).as('posts'),
+				}).from(users).orderBy(users.id);
+
+				expectTypeOf(scalar).toEqualTypeOf<{
+					id: number;
+					posts: { id: number; title: string }[] | null;
+				}[]>();
+
+				// Order of aggregated elements is up to the database
+				expect(scalar.map((row) => ({ id: row.id, posts: row.posts && [...row.posts].sort((a, b) => a.id - b.id) })))
+					.toStrictEqual([{
+						id: 1,
+						posts: [{ id: 1, title: 'P1' }, { id: 2, title: 'P2' }],
+					}, {
+						id: 2,
+						posts: [],
+					}]);
+
+				const sq = db.select({
+					id: users.id,
+					titles: sql.jsonArray(posts.title).as('titles'),
+				}).from(users).leftJoin(posts, eq(posts.authorId, users.id)).groupBy(users.id).as('sq');
+
+				const fromSubquery = await db.select({
+					id: sq.id,
+					titles: sq.titles,
+				}).from(sq).orderBy(sq.id);
+
+				expectTypeOf(fromSubquery).toEqualTypeOf<{ id: number; titles: (string | null)[] }[]>();
+
+				// Order of aggregated elements is up to the database
+				expect(fromSubquery.map((row) => ({ id: row.id, titles: [...row.titles].sort() }))).toStrictEqual([
+					{ id: 1, titles: ['P1', 'P2'] },
+					{ id: 2, titles: [null] },
+				]);
+
+				const nested = await db.select({ all: sql.jsonArray(sq.titles) }).from(sq).where(eq(sq.id, 1));
+
+				expectTypeOf(nested).toEqualTypeOf<{ all: (string | null)[][] }[]>();
+				expect(nested.map((row) => ({ all: row.all.map((titles) => [...titles].sort()) }))).toStrictEqual([{
+					all: [['P1', 'P2']],
+				}]);
+
+				// Arrays of joined subqueries are `null` as a whole when the join has no match
+				const titles = db.select({
+					authorId: posts.authorId,
+					array: sql.jsonArray(posts.title).as('array'),
+				}).from(posts).groupBy(posts.authorId).as('titles');
+
+				const joinedTitles = await db.select({
+					id: users.id,
+					titles: titles.array,
+				}).from(users).leftJoin(titles, eq(titles.authorId, users.id)).orderBy(users.id);
+
+				expectTypeOf(joinedTitles).toEqualTypeOf<{ id: number; titles: string[] | null }[]>();
+
+				// Order of aggregated elements is up to the database
+				expect(joinedTitles.map((row) => ({ id: row.id, titles: row.titles && [...row.titles].sort() }))).toStrictEqual(
+					[
+						{ id: 1, titles: ['P1', 'P2'] },
+						{ id: 2, titles: null },
+					],
+				);
+
+				const reselectedTitlesSq = db.select({
+					id: users.id,
+					titles: titles.array,
+				}).from(users).leftJoin(titles, eq(titles.authorId, users.id)).as('reselected_titles');
+
+				const reselectedTitles = await db.select().from(reselectedTitlesSq).orderBy(reselectedTitlesSq.id);
+
+				expectTypeOf(reselectedTitles).toEqualTypeOf<{ id: number; titles: string[] | null }[]>();
+				expect(reselectedTitles.map((row) => ({ id: row.id, titles: row.titles && [...row.titles].sort() })))
+					.toStrictEqual([
+						{ id: 1, titles: ['P1', 'P2'] },
+						{ id: 2, titles: null },
+					]);
+
+				const unaliased = db.select({ titles: sql.jsonArray(users.name) }).from(users).as('unaliased');
+				expect(() => unaliased.titles).toThrowError(
+					'You tried to reference "titles" field from a subquery, which is an un-aliased JSON array field. Please add an alias to the field using ".as(\'alias\')" method.',
+				);
 			});
 
 			test.concurrent(`Mappers: deep nullification of joined subquery${jit ? ' - Jit mappers' : ''}`, async ({ db: defaultDb, push, createDB }) => {

@@ -38,7 +38,7 @@ import {
 	type RqbCustomColumn,
 } from '~/relations.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
-import type { JsonObject } from '~/sql/sql.ts';
+import type { JsonArray, JsonObject } from '~/sql/sql.ts';
 import { type Name, type Query, SQL, sql, type SQLChunk, ValueRows } from '~/sql/sql.ts';
 import { chunkKindOf, chunkKinds, isChunk, isSQLWrapper, unqualifyColumns } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
@@ -73,6 +73,8 @@ const cockroachCommonStringChunks = {
 	joinClose: new StringChunk(') as "t") as '),
 	onTrue: new StringChunk(' on true'),
 	jsonObjectOpen: new StringChunk('json_build_object('),
+	jsonArrayOpen: new StringChunk('coalesce(json_agg('),
+	jsonArrayClose: new StringChunk(`), '[]')`),
 } as const;
 
 export class CockroachDialect {
@@ -226,7 +228,7 @@ export class CockroachDialect {
 		);
 	}
 
-	private buildJsonObjectField(field: unknown, collectTo: SQLChunk[]): void {
+	private buildJsonField(field: unknown, collectTo: SQLChunk[]): void {
 		const kind = chunkKindOf(field);
 		if (isChunk(field, kind, chunkKinds.column)) {
 			this.collectJsonValue(collectTo, field, field);
@@ -241,7 +243,9 @@ export class CockroachDialect {
 			const innerField = Object.values(field._.selectedFields)[0];
 			const innerKind = chunkKindOf(innerField);
 
-			if (isChunk(innerField, innerKind, chunkKinds.jsonObject)) {
+			if (
+				isChunk(innerField, innerKind, chunkKinds.jsonObject) || isChunk(innerField, innerKind, chunkKinds.jsonArray)
+			) {
 				this.collectJsonValue(collectTo, value, jsonObjectCodecs.cockroach);
 				return;
 			}
@@ -255,12 +259,14 @@ export class CockroachDialect {
 					? getColumnFromDecoder(innerField)
 					: undefined,
 			);
-		} else if (isChunk(field, kind, chunkKinds.jsonObject)) {
+		} else if (isChunk(field, kind, chunkKinds.jsonObject) || isChunk(field, kind, chunkKinds.jsonArray)) {
 			this.collectJsonValue(
 				collectTo,
 				field.origin !== undefined && field.alias !== undefined
 					? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
-					: new SQL(this.buildJsonObject(field)),
+					: new SQL(
+						isChunk(field, kind, chunkKinds.jsonObject) ? this.buildJsonObject(field) : this.buildJsonArray(field),
+					),
 				jsonObjectCodecs.cockroach,
 			);
 		} else if (isSQLWrapper(field)) {
@@ -276,9 +282,17 @@ export class CockroachDialect {
 			const [key, field] = entries[i]!;
 			if (i > 0) collectTo.push(commonStringChunks[', ']);
 			collectTo.push(new StringChunk(this.escapeString(key)), commonStringChunks[', ']);
-			this.buildJsonObjectField(field, collectTo);
+			this.buildJsonField(field, collectTo);
 		}
 		collectTo.push(commonStringChunks[')']);
+
+		return collectTo;
+	};
+
+	buildJsonArray = (array: JsonArray, collectTo: SQLChunk[] = []): SQLChunk[] => {
+		collectTo.push(cockroachCommonStringChunks.jsonArrayOpen);
+		this.buildJsonField(array.item, collectTo);
+		collectTo.push(cockroachCommonStringChunks.jsonArrayClose);
 
 		return collectTo;
 	};
@@ -533,7 +547,8 @@ export class CockroachDialect {
 
 					break;
 				}
-				case 'JsonObject': {
+				case 'JsonObject':
+				case 'JsonArray': {
 					if (field.origin !== undefined && field.alias !== undefined) {
 						const query = !isSingleTable
 							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
@@ -542,7 +557,8 @@ export class CockroachDialect {
 						break;
 					}
 
-					this.buildJsonObject(field, chunks);
+					if (fieldType === 'JsonObject') this.buildJsonObject(field, chunks);
+					else this.buildJsonArray(field, chunks);
 
 					if (field.alias !== undefined) chunks.push(commonStringChunks[' as '], sql.identifier(field.alias));
 					break;
@@ -917,6 +933,7 @@ export class CockroachDialect {
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
 			buildJsonObject: this.buildJsonObject,
+			buildJsonArray: this.buildJsonArray,
 			codecs: this.codecs,
 			invokeSource,
 		});

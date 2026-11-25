@@ -35,7 +35,7 @@ import {
 	type WithContainer,
 } from '~/relations.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
-import { type JsonObject, Name, type Query, SQL, sql, type SQLChunk, ValueRows } from '~/sql/sql.ts';
+import { type JsonArray, type JsonObject, Name, type Query, SQL, sql, type SQLChunk, ValueRows } from '~/sql/sql.ts';
 import { chunkKindOf, chunkKinds, isChunk, isSQLWrapper, unqualifyColumns } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
@@ -84,6 +84,8 @@ const pgCommonStringChunks = {
 	joinClose: new StringChunk(') as "t") as '),
 	onTrue: new StringChunk(' on true'),
 	jsonObjectOpen: new StringChunk('json_build_object('),
+	jsonArrayOpen: new StringChunk('coalesce(json_agg('),
+	jsonArrayClose: new StringChunk(`), '[]')`),
 } as const;
 
 export class PgDialect {
@@ -144,7 +146,7 @@ export class PgDialect {
 		);
 	}
 
-	private buildJsonObjectField(field: unknown, collectTo: SQLChunk[]): void {
+	private buildJsonField(field: unknown, collectTo: SQLChunk[]): void {
 		const kind = chunkKindOf(field);
 		if (isChunk(field, kind, chunkKinds.column)) {
 			this.collectJsonValue(collectTo, field, field);
@@ -159,7 +161,9 @@ export class PgDialect {
 			const innerField = Object.values(field._.selectedFields)[0];
 			const innerKind = chunkKindOf(innerField);
 
-			if (isChunk(innerField, innerKind, chunkKinds.jsonObject)) {
+			if (
+				isChunk(innerField, innerKind, chunkKinds.jsonObject) || isChunk(innerField, innerKind, chunkKinds.jsonArray)
+			) {
 				this.collectJsonValue(collectTo, value, jsonObjectCodecs.pg);
 				return;
 			}
@@ -173,12 +177,14 @@ export class PgDialect {
 					? getColumnFromDecoder(innerField)
 					: undefined,
 			);
-		} else if (isChunk(field, kind, chunkKinds.jsonObject)) {
+		} else if (isChunk(field, kind, chunkKinds.jsonObject) || isChunk(field, kind, chunkKinds.jsonArray)) {
 			this.collectJsonValue(
 				collectTo,
 				field.origin !== undefined && field.alias !== undefined
 					? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
-					: new SQL(this.buildJsonObject(field)),
+					: new SQL(
+						isChunk(field, kind, chunkKinds.jsonObject) ? this.buildJsonObject(field) : this.buildJsonArray(field),
+					),
 				jsonObjectCodecs.pg,
 			);
 		} else if (isSQLWrapper(field)) {
@@ -194,9 +200,17 @@ export class PgDialect {
 			const [key, field] = entries[i]!;
 			if (i > 0) collectTo.push(commonStringChunks[', ']);
 			collectTo.push(new StringChunk(this.escapeString(key)), commonStringChunks[', ']);
-			this.buildJsonObjectField(field, collectTo);
+			this.buildJsonField(field, collectTo);
 		}
 		collectTo.push(commonStringChunks[')']);
+
+		return collectTo;
+	};
+
+	buildJsonArray = (array: JsonArray, collectTo: SQLChunk[] = []): SQLChunk[] => {
+		collectTo.push(pgCommonStringChunks.jsonArrayOpen);
+		this.buildJsonField(array.item, collectTo);
+		collectTo.push(pgCommonStringChunks.jsonArrayClose);
 
 		return collectTo;
 	};
@@ -457,7 +471,8 @@ export class PgDialect {
 
 					break;
 				}
-				case 'JsonObject': {
+				case 'JsonObject':
+				case 'JsonArray': {
 					if (field.origin !== undefined && field.alias !== undefined) {
 						const query = !isSingleTable
 							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.alias)}`
@@ -466,7 +481,8 @@ export class PgDialect {
 						break;
 					}
 
-					this.buildJsonObject(field, chunks);
+					if (fieldType === 'JsonObject') this.buildJsonObject(field, chunks);
+					else this.buildJsonArray(field, chunks);
 
 					if (field.alias !== undefined) chunks.push(commonStringChunks[' as '], new Name(field.alias));
 					break;
@@ -836,6 +852,7 @@ export class PgDialect {
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
 			buildJsonObject: this.buildJsonObject,
+			buildJsonArray: this.buildJsonArray,
 			codecs: this.codecs,
 			invokeSource,
 		});
@@ -846,6 +863,7 @@ export class PgDialect {
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
 			buildJsonObject: this.buildJsonObject,
+			buildJsonArray: this.buildJsonArray,
 			codecs: this.codecs,
 			tagged: true,
 		});

@@ -38,6 +38,7 @@ export interface BuildQueryConfig {
 	escapeParam(num: number, value: unknown): string;
 	escapeString(str: string): string;
 	buildJsonObject(object: JsonObject): SQLChunk[];
+	buildJsonArray(array: JsonArray): SQLChunk[];
 	codecs?: CodecsCollection;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
@@ -379,6 +380,26 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				continue;
 			}
 
+			if (isChunk(chunk, kind, chunkKinds.jsonArray)) {
+				if (chunk.alias !== undefined) {
+					out.sql += (chunk.origin !== undefined ? escapeName(chunk.origin) + '.' : '') + escapeName(chunk.alias);
+					continue;
+				}
+
+				const nested = config.buildJsonArray(chunk);
+				this.collectSQL(
+					nested,
+					config,
+					paramStartIndex,
+					inlineParams,
+					out,
+					params,
+					undefined,
+				);
+
+				continue;
+			}
+
 			if (typeof chunk === 'function' && 'enumName' in chunk) {
 				if ('schema' in chunk && chunk.schema) {
 					out.sql += escapeName(chunk.schema as string) + '.' + escapeName(chunk.enumName as string);
@@ -583,6 +604,7 @@ export const chunkKinds = {
 	subquery: 10,
 	valueRows: 11,
 	jsonObject: 12,
+	jsonArray: 13,
 } as const;
 
 const chunkKindByConstructor = new WeakMap<object, number>();
@@ -612,6 +634,8 @@ function resolveChunkKind(ctor: object, kinds: Set<string>): number {
 		? chunkKinds.valueRows
 		: kinds.has(JsonObject[entityKind])
 		? chunkKinds.jsonObject
+		: kinds.has(JsonArray[entityKind])
+		? chunkKinds.jsonArray
 		: chunkKinds.other;
 	chunkKindByConstructor.set(ctor, kind);
 	// Set cache directly on entity
@@ -647,6 +671,7 @@ export interface ChunkTypes {
 	[chunkKinds.subquery]: Subquery;
 	[chunkKinds.valueRows]: ValueRows;
 	[chunkKinds.jsonObject]: JsonObject;
+	[chunkKinds.jsonArray]: JsonArray;
 }
 
 export function isChunk<TKind extends keyof ChunkTypes>(
@@ -820,6 +845,7 @@ export type SQLChunk =
 	| Subquery
 	| AnyColumn
 	| JsonObject
+	| JsonArray
 	| Param
 	| Name
 	| undefined
@@ -828,7 +854,7 @@ export type SQLChunk =
 
 export type SQLGenerator<T = unknown> = typeof sql<T>;
 
-export type JsonObjectSelectionField = Column | SQL | SQL.Aliased | Subquery | JsonObject;
+export type JsonObjectSelectionField = Column | SQL | SQL.Aliased | Subquery | JsonObject | JsonArray;
 
 export type JsonObjectSelection = Record<string, JsonObjectSelectionField>;
 
@@ -851,6 +877,30 @@ export class JsonObject<
 	/** @internal - used to claim JSON object as subquery's or view's field */
 	bindToOrigin<TOrigin extends string | undefined>(origin: TOrigin, selection: TSelection = this.selection) {
 		return new JsonObject<TSelection, TAlias, TOrigin>(selection, this.alias, origin);
+	}
+}
+
+export type JsonArrayItem = Column | SQL | SQL.Aliased | Subquery | JsonObject | JsonArray<any, any, string>;
+
+export class JsonArray<
+	TItem extends JsonArrayItem = JsonArrayItem,
+	TAlias extends string | undefined = string | undefined,
+	TOrigin extends string | undefined = string | undefined,
+> {
+	static readonly [entityKind]: string = 'JsonArray';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	constructor(readonly item: TItem, readonly alias?: TAlias, readonly origin?: TOrigin) {}
+
+	as<TAlias extends string>(alias: TAlias) {
+		return new JsonArray<TItem, TAlias>(this.item, alias);
+	}
+
+	/** @internal - used to claim JSON array as subquery's or view's field */
+	bindToOrigin<TOrigin extends string | undefined>(origin: TOrigin, item: TItem = this.item) {
+		return new JsonArray<TItem, TAlias, TOrigin>(item, this.alias, origin);
 	}
 }
 
@@ -958,13 +1008,74 @@ export namespace sql {
 		return sql.raw(encoded);
 	}
 
+	/**
+	 * Builds a JSON object of all columns of `table`, keyed by their property names in table definition.
+	 *
+	 * @example
+	 * ```ts
+	 * // { id: number; post: { id: number; authorId: number | null; title: string } }[]
+	 * await db.select({ id: posts.id, post: sql.jsonObject(posts) }).from(posts);
+	 * ```
+	 */
 	export function jsonObject<TTable extends Table>(table: TTable): JsonObject<TTable['_']['columns']>;
+	/**
+	 * Builds a JSON object of all fields selected by `view`, keyed and nested the same way as view's selection.
+	 *
+	 * @example
+	 * ```ts
+	 * await db.select({ user: sql.jsonObject(usersView) }).from(usersView);
+	 * ```
+	 */
 	export function jsonObject<TView extends View>(
 		view: TView,
 	): JsonObject<Assume<TView['_']['selectedFields'], JsonObjectSelection>, undefined, undefined>;
+	/**
+	 * Builds a JSON object of all fields selected by `subquery`, keyed and nested the same way as subquery's selection.
+	 * Values are decoded the same way as directly selected fields
+	 *
+	 * @example
+	 * ```ts
+	 * const author = db.select({ id: users.id, name: users.name }).from(users).as('author');
+	 *
+	 * // Fields of a nullable joined source are nullable, the object itself is not
+	 * // { title: string; author: { id: number | null; name: string | null } }[]
+	 * await db.select({ title: posts.title, author: sql.jsonObject(author) })
+	 *   .from(posts)
+	 *   .leftJoin(author, eq(author.id, posts.authorId));
+	 * ```
+	 */
 	export function jsonObject<TSubquery extends Subquery>(
 		subquery: TSubquery,
 	): JsonObject<Assume<TSubquery['_']['selectedFields'], JsonObjectSelection>, undefined, undefined>;
+	/**
+	 * Builds a JSON object of `selection`'s fields, keyed by `selection`'s keys.
+	 * Fields can be columns, `sql` expressions, scalar subqueries,
+	 * other JSON objects and JSON arrays (see {@link sql.jsonArray}).
+	 *
+	 * Must be aliased with `.as()` to be referenced from a subquery, view or CTE;
+	 * such reference is `null` as a whole if it's source is joined as nullable and has no matching row
+	 *
+	 * @example
+	 * ```ts
+	 * // { post: { id: number; title: string; author: { name: string | null } } }[]
+	 * await db.select({
+	 *   post: sql.jsonObject({
+	 *     id: posts.id,
+	 *     title: posts.title,
+	 *     author: sql.jsonObject({ name: users.name }),
+	 *   }),
+	 * }).from(posts).leftJoin(users, eq(users.id, posts.authorId));
+	 *
+	 * // Referenced from a subquery
+	 * const sq = db.select({
+	 *   authorId: posts.authorId,
+	 *   post: sql.jsonObject({ id: posts.id, title: posts.title }).as('post'),
+	 * }).from(posts).as('sq');
+	 *
+	 * // { id: number; post: { id: number; title: string } | null }[]
+	 * await db.select({ id: users.id, post: sq.post }).from(users).leftJoin(sq, eq(sq.authorId, users.id));
+	 * ```
+	 */
 	export function jsonObject<TSelection extends JsonObjectSelection>(
 		selection: TSelection,
 	): JsonObject<TSelection, undefined, undefined>;
@@ -977,6 +1088,31 @@ export namespace sql {
 		return new JsonObject(
 			(source as Exclude<typeof source, JsonObjectSelection>)[Table.Symbol.Columns] as JsonObjectSelection,
 		);
+	}
+
+	/**
+	 * Aggregates values of `item` across the rows of a query's group into a JSON array
+	 *
+	 * @example
+	 * ```ts
+	 * // Aggregated across a group
+	 * await db.select({ id: users.id, titles: sql.jsonArray(posts.title) })
+	 *   .from(users)
+	 *   .leftJoin(posts, eq(posts.authorId, users.id))
+	 *   .groupBy(users.id);
+	 *
+	 * // Aggregated in a scalar subquery
+	 * await db.select({
+	 *   id: users.id,
+	 *   posts: db.select({ posts: sql.jsonArray(sql.jsonObject(posts)).as('posts') })
+	 *     .from(posts)
+	 *     .where(eq(posts.authorId, users.id))
+	 *     .as('posts'),
+	 * }).from(users);
+	 * ```
+	 */
+	export function jsonArray<TItem extends JsonArrayItem>(item: TItem): JsonArray<TItem, undefined, undefined> {
+		return new JsonArray(item);
 	}
 }
 

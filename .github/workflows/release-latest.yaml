@@ -127,7 +127,7 @@ jobs:
         ports:
           - 33306:3306
       mssql:
-        image: mcr.microsoft.com/azure-sql-edge
+        image: mcr.microsoft.com/mssql/server:2025-latest
         env:
           ACCEPT_EULA: 1
           MSSQL_SA_PASSWORD: drizzle123PASSWORD!

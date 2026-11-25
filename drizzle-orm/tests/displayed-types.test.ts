@@ -77,6 +77,11 @@ const expected: Record<string, string> = {
 	jsonObjects:
 		'{ object: { id: number; bio: string | null; upper: string; mapped: number; scalar: string | null; nested: { name: string; }; }; aliased: { name: string; }; table: { id: number; name: string; bio: string | null; }; }[]',
 	joinedJsonObjects: '{ post: { title: string; }; author: { id: number | null; bio: string | null; }; }[]',
+	jsonArrays:
+		'{ ids: number[]; bios: (string | null)[]; objects: { id: number; bio: string | null; }[]; aliased: string[]; inObject: { names: string[]; }; scalar: string[] | null; }[]',
+	joinedJsonArrays: '{ id: number; titles: (string | null)[]; }[]',
+	joinedJsonArray: '{ titles: string[] | null; wrapped: { titles: string[] | null; }; }[]',
+	aggregatedJoinedJsonArray: '{ all: (string[] | null)[]; }[]',
 	fromSubquery:
 		'{ id: number; bio: string | null; upper: string; post: { title: string | null; }; user: { id: number; name: string; bio: string | null; }; scalar: string | null; object: { name: string; title: string | null; }; }[]',
 	joinedSubquery:

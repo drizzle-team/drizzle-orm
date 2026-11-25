@@ -14,7 +14,7 @@ import { Collect, CollectNullable, Json, JsonArray, Nullable, Transform } from '
 import { getOriginalColumnFromAlias } from '~/alias.ts';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
-import type { SelectedFieldsOrdered, SelectedJsonFieldsOrdered } from '~/operations.ts';
+import type { SelectedFieldsOrdered, SelectedJsonField, SelectedJsonFieldsOrdered } from '~/operations.ts';
 import type { PgCodecs, PostgresType } from '~/pg-core/codecs.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PreparedQuerySelection } from '~/pg-core/dialect.ts';
@@ -104,10 +104,11 @@ type PlainItem = SelectedFieldsOrdered<Column>[number];
 type RelationalSelection = Extract<PreparedQuerySelection, { type: 'relational' }>['fields'];
 type RelationalItem = RelationalSelection[number];
 
-type JsonObjectItem = SelectedJsonFieldsOrdered<Column>[number];
+type JsonObjectItem = SelectedJsonField<Column>;
+type JsonNodeType = 'JsonObject' | 'JsonArray';
 
 function getDecoder(
-	item: Exclude<PlainItem | JsonObjectItem, { fieldType: 'JsonObject' }>,
+	item: Exclude<PlainItem | JsonObjectItem, { fieldType: JsonNodeType }>,
 ): DriverValueDecoder<any, any> {
 	switch (item.fieldType) {
 		case 'Column':
@@ -291,7 +292,7 @@ function jsonLeafFor(item: RelationalItem): TypeSpec | TransformMarker {
 }
 
 function jsonLeaf(
-	item: RelationalItem | Exclude<JsonObjectItem, { fieldType: 'JsonObject' }>,
+	item: RelationalItem | Exclude<JsonObjectItem, { fieldType: JsonNodeType }>,
 	decoder: DriverValueDecoder<any, any>,
 	column: Column | undefined,
 ): TypeSpec | TransformMarker {
@@ -339,13 +340,33 @@ function jsonObjectSpecFor(selection: SelectedJsonFieldsOrdered<Column>): JsonSp
 		const item = selection[i]!;
 		spec[i] = [
 			item.key,
-			item.fieldType === 'JsonObject' || (item.fieldType === 'Subquery' && item.selection)
-				? Json(jsonObjectSpecFor(item.selection!))
-				: jsonLeaf(item, getDecoder(item), item.column),
+			isJsonNodeItem(item)
+				? jsonNodeSpecFor(item)
+				: jsonLeaf(item, getDecoder(item as Exclude<JsonObjectItem, { fieldType: JsonNodeType }>), item.column),
 		];
 	}
 
 	return spec;
+}
+
+function isJsonNodeItem<TItem extends PlainItem | JsonObjectItem>(
+	item: TItem,
+): item is TItem & ({ selection: SelectedJsonFieldsOrdered<Column> } | { element: JsonObjectItem }) {
+	return item.fieldType === 'JsonObject' || item.fieldType === 'JsonArray'
+		|| (item.fieldType === 'Subquery' && (!!item.selection || !!item.element));
+}
+
+function jsonNodeSpecFor(
+	item: { selection?: SelectedJsonFieldsOrdered<Column>; element?: JsonObjectItem },
+): JsonMarker {
+	if (item.selection) return Json(jsonObjectSpecFor(item.selection));
+
+	const element = item.element!;
+	return JsonArray(
+		isJsonNodeItem(element)
+			? jsonNodeSpecFor(element)
+			: jsonLeaf(element, getDecoder(element as Exclude<JsonObjectItem, { fieldType: JsonNodeType }>), element.column),
+	);
 }
 
 function jsonMarkerFor(item: RelationalItem): JsonMarker {
@@ -384,18 +405,11 @@ export function buildShape(
 
 type PlainLeafSpec = WireSpec | TransformMarker | JsonMarker;
 
-/** JSON objects, subqueries selecting one: their selections are already resolved against codecs */
-function isJsonObjectItem(
-	item: PlainItem,
-): item is PlainItem & { selection: SelectedJsonFieldsOrdered<Column> } {
-	return item.fieldType === 'JsonObject' || (item.fieldType === 'Subquery' && !!item.selection);
-}
-
 function plainLeaf(item: PlainItem, codecs: PgCodecs | undefined): PlainLeafSpec {
-	if (isJsonObjectItem(item)) return Json(jsonObjectSpecFor(item.selection));
+	if (isJsonNodeItem(item)) return jsonNodeSpecFor(item);
 
 	return wireLeaf(
-		getDecoder(item as Exclude<PlainItem, { fieldType: 'JsonObject' }>),
+		getDecoder(item as Exclude<PlainItem, { fieldType: JsonNodeType }>),
 		item.column,
 		item.codecOverride,
 		item.arrayDimensions,
@@ -471,15 +485,15 @@ const MAX_MEMOIZED_SHAPES = 2048;
 export const createShapeGenerator = (codecs: PgCodecs) => {
 	// A column's leaf depends only on the column and the codecs (its arrayDimensions is column.dimensions).
 	const columnLeaves = new WeakMap<Column, PlainLeafSpec>();
-	// `Json` markers are built anew per call: cached by the selected object to keep shapes memoizable
-	const jsonObjectLeaves = new WeakMap<object, PlainLeafSpec>();
+	// JSON markers are built anew per call: cached by the selected object or array to keep shapes memoizable
+	const jsonNodeLeaves = new WeakMap<object, PlainLeafSpec>();
 	let root: ShapeNode = {};
 	let memoized = 0;
 
 	const leafOf = (item: PlainItem): PlainLeafSpec => {
-		if (isJsonObjectItem(item)) {
-			let leaf = jsonObjectLeaves.get(item.field);
-			if (leaf === undefined) jsonObjectLeaves.set(item.field, leaf = plainLeaf(item, codecs));
+		if (isJsonNodeItem(item)) {
+			let leaf = jsonNodeLeaves.get(item.field);
+			if (leaf === undefined) jsonNodeLeaves.set(item.field, leaf = plainLeaf(item, codecs));
 			return leaf;
 		}
 		if (item.fieldType !== 'Column' || item.codecOverride !== undefined) return plainLeaf(item, codecs);

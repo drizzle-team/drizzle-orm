@@ -11,6 +11,7 @@ export { PgError } from './errors.ts';
 export { Collect, CollectNullable, Json, JsonArray, Jsonb, JsonbArray, Nullable, Transform } from './json.ts';
 export type {
 	CollectMarker,
+	JsonElementSpec,
 	JsonMarker,
 	JsonSpec,
 	JsTarget,
