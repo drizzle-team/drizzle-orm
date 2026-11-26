@@ -62,3 +62,29 @@ test('generated SQL still omits NOT NULL for single-column integer primary keys'
 	expect(createTable).toContain('`id` integer PRIMARY KEY');
 	expect(createTable).not.toContain('`id` integer PRIMARY KEY NOT NULL');
 });
+
+test('diffing a nullable text primary key against non-null emits table recreation with NOT NULL', async () => {
+	const to = toDDL(textPkSchema);
+	const from = toDDL(textPkSchema);
+	const fromCol = from.columns.one({ table: 'users', name: 'id' });
+	expect(fromCol).toBeDefined();
+	fromCol!.notNull = false;
+
+	const { statements } = await ddlDiffDry(from, to, 'default');
+	const { sqlStatements } = fromJson(statements);
+	const recreateSql = sqlStatements.find((it) => it.includes('`__new_users`'));
+
+	expect(recreateSql).toBeDefined();
+	expect(recreateSql).toContain('`id` text PRIMARY KEY NOT NULL');
+});
+
+test('diffing a nullable integer primary key against non-null does not recreate the table', async () => {
+	const to = toDDL(intPkSchema);
+	const from = toDDL(intPkSchema);
+	const fromCol = from.columns.one({ table: 'items', name: 'id' });
+	expect(fromCol).toBeDefined();
+	fromCol!.notNull = false;
+
+	const { statements } = await ddlDiffDry(from, to, 'default');
+	expect(statements).toHaveLength(0);
+});

@@ -156,7 +156,8 @@ export const ddlDiff = async (
 	const indexesAlters = updates.filter((it) => it.entityType === 'indexes');
 
 	const alteredColumns = updates.filter((it) => it.entityType === 'columns').filter((it) => {
-		if (it.notNull && ddl2.pks.one({ table: it.table, columns: [it.name] })) {
+		const pk = ddl2.pks.one({ table: it.table, columns: [it.name] });
+		if (it.notNull && pk && !pk.nameExplicit && it.$right.type.toLowerCase() === 'integer') {
 			delete it.notNull;
 		}
 
