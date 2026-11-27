@@ -4,7 +4,7 @@ import { originUUID } from '../../global';
 import type { PgSchema, PgSchemaInternal } from '../../serializer/pgSchema';
 import { fromDatabase } from '../../serializer/pgSerializer';
 import type { DB } from '../../utils';
-import { Entities } from '../validations/cli';
+import type { Entities } from '../validations/cli';
 import { ProgressView } from '../views';
 
 export const pgPushIntrospect = async (

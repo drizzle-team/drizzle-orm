@@ -58,9 +58,11 @@ export class PgTimestamp<T extends ColumnBaseConfig<'date', 'PgTimestamp'>> exte
 		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
-	override mapFromDriverValue = (value: string): Date | null => {
-		return new Date(this.withTimezone ? value : value + '+0000');
-	};
+	override mapFromDriverValue(value: Date | string): Date {
+		if (typeof value === 'string') return new Date(this.withTimezone ? value : value + '+0000');
+
+		return value;
+	}
 
 	override mapToDriverValue = (value: Date): string => {
 		return value.toISOString();
@@ -120,6 +122,19 @@ export class PgTimestampString<T extends ColumnBaseConfig<'string', 'PgTimestamp
 	getSQLType(): string {
 		const precision = this.precision === undefined ? '' : `(${this.precision})`;
 		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
+	}
+
+	override mapFromDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
+
+		const shortened = value.toISOString().slice(0, -1).replace('T', ' ');
+		if (this.withTimezone) {
+			const offset = value.getTimezoneOffset();
+			const sign = offset <= 0 ? '+' : '-';
+			return `${shortened}${sign}${Math.floor(Math.abs(offset) / 60).toString().padStart(2, '0')}`;
+		}
+
+		return shortened;
 	}
 }
 

@@ -1,0 +1,19 @@
+# GitHub dispatches a workflow only when a file with its name is on the default branch.
+# This file registers the workflow, and the release branch holds the real one. Run it on
+# that branch: gh workflow run postgres-publish.yml --ref beta
+# The filename is registered on npmjs.com as the trusted publisher for @drizzle-team/postgres.
+name: postgres publish
+
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  wrong-ref:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fail on the default branch
+        run: |
+          echo "::error::This workflow publishes from the release branch. Run it with: gh workflow run postgres-publish.yml --ref beta"
+          exit 1

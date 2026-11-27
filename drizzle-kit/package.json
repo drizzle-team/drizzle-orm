@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-kit",
-	"version": "0.31.4",
+	"version": "0.31.11",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -46,7 +46,7 @@
 		"@drizzle-team/brocli": "^0.10.2",
 		"@esbuild-kit/esm-loader": "^2.5.5",
 		"esbuild": "^0.25.4",
-		"esbuild-register": "^3.5.0"
+		"tsx": "^4.21.0"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.15.3",
@@ -82,7 +82,6 @@
 		"commander": "^12.1.0",
 		"dockerode": "^4.0.6",
 		"dotenv": "^16.0.3",
-		"drizzle-kit": "0.25.0-b1faa33",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"env-paths": "^3.0.0",
 		"esbuild-node-externals": "^1.9.0",
@@ -92,7 +91,7 @@
 		"gel": "^2.0.0",
 		"get-port": "^6.1.2",
 		"glob": "^8.1.0",
-		"hanji": "^0.0.5",
+		"hanji": "^0.0.8",
 		"hono": "^4.7.9",
 		"json-diff": "1.0.6",
 		"micromatch": "^4.0.8",
@@ -107,7 +106,6 @@
 		"semver": "^7.7.2",
 		"superjson": "^2.2.1",
 		"tsup": "^8.3.5",
-		"tsx": "^3.12.1",
 		"typescript": "^5.6.3",
 		"uuid": "^9.0.1",
 		"vite-tsconfig-paths": "^4.3.2",

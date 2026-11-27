@@ -3,6 +3,7 @@
 
 !src
 !imports-checker
+!announcements
 !tests
 !vitest.config.ts
 !README.md
